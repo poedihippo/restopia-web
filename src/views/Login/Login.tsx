@@ -43,6 +43,7 @@ const Login = () => {
                         <Input
                           {...field}
                           placeholder="m@example.com"
+                          type="email"
                           aria-invalid={!!fieldState.error}
                         />
                         {fieldState.error && (

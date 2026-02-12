@@ -33,15 +33,27 @@ import { useAuth } from "@/hooks/useAuth";
 const data = {
   navMain: [
     {
-      title: "Getting Started",
+      title: "User Master",
       url: "#",
       items: [
         {
-          title: "Installation",
+          title: "Users",
+          url: "/users",
+        },
+        {
+          title: "Companies",
+          url: "/companies",
+        },
+        {
+          title: "Branches",
+          url: "/branches",
+        },
+        {
+          title: "Roles",
           url: "#",
         },
         {
-          title: "Project Structure",
+          title: "Permissions",
           url: "#",
         },
       ],
@@ -184,7 +196,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <Collapsible
             key={item.title}
             title={item.title}
-            defaultOpen
             className="group/collapsible"
           >
             <SidebarGroup>
@@ -225,18 +236,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     {user?.name?.charAt(0)?.toUpperCase() ?? "U"}
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{user?.name ?? "-"}</span>
-                    <span className="truncate text-xs text-muted-foreground">{user?.email}</span>
+                    <span className="truncate font-semibold">
+                      {user?.name ?? "-"}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {user?.email}
+                    </span>
                   </div>
                   <ChevronsUpDown className="ml-auto size-4" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]" align="start">
+              <DropdownMenuContent
+                side="top"
+                className="w-[--radix-popper-anchor-width]"
+                align="start"
+              >
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
                   {user?.email}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="text-destructive focus:text-destructive"
+                >
                   <LogOut className="mr-2 size-4" />
                   Logout
                 </DropdownMenuItem>
