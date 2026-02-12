@@ -13,7 +13,7 @@ import { useAxios } from "./useApi";
 
 type AuthContextType = {
   user: IUserMe | null;
-  login: (token: string, redirectUrl?: string) => Promise<void>;
+  login: (token: string, refreshToken: string) => Promise<void>;
   logout: () => void;
   isLoggedIn: boolean;
   isLoading: boolean;
@@ -33,8 +33,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const api = useAxios();
 
-  const logout = useCallback(() => {
+  const logout = useCallback((reason?: "expired" | "manual") => {
     cookies.remove("token", { path: "/" });
+    cookies.remove("refresh_token", { path: "/" });
+    cookies.remove("session_start", { path: "/" });
 
     setUser(null);
     setIsLoggedIn(false);
@@ -42,9 +44,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     queryClient.clear();
     queryClient.removeQueries();
 
-    toast.success("Logout Berhasil", {
-      description: "Anda akan diarahkan ke halaman login.",
-    });
+    if (reason === "expired") {
+      toast.error("Sesi Berakhir", {
+        description:
+          "Sesi Anda telah berakhir setelah 1 jam. Silakan login kembali.",
+      });
+    } else {
+      toast.success("Logout Berhasil", {
+        description: "Anda akan diarahkan ke halaman login.",
+      });
+    }
 
     window.location.href = "/";
   }, []);
@@ -83,21 +92,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [api, logout]);
 
   useEffect(() => {
+    const SESSION_MAX_MS = 60 * 60 * 1000;
+
     const interval = setInterval(() => {
       const token = cookies.get("token");
-      if (!token && user) {
-        logout();
-      }
       if (!token && (isLoggedIn || user)) {
         logout();
+        return;
+      }
+
+      const sessionStart = cookies.get("session_start");
+      if (sessionStart && Date.now() - Number(sessionStart) >= SESSION_MAX_MS) {
+        logout("expired");
       }
     }, 5000);
 
     return () => clearInterval(interval);
   }, [user, logout, isLoggedIn]);
 
-  const login = async (token: string) => {
+  const login = async (token: string, refreshToken: string) => {
     cookies.remove("token", { path: "/" });
+    cookies.remove("refresh_token", { path: "/" });
+    cookies.remove("session_start", { path: "/" });
 
     cookies.set("token", token, {
       expires: 1,
@@ -105,6 +121,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
     });
+    cookies.set("refresh_token", refreshToken, {
+      expires: 7,
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+    cookies.set("session_start", String(Date.now()), {
+      expires: 1,
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+
     setIsLoggedIn(true);
 
     try {

@@ -37,12 +37,13 @@ const useLogin = () => {
     try {
       const response = await loginMutation.mutateAsync(values);
       const token = response.data.data.access_token;
+      const refreshToken = response.data.data.refresh_token;
 
-      if (token) {
+      if (token && refreshToken) {
         toast.success("Login successful", {
           description: "Redirecting to dashboard...",
         });
-        await login(token);
+        await login(token, refreshToken);
       }
     } catch (error) {
       const message = isAxiosError(error)
