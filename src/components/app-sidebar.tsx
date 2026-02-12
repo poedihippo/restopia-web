@@ -42,7 +42,7 @@ const data = {
         },
         {
           title: "Companies",
-          url: "/companies",
+          url: "/users/companies",
         },
         {
           title: "Branches",

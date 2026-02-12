@@ -2,6 +2,7 @@ import { IUser } from "@/@types/user";
 import { Button } from "@/components/ui/button";
 import { Column, DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
@@ -11,15 +12,27 @@ import useUser from "./useUser";
 const User = () => {
   const {
     isLoading,
+    isLoadingBranch,
+    branches,
     pagination,
     search,
     users,
     handlePageChange,
     handleSearch,
+    handleBranchChange,
     createModal,
     editModal,
     deleteModal,
   } = useUser();
+
+  const branchOptions = useMemo(
+    () =>
+      branches.map((branch) => ({
+        value: branch.id,
+        label: branch.name ?? "",
+      })),
+    [branches],
+  );
 
   const columns: Column<IUser>[] = useMemo(
     () => [
@@ -30,11 +43,6 @@ const User = () => {
       {
         title: "Name",
         key: "name",
-      },
-      {
-        title: "Client",
-        key: "client.name",
-        render: (value: unknown) => (value as string) ?? "-",
       },
       {
         title: "Email",
@@ -77,16 +85,25 @@ const User = () => {
         </p>
       </div>
 
-      {/* Filters */}
       <div className="mb-4 flex flex-col gap-4">
-        {/* Search and Create Button */}
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
+          <div className="flex-1 flex flex-col sm:flex-row gap-4">
             <Input
-              placeholder="Search users..."
+              placeholder="Search..."
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full sm:max-w-sm"
+            />
+            <SearchableSelect
+              isClearable
+              isLoading={isLoadingBranch}
+              placeholder="Filter by branch..."
+              options={branchOptions}
+              onChange={(selected) => {
+                const option = selected as { value: number } | null;
+                handleBranchChange(option?.value);
+              }}
+              className="w-full sm:w-60"
             />
           </div>
           <Button
@@ -96,37 +113,6 @@ const User = () => {
             Create User
           </Button>
         </div>
-
-        {/* Filter Row */}
-        {/* <div className="grid grid-cols-2 gap-2">
-          <Combobox
-            options={[
-              { value: "all", label: "All Clients" },
-              ...clients.map((client) => ({
-                value: String(client.id),
-                label: client.name || "",
-              })),
-            ]}
-            value={selectedClientId || "all"}
-            onValueChange={handleClientFilter}
-            onOpenChange={handleClientFilterOpenChange}
-            placeholder="All Clients"
-            searchPlaceholder="Search clients..."
-            emptyText="No clients found."
-            className="w-full"
-          />
-          <Select value={selectedType} onValueChange={handleTypeFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All Types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="technician">Technician</SelectItem>
-              <SelectItem value="user">User</SelectItem>
-            </SelectContent>
-          </Select>
-        </div> */}
       </div>
 
       {/* Data Table */}
