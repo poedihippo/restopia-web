@@ -18,3 +18,8 @@ export interface Permission {
   id?: number;
   name?: string;
 }
+
+export interface IRoleDTO {
+  name: string;
+  permissions_ids: number[];
+}

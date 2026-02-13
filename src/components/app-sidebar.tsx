@@ -50,11 +50,7 @@ const data = {
         },
         {
           title: "Roles",
-          url: "#",
-        },
-        {
-          title: "Permissions",
-          url: "#",
+          url: "/users/roles",
         },
       ],
     },

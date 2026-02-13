@@ -1,4 +1,3 @@
-import { IBranch } from "@/@types/branch";
 import { ICompanies } from "@/@types/companies";
 import { Button } from "@/components/ui/button";
 import { Column, DataTable } from "@/components/ui/data-table";
@@ -43,7 +42,7 @@ const Companies = () => {
   );
 
   const renderActions = useCallback(
-    (_record: IBranch, _index: number) => (
+    (_record: ICompanies, _index: number) => (
       <div className="flex gap-2">
         <button
           className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
