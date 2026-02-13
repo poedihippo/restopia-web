@@ -16,7 +16,7 @@ export type CompaniesFormValues = z.infer<typeof companiesSchema>;
 export const useCreateCompaniesModal = (onSuccess?: () => void) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const createUserMutation = useCompaniesMutation();
+  const createMutation = useCompaniesMutation();
 
   const form = useForm<CompaniesFormValues>({
     resolver: zodResolver(companiesSchema),
@@ -42,9 +42,9 @@ export const useCreateCompaniesModal = (onSuccess?: () => void) => {
           name: values.name,
         };
 
-        await createUserMutation.mutateAsync(payload);
+        await createMutation.mutateAsync(payload);
 
-        toast.success("User created successfully");
+        toast.success("Companies created successfully");
         closeModal();
         onSuccess?.();
       } catch (error: unknown) {
@@ -67,11 +67,11 @@ export const useCreateCompaniesModal = (onSuccess?: () => void) => {
           });
           toast.error("Please fix the validation errors");
         } else {
-          toast.error(responseData?.message ?? "Failed to create user");
+          toast.error(responseData?.message ?? "Failed to create companies ");
         }
       }
     },
-    [createUserMutation, closeModal, onSuccess, form],
+    [createMutation, closeModal, onSuccess, form],
   );
 
   return {
@@ -80,6 +80,6 @@ export const useCreateCompaniesModal = (onSuccess?: () => void) => {
     openModal,
     closeModal,
     handleSubmit,
-    isSubmitting: createUserMutation.isPending,
+    isSubmitting: createMutation.isPending,
   };
 };

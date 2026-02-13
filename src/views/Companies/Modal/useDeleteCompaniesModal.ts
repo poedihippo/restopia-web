@@ -31,7 +31,7 @@ export const useDeleteCompaniesModal = (onSuccess?: () => void) => {
     } catch (error: unknown) {
       const axiosError = error as AxiosError<{ message?: string }>;
       toast.error(
-        axiosError?.response?.data?.message ?? "Failed to delete user",
+        axiosError?.response?.data?.message ?? "Failed to delete companies",
       );
     }
   }, [selected, deleteMutation, closeModal, onSuccess]);

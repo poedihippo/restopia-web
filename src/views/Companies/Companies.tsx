@@ -1,13 +1,14 @@
 import { IBranch } from "@/@types/branch";
+import { ICompanies } from "@/@types/companies";
 import { Button } from "@/components/ui/button";
 import { Column, DataTable } from "@/components/ui/data-table";
+import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import useCompanies from "./useCompanies";
 import { CompaniesModal } from "./Modal/CompaniesModal";
-import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
+import useCompanies from "./useCompanies";
 
 const Companies = () => {
   const {
@@ -22,7 +23,7 @@ const Companies = () => {
     editModal,
   } = useCompanies();
 
-  const columns: Column<IBranch>[] = useMemo(
+  const columns: Column<ICompanies>[] = useMemo(
     () => [
       {
         title: "ID",
@@ -84,7 +85,7 @@ const Companies = () => {
             onClick={() => createModal.openModal()}
             className="w-full sm:w-auto"
           >
-            Create User
+            Create Company
           </Button>
         </div>
       </div>

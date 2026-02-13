@@ -13,4 +13,16 @@ export interface IBranch {
   is_default?: boolean;
   created_at?: Date;
   updated_at?: Date;
+  company?: ICompanyBranch;
+}
+
+export interface ICompanyBranch {
+  id: number;
+  name: string;
+}
+
+export interface IBranchDTO {
+  code: string;
+  name: string;
+  is_default: boolean;
 }

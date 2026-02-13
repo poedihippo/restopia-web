@@ -79,7 +79,7 @@ export const useEditCompaniesModal = (onSuccess?: () => void) => {
           });
           toast.error("Please fix the validation errors");
         } else {
-          toast.error(responseData?.message ?? "Failed to update user");
+          toast.error(responseData?.message ?? "Failed to update companies");
         }
       }
     },
