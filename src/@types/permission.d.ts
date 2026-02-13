@@ -1,8 +1,10 @@
-import { Meta } from "./global";
-
 export interface IPermissionList {
+  data?: IPermissionListDatum[];
+}
+
+export interface IPermissionListDatum {
+  group?: string;
   data?: IPermission[];
-  meta?: Meta;
 }
 
 export interface IPermission {

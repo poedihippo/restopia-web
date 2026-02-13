@@ -1,5 +1,5 @@
-import { IBranchList } from "@/@types/branch";
 import { IListParams } from "@/@types/global";
+import { IPermissionList } from "@/@types/permission";
 import { useQuery } from "@tanstack/react-query";
 import api from "../useApi";
 
@@ -10,7 +10,9 @@ const useGetPermissionList = (
   return useQuery({
     queryKey: ["permissions", "list", params],
     queryFn: async () => {
-      const response = await api.get<IBranchList>("permissions", { params });
+      const response = await api.get<IPermissionList>("permissions", {
+        params,
+      });
       return response.data;
     },
     enabled: options?.enabled,

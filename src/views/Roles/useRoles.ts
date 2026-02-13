@@ -1,7 +1,7 @@
 import useGetCompaniesList from "@/hooks/companies/useGetCompaniesList";
 import useGetRoleList from "@/hooks/roles/useGetRoleList";
 import useDataTable from "@/hooks/useDataTable";
-import React, { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useDeleteRolesModal } from "./Modal/useDeleteRolesModal";
 import useDetailPermissionModal from "./Modal/useDetailPermissionModal";
 
