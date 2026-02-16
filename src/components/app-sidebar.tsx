@@ -72,7 +72,7 @@ const data = {
         },
         {
           title: "UOM",
-          url: "#",
+          url: "/products/uom",
         },
         {
           title: "Product Conversion",
