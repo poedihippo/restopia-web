@@ -23,3 +23,14 @@ export const Genders = [
     key: "female",
   },
 ];
+
+export const productType = [
+  {
+    label: "Progress",
+    key: "progress",
+  },
+  {
+    label: "Final",
+    key: "final",
+  },
+];

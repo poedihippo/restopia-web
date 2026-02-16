@@ -28,8 +28,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
+import { useRouter } from "next/router";
 
-// This is sample data.
 const data = {
   navMain: [
     {
@@ -55,122 +55,99 @@ const data = {
       ],
     },
     {
-      title: "Build Your Application",
+      title: "Media",
+      url: "#",
+    },
+    {
+      title: "Product Master",
       url: "#",
       items: [
         {
-          title: "Routing",
+          title: "Product",
+          url: "/products",
+        },
+        {
+          title: "Product Category",
+          url: "/products/product-categories",
+        },
+        {
+          title: "UOM",
           url: "#",
         },
         {
-          title: "Data Fetching",
-          url: "#",
-          isActive: true,
-        },
-        {
-          title: "Rendering",
+          title: "Product Conversion",
           url: "#",
         },
         {
-          title: "Caching",
+          title: "Product UOM",
           url: "#",
         },
         {
-          title: "Styling",
+          title: "Product Inventory",
           url: "#",
         },
         {
-          title: "Optimizing",
-          url: "#",
-        },
-        {
-          title: "Configuring",
-          url: "#",
-        },
-        {
-          title: "Testing",
-          url: "#",
-        },
-        {
-          title: "Authentication",
-          url: "#",
-        },
-        {
-          title: "Deploying",
-          url: "#",
-        },
-        {
-          title: "Upgrading",
-          url: "#",
-        },
-        {
-          title: "Examples",
+          title: "Stock Movement",
           url: "#",
         },
       ],
     },
     {
-      title: "API Reference",
+      title: "Production Master",
       url: "#",
       items: [
         {
-          title: "Components",
+          title: "Recipe",
           url: "#",
         },
         {
-          title: "File Conventions",
-          url: "#",
-        },
-        {
-          title: "Functions",
-          url: "#",
-        },
-        {
-          title: "next.config.js Options",
-          url: "#",
-        },
-        {
-          title: "CLI",
-          url: "#",
-        },
-        {
-          title: "Edge Runtime",
+          title: "Production",
           url: "#",
         },
       ],
     },
     {
-      title: "Architecture",
+      title: "Purchase Master",
       url: "#",
       items: [
         {
-          title: "Accessibility",
+          title: "Supplier",
           url: "#",
         },
         {
-          title: "Fast Refresh",
-          url: "#",
-        },
-        {
-          title: "Next.js Compiler",
-          url: "#",
-        },
-        {
-          title: "Supported Browsers",
-          url: "#",
-        },
-        {
-          title: "Turbopack",
+          title: "Purchase Order",
           url: "#",
         },
       ],
     },
     {
-      title: "Community",
+      title: "Transfer Master",
       url: "#",
       items: [
         {
-          title: "Contribution Guide",
+          title: "Delivery",
+          url: "#",
+        },
+        {
+          title: "Receipt",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Sales Master",
+      url: "#",
+      items: [
+        {
+          title: "Customer",
+          url: "#",
+        },
+        {
+          title: "Voucher",
+          url: "#",
+        },
+        {
+          title: "Sales Order",
           url: "#",
         },
       ],
@@ -180,6 +157,7 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { logout, user } = useAuth();
+  const router = useRouter();
   return (
     <Sidebar {...props}>
       <SidebarHeader>
@@ -201,20 +179,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               >
                 <CollapsibleTrigger>
                   {item.title}{" "}
-                  <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                  {(item?.items?.length ?? 0) > 0 && (
+                    <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                  )}
                 </CollapsibleTrigger>
               </SidebarGroupLabel>
               <CollapsibleContent>
                 <SidebarGroupContent>
-                  <SidebarMenu>
-                    {item.items.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild isActive={item.isActive}>
-                          <a href={item.url}>{item.title}</a>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
+                  {(item.items?.length ?? 0) > 0 && (
+                    <SidebarMenu>
+                      {item.items?.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={
+                              router.pathname === item.url ||
+                              router.pathname.startsWith(item.url + "/")
+                            }
+                          >
+                            <a href={item.url}>{item.title}</a>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  )}
                 </SidebarGroupContent>
               </CollapsibleContent>
             </SidebarGroup>
