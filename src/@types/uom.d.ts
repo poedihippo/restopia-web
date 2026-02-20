@@ -1,7 +1,7 @@
 import { Meta } from "./global";
 
 export interface IUOMList {
-  data?: IUOM[];
+  data: IUOM[];
   meta?: Meta;
 }
 

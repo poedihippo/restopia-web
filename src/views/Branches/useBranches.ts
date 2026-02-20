@@ -17,6 +17,7 @@ const useBranches = () => {
     }),
     [companyId],
   );
+  
   const {
     queryParams,
     search,
