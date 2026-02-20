@@ -58,8 +58,6 @@ const ProductConversions = () => {
     [filterTargetData],
   );
 
-  console.log(productConversions, 'check data')
-
   const columns: Column<IProductConversions>[] = useMemo(
     () => [
       {
@@ -193,7 +191,7 @@ const ProductConversions = () => {
         isOpen={deleteModal.isOpen}
         onClose={deleteModal.closeModal}
         onConfirm={deleteModal.handleConfirmDelete}
-        label={deleteModal.selected?.uom?.name}
+        label={deleteModal.selected?.product?.name}
         isDeleting={deleteModal.isDeleting}
       />
 

@@ -80,7 +80,7 @@ const data = {
         },
         {
           title: "Product UOM",
-          url: "#",
+          url: "/products/product-uoms",
         },
         {
           title: "Product Inventory",
