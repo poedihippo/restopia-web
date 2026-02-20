@@ -26,8 +26,12 @@ export const Genders = [
 
 export const productType = [
   {
-    label: "Progress",
-    key: "progress",
+    label: "Raw",
+    key: "raw",
+  },
+  {
+    label: "Wip",
+    key: "wip",
   },
   {
     label: "Final",

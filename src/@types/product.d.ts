@@ -30,6 +30,5 @@ export interface IProductDTO {
   code: string;
   name: string;
   type: string;
-  price: string | number;
   description: string;
 }

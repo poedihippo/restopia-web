@@ -12,7 +12,6 @@ const Schema = z.object({
   code: z.string().min(1, "Code is required"),
   name: z.string().min(1, "Name is required"),
   type: z.string().min(1, "Type is required"),
-  price: z.number().min(1, "Price is required"),
   description: z.string().min(1, "Description is required"),
 });
 
@@ -30,7 +29,6 @@ export const useCreateProductModal = (onSuccess?: () => void) => {
       code: "",
       name: "",
       type: "",
-      price: 0,
       description: "",
     },
   });
@@ -53,7 +51,6 @@ export const useCreateProductModal = (onSuccess?: () => void) => {
           code: values.code,
           name: values.name,
           type: values.type,
-          price: values.price,
           description: values.description,
         };
 

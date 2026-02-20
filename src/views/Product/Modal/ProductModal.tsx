@@ -194,29 +194,7 @@ export const ProductModal = ({
                 )}
               />
             </Field>
-            <Field>
-              <FieldLabel>Price</FieldLabel>
-              <Controller
-                control={form.control}
-                name="price"
-                render={({ field, fieldState }) => (
-                  <>
-                    <Input
-                      {...field}
-                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                      type="number"
-                      placeholder="0"
-                      aria-invalid={!!fieldState.error}
-                    />
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </>
-                )}
-              />
-            </Field>
+           
 
             <Field>
               <FieldLabel>Description</FieldLabel>
