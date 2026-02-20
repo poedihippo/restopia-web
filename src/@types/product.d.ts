@@ -1,7 +1,7 @@
 import { Meta } from "./global";
 
 export interface IProductList {
-  data?: IProduct[];
+  data: IProduct[];
   meta?: Meta;
 }
 

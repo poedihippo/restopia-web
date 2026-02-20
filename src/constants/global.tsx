@@ -38,3 +38,14 @@ export const productType = [
     key: "final",
   },
 ];
+
+export const status = [
+  {
+    label: "Active",
+    key: "active",
+  },
+  {
+    label: "Inactive",
+    key: "inactive",
+  },
+];

@@ -1,5 +1,5 @@
 export interface IProductUomsList {
-  data?: IProductUom[];
+  data: IProductUom[];
   meta?: Meta;
 }
 
