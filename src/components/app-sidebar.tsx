@@ -86,10 +86,6 @@ const data = {
           title: "Product Inventory",
           url: "/products/product-inventory",
         },
-        {
-          title: "Stock Movement",
-          url: "#",
-        },
       ],
     },
     {

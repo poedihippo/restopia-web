@@ -22,8 +22,14 @@ interface GlobalLayoutProps {
   children: React.ReactNode;
 }
 
-function toHref(label: string) {
-  return "/" + label.toLowerCase().replace(/\s+/g, "-");
+function toHref(breadcrumb: string[], index: number) {
+  return (
+    "/" +
+    breadcrumb
+      .slice(0, index + 1)
+      .map((label) => label.toLowerCase().replace(/\s+/g, "-"))
+      .join("/")
+  );
 }
 
 export function GlobalLayout({
@@ -57,7 +63,7 @@ export function GlobalLayout({
                         {isLast ? (
                           <BreadcrumbPage>{item}</BreadcrumbPage>
                         ) : (
-                          <BreadcrumbLink href={toHref(item)}>
+                          <BreadcrumbLink href={toHref(breadcrumb, index)}>
                             {item}
                           </BreadcrumbLink>
                         )}
