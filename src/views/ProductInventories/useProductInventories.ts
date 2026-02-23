@@ -2,52 +2,61 @@ import useGetBranchList from "@/hooks/branches/useGetBranchList";
 import useGetProductInventoriesList from "@/hooks/product-inventories/useGetProductInventoriesList";
 import useGetProductUomsList from "@/hooks/product-uoms/useGetProductUomsList";
 import useDataTable from "@/hooks/useDataTable";
-import React, { useCallback, useMemo, useState } from "react";
-import { useEditProductInventoriesModal } from "./Modal/useEditProductInventoriesModal";
+import { useCallback, useMemo, useState } from "react";
+import { useCreateStockMovement } from "../StockMovement/Modal/useCreateStockMovement";
 import { useCreateProductInventoriesModal } from "./Modal/useCreateProductInventoriesModal";
 import { useDeleteProductInventoriesModal } from "./Modal/useDeleteProductInventoriesModal";
+import { useEditProductInventoriesModal } from "./Modal/useEditProductInventoriesModal";
 
 const useProductInventories = () => {
-  const [productId, setProductId] = useState<number>();
-  const [uomId, setUomId] = useState<number>();
-  const [isDefault, setIsDefault] = useState<number>();
-  const [status, setStatus] = useState<string>();
-  const [priceGte, setPriceGte] = useState<number>();
-  const [PriceLte, setPriceLte] = useState<number>();
-  const [expiryDateGte, setExpiryDateGte] = useState<number>();
-  const [expiryDateLte, setExpiryDateLte] = useState<number>();
-  const [stockGte, setStockGte] = useState<number>();
-  const [stockLte, setStockLte] = useState<number>();
+  const [productId, setProductId] = useState<number | null>();
+  const [branchId, setBranchId] = useState<number | null>();
+  const [isDefault, setIsDefault] = useState<number | null>();
+  const [status, setStatus] = useState<string | null>();
+  const [priceGte, setPriceGte] = useState<number | null>();
+  const [PriceLte, setPriceLte] = useState<number | null>();
+  const [expiryDateGte, setExpiryDateGte] = useState<string | null>();
+  const [expiryDateLte, setExpiryDateLte] = useState<string | null>();
+  const [stockGte, setStockGte] = useState<number | null>();
+  const [stockLte, setStockLte] = useState<number | null>();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [filterKey, setFilterKey] = useState(0);
 
-  const extraParams = useMemo(
-    () => ({
+  const extraParams = useMemo(() => {
+    const filter: Record<string, unknown> = {
+      product_id: productId,
+      branch_id: branchId,
+      is_default: isDefault,
+      price_qte: priceGte,
+      price_lte: PriceLte,
+      status: status,
+      expiry_date_gte: expiryDateGte,
+      expiry_date_lte: expiryDateLte,
+      stock_gte: stockGte,
+      stock_lte: stockLte,
+    };
+
+    const activeFilter = Object.fromEntries(
+      Object.entries(filter).filter(([, v]) => v != null),
+    );
+
+    return {
       include: "created_by,updated_by,branch,product_uom",
-      filter: {
-        product_id: productId,
-        uom_id: uomId,
-        is_default: isDefault,
-        price_qte: priceGte,
-        price_lte: PriceLte,
-        status: status,
-        expiry_date_gte: expiryDateGte,
-        expiry_date_lte: expiryDateLte,
-        stock_gte: stockGte,
-        stock_lte: stockLte,
-      },
-    }),
-    [
-      productId,
-      uomId,
-      isDefault,
-      priceGte,
-      PriceLte,
-      status,
-      expiryDateGte,
-      expiryDateLte,
-      stockGte,
-      stockLte,
-    ],
-  );
+      ...(Object.keys(activeFilter).length > 0 ? { filter: activeFilter } : {}),
+    };
+  }, [
+    productId,
+    branchId,
+    isDefault,
+    priceGte,
+    PriceLte,
+    status,
+    expiryDateGte,
+    expiryDateLte,
+    stockGte,
+    stockLte,
+  ]);
+
   const {
     queryParams,
     search,
@@ -76,17 +85,32 @@ const useProductInventories = () => {
   const editModal = useEditProductInventoriesModal(refetch);
   const createModal = useCreateProductInventoriesModal(refetch);
   const deleteModal = useDeleteProductInventoriesModal(refetch);
+  const createStockMovementModal = useCreateStockMovement(selectedId, refetch);
 
   const handleProductChange = useCallback((id?: number) => {
     setProductId(id);
   }, []);
 
-  const handleUomChange = useCallback((id?: number) => {
-    setUomId(id);
+  const handleBranchChange = useCallback((id?: number) => {
+    setBranchId(id);
   }, []);
 
   const handleDefaultChange = useCallback((id?: number) => {
     setIsDefault(id);
+  }, []);
+
+  const handleClearFilter = useCallback(() => {
+    setProductId(null);
+    setBranchId(null);
+    setIsDefault(null);
+    setStatus(null);
+    setPriceGte(null);
+    setPriceLte(null);
+    setExpiryDateGte(null);
+    setExpiryDateLte(null);
+    setStockGte(null);
+    setStockLte(null);
+    setFilterKey((k) => k + 1);
   }, []);
 
   return {
@@ -98,11 +122,14 @@ const useProductInventories = () => {
     isLoading,
     isLoadingProduct,
     isLoadingBranch,
+    selectedId,
+    filterKey,
     handlePageChange,
     handleSearch,
     handleProductChange,
-    handleUomChange,
+    handleBranchChange,
     handleDefaultChange,
+    handleClearFilter,
     setPriceGte,
     setPriceLte,
     setExpiryDateGte,
@@ -110,11 +137,13 @@ const useProductInventories = () => {
     setStatus,
     setStockGte,
     setStockLte,
+    setSelectedId,
 
     //Modal
     editModal,
     createModal,
     deleteModal,
+    createStockMovementModal,
   };
 };
 

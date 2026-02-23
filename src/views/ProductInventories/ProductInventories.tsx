@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { useCallback, useMemo } from "react";
 import { ProductInventoriesModal } from "./Modal/ProductInventoriesModal";
 import useProductInventories from "./useProductInventories";
-import { Pencil, Trash2 } from "lucide-react";
+import { PackagePlus, Pencil, Trash2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -25,6 +25,8 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { StockMovementModal } from "../StockMovement/Modal/StockMovementModal";
+import Link from "next/link";
 
 const ProductInventories = () => {
   const {
@@ -38,9 +40,11 @@ const ProductInventories = () => {
     isLoadingBranch,
     handlePageChange,
     handleSearch,
+    filterKey,
     handleProductChange,
-    handleUomChange,
+    handleBranchChange,
     handleDefaultChange,
+    handleClearFilter,
     setPriceGte,
     setPriceLte,
     setExpiryDateGte,
@@ -48,11 +52,13 @@ const ProductInventories = () => {
     setStatus,
     setStockGte,
     setStockLte,
+    setSelectedId,
 
     //Modal
     editModal,
     createModal,
     deleteModal,
+    createStockMovementModal,
   } = useProductInventories();
   const productOptions = useMemo(
     () =>
@@ -150,6 +156,15 @@ const ProductInventories = () => {
     (_record: IProductInventories, _index: number) => (
       <div className="flex gap-2">
         <button
+          className="p-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white cursor-pointer"
+          onClick={() => {
+            setSelectedId(_record.id);
+            createStockMovementModal.openModal();
+          }}
+        >
+          <PackagePlus className="h-4 w-4" />
+        </button>
+        <button
           className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
           onClick={() => editModal.openModal(productInventories[_index])}
         >
@@ -163,7 +178,13 @@ const ProductInventories = () => {
         </button>
       </div>
     ),
-    [productInventories, editModal, deleteModal],
+    [
+      productInventories,
+      editModal,
+      deleteModal,
+      createStockMovementModal,
+      setSelectedId,
+    ],
   );
 
   return (
@@ -185,6 +206,7 @@ const ProductInventories = () => {
               className="w-full sm:max-w-sm"
             />
             <SearchableSelect
+              key={`product-${filterKey}`}
               isClearable
               isLoading={isLoadingProduct}
               placeholder="Filter by product..."
@@ -196,13 +218,14 @@ const ProductInventories = () => {
               className="w-full sm:w-60"
             />
             <SearchableSelect
+              key={`branch-${filterKey}`}
               isClearable
               isLoading={isLoadingBranch}
               placeholder="Filter by branch..."
               options={branchOptions}
               onChange={(selected) => {
                 const option = selected as { value: number } | null;
-                handleUomChange(option?.value);
+                handleBranchChange(option?.value);
               }}
               className="w-full sm:w-60"
             />
@@ -297,6 +320,30 @@ const ProductInventories = () => {
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">
+                      Expiry Range
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        min={0}
+                        placeholder="Start"
+                        onChange={(e) =>
+                          setExpiryDateGte(e.target.value || undefined)
+                        }
+                      />
+                      <span className="text-muted-foreground">–</span>
+                      <Input
+                        type="date"
+                        min={0}
+                        placeholder="End"
+                        onChange={(e) =>
+                          setExpiryDateLte(e.target.value || undefined)
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
                       Status
                     </span>
                     <Select
@@ -319,7 +366,19 @@ const ProductInventories = () => {
                 </div>
               </PopoverContent>
             </Popover>
+
+            <Button
+              className="bg-yellow-500 hover:bg-yellow-600"
+              onClick={() => handleClearFilter()}
+            >
+              Clear Filter
+            </Button>
           </div>
+          <Link href={"/products/product-inventory/stock-movements"}>
+            <Button className="bg-blue-500 hover:bg-blue-600">
+              Stock Movements
+            </Button>
+          </Link>
           <Button
             onClick={() => createModal.openModal()}
             className="w-full sm:w-auto"
@@ -351,6 +410,15 @@ const ProductInventories = () => {
         onConfirm={deleteModal.handleConfirmDelete}
         label={deleteModal.selected?.product_uom?.product?.name}
         isDeleting={deleteModal.isDeleting}
+      />
+
+      <StockMovementModal
+        mode="create"
+        isOpen={createStockMovementModal.isOpen}
+        onClose={createStockMovementModal.closeModal}
+        onSubmit={createStockMovementModal.handleSubmit}
+        form={createStockMovementModal.form}
+        isSubmitting={createStockMovementModal.isSubmitting}
       />
 
       {editModal.isOpen && (

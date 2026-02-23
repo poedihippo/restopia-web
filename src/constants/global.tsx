@@ -49,3 +49,14 @@ export const status = [
     key: "inactive",
   },
 ];
+
+export const direction = [
+  {
+    label: "In",
+    key: "in",
+  },
+  {
+    label: "Out",
+    key: "out",
+  },
+];
