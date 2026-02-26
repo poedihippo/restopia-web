@@ -47,12 +47,12 @@ export const ProductUomsModal = ({
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "Edit Product Conversions" : "Create Product Conversions"}
+            {isEdit ? "Edit Product Uoms" : "Create Product Uoms"}
           </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Edit product conversions information. Update the fields as needed."
-              : "Add a new product conversions to the system. Fill in all the required information."}
+              ? "Edit product uoms information. Update the fields as needed."
+              : "Add a new product uoms to the system. Fill in all the required information."}
           </DialogDescription>
         </DialogHeader>
 

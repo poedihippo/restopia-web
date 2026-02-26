@@ -93,12 +93,12 @@ const data = {
       url: "#",
       items: [
         {
-          title: "Recipe",
-          url: "#",
+          title: "Recipes",
+          url: "/production/recipes",
         },
         {
           title: "Production",
-          url: "#",
+          url: "/production",
         },
       ],
     },
