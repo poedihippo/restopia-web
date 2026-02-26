@@ -1,11 +1,12 @@
-import React from 'react'
+import { GlobalLayout } from "@/components/global-layout";
+import Productions from "@/views/Productions";
 
-const index = () => {
+const ProductionPage = () => {
   return (
-    <div>
-      
-    </div>
-  )
-}
+    <GlobalLayout name="Productions" breadcrumb={["Productions"]}>
+      <Productions />
+    </GlobalLayout>
+  );
+};
 
-export default index
+export default ProductionPage;

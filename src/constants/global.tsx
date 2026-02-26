@@ -50,6 +50,17 @@ export const status = [
   },
 ];
 
+export const statusProduction = [
+  {
+    label: "Pending",
+    key: "pending",
+  },
+  {
+    label: "Final",
+    key: "final",
+  },
+];
+
 export const direction = [
   {
     label: "In",
