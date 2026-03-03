@@ -4,7 +4,7 @@ import { Column, DataTable } from "@/components/ui/data-table";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import useProductions from "./useProductions";
 import { format } from "date-fns";
@@ -80,6 +80,11 @@ const Productions = () => {
   const renderActions = useCallback(
     (_record: IProduction, _index: number) => (
       <div className="flex gap-2">
+        <Link href={`/production/${_record.id}/detail`}>
+          <button className="p-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white cursor-pointer">
+            <Eye className="h-4 w-4" />
+          </button>
+        </Link>
         <Link href={`/production/${_record.id}/edit`}>
           <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
             <Pencil className="h-4 w-4" />

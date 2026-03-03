@@ -1,11 +1,14 @@
-import { IProductionDTO } from "@/@types/productions";
+import { IProductionDTO, Media } from "@/@types/productions";
+import useMediaDeleteMutation from "@/hooks/media/useMediaDeleteMutation";
+import useMediaMutation from "@/hooks/media/useMediaMutation";
+import useMediaUpdateMutation from "@/hooks/media/useMediaUpdateMutation";
 import useGetProduction from "@/hooks/productions/useGetProduction";
 import useProductionUpdateMutation from "@/hooks/productions/useProductionUpdateMutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { format } from "date-fns";
 import { useRouter } from "next/router";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -42,10 +45,37 @@ interface Props {
 
 export const useEditProductions = ({ id }: Props) => {
   const router = useRouter();
+  const [mediaToDelete, setMediaToDelete] = useState<number[]>([])
+  const [newFiles, setNewFiles] = useState<File[]>([])
+
   const { data } = useGetProduction(id, {
     include: "branch,media,production_details",
   });
+  const allMedia = useMemo(
+    () => data?.media ?? []
+    , [data])
+
   const updateMutation = useProductionUpdateMutation();
+  const updateMediaMutation = useMediaMutation();
+  const deleteMediaMutation = useMediaDeleteMutation();
+
+  const existingMedia = useMemo(
+    () => allMedia.filter(m => !mediaToDelete.includes(m.id!))
+    , [allMedia, mediaToDelete])
+
+  const handleRemoveExisting = (mediaId: number) => {
+    setMediaToDelete(prev => [...prev, mediaId])
+  }
+
+  const handleRemoveNewFile = (index: number) => {
+    setNewFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleAddFiles = (newF: File[]) => {
+    const totalSlot = 5 - existingMedia.length;
+    const merged = [...newFiles, ...newF].slice(0, totalSlot)
+    setNewFiles(merged)
+  }
 
   const form = useForm<ProductionFormValues>({
     resolver: zodResolver(Schema),
@@ -106,6 +136,21 @@ export const useEditProductions = ({ id }: Props) => {
           data: updateData,
         });
 
+        for (const mediaId of mediaToDelete) {
+          await deleteMediaMutation.mutateAsync(mediaId)
+        }
+
+        if (newFiles.length > 0) {
+          const formData = new FormData();
+          formData.append('media_type', 'productions')
+          formData.append('media_id', String(id))
+          formData.append('collection_name', 'general')
+          newFiles.forEach((file) => {
+            formData.append('files', file)
+          })
+          await updateMediaMutation.mutateAsync(formData)
+        }
+
         toast.success("Production updated successfully");
         router.back();
       } catch (error: unknown) {
@@ -132,7 +177,7 @@ export const useEditProductions = ({ id }: Props) => {
         }
       }
     },
-    [updateMutation, id, form, router],
+    [updateMutation, updateMediaMutation, deleteMediaMutation, id, form, router, mediaToDelete, newFiles],
   );
 
   return {
@@ -142,5 +187,10 @@ export const useEditProductions = ({ id }: Props) => {
     detailFields,
     appendDetail,
     removeDetail,
+    existingMedia,
+    newFiles,
+    handleRemoveExisting,
+    handleAddFiles,
+    handleRemoveNewFile,
   };
 };

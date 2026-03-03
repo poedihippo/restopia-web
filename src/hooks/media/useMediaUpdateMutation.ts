@@ -6,7 +6,7 @@ import api from "../useApi";
 
 interface UpdateUserParams {
   id: string | number;
-  data: IMediaDTO;
+  data: IMediaDTO | FormData;
 }
 
 const useMediaUpdateMutation = () => {

@@ -17,6 +17,9 @@ import { useRouter } from "next/router";
 import { Control, Controller, useFieldArray } from "react-hook-form";
 import { ProductionsFormValues } from "./useCreateProductions";
 import { useEditProductions } from "./useEditProductions";
+import { useMemo } from "react";
+import Image from "next/image";
+import { toast } from "sonner";
 
 interface DetailRowProps {
   index: number;
@@ -296,6 +299,11 @@ const ProductionEditForm = ({ id }: Props) => {
     detailFields,
     isSubmitting,
     removeDetail,
+    existingMedia,
+    newFiles,
+    handleRemoveExisting,
+    handleAddFiles,
+    handleRemoveNewFile
   } = useEditProductions({ id });
 
   return (
@@ -422,6 +430,68 @@ const ProductionEditForm = ({ id }: Props) => {
               )}
             />
           </div>
+        </div>
+
+        <div>
+          <p className="my-4 font-medium">Upload Media (Max 2MB Per Image)</p>
+          {newFiles.length > 0 &&
+            <Label className="text-xl text-black font-semibold">New Media</Label>
+          }
+          {existingMedia.length + newFiles.length < 5 && (
+            <div className="my-4">
+              <Label className="my-2">Add New Images ({5 - existingMedia.length - newFiles.length} slot remaining)</Label>
+              <Input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(e) => {
+                  const selected = Array.from(e.target.files ?? [])
+
+                  const oversized = selected.filter(f => f.size > 2_000_000)
+                  const valid = selected.filter(f => f.size <= 2_000_000)
+
+                  if (oversized.length > 0) {
+                    toast.warning(`${oversized.length} file(s) skipped: exceeds 2MB limit`)
+                  }
+                  handleAddFiles(valid)
+                  e.target.value = ''
+                }}
+              />
+            </div>
+          )}
+
+          <div className="flex gap-2 flex-wrap mt-2">
+            {newFiles.map((item, i) => (
+              <div key={i} className="relative inline-block">
+                <Image height={100} width={100} alt={`new-${i}`} src={URL.createObjectURL(item)} />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveNewFile(i)}
+                  className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition cursor-pointer"
+                >
+                  <Trash className="text-red-500" size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-4 text-black text-xl font-semibold">Original Image</p>
+          {existingMedia.length > 0 && (
+            <div className="flex gap-2 flex-wrap mb-4">
+              {existingMedia?.map((item) => (
+                <div key={item.id} className="relative inline-block">
+                  <Image height={100} width={100} alt={item.file_name ?? ''} src={item.url ?? ''} />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveExisting(item.id!)}
+                    className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition cursor-pointer"
+                  >
+                    <Trash className="text-red-500" size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="my-2">
           <Button

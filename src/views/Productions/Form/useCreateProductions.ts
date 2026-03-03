@@ -86,7 +86,6 @@ export const useCreateProductions = () => {
 
         const result = await createMutation.mutateAsync(payload);
         const productionId = result.data.data.id;
-        console.log(result, 'check')
 
         if (values.files && values.files.length > 0) {
           const formData = new FormData();

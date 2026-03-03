@@ -5,6 +5,10 @@ export interface IProductionsList {
   meta?: Meta;
 }
 
+export interface IProductionDetail {
+  data?: IProduction
+}
+
 export interface IProduction {
   id: number;
   branch_id?: number;
@@ -15,13 +19,42 @@ export interface IProduction {
   created_at?: Date;
   updated_at?: Date;
   branch?: Branch;
+  media?: Media[]
   production_details?: ProductionDetail[];
+  created_by?: AtedBy;
+  updated_by?: AtedBy;
 }
 
 export interface Branch {
   id?: number;
   code?: string;
   name?: string;
+}
+
+export interface AtedBy {
+  id?: number;
+  nik?: null;
+  name?: string;
+  email?: string;
+}
+
+export interface Media {
+  id?: number;
+  uuid?: string;
+  media_type?: string;
+  media_id?: number;
+  collection_name: string;
+  file_name?: string;
+  disk?: string;
+  path?: string;
+  size?: number;
+  mime_type?: string;
+  status?: string;
+  url?: string;
+  created_at?: Date;
+  created_by_id?: number;
+  updated_at?: Date;
+  updated_by_id?: number;
 }
 
 export interface ProductionDetail {

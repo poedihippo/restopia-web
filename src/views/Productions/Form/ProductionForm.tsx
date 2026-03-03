@@ -13,15 +13,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { statusProduction } from "@/constants/global";
 import useGetProductInventoriesList from "@/hooks/product-inventories/useGetProductInventoriesList";
 import { ArrowLeft, Trash, X } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/router";
+import { useMemo } from "react";
 import { Control, Controller, useFieldArray } from "react-hook-form";
+import { toast } from "sonner";
 import {
   ProductionsFormValues,
   useCreateProductions,
 } from "./useCreateProductions";
-import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 interface DetailRowProps {
   index: number;
@@ -448,7 +448,7 @@ const ProductionForm = () => {
           </div>
         </div>
         <div>
-          <p className="my-4">Upload Media (Max 10MB Per Image)</p>
+          <p className="my-4">Upload Media (Max 2MB Per Image)</p>
           <Label>Media</Label>
           <Controller
             control={form.control}
