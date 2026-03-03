@@ -1,4 +1,5 @@
 import { IProductionDTO } from "@/@types/productions";
+import useMediaMutation from "@/hooks/media/useMediaMutation";
 import useProductionMutation from "@/hooks/productions/useProductionMutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
@@ -31,6 +32,14 @@ const Schema = z.object({
   status: z.string().min(1, "Please choose status"),
   description: z.string().min(1, "Description is required"),
   details: z.array(DetailSchema).min(1, "At least 1 detail"),
+
+  // optional media fields
+  collection_name: z.string().optional(),
+  files: z.array(z.instanceof(File)).refine((files) => files.every(f => f.size <= 2_000_000), {
+    message: 'Max file size is 2MB'
+  })
+    .max(5, "Can input more then 5 images")
+    .optional(),
 });
 
 export type ProductionsFormValues = z.infer<typeof Schema>;
@@ -38,6 +47,8 @@ export type ProductionsFormValues = z.infer<typeof Schema>;
 export const useCreateProductions = () => {
   const router = useRouter()
   const createMutation = useProductionMutation();
+
+  const mediaMutation = useMediaMutation();
 
   const form = useForm<ProductionsFormValues>({
     resolver: zodResolver(Schema),
@@ -47,6 +58,9 @@ export const useCreateProductions = () => {
       status: "",
       description: "",
       details: [],
+      // Optional Media
+      collection_name: "general",
+      files: []
     },
   });
 
@@ -70,7 +84,20 @@ export const useCreateProductions = () => {
           details: values.details,
         };
 
-        await createMutation.mutateAsync(payload);
+        const result = await createMutation.mutateAsync(payload);
+        const productionId = result.data.data.id;
+        console.log(result, 'check')
+
+        if (values.files && values.files.length > 0) {
+          const formData = new FormData();
+          formData.append('media_type', 'productions')
+          formData.append('media_id', String(productionId))
+          formData.append('collection_name', values.collection_name ?? 'general')
+          values.files.forEach((file) => {
+            formData.append("files", file)
+          })
+          await mediaMutation.mutateAsync(formData);
+        }
 
         toast.success("Production created successfully");
         router.back()
@@ -98,7 +125,7 @@ export const useCreateProductions = () => {
         }
       }
     },
-    [createMutation, form, router],
+    [createMutation, mediaMutation, form, router],
   );
 
   return {

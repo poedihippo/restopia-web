@@ -23,6 +23,14 @@ const API_BASE = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'music-school-production.s3.ap-southeast-1.amazonaws.com',
+      },
+    ]
+  },
   async rewrites() {
     return [
       {

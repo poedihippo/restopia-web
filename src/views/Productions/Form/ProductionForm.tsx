@@ -19,6 +19,9 @@ import {
   ProductionsFormValues,
   useCreateProductions,
 } from "./useCreateProductions";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 interface DetailRowProps {
   index: number;
@@ -294,6 +297,8 @@ const ProductionForm = () => {
     isSubmitting,
     removeDetail,
   } = useCreateProductions();
+  const watchedFiles = form.watch('files');
+  const previews = useMemo(() => (watchedFiles ?? []).map((file) => URL.createObjectURL(file)), [watchedFiles])
 
   return (
     <div className="w-full">
@@ -419,6 +424,83 @@ const ProductionForm = () => {
               )}
             />
           </div>
+
+          <div className="flex flex-col gap-2">
+            <Label>Collection Name</Label>
+            <Controller
+              control={form.control}
+              name="collection_name"
+              render={({ field, fieldState }) => (
+                <>
+                  <Input
+                    {...field}
+                    placeholder="John Doe"
+                    aria-invalid={!!fieldState.error}
+                  />
+                  {fieldState.error && (
+                    <p className="text-destructive text-sm">
+                      {fieldState.error.message}
+                    </p>
+                  )}
+                </>
+              )}
+            />
+          </div>
+        </div>
+        <div>
+          <p className="my-4">Upload Media (Max 10MB Per Image)</p>
+          <Label>Media</Label>
+          <Controller
+            control={form.control}
+            name="files"
+            render={({ field, fieldState }) => (
+              <>
+                <Input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? [])
+
+                    const oversized = selected.filter(f => f.size > 2_000_000)
+                    const valid = selected.filter(f => f.size <= 2_000_000)
+
+                    if (oversized.length > 0) {
+                      toast.warning(`${oversized.length} file(s) skipped: exceeds 2MB limit`)
+                    }
+
+                    const current = field.value ?? []
+                    const merged = [...current, ...valid].slice(0, 5);
+
+                    if (current.length + valid.length > 5) {
+                      toast.warning('Max 5 files allowed')
+                    }
+                    field.onChange(merged)
+                  }}
+                  aria-invalid={!!fieldState.error}
+                />
+                {fieldState.error && (
+                  <p className="text-destructive text-sm">
+                    {fieldState.error.message}
+                  </p>
+                )}
+                {previews.map((url, i) => (
+                  <div key={i} className="relative inline-block">
+                    <Image height={100} width={100} alt={`previews-${i}`} src={url} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = field.value?.filter((_, idx) => idx !== i)
+                        field.onChange(updated)
+                      }}
+                      className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition cursor-pointer">
+                      <Trash className='text-red-500' size={12} />
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          />
         </div>
         <div className="my-2">
           <Button

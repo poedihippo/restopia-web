@@ -56,7 +56,7 @@ const data = {
     },
     {
       title: "Media",
-      url: "#",
+      url: "/media",
     },
     {
       title: "Product Master",
@@ -174,7 +174,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 className="group/label text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm"
               >
                 <CollapsibleTrigger>
-                  {item.title}{" "}
+
+                  {item.url === '#' ? <p>{item.title}{" "}</p> :
+                    <a href={item.url}>
+                      {item.title}{" "}
+                    </a>
+                  }
                   {(item?.items?.length ?? 0) > 0 && (
                     <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
                   )}
