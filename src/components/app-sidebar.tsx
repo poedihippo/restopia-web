@@ -112,7 +112,7 @@ const data = {
         },
         {
           title: "Purchase Order",
-          url: "#",
+          url: "/purchase/purchase-orders",
         },
       ],
     },
