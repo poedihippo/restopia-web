@@ -7,7 +7,11 @@ export interface IPurchaseOrder {
     id: number;
     branch_id?: number;
     code?: string;
+    supplier_id?: number | null;
+    supplier_branch_id?: number | null;
     date?: Date;
+    total_price?: number;
+    description?: string;
     status?: string;
     created_at?: Date;
     updated_at?: Date;
@@ -24,10 +28,10 @@ export interface Branch {
 
 export interface PurchaseOrderDetail {
     id?: number;
-    product_inventory_id?: number;
-    qty?: number;
-    price?: number;
-    description?: null;
+    product_inventory_id: number;
+    qty: number;
+    price: number;
+    description?: string;
     product_inventory?: ProductInventory;
 }
 

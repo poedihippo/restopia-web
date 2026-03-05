@@ -66,6 +66,7 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
             render={({ field, fieldState }) => (
               <>
                 <SearchableSelect
+                  isClearable
                   isLoading={isLoadingProductInventory}
                   placeholder="Select product inventory..."
                   options={

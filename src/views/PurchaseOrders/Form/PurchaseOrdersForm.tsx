@@ -56,6 +56,7 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
             render={({ field, fieldState }) => (
               <>
                 <SearchableSelect
+                  isClearable
                   isLoading={isLoadingProductInventory}
                   placeholder="Select product inventory..."
                   options={
@@ -228,6 +229,7 @@ const PurchaseOrdersForm = () => {
               render={({ field, fieldState }) => (
                 <>
                   <SearchableSelect
+                    isClearable
                     isDisabled={!!watchedSupplierBranchId}
                     isLoading={isLoadingSupplier}
                     placeholder="Select supplier..."
@@ -269,6 +271,7 @@ const PurchaseOrdersForm = () => {
               render={({ field, fieldState }) => (
                 <>
                   <SearchableSelect
+                    isClearable
                     isDisabled={!!watchedSupplierId}
                     isLoading={isLoadingBranch}
                     placeholder="Select supplier branch..."

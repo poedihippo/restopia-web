@@ -99,7 +99,7 @@ export const useEditProductions = ({ id }: Props) => {
           product_inventory_id: detail.product_inventory_id,
           qty: detail.qty,
           status: detail.status,
-          description: data?.description,
+          description: detail?.description,
           materials:
             detail.product_detail_materials?.map((material) => ({
               product_inventory_id: material.product_inventory_id,
