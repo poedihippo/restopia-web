@@ -107,8 +107,8 @@ const data = {
       url: "#",
       items: [
         {
-          title: "Supplier",
-          url: "#",
+          title: "Suppliers",
+          url: "/purchase/suppliers",
         },
         {
           title: "Purchase Order",

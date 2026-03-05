@@ -10,8 +10,8 @@ const mediaSchema = z.object({
   media_type: z.string().min(1, "Media type is required"),
   media_id: z.string().min(1, "Media id is required"),
   collection_name: z.string().min(1, "Collection name is required"),
-  files: z.array(z.instanceof(File)).refine((files) => files.every(f => f.size <= 10_000_000), {
-    message: 'Max file size is 10MB'
+  files: z.array(z.instanceof(File)).refine((files) => files.every(f => f.size <= 2_000_000), {
+    message: 'Max file size is 2MB'
   }).min(1, "Please select at least 1 file").max(5, "Can input more then 5 images"),
 });
 
