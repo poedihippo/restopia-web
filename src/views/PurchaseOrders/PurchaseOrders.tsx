@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo } from "react";
 import usePurchaseOrders from "./usePurchaseOrders";
@@ -103,15 +103,15 @@ const PurchaseOrders = () => {
             <Pencil className="h-4 w-4" />
           </button>
         </Link>
-        {/* <button
+        <button
           className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(PurchaseOrders[_index])}
+          onClick={() => deleteModal.openModal(purchaseOrders[_index])}
         >
           <Trash2 className="h-4 w-4" />
-        </button> */}
+        </button>
       </div>
     ),
-    [purchaseOrders],
+    [purchaseOrders, deleteModal],
   );
 
   return (
