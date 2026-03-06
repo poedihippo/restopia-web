@@ -3,7 +3,7 @@ import Deliveries from "@/views/Deliveries";
 
 const DeliveriesPage = () => {
   return (
-    <GlobalLayout name="Deliveries" breadcrumb={["Deliveries"]}>
+    <GlobalLayout name="Deliveries" breadcrumb={["Transfer", "Deliveries"]}>
       <Deliveries />
     </GlobalLayout>
   );

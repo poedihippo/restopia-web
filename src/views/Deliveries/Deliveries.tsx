@@ -86,11 +86,11 @@ const Deliveries = () => {
     const renderActions = useCallback(
         (_record: IDeliveries, _index: number) => (
             <div className="flex gap-2">
-                {/* <Link href={`/transfer/deliveries/${_record.id}/detail`}>
+                <Link href={`/transfer/deliveries/${_record.id}/detail`}>
                     <button className="p-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white cursor-pointer">
                         <Eye className="h-4 w-4" />
                     </button>
-                </Link> */}
+                </Link>
                 <Link href={`/transfer/deliveries/${_record.id}/edit`}>
                     <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
                         <Pencil className="h-4 w-4" />

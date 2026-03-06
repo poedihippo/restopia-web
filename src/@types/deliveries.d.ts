@@ -20,6 +20,8 @@ export interface IDeliveries {
     branch?: Branch;
     media?: Media[]
     delivery_details?: DeliveryDetail[];
+    created_by?: AtedBy;
+    updated_by?: AtedBy;
 }
 
 export interface Media {
