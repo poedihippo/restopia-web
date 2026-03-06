@@ -33,7 +33,6 @@ const PurchaseOrders = () => {
     setEndDate,
     setStatus,
     handleClearFilter,
-    handleSupplierBranchChange,
     handleSupplierChange,
     handleBranchChange,
     handlePageChange,

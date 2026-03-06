@@ -121,12 +121,12 @@ const data = {
       url: "#",
       items: [
         {
-          title: "Delivery",
-          url: "#",
+          title: "Deliveries",
+          url: "/transfer/deliveries",
         },
         {
-          title: "Receipt",
-          url: "#",
+          title: "Receipts",
+          url: "/transfer/receipts",
         },
       ],
     },
