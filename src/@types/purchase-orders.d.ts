@@ -18,12 +18,21 @@ export interface IPurchaseOrder {
     branch?: Branch;
     media?: Media[]
     purchase_order_details?: PurchaseOrderDetail[];
+    created_by?: AtedBy;
+    updated_by?: AtedBy;
 }
 
 export interface Branch {
     id?: number;
     code?: string;
     name?: string;
+}
+
+export interface AtedBy {
+    id?: number;
+    nik?: null;
+    name?: string;
+    email?: string;
 }
 
 export interface PurchaseOrderDetail {

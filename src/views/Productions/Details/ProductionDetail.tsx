@@ -13,11 +13,11 @@ interface Props {
 const ProductionDetail = ({ id }: Props) => {
     const router = useRouter()
     const { data, isLoading } = useProductionDetail({ id })
-    
+
     return (
         <div>
             <div className="flex gap-4 mb-4">
-                <button onClick={() => router.back()}>
+                <button onClick={() => router.back()} className='cursor-pointer'>
                     <ArrowLeft />
                 </button>
                 <p className="font-semibold text-2xl">Back</p>
