@@ -6,15 +6,15 @@ export interface IDeliveriesList {
 }
 
 export interface IDeliveries {
-    id?: number;
+    id: number;
     branch_id?: number;
     code?: string;
-    target_branch_id?: number;
-    purchase_order_id?: null;
+    target_branch_id?: number | null;
+    purchase_order_id?: number | null;
     date?: Date;
     total_price?: number;
     status?: string;
-    description?: null;
+    description?: string;
     created_at?: Date;
     updated_at?: Date;
     branch?: Branch;
@@ -49,13 +49,13 @@ export interface Branch {
 }
 
 export interface DeliveryDetail {
-    id?: number;
-    product_inventory_id?: number;
-    product_order_detail_id?: null;
+    id: number;
+    product_inventory_id: number | undefined;
+    product_order_detail_id: number | undefined;
     qty?: number;
     price?: number;
     status?: string;
-    description?: null;
+    description?: string;
     product_inventory?: ProductInventory;
 }
 

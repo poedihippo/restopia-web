@@ -3,6 +3,7 @@ import useGetDeliveriesList from '@/hooks/deliveries/useGetDeliveriesList';
 import useGetSupplierList from '@/hooks/suppliers/useGetSupplierList';
 import useDataTable from '@/hooks/useDataTable';
 import { useCallback, useMemo, useState } from 'react';
+import { useDeleteDeliveriesModal } from './Form/useDeleteDeliveriesModal';
 
 const useDeliveries = () => {
     const [branchId, setBranchId] = useState<number | null>();
@@ -53,7 +54,7 @@ const useDeliveries = () => {
         [buildPagination, data?.meta],
     );
 
-    // const deleteModal = useDeletePurchaseOrdersModal(refetch);
+    const deleteModal = useDeleteDeliveriesModal(refetch);
 
     const handleBranchChange = useCallback((id?: number) => {
         setBranchId(id);
@@ -96,7 +97,7 @@ const useDeliveries = () => {
         handleBranchChange,
         handlePageChange,
         handleSearch,
-        // deleteModal,
+        deleteModal,
     }
 }
 

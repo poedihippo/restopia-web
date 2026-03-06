@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
 
 const Deliveries = () => {
     const {
@@ -25,12 +26,11 @@ const Deliveries = () => {
         setEndDate,
         setStatus,
         handleClearFilter,
-        handleSupplierBranchChange,
         handleSupplierChange,
         handleBranchChange,
         handlePageChange,
         handleSearch,
-        // deleteModal,
+        deleteModal,
     } = useDeliveries()
 
     const options = useMemo(
@@ -91,20 +91,20 @@ const Deliveries = () => {
                         <Eye className="h-4 w-4" />
                     </button>
                 </Link> */}
-                {/* <Link href={`/transfer/deliveries/${_record.id}/edit`}>
+                <Link href={`/transfer/deliveries/${_record.id}/edit`}>
                     <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
                         <Pencil className="h-4 w-4" />
                     </button>
-                </Link> */}
-                {/* <button
+                </Link>
+                <button
                     className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
                     onClick={() => deleteModal.openModal(deliveries[_index])}
                 >
                     <Trash2 className="h-4 w-4" />
-                </button> */}
+                </button>
             </div>
         ),
-        [deliveries],
+        [deliveries, deleteModal],
     );
 
     return (
@@ -216,13 +216,13 @@ const Deliveries = () => {
             />
 
             {/* Modals */}
-            {/* <DeleteConfirmModal
+            <DeleteConfirmModal
                 isOpen={deleteModal.isOpen}
                 onClose={deleteModal.closeModal}
                 onConfirm={deleteModal.handleConfirmDelete}
                 label={deleteModal.selected?.code}
                 isDeleting={deleteModal.isDeleting}
-            /> */}
+            />
         </div>
     )
 }
