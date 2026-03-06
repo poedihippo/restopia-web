@@ -99,7 +99,7 @@ export interface IPurchaseOrderDTO {
     total_price: number;
     status: string;
     description: string;
-    details: PurchaseOrderDetailDTO[]
+    details: IPurchaseOrderDetailDTO[]
 }
 
 export interface IPurchaseOrderDetailDTO {
