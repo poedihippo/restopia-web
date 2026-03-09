@@ -71,3 +71,18 @@ export const direction = [
     key: "out",
   },
 ];
+
+export const statusReceipts = [
+  {
+    label: "Pending",
+    key: "pending",
+  },
+  {
+    label: "Success",
+    key: "success",
+  },
+  {
+    label: "Failed",
+    key: "failed",
+  },
+];

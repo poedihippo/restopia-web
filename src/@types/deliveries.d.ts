@@ -24,6 +24,13 @@ export interface IDeliveries {
     updated_by?: AtedBy;
 }
 
+export interface AtedBy {
+    id?: number;
+    nik?: null;
+    name?: string;
+    email?: string;
+}
+
 export interface Media {
     id?: number;
     uuid?: string;
