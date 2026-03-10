@@ -86,3 +86,25 @@ export const statusReceipts = [
     key: "failed",
   },
 ];
+
+export const discountType = [
+  {
+    label: "Percentage",
+    key: "percent",
+  },
+  {
+    label: "Fixed",
+    key: "fixed",
+  },
+];
+
+export const scopeType = [
+  {
+    label: "Branch",
+    key: "branch",
+  },
+  {
+    label: "Company",
+    key: "company",
+  },
+];
