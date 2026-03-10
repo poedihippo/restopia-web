@@ -87,6 +87,21 @@ export const statusReceipts = [
   },
 ];
 
+export const statusSalesOrders = [
+  {
+    label: "Pending",
+    key: "pending",
+  },
+  {
+    label: "Process",
+    key: "process",
+  },
+  {
+    label: "Completed",
+    key: "completed",
+  },
+];
+
 export const discountType = [
   {
     label: "Percentage",

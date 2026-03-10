@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { statusProduction } from "@/constants/global";
+import { statusProduction, statusSalesOrders } from "@/constants/global";
 import useGetCustomerList from "@/hooks/customer/useGetCustomerList";
 import useGetProductInventoriesList from "@/hooks/product-inventories/useGetProductInventoriesList";
 import useGetVoucherList from "@/hooks/voucher/useGetVoucherList";
@@ -154,7 +154,7 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
                       <SelectValue placeholder="Select a type" />
                     </SelectTrigger>
                     <SelectContent>
-                      {statusProduction?.map((item) => (
+                      {statusSalesOrders?.map((item) => (
                         <SelectItem key={item.key} value={item.key}>
                           {item.label}
                         </SelectItem>
