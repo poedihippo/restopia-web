@@ -18,8 +18,8 @@ export interface IDeliveries {
     created_at?: Date;
     updated_at?: Date;
     branch?: Branch;
-    media?: Media[]
     delivery_details?: DeliveryDetail[];
+    media?: Media[]
     created_by?: AtedBy;
     updated_by?: AtedBy;
 }

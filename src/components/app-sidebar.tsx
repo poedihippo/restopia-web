@@ -134,10 +134,10 @@ const data = {
       title: "Sales Master",
       url: "#",
       items: [
-        // {
-        //   title: "Customer",
-        //   url: "#",
-        // },
+        {
+          title: "Customers",
+          url: "/sales/customers",
+        },
         {
           title: "Vouchers",
           url: "/sales/vouchers",
