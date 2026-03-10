@@ -328,7 +328,7 @@ const SalesOrdersForm = () => {
                 <>
                   <Input
                     {...field}
-                    disabled={!watcherCustomerId}
+                    disabled={!!watcherCustomerId}
                     placeholder="John Doe"
                     aria-invalid={!!fieldState.error}
                   />
@@ -351,7 +351,7 @@ const SalesOrdersForm = () => {
                 <>
                   <Input
                     {...field}
-                    disabled={!watcherCustomerId}
+                    disabled={!!watcherCustomerId}
                     placeholder="John Doe"
                     aria-invalid={!!fieldState.error}
                   />
@@ -398,7 +398,7 @@ const SalesOrdersForm = () => {
                 <>
                   <Input
                     {...field}
-                    type="date"
+                    type="datetime-local"
                     placeholder="John Doe"
                     aria-invalid={!!fieldState.error}
                   />

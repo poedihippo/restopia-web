@@ -91,7 +91,7 @@ export const useCreateSalesOrders = () => {
           customer_name: values.customer_name,
           customer_phone: values.customer_phone,
           date: values.date,
-          fulfillment_date: values.fulfillment_date,
+          fulfillment_date: values.fulfillment_date ? values.fulfillment_date + ":00Z" : "",
           voucher_id: values.voucher_id,
           subtotal_price: values.subtotal_price,
           discount_price: values.discount_price,

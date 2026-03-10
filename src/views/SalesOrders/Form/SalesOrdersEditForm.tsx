@@ -407,7 +407,7 @@ const SalesOrdersEditForm = ({ id }: Props) => {
                 <>
                   <Input
                     {...field}
-                    type="date"
+                    type="datetime-local"
                     placeholder="John Doe"
                     aria-invalid={!!fieldState.error}
                   />
