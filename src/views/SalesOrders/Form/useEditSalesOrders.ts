@@ -131,6 +131,17 @@ export const useEditSalesOrders = ({ id }: Props) => {
     name: "details",
   });
 
+  const details = form.watch('details');
+  const discount = form.watch('discount_price');
+  const subTotal = details.reduce((acc, row) => acc + (row.qty * row.price), 0)
+  const total = details.reduce((acc, row) => acc + (row.qty * row.price), 0)
+  const totalPrice = total - discount
+
+  useEffect(() => {
+    form.setValue('subtotal_price', subTotal)
+    form.setValue('total_price', totalPrice)
+  }, [subTotal, totalPrice, details])
+
   const handleSubmit = useCallback(
     async (values: SalesOrderFormValues) => {
       if (!id) return;

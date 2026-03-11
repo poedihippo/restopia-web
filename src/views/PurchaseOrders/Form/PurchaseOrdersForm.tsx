@@ -344,10 +344,10 @@ const PurchaseOrdersForm = () => {
                   <>
                     <Input
                       {...field}
-                      readOnly
                       type="number"
                       placeholder="0"
                       aria-invalid={!!fieldState.error}
+                      readOnly
                       className="bg-muted cursor-not-allowed"
                     />
                     {fieldState.error && (
