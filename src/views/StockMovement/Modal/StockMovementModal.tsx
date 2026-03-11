@@ -86,7 +86,7 @@ export const StockMovementModal = ({
               />
             </Field>
             <Field>
-              <FieldLabel>Direction</FieldLabel>
+              <FieldLabel>Type</FieldLabel>
               <Controller
                 control={form.control}
                 name="direction"
