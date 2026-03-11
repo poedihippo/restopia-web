@@ -337,7 +337,7 @@ const SalesOrdersEditForm = ({ id }: Props) => {
                 <>
                   <Input
                     {...field}
-                    disabled={!watcherCustomerId}
+                    disabled={!!watcherCustomerId}
                     placeholder="John Doe"
                     aria-invalid={!!fieldState.error}
                   />
@@ -360,7 +360,7 @@ const SalesOrdersEditForm = ({ id }: Props) => {
                 <>
                   <Input
                     {...field}
-                    disabled={!watcherCustomerId}
+                    disabled={!!watcherCustomerId}
                     placeholder="John Doe"
                     aria-invalid={!!fieldState.error}
                   />

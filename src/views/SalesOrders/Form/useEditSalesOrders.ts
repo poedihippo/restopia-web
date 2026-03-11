@@ -24,9 +24,9 @@ const DetailSchema = z.object({
 
 const Schema = z.object({
   code: z.string().min(1, "Code is required"),
-  customer_id: z.number().min(1, 'Choose at least 1 customer'),
-  customer_name: z.string().min(1, "Customer is required"),
-  customer_phone: z.string().min(1, "Customer phone is required"),
+  customer_id: z.number().optional(),
+  customer_name: z.string().optional(),
+  customer_phone: z.string().optional(),
   date: z.string().min(1, "Date is required"),
   fulfillment_date: z.string().min(1, "Fulfillment date is required"),
   voucher_id: z.number().optional(),
@@ -83,8 +83,8 @@ export const useEditSalesOrders = ({ id }: Props) => {
     defaultValues: {
       code: "",
       customer_id: undefined,
-      customer_name: "",
-      customer_phone: "",
+      customer_name: undefined,
+      customer_phone: undefined,
       date: "",
       fulfillment_date: "",
       voucher_id: undefined,
@@ -138,9 +138,9 @@ export const useEditSalesOrders = ({ id }: Props) => {
       try {
         const updateData: ISalesOrderDTO = {
           code: values.code,
-          customer_id: values.customer_id,
-          customer_name: values.customer_name,
-          customer_phone: values.customer_phone,
+          ...(values.customer_id ? { customer_id: values.customer_id } : null),
+          ...(values.customer_name ? { customer_name: values.customer_name } : null),
+          ...(values.customer_phone ? { customer_phone: values.customer_phone } : null),
           date: values.date,
           fulfillment_date: values.fulfillment_date ? values.fulfillment_date + ":00Z" : "",
           voucher_id: values.voucher_id,

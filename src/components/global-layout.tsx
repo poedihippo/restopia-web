@@ -41,6 +41,7 @@ export function GlobalLayout({
     <>
       <Head>
         <title>{name}</title>
+        <link rel="icon" type="image/webp" href="/logo.webp" />
       </Head>
       <SidebarProvider>
         <AppSidebar />

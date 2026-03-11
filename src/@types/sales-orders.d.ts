@@ -107,9 +107,9 @@ export interface ProductCategory {
 
 export interface ISalesOrderDTO {
     code: string;
-    customer_id: number;
-    customer_name: string;
-    customer_phone: string;
+    customer_id?: number;
+    customer_name?: string;
+    customer_phone?: string;
     date: string;
     fulfillment_date: string;
     voucher_id: number | null | undefined;

@@ -1,4 +1,28 @@
-import { ChevronsUpDown, ChevronRight, LogOut } from "lucide-react";
+import {
+  ChevronsUpDown,
+  ChevronRight,
+  LogOut,
+  User,
+  Building,
+  GitBranch,
+  ShieldCheck,
+  Image,
+  Package,
+  Tag,
+  Ruler,
+  ArrowLeftRight,
+  PackageCheck,
+  Warehouse,
+  UtensilsCrossed,
+  Factory,
+  Truck,
+  ClipboardList,
+  SendHorizontal,
+  PackageOpen,
+  Users,
+  Ticket,
+  ShoppingCart,
+} from "lucide-react";
 import * as React from "react";
 
 import {
@@ -39,18 +63,22 @@ const data = {
         {
           title: "Users",
           url: "/users",
+          icon: <User />
         },
         {
           title: "Companies",
           url: "/users/companies",
+          icon: <Building />
         },
         {
           title: "Branches",
           url: "/users/branches",
+          icon: <GitBranch />
         },
         {
           title: "Roles",
           url: "/users/roles",
+          icon: <ShieldCheck />
         },
       ],
     },
@@ -65,26 +93,32 @@ const data = {
         {
           title: "Product",
           url: "/products",
+          icon: <Package />,
         },
         {
           title: "Product Category",
           url: "/products/product-categories",
+          icon: <Tag />,
         },
         {
           title: "UOM",
           url: "/products/uom",
+          icon: <Ruler />,
         },
         {
           title: "Product Conversion",
           url: "/products/product-conversions",
+          icon: <ArrowLeftRight />,
         },
         {
           title: "Product UOM",
           url: "/products/product-uoms",
+          icon: <PackageCheck />,
         },
         {
           title: "Product Inventory",
           url: "/products/product-inventory",
+          icon: <Warehouse />,
         },
       ],
     },
@@ -95,10 +129,12 @@ const data = {
         {
           title: "Recipes",
           url: "/production/recipes",
+          icon: <UtensilsCrossed />,
         },
         {
           title: "Production",
           url: "/production",
+          icon: <Factory />,
         },
       ],
     },
@@ -109,10 +145,12 @@ const data = {
         {
           title: "Suppliers",
           url: "/purchase/suppliers",
+          icon: <Truck />,
         },
         {
           title: "Purchase Order",
           url: "/purchase/purchase-orders",
+          icon: <ClipboardList />,
         },
       ],
     },
@@ -123,10 +161,12 @@ const data = {
         {
           title: "Deliveries",
           url: "/transfer/deliveries",
+          icon: <SendHorizontal />,
         },
         {
           title: "Receipts",
           url: "/transfer/receipts",
+          icon: <PackageOpen />,
         },
       ],
     },
@@ -137,14 +177,17 @@ const data = {
         {
           title: "Customers",
           url: "/sales/customers",
+          icon: <Users />,
         },
         {
           title: "Vouchers",
           url: "/sales/vouchers",
+          icon: <Ticket />,
         },
         {
           title: "Sales Orders",
           url: "/sales/sales-orders",
+          icon: <ShoppingCart />,
         },
       ],
     },
@@ -192,13 +235,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       {item.items?.map((item) => (
                         <SidebarMenuItem key={item.title}>
                           <SidebarMenuButton
+                            className="ml-2"
                             asChild
                             isActive={
                               router.pathname === item.url ||
                               router.pathname.startsWith(item.url + "/")
                             }
                           >
-                            <a href={item.url}>{item.title}</a>
+                            <a href={item.url}>
+                              {item.icon}
+                              {item.title}
+                            </a>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
                       ))}
