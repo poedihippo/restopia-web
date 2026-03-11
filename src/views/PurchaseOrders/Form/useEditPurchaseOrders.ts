@@ -129,6 +129,13 @@ export const useEditPurchaseOrders = ({ id }: Props) => {
     name: "details",
   });
 
+  const details = form.watch('details')
+  const total = details.reduce((acc, row) => acc + (row.qty * row.price), 0)
+
+  useEffect(() => {
+    form.setValue('total_price', total)
+  }, [total])
+
   const handleSubmit = useCallback(
     async (values: PurchaseOrdersFormValues) => {
       if (!id) return;
