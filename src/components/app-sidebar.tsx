@@ -52,156 +52,191 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
+import usePermission from "@/hooks/usePermission";
 import { useRouter } from "next/router";
 import useUserBranchPatch from "@/hooks/user/useUserBranchPatch";
 import BranchSwitcherDialog from "./branch-switcher-dialog";
 
-const data = {
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard",
-    },
-    {
-      title: "User Master",
-      url: "#",
-      items: [
-        {
-          title: "Users",
-          url: "/users",
-          icon: <User />
-        },
-        {
-          title: "Companies",
-          url: "/users/companies",
-          icon: <Building />
-        },
-        {
-          title: "Branches",
-          url: "/users/branches",
-          icon: <GitBranch />
-        },
-        {
-          title: "Roles",
-          url: "/users/roles",
-          icon: <ShieldCheck />
-        },
-      ],
-    },
-    {
-      title: "Media",
-      url: "/media",
-    },
-    {
-      title: "Product Master",
-      url: "#",
-      items: [
-        {
-          title: "Product",
-          url: "/products",
-          icon: <Package />,
-        },
-        {
-          title: "Product Category",
-          url: "/products/product-categories",
-          icon: <Tag />,
-        },
-        {
-          title: "UOM",
-          url: "/products/uom",
-          icon: <Ruler />,
-        },
-        {
-          title: "Product Conversion",
-          url: "/products/product-conversions",
-          icon: <ArrowLeftRight />,
-        },
-        {
-          title: "Product UOM",
-          url: "/products/product-uoms",
-          icon: <PackageCheck />,
-        },
-        {
-          title: "Product Inventory",
-          url: "/products/product-inventory",
-          icon: <Warehouse />,
-        },
-      ],
-    },
-    {
-      title: "Production Master",
-      url: "#",
-      items: [
-        {
-          title: "Recipes",
-          url: "/production/recipes",
-          icon: <UtensilsCrossed />,
-        },
-        {
-          title: "Production",
-          url: "/production",
-          icon: <Factory />,
-        },
-      ],
-    },
-    {
-      title: "Purchase Master",
-      url: "#",
-      items: [
-        {
-          title: "Suppliers",
-          url: "/purchase/suppliers",
-          icon: <Truck />,
-        },
-        {
-          title: "Purchase Order",
-          url: "/purchase/purchase-orders",
-          icon: <ClipboardList />,
-        },
-      ],
-    },
-    {
-      title: "Transfer Master",
-      url: "#",
-      items: [
-        {
-          title: "Deliveries",
-          url: "/transfer/deliveries",
-          icon: <SendHorizontal />,
-        },
-        {
-          title: "Receipts",
-          url: "/transfer/receipts",
-          icon: <PackageOpen />,
-        },
-      ],
-    },
-    {
-      title: "Sales Master",
-      url: "#",
-      items: [
-        {
-          title: "Customers",
-          url: "/sales/customers",
-          icon: <Users />,
-        },
-        {
-          title: "Vouchers",
-          url: "/sales/vouchers",
-          icon: <Ticket />,
-        },
-        {
-          title: "Sales Orders",
-          url: "/sales/sales-orders",
-          icon: <ShoppingCart />,
-        },
-      ],
-    },
-  ],
+type NavItem = {
+  title: string;
+  url: string;
+  icon?: React.ReactNode;
+  permission: string | null;
 };
+
+type NavGroup = {
+  title: string;
+  url: string;
+  permission?: string | null;
+  items?: NavItem[];
+};
+
+const navMain: NavGroup[] = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    permission: null,
+  },
+  {
+    title: "User Master",
+    url: "#",
+    items: [
+      {
+        title: "Users",
+        url: "/users",
+        icon: <User />,
+        permission: "user",
+      },
+      {
+        title: "Companies",
+        url: "/users/companies",
+        icon: <Building />,
+        permission: "company",
+      },
+      {
+        title: "Branches",
+        url: "/users/branches",
+        icon: <GitBranch />,
+        permission: "branch",
+      },
+      {
+        title: "Roles",
+        url: "/users/roles",
+        icon: <ShieldCheck />,
+        permission: "role",
+      },
+    ],
+  },
+  {
+    title: "Media",
+    url: "/media",
+    permission: null,
+  },
+  {
+    title: "Product Master",
+    url: "#",
+    items: [
+      {
+        title: "Product",
+        url: "/products",
+        icon: <Package />,
+        permission: "product",
+      },
+      {
+        title: "Product Category",
+        url: "/products/product-categories",
+        icon: <Tag />,
+        permission: "product-category",
+      },
+      {
+        title: "UOM",
+        url: "/products/uom",
+        icon: <Ruler />,
+        permission: "uom",
+      },
+      {
+        title: "Product Conversion",
+        url: "/products/product-conversions",
+        icon: <ArrowLeftRight />,
+        permission: "product-conversion",
+      },
+      {
+        title: "Product UOM",
+        url: "/products/product-uoms",
+        icon: <PackageCheck />,
+        permission: "product-uom",
+      },
+      {
+        title: "Product Inventory",
+        url: "/products/product-inventory",
+        icon: <Warehouse />,
+        permission: "product-inventory",
+      },
+    ],
+  },
+  {
+    title: "Production Master",
+    url: "#",
+    items: [
+      {
+        title: "Recipes",
+        url: "/production/recipes",
+        icon: <UtensilsCrossed />,
+        permission: "recipe",
+      },
+      {
+        title: "Production",
+        url: "/production",
+        icon: <Factory />,
+        permission: "production",
+      },
+    ],
+  },
+  {
+    title: "Purchase Master",
+    url: "#",
+    items: [
+      {
+        title: "Suppliers",
+        url: "/purchase/suppliers",
+        icon: <Truck />,
+        permission: "supplier",
+      },
+      {
+        title: "Purchase Order",
+        url: "/purchase/purchase-orders",
+        icon: <ClipboardList />,
+        permission: "purchase-order",
+      },
+    ],
+  },
+  {
+    title: "Transfer Master",
+    url: "#",
+    items: [
+      {
+        title: "Deliveries",
+        url: "/transfer/deliveries",
+        icon: <SendHorizontal />,
+        permission: "delivery",
+      },
+      {
+        title: "Receipts",
+        url: "/transfer/receipts",
+        icon: <PackageOpen />,
+        permission: "receipt",
+      },
+    ],
+  },
+  {
+    title: "Sales Master",
+    url: "#",
+    items: [
+      {
+        title: "Customers",
+        url: "/sales/customers",
+        icon: <Users />,
+        permission: "customer",
+      },
+      {
+        title: "Vouchers",
+        url: "/sales/vouchers",
+        icon: <Ticket />,
+        permission: "voucher",
+      },
+      {
+        title: "Sales Orders",
+        url: "/sales/sales-orders",
+        icon: <ShoppingCart />,
+        permission: "sales-order",
+      },
+    ],
+  },
+];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { logout, refreshUser, user, } = useAuth();
+  const { canRead } = usePermission();
   const router = useRouter();
   const [branchDialogOpen, setBranchDialogOpen] = React.useState(false)
   const { mutate: changeBranch, isPending } = useUserBranchPatch()
@@ -221,7 +256,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </h1>
       </SidebarHeader>
       <SidebarContent className="gap-0">
-        {data.navMain.map((item) => (
+        {navMain.map((item) => {
+          const visibleItems = item.items?.filter((child) =>
+            child.permission === null || canRead(child.permission)
+          );
+          // Top-level item dengan children: hide kalau semua child hidden
+          if (item.items && visibleItems?.length === 0) return null;
+          // Top-level item tanpa children (Dashboard, Media): hide kalau ada permission dan tidak punya
+          if (!item.items && item.permission != null && !canRead(item.permission)) return null;
+
+          return (
           <Collapsible
             key={item.title}
             title={item.title}
@@ -246,9 +290,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarGroupLabel>
               <CollapsibleContent>
                 <SidebarGroupContent>
-                  {(item.items?.length ?? 0) > 0 && (
+                  {(visibleItems?.length ?? 0) > 0 && (
                     <SidebarMenu>
-                      {item.items?.map((item) => (
+                      {visibleItems?.map((item) => (
                         <SidebarMenuItem key={item.title}>
                           <SidebarMenuButton
                             className="ml-2"
@@ -271,7 +315,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </CollapsibleContent>
             </SidebarGroup>
           </Collapsible>
-        ))}
+          );
+        })}
       </SidebarContent>
       <SidebarRail />
       <SidebarFooter>

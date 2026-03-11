@@ -8,6 +8,7 @@ import { useCallback, useMemo } from "react";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { UserModal } from "./Modal/UserModal";
 import useUser from "./useUser";
+import usePermission from "@/hooks/usePermission";
 
 const User = () => {
   const {
@@ -24,6 +25,7 @@ const User = () => {
     editModal,
     deleteModal,
   } = useUser();
+  const { canCreate, canUpdate, canDelete } = usePermission();
 
   const branchOptions = useMemo(
     () =>
@@ -59,21 +61,25 @@ const User = () => {
   const renderActions = useCallback(
     (_record: IUser, _index: number) => (
       <div className="flex gap-2">
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-          onClick={() => editModal.openModal(users[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(users[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canUpdate('user') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            onClick={() => editModal.openModal(users[_index])}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('user') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(users[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
-    [users, editModal, deleteModal],
+    [users, editModal, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -106,12 +112,14 @@ const User = () => {
               className="w-full sm:w-60"
             />
           </div>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create User
-          </Button>
+          {canCreate('user') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create User
+            </Button>
+          )}
         </div>
       </div>
 

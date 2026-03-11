@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { MediaModal } from './Modal/MediaModal'
 import useMedia from './useMedia'
 import { Button } from '@/components/ui/button'
+import usePermission from '@/hooks/usePermission'
 
 interface Props {
     media_type?: string;
@@ -22,6 +23,7 @@ const Media = ({ media_id, media_type }: Props) => {
         createModal,
         deleteModal
     } = useMedia({ media_type, media_id })
+    const { canDelete } = usePermission();
 
     const totalPages = Math.ceil(pagination.total / pagination.pageSize) || 1
     const canPrevious = pagination.current > 1
@@ -67,12 +69,14 @@ const Media = ({ media_id, media_type }: Props) => {
                                     alt={item.file_name ?? ''}
                                 />
                             </button>
-                            <button
-                                onClick={() => deleteModal.openModal(medias[index])}
-                                className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition"
-                            >
-                                <Trash className='text-red-500' size={18} />
-                            </button>
+                            {canDelete('media') && (
+                                <button
+                                    onClick={() => deleteModal.openModal(medias[index])}
+                                    className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition"
+                                >
+                                    <Trash className='text-red-500' size={18} />
+                                </button>
+                            )}
                         </div>
                         <div className='p-3 space-y-1'>
                             <p className="text-sm font-medium truncate">{item.collection_name}</p>

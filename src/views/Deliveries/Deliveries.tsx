@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react'
 import useDeliveries from './useDeliveries'
+import usePermission from '@/hooks/usePermission'
 import { IDeliveries } from '@/@types/deliveries';
 import { format } from 'date-fns';
 import { Column, DataTable } from '@/components/ui/data-table';
@@ -32,6 +33,7 @@ const Deliveries = () => {
         handleSearch,
         deleteModal,
     } = useDeliveries()
+    const { canCreate, canUpdate, canDelete } = usePermission()
 
     const options = useMemo(
         () =>
@@ -91,20 +93,24 @@ const Deliveries = () => {
                         <Eye className="h-4 w-4" />
                     </button>
                 </Link>
-                <Link href={`/transfer/deliveries/${_record.id}/edit`}>
-                    <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
-                        <Pencil className="h-4 w-4" />
+                {canUpdate('delivery') && (
+                    <Link href={`/transfer/deliveries/${_record.id}/edit`}>
+                        <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
+                            <Pencil className="h-4 w-4" />
+                        </button>
+                    </Link>
+                )}
+                {canDelete('delivery') && (
+                    <button
+                        className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+                        onClick={() => deleteModal.openModal(deliveries[_index])}
+                    >
+                        <Trash2 className="h-4 w-4" />
                     </button>
-                </Link>
-                <button
-                    className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-                    onClick={() => deleteModal.openModal(deliveries[_index])}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </button>
+                )}
             </div>
         ),
-        [deliveries, deleteModal],
+        [deliveries, deleteModal, canUpdate, canDelete],
     );
 
     return (
@@ -192,11 +198,13 @@ const Deliveries = () => {
                             Clear Filter
                         </Button>
                     </div>
-                    <Link href={"/transfer/deliveries/create"}>
-                        <Button type="button" className="w-full sm:w-auto">
-                            Create Delivery
-                        </Button>
-                    </Link>
+                    {canCreate('delivery') && (
+                        <Link href={"/transfer/deliveries/create"}>
+                            <Button type="button" className="w-full sm:w-auto">
+                                Create Delivery
+                            </Button>
+                        </Link>
+                    )}
                 </div>
             </div>
 

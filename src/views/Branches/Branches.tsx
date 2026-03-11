@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
 import useBranches from "./useBranches";
+import usePermission from "@/hooks/usePermission";
 import { Column, DataTable } from "@/components/ui/data-table";
 import { IBranch } from "@/@types/branch";
 import { format } from "date-fns";
@@ -25,6 +26,7 @@ const Branches = () => {
     handleCompanyChange,
     isLoadingCompany,
   } = useBranches();
+  const { canCreate, canUpdate, canDelete } = usePermission();
 
   const companyOptions = useMemo(
     () =>
@@ -61,21 +63,25 @@ const Branches = () => {
   const renderActions = useCallback(
     (_record: IBranch, _index: number) => (
       <div className="flex gap-2">
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-          onClick={() => editModal.openModal(branches[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(branches[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canUpdate('branch') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            onClick={() => editModal.openModal(branches[_index])}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('branch') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(branches[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
-    [branches, editModal, deleteModal],
+    [branches, editModal, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -108,12 +114,14 @@ const Branches = () => {
               className="w-full sm:w-60"
             />
           </div>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create Branch
-          </Button>
+          {canCreate('branch') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create Branch
+            </Button>
+          )}
         </div>
       </div>
 

@@ -16,6 +16,8 @@ import { Eye, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useMemo } from "react";
 import usePurchaseOrders from "./usePurchaseOrders";
+import usePermission from "@/hooks/usePermission";
+
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 
 const PurchaseOrders = () => {
@@ -39,6 +41,7 @@ const PurchaseOrders = () => {
     handleSearch,
     deleteModal,
   } = usePurchaseOrders();
+  const { canCreate, canUpdate, canDelete } = usePermission();
   const options = useMemo(
     () =>
       branches.map((item) => ({
@@ -97,20 +100,24 @@ const PurchaseOrders = () => {
             <Eye className="h-4 w-4" />
           </button>
         </Link>
-        <Link href={`/purchase/purchase-orders/${_record.id}/edit`}>
-          <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
-            <Pencil className="h-4 w-4" />
+        {canUpdate('purchase-order') && (
+          <Link href={`/purchase/purchase-orders/${_record.id}/edit`}>
+            <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
+              <Pencil className="h-4 w-4" />
+            </button>
+          </Link>
+        )}
+        {canDelete('purchase-order') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(purchaseOrders[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
           </button>
-        </Link>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(purchaseOrders[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        )}
       </div>
     ),
-    [purchaseOrders, deleteModal],
+    [purchaseOrders, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -198,11 +205,13 @@ const PurchaseOrders = () => {
               Clear Filter
             </Button>
           </div>
-          <Link href={"/purchase/purchase-orders/create"}>
-            <Button type="button" className="w-full sm:w-auto">
-              Create Purchase Order
-            </Button>
-          </Link>
+          {canCreate('purchase-order') && (
+            <Link href={"/purchase/purchase-orders/create"}>
+              <Button type="button" className="w-full sm:w-auto">
+                Create Purchase Order
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 

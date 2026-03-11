@@ -9,6 +9,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { ProductUomsModal } from "./Modal/ProductUomsModal";
 import useProductUoms from "./useProductUoms";
+import usePermission from "@/hooks/usePermission";
 import { formatterIDR } from "@/helper/convertCurrency";
 import {
   Select,
@@ -40,6 +41,7 @@ const ProductUoms = () => {
     createModal,
     deleteModal,
   } = useProductUoms();
+  const { canCreate, canUpdate, canDelete } = usePermission();
 
   const productOptions = useMemo(
     () =>
@@ -99,21 +101,25 @@ const ProductUoms = () => {
   const renderActions = useCallback(
     (_record: IProductUom, _index: number) => (
       <div className="flex gap-2">
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-          onClick={() => editModal.openModal(productUom[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(productUom[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canUpdate('product-uom') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            onClick={() => editModal.openModal(productUom[_index])}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('product-uom') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(productUom[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
-    [productUom, editModal, deleteModal],
+    [productUom, editModal, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -196,12 +202,14 @@ const ProductUoms = () => {
               />
             </div>
           </div>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create Product Uom
-          </Button>
+          {canCreate('product-uom') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create Product Uom
+            </Button>
+          )}
         </div>
       </div>
 

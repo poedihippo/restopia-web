@@ -8,6 +8,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { UomsModal } from "./Modal/UomsModal";
 import useUoms from "./useUoms";
+import usePermission from "@/hooks/usePermission";
 
 const Uoms = () => {
   const {
@@ -21,6 +22,7 @@ const Uoms = () => {
     deleteModal,
     editModal,
   } = useUoms();
+  const { canCreate, canUpdate, canDelete } = usePermission();
 
   const columns: Column<IUOM>[] = useMemo(
     () => [
@@ -48,21 +50,25 @@ const Uoms = () => {
   const renderActions = useCallback(
     (_record: IUOM, _index: number) => (
       <div className="flex gap-2">
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+        {canUpdate('uom') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
             onClick={() => editModal.openModal(uoms[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('uom') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
             onClick={() => deleteModal.openModal(uoms[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
-    [uoms, editModal, deleteModal],
+    [uoms, editModal, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -84,12 +90,14 @@ const Uoms = () => {
               className="w-full sm:max-w-sm"
             />
           </div>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create Uoms
-          </Button>
+          {canCreate('uom') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create Uoms
+            </Button>
+          )}
         </div>
       </div>
 

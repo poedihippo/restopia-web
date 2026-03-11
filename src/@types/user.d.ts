@@ -1,6 +1,6 @@
 import { Meta } from "./global";
 import { IBranch } from "./branch";
-import { IRole } from "./role";
+import { IRole, Permission } from "./role";
 
 export interface IUserMe {
   id?: number;
@@ -16,6 +16,7 @@ export interface IUserMe {
   branch?: IBranch;
   branches?: IBranch[];
   roles?: IRole[];
+  permissions?: Permission[]
 }
 
 interface ILogin {

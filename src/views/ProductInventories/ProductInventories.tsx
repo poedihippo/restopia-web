@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { useCallback, useMemo } from "react";
 import { ProductInventoriesModal } from "./Modal/ProductInventoriesModal";
 import useProductInventories from "./useProductInventories";
+import usePermission from "@/hooks/usePermission";
 import { PackagePlus, Pencil, Trash2 } from "lucide-react";
 import {
   Popover,
@@ -60,6 +61,7 @@ const ProductInventories = () => {
     deleteModal,
     createStockMovementModal,
   } = useProductInventories();
+  const { canCreate, canUpdate, canDelete } = usePermission();
   const productOptions = useMemo(
     () =>
       products.map((item) => ({
@@ -152,18 +154,22 @@ const ProductInventories = () => {
         >
           <PackagePlus className="h-4 w-4" />
         </button>
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-          onClick={() => editModal.openModal(productInventories[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(productInventories[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canUpdate('product-inventory') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            onClick={() => editModal.openModal(productInventories[_index])}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('product-inventory') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(productInventories[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
     [
@@ -172,6 +178,8 @@ const ProductInventories = () => {
       deleteModal,
       createStockMovementModal,
       setSelectedId,
+      canUpdate,
+      canDelete,
     ],
   );
 
@@ -367,12 +375,14 @@ const ProductInventories = () => {
               Stock Movements
             </Button>
           </Link>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create Product Inventory
-          </Button>
+          {canCreate('product-inventory') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create Product Inventory
+            </Button>
+          )}
         </div>
       </div>
 

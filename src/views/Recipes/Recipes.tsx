@@ -1,6 +1,7 @@
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { RecipesModal } from "./Modal/RecipesModal";
 import useRecipes from "./useRecipes";
+import usePermission from "@/hooks/usePermission";
 import { Column, DataTable } from "@/components/ui/data-table";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -25,6 +26,7 @@ const Recipes = () => {
     createModal,
     deleteModal,
   } = useRecipes();
+  const { canCreate, canUpdate, canDelete } = usePermission();
 
   const options = useMemo(
     () =>
@@ -69,21 +71,25 @@ const Recipes = () => {
   const renderActions = useCallback(
     (_record: IRecipe, _index: number) => (
       <div className="flex gap-2">
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-          onClick={() => editModal.openModal(recipes[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(recipes[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canUpdate('recipe') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            onClick={() => editModal.openModal(recipes[_index])}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('recipe') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(recipes[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
-    [recipes, editModal, deleteModal],
+    [recipes, editModal, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -116,12 +122,14 @@ const Recipes = () => {
               className="w-full sm:w-60"
             />
           </div>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create Recipe
-          </Button>
+          {canCreate('recipe') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create Recipe
+            </Button>
+          )}
         </div>
       </div>
 

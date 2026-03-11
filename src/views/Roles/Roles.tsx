@@ -10,6 +10,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import PermissionDetailModal from "./Modal/PermissionDetailModal";
 import Link from "next/link";
+import usePermission from "@/hooks/usePermission";
 
 const Roles = () => {
   const {
@@ -25,6 +26,7 @@ const Roles = () => {
     deleteModal,
     detailPermissionModal,
   } = useRoles();
+  const { canCreate, canUpdate, canDelete } = usePermission();
   const companyOptions = useMemo(
     () =>
       company.map((item) => ({
@@ -68,22 +70,24 @@ const Roles = () => {
   const renderActions = useCallback(
     (_record: IRole, _index: number) => (
       <div className="flex gap-2">
-        <Link href={`/users/roles/edit/${_record.id}`}>
+        {canUpdate('role') && (
+          <Link href={`/users/roles/edit/${_record.id}`}>
+            <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
+              <Pencil className="h-4 w-4" />
+            </button>
+          </Link>
+        )}
+        {canDelete('role') && (
           <button
-            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(roles[_index])}
           >
-            <Pencil className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" />
           </button>
-        </Link>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(roles[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        )}
       </div>
     ),
-    [roles, deleteModal],
+    [roles, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -116,9 +120,11 @@ const Roles = () => {
               className="w-full sm:w-60"
             />
           </div>
-          <Link className="cursor-pointer" href={"/users/roles/create"}>
-            <Button className="w-full sm:w-auto">Create Role</Button>
-          </Link>
+          {canCreate('role') && (
+            <Link className="cursor-pointer" href={"/users/roles/create"}>
+              <Button className="w-full sm:w-auto">Create Role</Button>
+            </Link>
+          )}
         </div>
       </div>
 

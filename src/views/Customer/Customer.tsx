@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import useCustomer from './useCustomer';
+import usePermission from '@/hooks/usePermission';
 import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
 import { CustomerModal } from './Modal/CustomerModal';
 
@@ -23,6 +24,7 @@ const Customer = () => {
         createModal,
         deleteModal,
     } = useCustomer()
+    const { canCreate, canUpdate, canDelete } = usePermission()
 
     const columns: Column<ICustomer>[] = useMemo(
         () => [
@@ -50,21 +52,25 @@ const Customer = () => {
     const renderActions = useCallback(
         (_record: ICustomer, _index: number) => (
             <div className="flex gap-2">
-                <button
-                    className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-                    onClick={() => editModal.openModal(customers[_index])}
-                >
-                    <Pencil className="h-4 w-4" />
-                </button>
-                <button
-                    className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-                    onClick={() => deleteModal.openModal(customers[_index])}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </button>
+                {canUpdate('customer') && (
+                    <button
+                        className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+                        onClick={() => editModal.openModal(customers[_index])}
+                    >
+                        <Pencil className="h-4 w-4" />
+                    </button>
+                )}
+                {canDelete('customer') && (
+                    <button
+                        className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+                        onClick={() => deleteModal.openModal(customers[_index])}
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                )}
             </div>
         ),
-        [customers, editModal, deleteModal],
+        [customers, editModal, deleteModal, canUpdate, canDelete],
     );
     return (
         <div className="p-4 sm:p-6">
@@ -85,12 +91,14 @@ const Customer = () => {
                             className="w-full sm:max-w-sm"
                         />
                     </div>
-                    <Button
-                        onClick={() => createModal.openModal()}
-                        className="w-full sm:w-auto"
-                    >
-                        Create Customer
-                    </Button>
+                    {canCreate('customer') && (
+                        <Button
+                            onClick={() => createModal.openModal()}
+                            className="w-full sm:w-auto"
+                        >
+                            Create Customer
+                        </Button>
+                    )}
                 </div>
             </div>
 

@@ -11,6 +11,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/components/ui/popover';
 import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
+import usePermission from '@/hooks/usePermission';
 
 const SalesOrders = () => {
     const {
@@ -38,6 +39,7 @@ const SalesOrders = () => {
         handleSearch,
         deleteModal,
     } = useSalesOrders()
+    const { canCreate, canUpdate, canDelete } = usePermission();
 
     const options = useMemo(
         () =>
@@ -106,20 +108,24 @@ const SalesOrders = () => {
                         <Eye className="h-4 w-4" />
                     </button>
                 </Link>
-                <Link href={`/sales/sales-orders/${_record.id}/edit`}>
-                    <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
-                        <Pencil className="h-4 w-4" />
+                {canUpdate('sales-order') && (
+                    <Link href={`/sales/sales-orders/${_record.id}/edit`}>
+                        <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
+                            <Pencil className="h-4 w-4" />
+                        </button>
+                    </Link>
+                )}
+                {canDelete('sales-order') && (
+                    <button
+                        className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+                        onClick={() => deleteModal.openModal(salesOrders[_index])}
+                    >
+                        <Trash2 className="h-4 w-4" />
                     </button>
-                </Link>
-                <button
-                    className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-                    onClick={() => deleteModal.openModal(salesOrders[_index])}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </button>
+                )}
             </div>
         ),
-        [salesOrders, deleteModal],
+        [salesOrders, deleteModal, canUpdate, canDelete],
     );
     return (
         <div className="p-4 sm:p-6">
@@ -267,11 +273,13 @@ const SalesOrders = () => {
                             Clear Filter
                         </Button>
                     </div>
-                    <Link href={"/sales/sales-orders/create"}>
-                        <Button type="button" className="w-full sm:w-auto">
-                            Create Sales Order
-                        </Button>
-                    </Link>
+                    {canCreate('sales-order') && (
+                        <Link href={"/sales/sales-orders/create"}>
+                            <Button type="button" className="w-full sm:w-auto">
+                                Create Sales Order
+                            </Button>
+                        </Link>
+                    )}
                 </div>
             </div>
 

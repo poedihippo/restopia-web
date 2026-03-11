@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react'
 import useReceipts from './useReceipts'
+import usePermission from '@/hooks/usePermission'
 import { IReceipt } from '@/@types/receipts';
 import Link from 'next/link';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
@@ -32,6 +33,7 @@ const Receipts = () => {
         handleSearch,
         deleteModal,
     } = useReceipts()
+    const { canCreate, canUpdate, canDelete } = usePermission()
 
     const options = useMemo(
         () =>
@@ -91,20 +93,24 @@ const Receipts = () => {
                         <Eye className="h-4 w-4" />
                     </button>
                 </Link>
-                <Link href={`/transfer/receipts/${_record.id}/edit`}>
-                    <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
-                        <Pencil className="h-4 w-4" />
+                {canUpdate('receipt') && (
+                    <Link href={`/transfer/receipts/${_record.id}/edit`}>
+                        <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
+                            <Pencil className="h-4 w-4" />
+                        </button>
+                    </Link>
+                )}
+                {canDelete('receipt') && (
+                    <button
+                        className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+                        onClick={() => deleteModal.openModal(receipts[_index])}
+                    >
+                        <Trash2 className="h-4 w-4" />
                     </button>
-                </Link>
-                <button
-                    className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-                    onClick={() => deleteModal.openModal(receipts[_index])}
-                >
-                    <Trash2 className="h-4 w-4" />
-                </button>
+                )}
             </div>
         ),
-        [receipts, deleteModal],
+        [receipts, deleteModal, canUpdate, canDelete],
     );
 
     return (
@@ -192,11 +198,13 @@ const Receipts = () => {
                             Clear Filter
                         </Button>
                     </div>
-                    <Link href={"/transfer/receipts/create"}>
-                        <Button type="button" className="w-full sm:w-auto cursor-pointer">
-                            Create Receipt
-                        </Button>
-                    </Link>
+                    {canCreate('receipt') && (
+                        <Link href={"/transfer/receipts/create"}>
+                            <Button type="button" className="w-full sm:w-auto cursor-pointer">
+                                Create Receipt
+                            </Button>
+                        </Link>
+                    )}
                 </div>
             </div>
 

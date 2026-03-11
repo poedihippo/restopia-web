@@ -7,6 +7,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import useProductions from "./useProductions";
+import usePermission from "@/hooks/usePermission";
 import { format } from "date-fns";
 import Link from "next/link";
 import {
@@ -36,6 +37,7 @@ const Productions = () => {
     setEndDate,
     setStatus,
   } = useProductions();
+  const { canCreate, canUpdate, canDelete } = usePermission();
   const options = useMemo(
     () =>
       branches.map((item) => ({
@@ -85,20 +87,24 @@ const Productions = () => {
             <Eye className="h-4 w-4" />
           </button>
         </Link>
-        <Link href={`/production/${_record.id}/edit`}>
-          <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
-            <Pencil className="h-4 w-4" />
+        {canUpdate('production') && (
+          <Link href={`/production/${_record.id}/edit`}>
+            <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
+              <Pencil className="h-4 w-4" />
+            </button>
+          </Link>
+        )}
+        {canDelete('production') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(productions[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
           </button>
-        </Link>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(productions[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        )}
       </div>
     ),
-    [productions, deleteModal],
+    [productions, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -174,11 +180,13 @@ const Productions = () => {
               Clear Filter
             </Button>
           </div>
-          <Link href={"/production/create"}>
-            <Button type="button" className="w-full sm:w-auto">
-              Create Production
-            </Button>
-          </Link>
+          {canCreate('production') && (
+            <Link href={"/production/create"}>
+              <Button type="button" className="w-full sm:w-auto">
+                Create Production
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 

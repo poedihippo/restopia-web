@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react'
 import useSuppliers from './useSuppliers'
+import usePermission from '@/hooks/usePermission'
 import { Pencil, Trash2 } from 'lucide-react';
 import { ISupplier } from '@/@types/supplier';
 import { format } from 'date-fns';
@@ -19,6 +20,7 @@ const Suppliers = () => {
     editModal,
     createModal,
     deleteModal, } = useSuppliers()
+  const { canCreate, canUpdate, canDelete } = usePermission()
 
   const columns: Column<ISupplier>[] = useMemo(
     () => [
@@ -46,21 +48,25 @@ const Suppliers = () => {
   const renderActions = useCallback(
     (_record: ISupplier, _index: number) => (
       <div className="flex gap-2">
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-          onClick={() => editModal.openModal(suppliers[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(suppliers[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canUpdate('supplier') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            onClick={() => editModal.openModal(suppliers[_index])}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('supplier') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(suppliers[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
-    [suppliers, editModal, deleteModal],
+    [suppliers, editModal, deleteModal, canUpdate, canDelete],
   );
   return (
     <div className="p-4 sm:p-6">
@@ -81,12 +87,14 @@ const Suppliers = () => {
               className="w-full sm:max-w-sm"
             />
           </div>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create Supplier
-          </Button>
+          {canCreate('supplier') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create Supplier
+            </Button>
+          )}
         </div>
       </div>
 

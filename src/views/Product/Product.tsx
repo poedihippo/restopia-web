@@ -9,6 +9,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { ProductModal } from "./Modal/ProductModal";
 import useProduct from "./useProduct";
+import usePermission from "@/hooks/usePermission";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Product = () => {
@@ -27,6 +28,7 @@ const Product = () => {
     editModal,
     setType,
   } = useProduct();
+  const { canCreate, canUpdate, canDelete } = usePermission();
 
   const options = useMemo(
     () =>
@@ -71,21 +73,25 @@ const Product = () => {
   const renderActions = useCallback(
     (_record: IProduct, _index: number) => (
       <div className="flex gap-2">
-        <button
-          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-          onClick={() => editModal.openModal(products[_index])}
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-          onClick={() => deleteModal.openModal(products[_index])}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canUpdate('product') && (
+          <button
+            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+            onClick={() => editModal.openModal(products[_index])}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
+        {canDelete('product') && (
+          <button
+            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+            onClick={() => deleteModal.openModal(products[_index])}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
     ),
-    [products, editModal, deleteModal],
+    [products, editModal, deleteModal, canUpdate, canDelete],
   );
 
   return (
@@ -135,12 +141,14 @@ const Product = () => {
               </SelectContent>
             </Select>
           </div>
-          <Button
-            onClick={() => createModal.openModal()}
-            className="w-full sm:w-auto"
-          >
-            Create Product
-          </Button>
+          {canCreate('product') && (
+            <Button
+              onClick={() => createModal.openModal()}
+              className="w-full sm:w-auto"
+            >
+              Create Product
+            </Button>
+          )}
         </div>
       </div>
 
