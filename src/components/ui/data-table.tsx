@@ -52,6 +52,7 @@ function DataTable<T extends object>({
   // Filter columns for mobile view
   const mobileColumns = columns.filter(col => !col.hideOnMobile)
 
+
   return (
     <div className={cn('space-y-4', className)}>
       {/* Desktop Table View */}
@@ -75,7 +76,7 @@ function DataTable<T extends object>({
                 )}
               </tr>
             </thead>
-            <tbody>
+            <tbody >
               {loading ? (
                 // Loading state
                 Array.from({ length: pagination?.pageSize || 5 }).map((_, rowIndex) => (
@@ -109,7 +110,8 @@ function DataTable<T extends object>({
                     key={`row-${rowIndex}`}
                     onClick={() => onRowClick?.(record, rowIndex)}
                     className={cn(
-                      "border-b transition-colors hover:bg-muted/50",
+                      "border-b transition-colors",
+                      rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-200',
                       onRowClick && "cursor-pointer"
                     )}
                   >

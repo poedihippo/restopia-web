@@ -8,15 +8,17 @@ import useGetProductCategoriesList from "@/hooks/product-categories/useGetProduc
 
 const useProduct = () => {
   const [productCategoryId, setProductCategoryId] = useState<number>();
+  const [type, setType] = useState<string>();
 
   const extraParams = useMemo(
     () => ({
       include: "product_category",
       filter: {
         product_category_id: productCategoryId,
+        type: type,
       },
     }),
-    [productCategoryId],
+    [productCategoryId, type],
   );
 
   const {
@@ -53,6 +55,8 @@ const useProduct = () => {
     search,
     productCategory,
     isLoadingPC,
+    type,
+    setType,
     handleProductCategoryChange,
     handlePageChange,
     handleSearch,

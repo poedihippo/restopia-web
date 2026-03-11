@@ -9,6 +9,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { ProductModal } from "./Modal/ProductModal";
 import useProduct from "./useProduct";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Product = () => {
   const {
@@ -24,6 +25,7 @@ const Product = () => {
     createModal,
     deleteModal,
     editModal,
+    setType,
   } = useProduct();
 
   const options = useMemo(
@@ -48,6 +50,10 @@ const Product = () => {
       {
         title: "Name",
         key: "name",
+      },
+      {
+        title: "Type",
+        key: "type",
       },
       {
         title: "Category Name",
@@ -111,6 +117,23 @@ const Product = () => {
               }}
               className="w-full sm:w-60"
             />
+            <Select
+              onValueChange={(val) =>
+                setType(val === "all" ? undefined : val)
+              }
+            >
+              <SelectTrigger className="w-full lg:w-40">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="raw">Raw</SelectItem>
+                  <SelectItem value="wip">Wip</SelectItem>
+                  <SelectItem value="final">Final</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
           <Button
             onClick={() => createModal.openModal()}

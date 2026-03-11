@@ -63,11 +63,11 @@ export const statusProduction = [
 
 export const direction = [
   {
-    label: "In",
+    label: "Increase",
     key: "in",
   },
   {
-    label: "Out",
+    label: "Decrease",
     key: "out",
   },
 ];

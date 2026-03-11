@@ -51,12 +51,12 @@ export const RecipesModal = ({
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "Edit Product Conversions" : "Create Product Conversions"}
+            {isEdit ? "Edit Recipes" : "Create Recipes"}
           </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Edit product conversions information. Update the fields as needed."
-              : "Add a new product conversions to the system. Fill in all the required information."}
+              ? "Edit recipes information. Update the fields as needed."
+              : "Add a new recipes to the system. Fill in all the required information."}
           </DialogDescription>
         </DialogHeader>
 

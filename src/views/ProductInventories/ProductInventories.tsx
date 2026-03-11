@@ -64,7 +64,7 @@ const ProductInventories = () => {
     () =>
       products.map((item) => ({
         value: item.id,
-        label: `${item.product?.name ?? ""} - ${item.uom?.name ?? ""}`,
+        label: `${item.product?.name ?? ""} - ${item.uom?.name ?? ""} - ${item.uom?.code ?? ""}`,
       })),
     [products],
   );
@@ -101,10 +101,6 @@ const ProductInventories = () => {
         key: "branch.name",
       },
       {
-        title: "Branch Code",
-        key: "branch.code",
-      },
-      {
         title: "Stock",
         key: "stock",
       },
@@ -126,16 +122,8 @@ const ProductInventories = () => {
         render: (value) => formatterIDR(Number(value)),
       },
       {
-        title: "Is Default?",
-        key: "is_default",
-        render: (value) => {
-          const v = value as boolean;
-          return (
-            <p className={v ? "text-green-500" : "text-red-500"}>
-              {v ? "True" : "False"}
-            </p>
-          );
-        },
+        title: "UOM Code",
+        key: "product_uom.uom.code",
       },
       {
         title: "Expiry Date",
@@ -383,7 +371,7 @@ const ProductInventories = () => {
             onClick={() => createModal.openModal()}
             className="w-full sm:w-auto"
           >
-            Create Product Inventor
+            Create Product Inventory
           </Button>
         </div>
       </div>

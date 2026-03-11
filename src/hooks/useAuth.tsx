@@ -15,14 +15,16 @@ type AuthContextType = {
   user: IUserMe | null;
   login: (token: string, refreshToken: string) => Promise<void>;
   logout: () => void;
+  refreshUser: () => void;
   isLoggedIn: boolean;
   isLoading: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  login: async () => {},
-  logout: () => {},
+  login: async () => { },
+  logout: () => { },
+  refreshUser: () => { },
   isLoggedIn: false,
   isLoading: true,
 });
@@ -148,10 +150,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     window.location.href = "/dashboard";
   };
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const response = await api.get(
+        "auth/me?include=created_by,updated_by,branch,branch.company,roles,permissions,branches"
+      );
+      if (response.data && response.data.data) {
+        setUser(response.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to refresh user:", error);
+    }
+  }, [api]);
+
+
   const value = {
     user,
     login,
     logout,
+    refreshUser,
     isLoggedIn,
     isLoading,
   };

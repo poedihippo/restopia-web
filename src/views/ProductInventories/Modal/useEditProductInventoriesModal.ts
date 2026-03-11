@@ -15,7 +15,7 @@ const Schema = z.object({
   product_uom_id: z.number().min(1, "Please choose product is required"),
   sku: z.string().min(1, "SKU is required"),
   price: z.number().min(1, "Price is required"),
-  expiry_date: z.string().min(1, "Expiry date is required"),
+  expiry_date: z.string().optional(),
   status: z.string().min(1, "status is required"),
   is_default: z.string().optional(),
 });
@@ -70,7 +70,7 @@ export const useEditProductInventoriesModal = (onSuccess?: () => void) => {
           product_uom_id: values.product_uom_id,
           sku: values.sku,
           price: values.price,
-          expiry_date: format(values.expiry_date, "yyyy-MM-dd"),
+          ...(values.expiry_date ? { expiry_date: format(values.expiry_date, "yyyy-MM-dd") } : {}),
           status: values.status,
           is_default: values.is_default === "0",
         };

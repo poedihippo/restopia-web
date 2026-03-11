@@ -1,4 +1,6 @@
 import { Meta } from "./global";
+import { IBranch } from "./branch";
+import { IRole } from "./role";
 
 export interface IUserMe {
   id?: number;
@@ -11,22 +13,9 @@ export interface IUserMe {
   created_by_id?: number;
   updated_at?: Date;
   updated_by_id?: number;
-  branch?: Branch;
-}
-
-export interface Branch {
-  id?: number;
-  company_id?: number;
-  code?: string;
-  name?: string;
-  company?: Company;
-}
-
-export interface Company {
-  id?: number;
-  name?: string;
-  created_at?: Date;
-  updated_at?: Date;
+  branch?: IBranch;
+  branches?: IBranch[];
+  roles?: IRole[];
 }
 
 interface ILogin {
@@ -67,6 +56,8 @@ export interface IUser {
   phone?: string;
   birth?: string;
   gender?: string;
+  branches?: IBranch[];
+  roles?: IRole[];
 }
 
 export interface AtedBy {
@@ -87,4 +78,8 @@ export interface IUserDTO {
   password: string;
   branch_ids: number[];
   role_ids: number[];
+}
+
+export interface IUserBranchChange {
+  branch_id: number
 }

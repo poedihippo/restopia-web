@@ -16,12 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { direction } from "@/constants/global";
 import { X } from "lucide-react";
 import { Controller, UseFormReturn } from "react-hook-form";
 import { StockMovementFormValues } from "./useCreateStockMovement";
-import { Textarea } from "@/components/ui/textarea";
 
 interface Props {
   mode: "create" | "edit";

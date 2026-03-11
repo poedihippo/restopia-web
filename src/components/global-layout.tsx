@@ -13,6 +13,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@/hooks/useAuth";
 import Head from "next/head";
 import React from "react";
 
@@ -37,6 +38,8 @@ export function GlobalLayout({
   breadcrumb,
   children,
 }: GlobalLayoutProps) {
+  const { user } = useAuth();
+
   return (
     <>
       <Head>
@@ -49,31 +52,34 @@ export function GlobalLayout({
           <header className=" top-0 flex h-16 shrink-0 items-center gap-2 border-b px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
-            <Breadcrumb>
-              <BreadcrumbList>
-                {breadcrumb.map((item, index) => {
-                  const isLast = index === breadcrumb.length - 1;
-                  return (
-                    <React.Fragment key={item}>
-                      {index > 0 && (
-                        <BreadcrumbSeparator className="hidden md:block" />
-                      )}
-                      <BreadcrumbItem
-                        className={!isLast ? "hidden md:block" : undefined}
-                      >
-                        {isLast ? (
-                          <BreadcrumbPage>{item}</BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink href={toHref(breadcrumb, index)}>
-                            {item}
-                          </BreadcrumbLink>
+            <div className="flex flex-1 flex-row justify-between">
+              <Breadcrumb>
+                <BreadcrumbList>
+                  {breadcrumb.map((item, index) => {
+                    const isLast = index === breadcrumb.length - 1;
+                    return (
+                      <React.Fragment key={item}>
+                        {index > 0 && (
+                          <BreadcrumbSeparator className="hidden md:block" />
                         )}
-                      </BreadcrumbItem>
-                    </React.Fragment>
-                  );
-                })}
-              </BreadcrumbList>
-            </Breadcrumb>
+                        <BreadcrumbItem
+                          className={!isLast ? "hidden md:block" : undefined}
+                        >
+                          {isLast ? (
+                            <BreadcrumbPage>{item}</BreadcrumbPage>
+                          ) : (
+                            <BreadcrumbLink href={toHref(breadcrumb, index)}>
+                              {item}
+                            </BreadcrumbLink>
+                          )}
+                        </BreadcrumbItem>
+                      </React.Fragment>
+                    );
+                  })}
+                </BreadcrumbList>
+              </Breadcrumb>
+              <p>{user?.branch?.name ?? '-'} - {user?.branch?.company?.name ?? '-'}</p>
+            </div>
           </header>
           <div className="flex flex-1 flex-col gap-4 p-4">{children}</div>
         </SidebarInset>

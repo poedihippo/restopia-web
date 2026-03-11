@@ -53,9 +53,15 @@ import {
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/router";
+import useUserBranchPatch from "@/hooks/user/useUserBranchPatch";
+import BranchSwitcherDialog from "./branch-switcher-dialog";
 
 const data = {
   navMain: [
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+    },
     {
       title: "User Master",
       url: "#",
@@ -195,8 +201,18 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { logout, user } = useAuth();
+  const { logout, refreshUser, user, } = useAuth();
   const router = useRouter();
+  const [branchDialogOpen, setBranchDialogOpen] = React.useState(false)
+  const { mutate: changeBranch, isPending } = useUserBranchPatch()
+  const handleChangeBranch = (branchId: number) => {
+    changeBranch({ branch_id: branchId }, {
+      onSuccess: () => {
+        setBranchDialogOpen(false)
+        refreshUser()
+      }
+    })
+  }
   return (
     <Sidebar {...props}>
       <SidebarHeader>
@@ -218,8 +234,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               >
                 <CollapsibleTrigger>
 
-                  {item.url === '#' ? <p>{item.title}{" "}</p> :
-                    <a href={item.url}>
+                  {item.url === '#' ? <p className="font-bold">{item.title}{" "}</p> :
+                    <a className="font-bold" href={item.url}>
                       {item.title}{" "}
                     </a>
                   }
@@ -287,6 +303,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   {user?.email}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                {(user?.branches?.length ?? 0) > 1 && (
+                  <>
+                    <DropdownMenuItem onClick={() => setBranchDialogOpen(true)}>
+                      <GitBranch className="mr-2 size-4" />
+                      Change Branch
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem
                   onClick={logout}
                   className="text-destructive focus:text-destructive"
@@ -299,6 +323,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <BranchSwitcherDialog
+        open={branchDialogOpen}
+        onOpenChange={setBranchDialogOpen}
+        branches={user?.branches ?? []}
+        currentBranchId={user?.branch_id}
+        onSelect={handleChangeBranch}
+        isLoading={isPending}
+      />
     </Sidebar>
   );
 }

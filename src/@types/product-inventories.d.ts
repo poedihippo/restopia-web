@@ -54,7 +54,7 @@ export interface IProductInventoriesDTO {
   product_uom_id: number;
   sku: string;
   price: number;
-  expiry_date: string;
+  expiry_date?: string;
   status: string;
   is_default: boolean;
 }

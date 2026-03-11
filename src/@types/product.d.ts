@@ -10,6 +10,7 @@ export interface IProduct {
   product_category_id: number;
   code?: string;
   name?: string;
+  type?: string;
   created_at?: Date;
   updated_at?: Date;
   product_category?: ProductCategory;

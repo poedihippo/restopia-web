@@ -1,8 +1,5 @@
-import React, { useMemo } from "react";
-import useStockMovement from "./useStockMovement";
 import { IStockMovement } from "@/@types/stock-movements";
 import { Column, DataTable } from "@/components/ui/data-table";
-import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
@@ -13,6 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { format } from "date-fns";
+import { useMemo } from "react";
+import useStockMovement from "./useStockMovement";
 
 const StockMovement = () => {
   const {
@@ -36,7 +36,7 @@ const StockMovement = () => {
     () =>
       products.map((item) => ({
         value: item.id,
-        label: `${item?.product_uom?.product?.name ?? ""} - ${item.branch?.name ?? ""}`,
+        label: `${item?.product_uom?.product?.name ?? ""} - ${item.branch?.name ?? ""} - ${item.product_uom?.uom?.code}`,
       })),
     [products],
   );
@@ -61,6 +61,10 @@ const StockMovement = () => {
         key: "product_inventory.product_uom.product.name",
       },
       {
+        title: "Product UOM Code",
+        key: "product_inventory.product_uom.uom.code",
+      },
+      {
         title: "Branch Name",
         key: "branch.name",
       },
@@ -83,7 +87,7 @@ const StockMovement = () => {
       {
         title: "Created At",
         key: "created_at",
-        render: (value) => format(new Date(value as string), "dd MMM yyyy"),
+        render: (value) => format(new Date(value as string), "dd MMM yyyy HH:mm"),
       },
     ],
     [],
@@ -136,8 +140,8 @@ const StockMovement = () => {
               <SelectContent>
                 <SelectGroup>
                   <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="in">In</SelectItem>
-                  <SelectItem value="out">Out</SelectItem>
+                  <SelectItem value="in">Increase</SelectItem>
+                  <SelectItem value="out">Decrease</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>

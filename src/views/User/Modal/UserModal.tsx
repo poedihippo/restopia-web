@@ -69,7 +69,7 @@ export const UserModal = ({
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-col space-y-4"
         >
-          <FieldGroup>
+          <FieldGroup className="grid grid-cols-1 lg:grid-cols-2">
             <Field>
               <FieldLabel>Name</FieldLabel>
               <Controller

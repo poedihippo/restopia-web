@@ -4,7 +4,7 @@ import usePurchaseOrderMutation from "@/hooks/purchase-order/usePurchaseOrderMut
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { useRouter } from "next/router";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -83,6 +83,13 @@ export const useCreatePurchaseOrders = () => {
     control: form.control,
     name: "details",
   });
+
+  const details = form.watch('details')
+  const total = details.reduce((acc, row) => acc + (row.qty * row.price), 0)
+
+  useEffect(() => {
+    form.setValue('total_price', total)
+  }, [total, details])
 
   const handleSubmit = useCallback(
     async (values: PurchaseOrdersFormValues) => {
