@@ -207,7 +207,7 @@ const PurchaseOrders = () => {
           </div>
           {canCreate('purchase-order') && (
             <Link href={"/purchase/purchase-orders/create"}>
-              <Button type="button" className="w-full sm:w-auto">
+              <Button type="button" className="w-full sm:w-auto cursor-pointer">
                 Create Purchase Order
               </Button>
             </Link>

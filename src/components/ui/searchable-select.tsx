@@ -13,6 +13,8 @@ type SearchableSelectProps = Omit<
 export const SearchableSelect = (props: SearchableSelectProps) => {
   return (
     <ReactSelect<SelectOption, boolean>
+      menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+      menuPosition="fixed"
       {...props}
       classNames={{
         control: () =>

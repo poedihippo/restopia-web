@@ -42,130 +42,126 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
   const selectedProduct = productInventoryData?.data?.find(item => item.id === selectedProductId);
 
   return (
-    <div className=" my-4 bg-white shadow-xl rounded-md border-2">
-      <div className="flex justify-between items-center px-2 py-2">
-        <p>Detail {index + 1}</p>
-        <Button type="button" variant="destructive" onClick={onRemove}>
-          <Trash />
-        </Button>
-      </div>
-      <div className="flex flex-col gap-4 px-2">
-        <div className="flex flex-col gap-2">
-          <Label>Product Inventory</Label>
-          <Controller
-            control={control}
-            name={`details.${index}.product_inventory_id`}
-            render={({ field, fieldState }) => (
-              <>
-                <SearchableSelect
-                  isClearable
-                  isLoading={isLoadingProductInventory}
-                  placeholder="Select product inventory..."
-                  options={
-                    productInventoryData?.data?.map((item) => ({
+    <tr className="border-b align-middle">
+      <td className="py-2 px-3 text-sm text-muted-foreground text-center">{index + 1}</td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.product_inventory_id`}
+          render={({ field, fieldState }) => (
+            <>
+              <SearchableSelect
+                isClearable
+                isLoading={isLoadingProductInventory}
+                placeholder="Select product inventory..."
+                options={
+                  productInventoryData?.data?.map((item) => ({
+                    value: item.id,
+                    label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
+                  })) ?? []
+                }
+                value={
+                  productInventoryData?.data
+                    ?.filter((item) => item.id === field.value)
+                    .map((item) => ({
                       value: item.id,
                       label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
-                    })) ?? []
-                  }
-                  value={
-                    productInventoryData?.data
-                      ?.filter((item) => item.id === field.value)
-                      .map((item) => ({
-                        value: item.id,
-                        label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
-                      }))[0] ?? null
-                  }
-                  onChange={(selected) => {
-                    const id = selected ? (selected as { value: number }).value : null;
-                    field.onChange(id);
-                    const product = productInventoryData?.data?.find(item => item.id === id);
-                    setValue(`details.${index}.price`, product?.price ?? 0);
-                  }}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Quantity</Label>
-          {selectedProduct && (
-            <p className="text-sm text-muted-foreground">Stock: {selectedProduct.stock ?? 0}</p>
+                    }))[0] ?? null
+                }
+                onChange={(selected) => {
+                  const id = selected ? (selected as { value: number }).value : null;
+                  field.onChange(id)
+                  const product = productInventoryData?.data?.find(item => item.id === id);
+                  setValue(`details.${index}.price`, product?.price ?? 0)
+                }}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
           )}
-          <Controller
-            control={control}
-            name={`details.${index}.qty`}
-            render={({ field, fieldState }) => (
-              <>
-                <Input
-                  {...field}
-                  min={0}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                  max={selectedProduct?.stock ?? undefined}
-                  type="number"
-                  placeholder="0"
-                  aria-invalid={!!fieldState.error}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Price</Label>
-          <Controller
-            control={control}
-            name={`details.${index}.price`}
-            render={({ field, fieldState }) => (
-              <>
-                <Input
-                  {...field}
-                  min={0}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                  type="number"
-                  placeholder="0"
-                  aria-invalid={!!fieldState.error}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-        <div className="flex flex-col gap-2 mb-4">
-          <Label>Description</Label>
-          <Controller
-            control={control}
-            name={`details.${index}.description`}
-            render={({ field, fieldState }) => (
-              <>
-                <Textarea
-                  {...field}
-                  placeholder="John Doe"
-                  aria-invalid={!!fieldState.error}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-      </div>
-    </div>
+        />
+      </td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.qty`}
+          render={({ field, fieldState }) => (
+            <>
+              <Input
+                {...field}
+                min={0}
+                onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                max={selectedProduct?.stock ?? undefined}
+                type="number"
+                placeholder="0"
+                aria-invalid={!!fieldState.error}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
+          )}
+        />
+      </td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.price`}
+          render={({ field, fieldState }) => (
+            <>
+              <Input
+                {...field}
+                min={0}
+                onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                type="number"
+                placeholder="0"
+                aria-invalid={!!fieldState.error}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
+          )}
+        />
+      </td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.description`}
+          render={({ field, fieldState }) => (
+            <>
+              <Textarea
+                {...field}
+                placeholder="Description..."
+                aria-invalid={!!fieldState.error}
+                className="min-h-9.5 resize-none"
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
+          )}
+        />
+      </td>
+      <td className="py-2 px-3 text-center">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-destructive hover:text-destructive/70 transition-colors p-1 rounded"
+        >
+          <Trash size={16} />
+        </button>
+      </td>
+    </tr>
   );
 };
 
@@ -214,284 +210,267 @@ const PurchaseOrdersEditForm = ({ id }: Props) => {
       </div>
 
       <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)}>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <Label>Code</Label>
-            <Controller
-              control={form.control}
-              name="code"
-              render={({ field, fieldState }) => (
-                <>
-                  <Input
-                    {...field}
-                    placeholder="John Doe"
-                    aria-invalid={!!fieldState.error}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </>
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label>Choose Supplier</Label>
-            <Controller
-              control={form.control}
-              name={`supplier_id`}
-              render={({ field, fieldState }) => (
-                <>
-                  <SearchableSelect
-                    isClearable
-                    isDisabled={!!watchedSupplierBranchId}
-                    isLoading={isLoadingSupplier}
-                    placeholder="Select supplier..."
-                    options={
-                      suppliersData?.data?.map((item) => ({
-                        value: item.id,
-                        label: `${item?.name} - ${item.code}`,
-                      })) ?? []
-                    }
-                    value={
-                      suppliersData?.data
-                        ?.filter((item) => item.id === field.value)
-                        .map((item) => ({
-                          value: item.id,
-                          label: `${item?.name} - ${item?.code}`,
-                        }))[0] ?? null
-                    }
-                    onChange={(selected) => {
-                      field.onChange(
-                        selected ? (selected as { value: number }).value : 0,
-                      );
-                    }}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </>
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label>Choose Supplier Branch</Label>
-            <Controller
-              control={form.control}
-              name={`supplier_branch_id`}
-              render={({ field, fieldState }) => (
-                <>
-                  <SearchableSelect
-                    isClearable
-                    isDisabled={!!watchedSupplierId}
-                    isLoading={isLoadingBranch}
-                    placeholder="Select supplier branch..."
-                    options={
-                      branchData?.data?.map((item) => ({
-                        value: item.id,
-                        label: `${item?.name} - ${item.code}`,
-                      })) ?? []
-                    }
-                    value={
-                      branchData?.data
-                        ?.filter((item) => item.id === field.value)
-                        .map((item) => ({
-                          value: item.id,
-                          label: `${item?.name} - ${item?.code}`,
-                        }))[0] ?? null
-                    }
-                    onChange={(selected) => {
-                      field.onChange(
-                        selected ? (selected as { value: number }).value : 0,
-                      );
-                    }}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </>
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label>Date</Label>
-            <Controller
-              control={form.control}
-              name="date"
-              render={({ field, fieldState }) => (
-                <>
-                  <Input
-                    {...field}
-                    type="date"
-                    placeholder="John Doe"
-                    aria-invalid={!!fieldState.error}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </>
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label>Total Price</Label>
-            <Controller
-              control={form.control}
-              name={`total_price`}
-              render={({ field, fieldState }) => (
-                <>
-                  <Input
-                    {...field}
-                    readOnly
-                    type="number"
-                    placeholder="0"
-                    aria-invalid={!!fieldState.error}
-                    className="bg-muted cursor-not-allowed"
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </>
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label>Status</Label>
-            <Controller
-              control={form.control}
-              name="status"
-              render={({ field, fieldState }) => (
-                <>
-                  <div className="flex gap-2">
-                    <Select
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                      }}
-                      value={field.value}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statusProduction?.map((item) => (
-                          <SelectItem key={item.key} value={item.key}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {field.value && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => field.onChange("")}
-                        className="shrink-0"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+        <form onSubmit={form.handleSubmit(handleSubmit)}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label>Code</Label>
+              <Controller
+                control={form.control}
+                name="code"
+                render={({ field, fieldState }) => (
+                  <>
+                    <Input
+                      {...field}
+                      placeholder="John Doe"
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
                     )}
-                  </div>
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </>
-              )}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label>Description</Label>
-            <Controller
-              control={form.control}
-              name="description"
-              render={({ field, fieldState }) => (
-                <>
-                  <Textarea
-                    {...field}
-                    placeholder="John Doe"
-                    aria-invalid={!!fieldState.error}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </>
-              )}
-            />
-          </div>
-        </div>
-
-        <div>
-          <p className="my-4 font-medium">Upload Media (Max 2MB Per Image)</p>
-          {newFiles.length > 0 &&
-            <Label className="text-xl text-black font-semibold">New Media</Label>
-          }
-          {existingMedia.length + newFiles.length < 5 && (
-            <div className="my-4">
-              <Label className="my-2">Add New Images ({5 - existingMedia.length - newFiles.length} slot remaining)</Label>
-              <Input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={(e) => {
-                  const selected = Array.from(e.target.files ?? [])
-
-                  const oversized = selected.filter(f => f.size > 2_000_000)
-                  const valid = selected.filter(f => f.size <= 2_000_000)
-
-                  if (oversized.length > 0) {
-                    toast.warning(`${oversized.length} file(s) skipped: exceeds 2MB limit`)
-                  }
-                  handleAddFiles(valid)
-                  e.target.value = ''
-                }}
+                  </>
+                )}
               />
             </div>
-          )}
 
-          <div className="flex gap-2 flex-wrap mt-2">
-            {newFiles.map((item, i) => (
-              <div key={i} className="relative inline-block">
-                <Image height={100} width={100} alt={`new-${i}`} src={URL.createObjectURL(item)} />
-                <button
-                  type="button"
-                  onClick={() => handleRemoveNewFile(i)}
-                  className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition cursor-pointer"
-                >
-                  <Trash className="text-red-500" size={12} />
-                </button>
-              </div>
-            ))}
+            <div className="flex flex-col gap-2">
+              <Label>Choose Supplier</Label>
+              <Controller
+                control={form.control}
+                name={`supplier_id`}
+                render={({ field, fieldState }) => (
+                  <>
+                    <SearchableSelect
+                      isClearable
+                      isDisabled={!!watchedSupplierBranchId}
+                      isLoading={isLoadingSupplier}
+                      placeholder="Select supplier..."
+                      options={
+                        suppliersData?.data?.map((item) => ({
+                          value: item.id,
+                          label: `${item?.name} - ${item.code}`,
+                        })) ?? []
+                      }
+                      value={
+                        suppliersData?.data
+                          ?.filter((item) => item.id === field.value)
+                          .map((item) => ({
+                            value: item.id,
+                            label: `${item?.name} - ${item?.code}`,
+                          }))[0] ?? null
+                      }
+                      onChange={(selected) => {
+                        field.onChange(
+                          selected ? (selected as { value: number }).value : 0,
+                        );
+                      }}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Choose Supplier Branch</Label>
+              <Controller
+                control={form.control}
+                name={`supplier_branch_id`}
+                render={({ field, fieldState }) => (
+                  <>
+                    <SearchableSelect
+                      isClearable
+                      isDisabled={!!watchedSupplierId}
+                      isLoading={isLoadingBranch}
+                      placeholder="Select supplier branch..."
+                      options={
+                        branchData?.data?.map((item) => ({
+                          value: item.id,
+                          label: `${item?.name} - ${item.code}`,
+                        })) ?? []
+                      }
+                      value={
+                        branchData?.data
+                          ?.filter((item) => item.id === field.value)
+                          .map((item) => ({
+                            value: item.id,
+                            label: `${item?.name} - ${item?.code}`,
+                          }))[0] ?? null
+                      }
+                      onChange={(selected) => {
+                        field.onChange(
+                          selected ? (selected as { value: number }).value : 0,
+                        );
+                      }}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Date</Label>
+              <Controller
+                control={form.control}
+                name="date"
+                render={({ field, fieldState }) => (
+                  <>
+                    <Input
+                      {...field}
+                      type="date"
+                      placeholder="John Doe"
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Total Price</Label>
+              <Controller
+                control={form.control}
+                name={`total_price`}
+                render={({ field, fieldState }) => (
+                  <>
+                    <Input
+                      {...field}
+                      readOnly
+                      type="number"
+                      placeholder="0"
+                      aria-invalid={!!fieldState.error}
+                      className="bg-muted cursor-not-allowed"
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Status</Label>
+              <Controller
+                control={form.control}
+                name="status"
+                render={({ field, fieldState }) => (
+                  <>
+                    <div className="flex gap-2">
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                        }}
+                        value={field.value}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusProduction?.map((item) => (
+                            <SelectItem key={item.key} value={item.key}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.value && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => field.onChange("")}
+                          className="shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>Description</Label>
+              <Controller
+                control={form.control}
+                name="description"
+                render={({ field, fieldState }) => (
+                  <>
+                    <Textarea
+                      {...field}
+                      placeholder="John Doe"
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </div>
           </div>
 
-          <p className="mt-4 text-black text-xl font-semibold">Original Image</p>
-          {existingMedia.length > 0 && (
-            <div className="flex gap-2 flex-wrap mb-4">
-              {existingMedia?.map((item) => (
-                <div key={item.id} className="relative inline-block">
-                  <Image height={100} width={100} alt={item.file_name ?? ''} src={item.url ?? ''} />
+          <div>
+            <p className="my-4 font-medium">Upload Media (Max 2MB Per Image)</p>
+            {newFiles.length > 0 &&
+              <Label className="text-xl text-black font-semibold">New Media</Label>
+            }
+            {existingMedia.length + newFiles.length < 5 && (
+              <div className="my-4">
+                <Label className="my-2">Add New Images ({5 - existingMedia.length - newFiles.length} slot remaining)</Label>
+                <Input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(e) => {
+                    const selected = Array.from(e.target.files ?? [])
+
+                    const oversized = selected.filter(f => f.size > 2_000_000)
+                    const valid = selected.filter(f => f.size <= 2_000_000)
+
+                    if (oversized.length > 0) {
+                      toast.warning(`${oversized.length} file(s) skipped: exceeds 2MB limit`)
+                    }
+                    handleAddFiles(valid)
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 flex-wrap mt-2">
+              {newFiles.map((item, i) => (
+                <div key={i} className="relative inline-block">
+                  <Image height={100} width={100} alt={`new-${i}`} src={URL.createObjectURL(item)} />
                   <button
                     type="button"
-                    onClick={() => handleRemoveExisting(item.id!)}
+                    onClick={() => handleRemoveNewFile(i)}
                     className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition cursor-pointer"
                   >
                     <Trash className="text-red-500" size={12} />
@@ -499,42 +478,79 @@ const PurchaseOrdersEditForm = ({ id }: Props) => {
                 </div>
               ))}
             </div>
-          )}
-        </div>
-        <div className="my-2">
-          <Button
-            type="button"
-            onClick={() =>
-              appendDetail({
-                product_inventory_id: 0,
-                qty: 0,
-                price: 0,
-                description: "",
-              })
-            }
-          >
-            Add Detail
-          </Button>
-        </div>
-        {detailFields?.map((field, index) => (
-          <DetailRow
-            key={field.id}
-            index={index}
-            control={form.control}
-            onRemove={() => removeDetail(index)}
-          />
-        ))}
 
-        <div className="my-2">
-          <Button
-            className="bg-green-500 hover:bg-green-600 text-white"
-            type="submit"
-            disabled={isSubmitting}
-          >
-            Update
-          </Button>
-        </div>
-      </form>
+            <p className="mt-4 text-black text-xl font-semibold">Original Image</p>
+            {existingMedia.length > 0 && (
+              <div className="flex gap-2 flex-wrap mb-4">
+                {existingMedia?.map((item) => (
+                  <div key={item.id} className="relative inline-block">
+                    <Image height={100} width={100} alt={item.file_name ?? ''} src={item.url ?? ''} />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExisting(item.id!)}
+                      className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition cursor-pointer"
+                    >
+                      <Trash className="text-red-500" size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="w-full mt-6">
+            <div className="border rounded-md">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-10">#</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground">Product</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-32">Qty</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-36">Price</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground">Description</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-16">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailFields?.map((field, index) => (
+                    <DetailRow key={field.id} index={index} control={form.control} onRemove={() => removeDetail(index)} />
+                  ))}
+                  {detailFields.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-muted-foreground text-sm">
+                        No details added. Click &quot;+ Add Detail&quot; to start.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() =>
+                appendDetail({
+                  product_inventory_id: 0,
+                  qty: 1,
+                  price: 0,
+                  description: "",
+                })
+              }
+            >+ Add Detail</Button>
+          </div>
+
+          <div className="my-2">
+            <Button
+              className="bg-green-500 hover:bg-green-600 text-white"
+              type="submit"
+              disabled={isSubmitting}
+            >
+              Update
+            </Button>
+          </div>
+        </form>
       </FormProvider>
     </div>
   );

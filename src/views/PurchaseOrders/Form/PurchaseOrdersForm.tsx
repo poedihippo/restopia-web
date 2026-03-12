@@ -42,130 +42,126 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
   const selectedProductId = useWatch({ control, name: `details.${index}.product_inventory_id` })
   const selectedProduct = productInventoryData?.data?.find(item => item.id === selectedProductId)
   return (
-    <div className=" my-4 bg-white shadow-xl rounded-md border-2">
-      <div className="flex justify-between items-center px-2 py-2">
-        <p>Detail {index + 1}</p>
-        <Button type="button" variant="destructive" onClick={onRemove}>
-          <Trash />
-        </Button>
-      </div>
-      <div className="flex flex-col gap-4 px-2">
-        <div className="flex flex-col gap-2">
-          <Label>Product Inventory</Label>
-          <Controller
-            control={control}
-            name={`details.${index}.product_inventory_id`}
-            render={({ field, fieldState }) => (
-              <>
-                <SearchableSelect
-                  isClearable
-                  isLoading={isLoadingProductInventory}
-                  placeholder="Select product inventory..."
-                  options={
-                    productInventoryData?.data?.map((item) => ({
+    <tr className="border-b align-middle">
+      <td className="py-2 px-3 text-sm text-muted-foreground text-center">{index + 1}</td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.product_inventory_id`}
+          render={({ field, fieldState }) => (
+            <>
+              <SearchableSelect
+                isClearable
+                isLoading={isLoadingProductInventory}
+                placeholder="Select product inventory..."
+                options={
+                  productInventoryData?.data?.map((item) => ({
+                    value: item.id,
+                    label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
+                  })) ?? []
+                }
+                value={
+                  productInventoryData?.data
+                    ?.filter((item) => item.id === field.value)
+                    .map((item) => ({
                       value: item.id,
                       label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
-                    })) ?? []
-                  }
-                  value={
-                    productInventoryData?.data
-                      ?.filter((item) => item.id === field.value)
-                      .map((item) => ({
-                        value: item.id,
-                        label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
-                      }))[0] ?? null
-                  }
-                  onChange={(selected) => {
-                    const id = selected ? (selected as { value: number }).value : null;
-                    field.onChange(id)
-                    const product = productInventoryData?.data?.find(item => item.id === id);
-                    setValue(`details.${index}.price`, product?.price ?? 0)
-                  }}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Quantity</Label>
-          {selectedProduct && (
-            <p className="text-sm text-muted-foreground">Stock: {selectedProduct.stock ?? 0}</p>
+                    }))[0] ?? null
+                }
+                onChange={(selected) => {
+                  const id = selected ? (selected as { value: number }).value : null;
+                  field.onChange(id)
+                  const product = productInventoryData?.data?.find(item => item.id === id);
+                  setValue(`details.${index}.price`, product?.price ?? 0)
+                }}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
           )}
-          <Controller
-            control={control}
-            name={`details.${index}.qty`}
-            render={({ field, fieldState }) => (
-              <>
-                <Input
-                  {...field}
-                  min={0}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                  max={selectedProduct?.stock ?? undefined}
-                  type="number"
-                  placeholder="0"
-                  aria-invalid={!!fieldState.error}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label>Price</Label>
-          <Controller
-            control={control}
-            name={`details.${index}.price`}
-            render={({ field, fieldState }) => (
-              <>
-                <Input
-                  {...field}
-                  min={0}
-                  onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                  type="number"
-                  placeholder="0"
-                  aria-invalid={!!fieldState.error}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-        <div className="flex flex-col gap-2 mb-4">
-          <Label>Description</Label>
-          <Controller
-            control={control}
-            name={`details.${index}.description`}
-            render={({ field, fieldState }) => (
-              <>
-                <Textarea
-                  {...field}
-                  placeholder="John Doe"
-                  aria-invalid={!!fieldState.error}
-                />
-                {fieldState.error && (
-                  <p className="text-destructive text-sm">
-                    {fieldState.error.message}
-                  </p>
-                )}
-              </>
-            )}
-          />
-        </div>
-      </div>
-    </div>
+        />
+      </td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.qty`}
+          render={({ field, fieldState }) => (
+            <>
+              <Input
+                {...field}
+                min={0}
+                onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                max={selectedProduct?.stock ?? undefined}
+                type="number"
+                placeholder="0"
+                aria-invalid={!!fieldState.error}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
+          )}
+        />
+      </td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.price`}
+          render={({ field, fieldState }) => (
+            <>
+              <Input
+                {...field}
+                min={0}
+                onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                type="number"
+                placeholder="0"
+                aria-invalid={!!fieldState.error}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
+          )}
+        />
+      </td>
+      <td className="py-2 px-3">
+        <Controller
+          control={control}
+          name={`details.${index}.description`}
+          render={({ field, fieldState }) => (
+            <>
+              <Textarea
+                {...field}
+                placeholder="Description..."
+                aria-invalid={!!fieldState.error}
+                className="min-h-9.5 resize-none"
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
+          )}
+        />
+      </td>
+      <td className="py-2 px-3 text-center">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="text-destructive hover:text-destructive/70 transition-colors p-1 rounded"
+        >
+          <Trash size={16} />
+        </button>
+      </td>
+    </tr>
   );
 };
 
@@ -506,29 +502,48 @@ const PurchaseOrdersForm = () => {
               )}
             />
           </div>
-          <div className="my-2">
+          <div className="w-full mt-6">
+            <div className="border rounded-md">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 border-b">
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-10">#</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground">Product</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-32">Qty</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-36">Price</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground">Description</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-16">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailFields?.map((field, index) => (
+                    <DetailRow key={field.id} index={index} control={form.control} onRemove={() => removeDetail(index)} />
+                  ))}
+                  {detailFields.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-muted-foreground text-sm">
+                        No details added. Click &quot;+ Add Detail&quot; to start.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
             <Button
               type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
               onClick={() =>
                 appendDetail({
                   product_inventory_id: 0,
-                  qty: 0,
+                  qty: 1,
                   price: 0,
                   description: "",
                 })
               }
-            >
-              Add Detail
-            </Button>
+            >+ Add Detail</Button>
           </div>
-          {detailFields?.map((field, index) => (
-            <DetailRow
-              key={field.id}
-              index={index}
-              control={form.control}
-              onRemove={() => removeDetail(index)}
-            />
-          ))}
 
           <div className="my-2">
             <Button
