@@ -21,7 +21,7 @@ const MaterialSchema = z.object({
 const Schema = z.object({
   product_id: z.number().min(1, "Please choose product is required"),
   qty: z.number().min(1, "Price is required"),
-  is_default: z.string().min(1, "Default is required"),
+  is_default: z.string(),
   materials: z.array(MaterialSchema).min(1, "At least 1 material")
 });
 

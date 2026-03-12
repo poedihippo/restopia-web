@@ -85,6 +85,10 @@ const StockMovement = () => {
         key: "stock_after",
       },
       {
+        title: "Created By",
+        key: "created_by.name",
+      },
+      {
         title: "Created At",
         key: "created_at",
         render: (value) => format(new Date(value as string), "dd MMM yyyy HH:mm"),
