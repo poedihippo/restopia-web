@@ -165,6 +165,9 @@ const Recipes = () => {
           onSubmit={editModal.handleSubmit}
           form={editModal.form}
           isSubmitting={editModal.isSubmitting}
+          fields={editModal.fields}
+          append={editModal.append}
+          remove={editModal.remove}
         />
       )}
 
@@ -176,6 +179,9 @@ const Recipes = () => {
           onSubmit={createModal.handleSubmit}
           form={createModal.form}
           isSubmitting={createModal.isSubmitting}
+          fields={createModal.fields}
+          append={createModal.append}
+          remove={createModal.remove}
         />
       )}
     </div>

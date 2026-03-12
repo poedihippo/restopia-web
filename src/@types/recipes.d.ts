@@ -27,7 +27,13 @@ export interface MaterialProduct {
 
 export interface IRecipeDTO {
   product_id: number;
-  material_product_id: number;
-  material_uom_id: number;
   qty: number;
+  is_default: boolean;
+  materials: IRecipeMaterialDTO[]
+}
+
+export interface IRecipeMaterialDTO {
+  product_id: number;
+  uom_id: number,
+  qty: number
 }

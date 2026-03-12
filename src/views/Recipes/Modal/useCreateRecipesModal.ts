@@ -3,15 +3,26 @@ import useRecipeMutation from "@/hooks/recipes/useRecipeMutation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AxiosError } from "axios";
 import { useCallback, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+const MaterialSchema = z.object({
+  product_id: z
+    .number()
+    .min(1, "Choose at least 1 product"),
+  uom_id: z
+    .number()
+    .min(1, "Choose at least 1 uom"),
+  qty: z.number().min(1, "Quantity is required"),
+});
+
+
 const Schema = z.object({
   product_id: z.number().min(1, "Please choose product is required"),
-  material_product_id: z.number().min(1, "Please choose material product is required"),
-  material_uom_id: z.number().min(1, "Please choose material uom is required"),
   qty: z.number().min(1, "Price is required"),
+  is_default: z.string().min(1, "Default is required"),
+  materials: z.array(MaterialSchema).min(1, "At least 1 material")
 });
 
 export type RecipesFormValues = z.infer<typeof Schema>;
@@ -25,11 +36,20 @@ export const useCreateRecipesModal = (onSuccess?: () => void) => {
     resolver: zodResolver(Schema),
     defaultValues: {
       product_id: 0,
-      material_product_id: 0,
-      material_uom_id: 0,
       qty: 0,
+      is_default: "",
+      materials: []
     },
   });
+
+  const {
+    fields,
+    append,
+    remove
+  } = useFieldArray({
+    control: form.control,
+    name: 'materials'
+  })
 
   const openModal = useCallback(() => {
     form.reset();
@@ -46,9 +66,9 @@ export const useCreateRecipesModal = (onSuccess?: () => void) => {
       try {
         const payload: IRecipeDTO = {
           product_id: values.product_id,
-          material_product_id: values.material_product_id,
-          material_uom_id: values.material_uom_id,
           qty: values.qty,
+          is_default: values.is_default === "1",
+          materials: values.materials
         };
 
         await createMutation.mutateAsync(payload);
@@ -90,5 +110,8 @@ export const useCreateRecipesModal = (onSuccess?: () => void) => {
     closeModal,
     handleSubmit,
     isSubmitting: createMutation.isPending,
+    append,
+    fields,
+    remove,
   };
 };
