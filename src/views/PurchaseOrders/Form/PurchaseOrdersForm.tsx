@@ -502,6 +502,7 @@ const PurchaseOrdersForm = () => {
               )}
             />
           </div>
+
           <div className="w-full mt-6">
             <div className="border rounded-md">
               <table className="w-full text-sm">
