@@ -53,6 +53,8 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
               <SearchableSelect
                 isClearable
                 isLoading={isLoadingProductInventory}
+                menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+                menuPosition="fixed"
                 placeholder="Select product inventory..."
                 options={
                   productInventoryData?.data?.map((item) => ({

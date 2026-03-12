@@ -54,6 +54,8 @@ const DetailRow = ({ control, index, onRemove, }: DetailRowProps) => {
                 isClearable
                 isLoading={isLoadingProductInventory}
                 placeholder="Select product inventory..."
+                menuPortalTarget={typeof document !== "undefined" ? document.body : undefined}
+                menuPosition="fixed"
                 options={
                   productInventoryData?.data?.map((item) => ({
                     value: item.id,
