@@ -62,6 +62,27 @@ export const ProductUomsModal = ({
         >
           <FieldGroup>
             <Field>
+              <FieldLabel>Code</FieldLabel>
+              <Controller
+                control={form.control}
+                name="code"
+                render={({ field, fieldState }) => (
+                  <>
+                    <Input
+                      {...field}
+                      placeholder="Code here..."
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </Field>
+            <Field>
               <FieldLabel>Choose Product</FieldLabel>
               <Controller
                 control={form.control}
@@ -147,10 +168,10 @@ export const ProductUomsModal = ({
             </Field>
 
             <Field>
-              <FieldLabel>Price</FieldLabel>
+              <FieldLabel>Base Price</FieldLabel>
               <Controller
                 control={form.control}
-                name="price"
+                name="base_price"
                 render={({ field, fieldState }) => (
                   <>
                     <Input
@@ -171,19 +192,21 @@ export const ProductUomsModal = ({
                 )}
               />
             </Field>
-            
+
             <Field>
-              <FieldLabel>Is Default?</FieldLabel>
+              <FieldLabel>Online Price</FieldLabel>
               <Controller
                 control={form.control}
-                name="is_default"
+                name="online_price"
                 render={({ field, fieldState }) => (
                   <>
-                    <Switch
-                      checked={field.value === "1"}
-                      onCheckedChange={(checked) =>
-                        field.onChange(checked ? "1" : "0")
-                      }
+                    <Input
+                      {...field}
+                      min={0}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      type="number"
+                      placeholder="0"
+                      prefix="Rp."
                       aria-invalid={!!fieldState.error}
                     />
                     {fieldState.error && (
@@ -195,6 +218,56 @@ export const ProductUomsModal = ({
                 )}
               />
             </Field>
+
+            <div className="flex justify-between">
+              <Field>
+                <FieldLabel>Price Editable?</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="price_editable"
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Switch
+                        checked={field.value === "1"}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? "1" : "0")
+                        }
+                        aria-invalid={!!fieldState.error}
+                      />
+                      {fieldState.error && (
+                        <p className="text-destructive text-sm">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </>
+                  )}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel>Is Default?</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="is_default"
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Switch
+                        checked={field.value === "1"}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? "1" : "0")
+                        }
+                        aria-invalid={!!fieldState.error}
+                      />
+                      {fieldState.error && (
+                        <p className="text-destructive text-sm">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </>
+                  )}
+                />
+              </Field>
+            </div>
           </FieldGroup>
 
           <DialogFooter>

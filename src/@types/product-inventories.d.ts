@@ -9,11 +9,13 @@ export interface IProductInventories {
   id: number;
   branch_id?: number;
   product_uom_id?: number;
-  expiry_date?: string;
-  sku?: string;
+  expiry_date?: string | null;
+  code?: string;
   stock?: number;
-  price?: number;
+  base_price?: number;
+  online_price?: number;
   status?: string;
+  price_editable?: boolean;
   is_default?: boolean;
   created_at?: Date;
   updated_at?: Date;
@@ -52,9 +54,11 @@ export interface ProductCategory {
 
 export interface IProductInventoriesDTO {
   product_uom_id: number;
-  sku: string;
-  price: number;
+  code: string;
+  base_price: number;
+  online_price: number;
   expiry_date?: string;
   status: string;
+  price_editable: boolean;
   is_default: boolean;
 }

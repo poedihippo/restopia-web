@@ -13,10 +13,12 @@ import { z } from "zod";
 
 const Schema = z.object({
   product_uom_id: z.number().min(1, "Please choose product is required"),
-  sku: z.string().min(1, "SKU is required"),
-  price: z.number().min(1, "Price is required"),
+  code: z.string().min(1, "Code is required"),
+  base_price: z.number().min(1, "Base price is required"),
+  online_price: z.number().min(1, "Online price is required"),
   expiry_date: z.string().optional(),
   status: z.string().min(1, "status is required"),
+  price_editable: z.string().optional(),
   is_default: z.string().optional(),
 });
 
@@ -32,11 +34,13 @@ export const useEditProductInventoriesModal = (onSuccess?: () => void) => {
     resolver: zodResolver(Schema),
     defaultValues: {
       product_uom_id: 0,
-      sku: "",
-      price: 0,
+      code: "",
+      base_price: 0,
+      online_price: 0,
       expiry_date: "",
       status: "",
       is_default: "",
+      price_editable: ""
     },
   });
 
@@ -45,10 +49,12 @@ export const useEditProductInventoriesModal = (onSuccess?: () => void) => {
       setSelected(item);
       form.reset({
         product_uom_id: item.product_uom_id,
-        sku: item.sku,
-        price: item.price,
-        expiry_date: item.expiry_date,
+        code: item.code,
+        base_price: item.base_price,
+        online_price: item.online_price,
+        expiry_date: item.expiry_date ?? '',
         status: item.status,
+        price_editable: item.price_editable ? "1" : "0",
         is_default: item.is_default ? "1" : "0",
       });
       setIsOpen(true);
@@ -68,10 +74,12 @@ export const useEditProductInventoriesModal = (onSuccess?: () => void) => {
       try {
         const updateData: IProductInventoriesDTO = {
           product_uom_id: values.product_uom_id,
-          sku: values.sku,
-          price: values.price,
+          code: values.code,
+          base_price: values.base_price,
+          online_price: values.online_price,
           ...(values.expiry_date ? { expiry_date: format(values.expiry_date, "yyyy-MM-dd") } : {}),
           status: values.status,
+          price_editable: values.price_editable === "0",
           is_default: values.is_default === "0",
         };
 

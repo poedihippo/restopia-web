@@ -1,5 +1,6 @@
 import { GlobalLayout } from "@/components/global-layout";
 import SalesOrdersEditForm from "@/views/SalesOrders/Form/SalesOrdersEditForm";
+import SalesOrdersFormEditPOS from "@/views/SalesOrders/Form/SalesOrdersFormEditPOS";
 import { useRouter } from "next/router";
 
 const SalesOrdersEditPage = () => {
@@ -10,7 +11,7 @@ const SalesOrdersEditPage = () => {
       name="Sales Orders Edit"
       breadcrumb={["Sales", "Sales Orders", "Edit"]}
     >
-      <SalesOrdersEditForm id={Number(id)} />
+      <SalesOrdersFormEditPOS id={Number(id)} />
     </GlobalLayout>
   );
 };

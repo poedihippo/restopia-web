@@ -6,6 +6,7 @@ export interface ISalesOrderList {
 export interface ISalesOrder {
     id: number;
     branch_id?: number;
+    type?: string;
     customer_id?: number;
     customer_name?: string;
     customer_phone?: string;
@@ -107,6 +108,7 @@ export interface ProductCategory {
 
 export interface ISalesOrderDTO {
     code: string;
+    type: string;
     customer_id?: number;
     customer_name?: string;
     customer_phone?: string;

@@ -46,8 +46,11 @@ const ProductInventories = () => {
     handleBranchChange,
     handleDefaultChange,
     handleClearFilter,
-    setPriceGte,
-    setPriceLte,
+    handlePriceEditableChange,
+    setBasePriceGte,
+    setBasePriceLte,
+    setOnlinePriceGte,
+    setOnlinePriceLte,
     setExpiryDateGte,
     setExpiryDateLte,
     setStatus,
@@ -87,8 +90,8 @@ const ProductInventories = () => {
         key: "id",
       },
       {
-        title: "SKU",
-        key: "sku",
+        title: "Code",
+        key: "code",
       },
       {
         title: "Product Name",
@@ -119,8 +122,13 @@ const ProductInventories = () => {
         },
       },
       {
-        title: "Price",
-        key: "price",
+        title: "Base Price",
+        key: "base_price",
+        render: (value) => formatterIDR(Number(value)),
+      },
+      {
+        title: "Online Price",
+        key: "online_price",
         render: (value) => formatterIDR(Number(value)),
       },
       {
@@ -260,7 +268,30 @@ const ProductInventories = () => {
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">
-                      Price Range
+                      Price Editable?
+                    </span>
+                    <Select
+                      onValueChange={(val) =>
+                        handlePriceEditableChange(
+                          val === "all" ? undefined : Number(val),
+                        )
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="1">True</SelectItem>
+                          <SelectItem value="0">False</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      Base Price Range
                     </span>
                     <div className="flex items-center gap-2">
                       <Input
@@ -268,7 +299,7 @@ const ProductInventories = () => {
                         min={0}
                         placeholder="Min"
                         onChange={(e) =>
-                          setPriceGte(
+                          setBasePriceGte(
                             e.target.value ? Number(e.target.value) : undefined,
                           )
                         }
@@ -279,7 +310,35 @@ const ProductInventories = () => {
                         min={0}
                         placeholder="Max"
                         onChange={(e) =>
-                          setPriceLte(
+                          setBasePriceLte(
+                            e.target.value ? Number(e.target.value) : undefined,
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">
+                      Online Price Range
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Min"
+                        onChange={(e) =>
+                          setOnlinePriceGte(
+                            e.target.value ? Number(e.target.value) : undefined,
+                          )
+                        }
+                      />
+                      <span className="text-muted-foreground">–</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Max"
+                        onChange={(e) =>
+                          setOnlinePriceLte(
                             e.target.value ? Number(e.target.value) : undefined,
                           )
                         }

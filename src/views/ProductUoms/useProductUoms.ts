@@ -8,25 +8,46 @@ import { useDeleteProductUomsModal } from "./Modal/useDeleteProductUomsModal";
 import { useEditProductUomsModal } from "./Modal/useEditProductUomsModal";
 
 const useProductUoms = () => {
-  const [productId, setProductId] = useState<number>();
-  const [uomId, setUomId] = useState<number>();
-  const [isDefault, setIsDefault] = useState<number>();
-  const [priceGte, setPriceGte] = useState<number>();
-  const [PriceLte, setPriceLte] = useState<number>();
+  const [productId, setProductId] = useState<number | null>();
+  const [uomId, setUomId] = useState<number | null>();
+  const [isDefault, setIsDefault] = useState<number | null>();
+  const [priceEditable, setPriceEditable] = useState<number | null>();
+  const [basePriceGte, setBasePriceGte] = useState<number | null>();
+  const [basePriceLte, setBasePriceLte] = useState<number | null>();
+  const [onlinePriceGte, setOnlinePriceGte] = useState<number | null>();
+  const [onlinePriceLte, setOnlinePriceLte] = useState<number | null>();
+  const [filterKey, setFilterKey] = useState(0);
 
-  const extraParams = useMemo(
-    () => ({
+  const extraParams = useMemo(() => {
+    const filter: Record<string, unknown> = {
+      product_id: productId,
+      uom_id: uomId,
+      is_default: isDefault,
+      price_editable: priceEditable,
+      base_price_qte: basePriceGte,
+      base_price_lte: basePriceLte,
+      online_price_qte: onlinePriceGte,
+      online_price_lte: onlinePriceLte,
+    }
+
+    const activeFilter = Object.fromEntries(
+      Object.entries(filter).filter(([, v]) => v !== null)
+    );
+
+    return {
       include: "created_by,updated_by,product,uom",
-      filter: {
-        product_id: productId,
-        uom_id: uomId,
-        is_default: isDefault,
-        price_qte: priceGte,
-        price_lte: PriceLte,
-      },
-    }),
-    [productId, uomId, isDefault, priceGte, PriceLte],
-  );
+      ...(Object.keys(activeFilter).length > 0 ? { filter: activeFilter } : {})
+    }
+  }, [
+    productId,
+    uomId,
+    isDefault,
+    basePriceGte,
+    basePriceLte,
+    priceEditable,
+    onlinePriceGte,
+    onlinePriceLte
+  ]);
   const {
     queryParams,
     search,
@@ -64,6 +85,22 @@ const useProductUoms = () => {
     setIsDefault(id);
   }, []);
 
+  const handlePriceEditableChange = useCallback((id?: number) => {
+    setPriceEditable(id);
+  }, []);
+
+  const handleClearFilter = useCallback(() => {
+    setProductId(null);
+    setUomId(null);
+    setIsDefault(null);
+    setPriceEditable(null);
+    setBasePriceGte(null);
+    setBasePriceLte(null);
+    setOnlinePriceGte(null);
+    setOnlinePriceLte(null);
+    setFilterKey((k) => k + 1);
+  }, []);
+
   return {
     productUom,
     products,
@@ -73,13 +110,19 @@ const useProductUoms = () => {
     isLoading,
     isLoadingProduct,
     isLoadingUom,
+    filterKey,
     handlePageChange,
     handleSearch,
     handleProductChange,
     handleUomChange,
     handleDefaultChange,
-    setPriceGte,
-    setPriceLte,
+    handlePriceEditableChange,
+    handleClearFilter,
+    setBasePriceGte,
+    setBasePriceLte,
+    setOnlinePriceGte,
+    setOnlinePriceLte,
+
 
     //Modal
     editModal,

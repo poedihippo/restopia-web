@@ -3,7 +3,7 @@ export interface IListParams {
   per_page?: number;
   include?: string;
   sort?: string;
-  [key: string]: string | number | boolean | undefined;
+  [key: string]: string | number | boolean | undefined | Record<string, string | number | boolean | undefined>;
 }
 
 export interface IDetailParams {

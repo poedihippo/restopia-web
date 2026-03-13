@@ -1,5 +1,5 @@
 import { GlobalLayout } from "@/components/global-layout";
-import SalesOrdersForm from "@/views/SalesOrders/Form/SalesOrdersForm";
+import SalesOrdersFormPOS from "@/views/SalesOrders/Form/SalesOrdersFormPOS";
 
 const SalesOrderCreatePage = () => {
   return (
@@ -7,7 +7,7 @@ const SalesOrderCreatePage = () => {
       name="Sales Orders Create"
       breadcrumb={["Sales", "Sales Orders", "Create"]}
     >
-      <SalesOrdersForm />
+      <SalesOrdersFormPOS />
     </GlobalLayout>
   );
 };

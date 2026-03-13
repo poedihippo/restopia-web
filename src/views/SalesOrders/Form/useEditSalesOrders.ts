@@ -24,6 +24,7 @@ const DetailSchema = z.object({
 
 const Schema = z.object({
   code: z.string().min(1, "Code is required"),
+  type: z.string().min(1, "Choose at least 1 type"),
   customer_id: z.number().optional(),
   customer_name: z.string().optional(),
   customer_phone: z.string().optional(),
@@ -31,7 +32,7 @@ const Schema = z.object({
   fulfillment_date: z.string().min(1, "Fulfillment date is required"),
   voucher_id: z.number().optional(),
   subtotal_price: z.number().min(1, "Subtotal price is required"),
-  discount_price: z.number().min(1, "Discount price is required"),
+  discount_price: z.number().min(0, "Discount price is required"),
   total_price: z.number().min(1, "Total price is required"),
   status: z.string().min(1, "Please choose status"),
   description: z.string().min(1, "Description is required"),
@@ -82,6 +83,7 @@ export const useEditSalesOrders = ({ id }: Props) => {
     resolver: zodResolver(Schema),
     defaultValues: {
       code: "",
+      type: "offline",
       customer_id: undefined,
       customer_name: undefined,
       customer_phone: undefined,
@@ -100,6 +102,7 @@ export const useEditSalesOrders = ({ id }: Props) => {
   useEffect(() => {
     form.reset({
       code: data?.code,
+      type: data?.type,
       customer_id: data?.customer_id ?? undefined,
       customer_name: data?.customer_name ?? undefined,
       customer_phone: data?.customer_phone ?? undefined,
@@ -149,6 +152,7 @@ export const useEditSalesOrders = ({ id }: Props) => {
       try {
         const updateData: ISalesOrderDTO = {
           code: values.code,
+          type: values.type,
           ...(values.customer_id ? { customer_id: values.customer_id } : null),
           ...(values.customer_name ? { customer_name: values.customer_name } : null),
           ...(values.customer_phone ? { customer_phone: values.customer_phone } : null),

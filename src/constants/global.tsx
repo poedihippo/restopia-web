@@ -123,3 +123,14 @@ export const scopeType = [
     key: "company",
   },
 ];
+
+export const SalesOrderType = [
+  {
+    label: "Offline",
+    key: "offline",
+  },
+  {
+    label: "Online",
+    key: "online",
+  },
+];

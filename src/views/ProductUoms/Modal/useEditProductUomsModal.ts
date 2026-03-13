@@ -10,7 +10,10 @@ import { z } from "zod";
 const Schema = z.object({
   product_id: z.number().min(1, "Please choose product is required"),
   uom_id: z.number().min(1, "Please choose uom is required"),
-  price: z.number().min(1, "Price is required"),
+  code: z.string().min(1, 'Code is required'),
+  base_price: z.number().min(1, "Price is required"),
+  online_price: z.number().min(1, "Price is required"),
+  price_editable: z.string().optional(),
   is_default: z.string().optional(),
 });
 
@@ -27,7 +30,10 @@ export const useEditProductUomsModal = (onSuccess?: () => void) => {
     defaultValues: {
       product_id: 0,
       uom_id: 0,
-      price: 0,
+      code: "",
+      base_price: 0,
+      online_price: 0,
+      price_editable: "",
       is_default: "",
     },
   });
@@ -38,7 +44,9 @@ export const useEditProductUomsModal = (onSuccess?: () => void) => {
       form.reset({
         product_id: item.product_id,
         uom_id: item.uom_id,
-        price: item.price,
+        base_price: item.base_price,
+        online_price: item.online_price,
+        price_editable: item.price_editable ? "1" : "0",
         is_default: item.is_default ? "1" : "0",
       });
       setIsOpen(true);
@@ -59,7 +67,10 @@ export const useEditProductUomsModal = (onSuccess?: () => void) => {
         const updateData: IProductUomDTO = {
           product_id: values.product_id,
           uom_id: values.uom_id,
-          price: values.price,
+          code: values.code,
+          base_price: values.base_price,
+          online_price: values.online_price,
+          price_editable: values.price_editable === "0",
           is_default: values.is_default === "0",
         };
 

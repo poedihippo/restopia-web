@@ -60,8 +60,8 @@ export const ProductInventoriesModal = ({
   );
 
   useEffect(() => {
-    if (filterDataProduct?.price) {
-      form.setValue("price", filterDataProduct.price);
+    if (filterDataProduct?.base_price) {
+      form.setValue("base_price", filterDataProduct.base_price);
     }
   }, [filterDataProduct, form]);
 
@@ -126,10 +126,10 @@ export const ProductInventoriesModal = ({
               />
             </Field>
             <Field>
-              <FieldLabel>SKU</FieldLabel>
+              <FieldLabel>Code</FieldLabel>
               <Controller
                 control={form.control}
-                name="sku"
+                name="code"
                 render={({ field, fieldState }) => (
                   <>
                     <Input
@@ -147,10 +147,35 @@ export const ProductInventoriesModal = ({
               />
             </Field>
             <Field>
-              <FieldLabel>Price</FieldLabel>
+              <FieldLabel>Base Price</FieldLabel>
               <Controller
                 control={form.control}
-                name="price"
+                name="base_price"
+                render={({ field, fieldState }) => (
+                  <>
+                    <Input
+                      {...field}
+                      min={0}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      type="number"
+                      placeholder="0"
+                      prefix="Rp."
+                      aria-invalid={!!fieldState.error}
+                    />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Online Price</FieldLabel>
+              <Controller
+                control={form.control}
+                name="online_price"
                 render={({ field, fieldState }) => (
                   <>
                     <Input
@@ -239,29 +264,56 @@ export const ProductInventoriesModal = ({
                 )}
               />
             </Field>
-            <Field>
-              <FieldLabel>Is Default?</FieldLabel>
-              <Controller
-                control={form.control}
-                name="is_default"
-                render={({ field, fieldState }) => (
-                  <>
-                    <Switch
-                      checked={field.value === "1"}
-                      onCheckedChange={(checked) =>
-                        field.onChange(checked ? "1" : "0")
-                      }
-                      aria-invalid={!!fieldState.error}
-                    />
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </>
-                )}
-              />
-            </Field>
+            <div className="flex justify-between">
+              <Field>
+                <FieldLabel>Price Editable?</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="price_editable"
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Switch
+                        checked={field.value === "1"}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? "1" : "0")
+                        }
+                        aria-invalid={!!fieldState.error}
+                      />
+                      {fieldState.error && (
+                        <p className="text-destructive text-sm">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </>
+                  )}
+                />
+              </Field>
+
+              <Field>
+                <FieldLabel>Is Default?</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="is_default"
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Switch
+                        checked={field.value === "1"}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? "1" : "0")
+                        }
+                        aria-invalid={!!fieldState.error}
+                      />
+                      {fieldState.error && (
+                        <p className="text-destructive text-sm">
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </>
+                  )}
+                />
+              </Field>
+
+            </div>
           </FieldGroup>
 
           <DialogFooter>
