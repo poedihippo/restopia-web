@@ -315,7 +315,7 @@ const SalesOrdersFormPOS = () => {
                   onMouseDown={(e) => e.preventDefault()}
                   disabled={page === 1}
                   onClick={() => setPage(p => p - 1)}
-                  className="text-sm disabled:opacity-50"
+                  className="text-sm disabled:opacity-50 cursor-pointer"
                 >← Prev</button>
                 <span className="text-xs text-muted-foreground">
                   Page {page} of {productInventoryData?.meta?.total_pages ?? 1}
@@ -325,7 +325,7 @@ const SalesOrdersFormPOS = () => {
                   onMouseDown={(e) => e.preventDefault()}
                   disabled={page === (productInventoryData?.meta?.total_pages ?? 1)}
                   onClick={() => setPage(p => p + 1)}
-                  className="text-sm disabled:opacity-50"
+                  className="text-sm disabled:opacity-50 cursor-pointer"
                 >Next →</button>
               </div>
             </div>

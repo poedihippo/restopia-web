@@ -1,5 +1,6 @@
 import { IProductInventories } from "@/@types/product-inventories";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -12,16 +13,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SalesOrderType, statusProduction, statusSalesOrders } from "@/constants/global";
+import { formatterIDR } from "@/helper/convertCurrency";
 import useGetCustomerList from "@/hooks/customer/useGetCustomerList";
 import useGetProductInventoriesList from "@/hooks/product-inventories/useGetProductInventoriesList";
 import useGetVoucherList from "@/hooks/voucher/useGetVoucherList";
 import { ArrowLeft, Trash, X } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Control, Controller, FormProvider, useFormContext, useWatch, } from "react-hook-form";
-import { SalesOrderFormValues, useCreateSalesOrders } from "./useCreateSalesOrders";
-import { formatterIDR } from "@/helper/convertCurrency";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SalesOrderFormValues } from "./useCreateSalesOrders";
 import { useEditSalesOrders } from "./useEditSalesOrders";
 
 interface CartItemProps {
@@ -162,6 +162,7 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
   const [priceMap, setPriceMap] = useState<Map<number, { base_price: number, online_price: number, price_editable: boolean }>>(new Map())
   const [isNewCustomer, setIsNewCustomer] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [page, setPage] = useState(1)
   const cartRef = useRef<HTMLDivElement>(null)
   const watchAll = form.watch()
 
@@ -173,6 +174,8 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
 
   const { data: productInventoryData, isLoading: isLoadingProductInventory } =
     useGetProductInventoriesList({
+      per_page: 20,
+      page: page,
       include: "branch,product_uom",
       filter: {
         search: debounceSearch
@@ -262,24 +265,45 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
         <div className="flex gap-0 overflow-hidden">
           <div className="w-[55%] overflow-y-auto bg-muted/40 p-4 rounded-lg">
             <Input placeholder="Search product..." value={search} onChange={(e) => setSearch(e.target.value)} className="mb-4" />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-2">
-              {isLoadingProductInventory && <p className="text-muted-foreground text-sm">Loading...</p>}
-              {productInventoryData?.data?.map((item) => (
+            <div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-2">
+                {isLoadingProductInventory && <p className="text-muted-foreground text-sm">Loading...</p>}
+                {productInventoryData?.data?.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleAddToCart(item)}
+                    disabled={!item.stock || item.stock <= 0}
+                    className="border rounded-lg p-3 text-left hover:bg-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  >
+                    <p className="font-medium text-sm">{item.product_uom?.product?.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.product_uom?.uom?.code}</p>
+                    <p className="text-sm font-semibold mt-1">Base: Rp {item.base_price?.toLocaleString('id-ID')}</p>
+                    <p className="text-sm font-semibold mt-1">Online: Rp {item.online_price?.toLocaleString('id-ID')}</p>
+                    <p className="text-xs text-muted-foreground">Stock: {item.stock}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-between items-center mt-2 px-2">
                 <button
-                  key={item.id}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleAddToCart(item)}
-                  disabled={!item.stock || item.stock <= 0}
-                  className="border rounded-lg p-3 text-left hover:bg-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-                >
-                  <p className="font-medium text-sm">{item.product_uom?.product?.name}</p>
-                  <p className="text-xs text-muted-foreground">{item.product_uom?.uom?.code}</p>
-                  <p className="text-sm font-semibold mt-1">Base: Rp {item.base_price?.toLocaleString('id-ID')}</p>
-                  <p className="text-sm font-semibold mt-1">Online: Rp {item.online_price?.toLocaleString('id-ID')}</p>
-                  <p className="text-xs text-muted-foreground">Stock: {item.stock}</p>
-                </button>
-              ))}
+                  disabled={page === 1}
+                  onClick={() => setPage(p => p - 1)}
+                  className="text-sm disabled:opacity-50 cursor-pointer"
+                >← Prev</button>
+                <span className="text-xs text-muted-foreground">
+                  Page {page} of {productInventoryData?.meta?.total_pages ?? 1}
+                </span>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  disabled={page === (productInventoryData?.meta?.total_pages ?? 1)}
+                  onClick={() => setPage(p => p + 1)}
+                  className="text-sm disabled:opacity-50 cursor-pointer"
+                >Next →</button>
+              </div>
             </div>
           </div>
           <div className="w-[45%] flex flex-col bg-background border border-border rounded-xl shadow-sm p-4">
