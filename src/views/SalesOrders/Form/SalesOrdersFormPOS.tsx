@@ -227,6 +227,11 @@ const SalesOrdersFormPOS = () => {
   const { data: voucherData, isLoading: isLoadingVoucher } =
     useGetVoucherList(
       {
+        filter: {
+          status: 'active'
+        }
+      },
+      {
         enabled: true,
       },
     );
