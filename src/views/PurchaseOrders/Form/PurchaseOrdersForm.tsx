@@ -74,7 +74,7 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
                   const id = selected ? (selected as { value: number }).value : null;
                   field.onChange(id)
                   const product = productInventoryData?.data?.find(item => item.id === id);
-                  setValue(`details.${index}.price`, product?.price ?? 0)
+                  setValue(`details.${index}.price`, product?.base_price ?? 0)
                 }}
               />
               {fieldState.error && (
