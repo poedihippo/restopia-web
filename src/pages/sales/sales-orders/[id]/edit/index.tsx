@@ -1,5 +1,4 @@
 import { GlobalLayout } from "@/components/global-layout";
-import SalesOrdersEditForm from "@/views/SalesOrders/Form/SalesOrdersEditForm";
 import SalesOrdersFormEditPOS from "@/views/SalesOrders/Form/SalesOrdersFormEditPOS";
 import { useRouter } from "next/router";
 
