@@ -19,7 +19,7 @@ export interface IVoucher {
     valid_until?: string;
     quota?: number | null;
     used_quota?: number;
-    status?: string;
+    status?: 'active' | 'inactive';
     description?: string;
     created_at?: Date;
     updated_at?: Date;
@@ -101,4 +101,8 @@ export interface IVoucherBranchDTO {
 export interface IVoucherProductUoms {
     product_uom_id: number
     quota?: number
+}
+
+export interface IVoucherStatusDTO {
+    status: "active" | 'inactive'
 }

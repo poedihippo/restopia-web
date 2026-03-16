@@ -3,6 +3,7 @@ import useDataTable from '@/hooks/useDataTable';
 import useGetVoucherList from '@/hooks/voucher/useGetVoucherList';
 import { useCallback, useMemo, useState } from 'react';
 import { useDeleteVoucherModal } from './Form/useDeleteVoucherModal';
+import { useEditVoucherModal } from './Modal/useEditVoucherModal';
 
 const useVoucher = () => {
     const [companyId, setCompanyId] = useState<number | null>();
@@ -56,6 +57,7 @@ const useVoucher = () => {
     );
 
     const deleteModal = useDeleteVoucherModal(refetch);
+    const editModal = useEditVoucherModal(refetch);
 
     const handleCompanyChange = useCallback((id?: number) => {
         setCompanyId(id);
@@ -92,6 +94,7 @@ const useVoucher = () => {
         handleCompanyChange,
         handlePageChange,
         handleSearch,
+        editModal,
         deleteModal,
     }
 }

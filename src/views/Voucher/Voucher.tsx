@@ -1,18 +1,19 @@
 import { IVoucher } from '@/@types/voucher';
-import { Column, DataTable } from '@/components/ui/data-table';
-import { formatterIDR } from '@/helper/convertCurrency';
-import { format } from 'date-fns';
-import { useCallback, useMemo } from 'react';
-import useVoucher from './useVoucher';
-import Link from 'next/link';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { SearchableSelect } from '@/components/ui/searchable-select';
-import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Column, DataTable } from '@/components/ui/data-table';
 import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/components/ui/popover';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatterIDR } from '@/helper/convertCurrency';
 import usePermission from '@/hooks/usePermission';
+import { format } from 'date-fns';
+import { CheckCircle, Eye, Pencil, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { useCallback, useMemo } from 'react';
+import { VoucherModal } from './Modal/VoucherModal';
+import useVoucher from './useVoucher';
 
 const Voucher = () => {
     const {
@@ -34,6 +35,7 @@ const Voucher = () => {
         handleCompanyChange,
         handlePageChange,
         handleSearch,
+        editModal,
         deleteModal,
     } = useVoucher()
     const { canCreate, canUpdate, canDelete } = usePermission();
@@ -105,6 +107,14 @@ const Voucher = () => {
                     </button>
                 </Link>
                 {canUpdate('voucher') && (
+                    <button
+                        className="p-2 rounded-md bg-green-500 hover:bg-green-600 text-white cursor-pointer"
+                        onClick={() => editModal.openModal(vouchers[_index])}
+                    >
+                        <CheckCircle className="h-4 w-4" />
+                    </button>
+                )}
+                {canUpdate('voucher') && (
                     <Link href={`/sales/vouchers/${_record.id}/edit`}>
                         <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
                             <Pencil className="h-4 w-4" />
@@ -121,7 +131,7 @@ const Voucher = () => {
                 )}
             </div>
         ),
-        [vouchers, deleteModal, canUpdate, canDelete],
+        [vouchers, editModal, deleteModal, canUpdate, canDelete],
     );
     return (
         <div className="p-4 sm:p-6">
@@ -319,6 +329,17 @@ const Voucher = () => {
                 label={deleteModal.selected?.code}
                 isDeleting={deleteModal.isDeleting}
             />
+
+            {editModal.isOpen && (
+                <VoucherModal
+                    mode="edit"
+                    isOpen={editModal.isOpen}
+                    onClose={editModal.closeModal}
+                    onSubmit={editModal.handleSubmit}
+                    form={editModal.form}
+                    isSubmitting={editModal.isSubmitting}
+                />
+            )}
         </div>
     )
 }
