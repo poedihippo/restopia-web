@@ -12,7 +12,8 @@ export default function NotFound() {
                 <Link href={'/dashboard'} className='flex flex-col items-center my-2'>
                     <Button variant={'default'} className='text-xl font-semibold cursor-pointer'>Go Back</Button>
                 </Link>
-            </div>
+                
+            </div> 
         </div>
     )
 }
