@@ -1,7 +1,6 @@
-import ProductCategories from "@/views/ProductCategories";
+import React from 'react'
+import ProductCategoriesView from '@/views/ProductCategories'
 
-const ProductCategoriesPage = () => {
-  return <ProductCategories />;
-};
-
-export default ProductCategoriesPage;
+export default function ProductCategoriesPage() {
+  return <ProductCategoriesView />
+}

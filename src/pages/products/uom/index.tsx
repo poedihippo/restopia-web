@@ -1,7 +1,6 @@
-import Uoms from "@/views/Uoms";
+import React from 'react'
+import UomsView from '@/views/Uoms'
 
-const UomPage = () => {
-  return <Uoms />;
-};
-
-export default UomPage;
+export default function UomPage() {
+  return <UomsView />
+}

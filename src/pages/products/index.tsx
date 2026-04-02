@@ -1,7 +1,6 @@
-import Product from "@/views/Product";
+import React from 'react'
+import ProductView from '@/views/Product'
 
-const ProductPage = () => {
-  return <Product />;
-};
-
-export default ProductPage;
+export default function ProductsPage() {
+  return <ProductView />
+}
