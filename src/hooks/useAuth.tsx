@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { toast } from "sonner";
 import { queryClient } from "./query";
-import { useAxios } from "./useApi";
+import api from "./useApi";
 
 type AuthContextType = {
   user: IUserMe | null;
@@ -33,8 +33,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<IUserMe | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
-  const api = useAxios();
-
   const logout = useCallback((reason?: "expired" | "manual") => {
     cookies.remove("token", { path: "/" });
     cookies.remove("refresh_token", { path: "/" });
