@@ -65,11 +65,11 @@ export default function ProductInventoriesView() {
           include: 'product_uom.product,product_uom.uom,branch',
           'filter[search]': debouncedSearch || undefined,
         })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
 
-  const items: ProductInventory[] = (data as any)?.data ?? []
-  const meta = (data as any)?.meta
+  const items: ProductInventory[] = (data as any)?.data?.data ?? []
+  const meta = (data as any)?.data?.meta
 
   const filteredItems = lowStockOnly
     ? items.filter(

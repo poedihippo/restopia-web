@@ -85,11 +85,11 @@ export default function StockMovementView() {
           'filter[search]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
         })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
 
-  const items: StockMovement[] = (data as any)?.data ?? []
-  const meta = (data as any)?.meta
+  const items: StockMovement[] = (data as any)?.data?.data ?? []
+  const meta = (data as any)?.data?.meta
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

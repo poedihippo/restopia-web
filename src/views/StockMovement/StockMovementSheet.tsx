@@ -83,9 +83,9 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
           per_page: 200,
           include: 'product_uom.product,product_uom.uom,branch',
         })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
-  const inventoryItems = (inventoryData as any)?.data ?? []
+  const inventoryItems = (inventoryData as any)?.data?.data ?? []
 
   const watchType = watch('type')
   const watchQty = watch('qty')

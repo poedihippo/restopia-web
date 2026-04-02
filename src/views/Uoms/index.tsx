@@ -51,11 +51,11 @@ export default function UomsView() {
           per_page: 15,
           'filter[search]': debouncedSearch || undefined,
         })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
 
-  const items: Uom[] = (data as any)?.data ?? []
-  const meta = (data as any)?.meta
+  const items: Uom[] = (data as any)?.data?.data ?? []
+  const meta = (data as any)?.data?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => uomsService.delete(id),

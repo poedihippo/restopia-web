@@ -55,9 +55,9 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
     queryFn: () =>
-      productCategoriesService.list({ per_page: 100 }).then((r) => r.data.data),
+      productCategoriesService.list({ per_page: 100 }).then((r) => r.data),
   })
-  const categories: { id: number; name: string }[] = (categoriesData as any)?.data ?? []
+  const categories: { id: number; name: string }[] = (categoriesData as any)?.data?.data ?? []
 
   useEffect(() => {
     if (editData) {

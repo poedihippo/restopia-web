@@ -64,16 +64,16 @@ export default function ProductConversionSheet({
     queryFn: () =>
       productsService
         .list({ per_page: 200, 'filter[status]': 'active' })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
-  const products = (productsData as any)?.data ?? []
+  const products = (productsData as any)?.data?.data ?? []
 
   const { data: uomsData } = useQuery({
     queryKey: ['uoms-all'],
     queryFn: () =>
-      uomsService.list({ per_page: 100 }).then((r) => r.data.data),
+      uomsService.list({ per_page: 100 }).then((r) => r.data),
   })
-  const uoms = (uomsData as any)?.data ?? []
+  const uoms = (uomsData as any)?.data?.data ?? []
 
   useEffect(() => {
     if (editData) {

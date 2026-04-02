@@ -30,7 +30,7 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
     reset,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     defaultValues: { name: '', code: '' },
   })
 

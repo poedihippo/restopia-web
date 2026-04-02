@@ -60,11 +60,11 @@ export default function ProductConversionsView() {
           include: 'product,from_uom,to_uom',
           'filter[search]': debouncedSearch || undefined,
         })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
 
-  const items: ProductConversion[] = (data as any)?.data ?? []
-  const meta = (data as any)?.meta
+  const items: ProductConversion[] = (data as any)?.data?.data ?? []
+  const meta = (data as any)?.data?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productConversionsService.delete(id),

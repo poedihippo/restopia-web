@@ -61,16 +61,16 @@ export default function ProductInventorySheet({
     queryFn: () =>
       productUomsService
         .list({ per_page: 200, include: 'product,uom' })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
-  const productUoms = (productUomsData as any)?.data ?? []
+  const productUoms = (productUomsData as any)?.data?.data ?? []
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches-all'],
     queryFn: () =>
-      branchesService.list({ per_page: 100 }).then((r) => r.data.data),
+      branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
-  const branches = (branchesData as any)?.data ?? []
+  const branches = (branchesData as any)?.data?.data ?? []
 
   useEffect(() => {
     if (editData) {

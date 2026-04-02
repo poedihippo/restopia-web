@@ -19,6 +19,7 @@ interface Product {
   id: number
   name: string
   code?: string
+  type?: 'raw' | 'wip' | 'final'
   status: 'active' | 'inactive'
   product_category_id: number
   description?: string
@@ -32,7 +33,7 @@ export default function ProductView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
+  const [typeFilter, setTypeFilter] = useState<'' | 'raw' | 'wip' | 'final'>('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Product | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -45,10 +46,10 @@ export default function ProductView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter])
+  }, [debouncedSearch, typeFilter])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, debouncedSearch, statusFilter],
+    queryKey: ['products', page, debouncedSearch, typeFilter],
     queryFn: () =>
       productsService
         .list({
@@ -56,13 +57,13 @@ export default function ProductView() {
           per_page: 15,
           include: 'product_category',
           'filter[search]': debouncedSearch || undefined,
-          'filter[status]': statusFilter || undefined,
+          'filter[type]': typeFilter || undefined,
         })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
 
-  const items: Product[] = (data as any)?.data ?? []
-  const meta = (data as any)?.meta
+  const items: Product[] = (data as any)?.data?.data ?? []
+  const meta = (data as any)?.data?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productsService.delete(id),
@@ -74,16 +75,13 @@ export default function ProductView() {
     onError: () => toast.error('Failed to delete'),
   })
 
-  const pillStyle = (status: 'active' | 'inactive'): React.CSSProperties => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '2px 10px',
-    borderRadius: 99,
-    fontSize: 11,
-    fontWeight: 500,
-    background: status === 'active' ? 'var(--success-bg)' : 'var(--destructive-bg)',
-    color: status === 'active' ? 'var(--success)' : 'var(--destructive)',
-  })
+  const typePillStyle = (type?: string): React.CSSProperties => {
+    const base: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 500 }
+    if (type === 'raw') return { ...base, background: 'var(--info-bg)', color: 'var(--info)' }
+    if (type === 'wip') return { ...base, background: 'var(--warning-bg)', color: 'var(--warning)' }
+    if (type === 'final') return { ...base, background: 'var(--success-bg)', color: 'var(--success)' }
+    return { ...base, background: 'var(--border)', color: 'var(--foreground-muted)' }
+  }
 
   const codePill: React.CSSProperties = {
     display: 'inline-flex',
@@ -183,9 +181,9 @@ export default function ProductView() {
         </div>
 
         <select
-          value={statusFilter}
+          value={typeFilter}
           onChange={(e) => {
-            setStatusFilter(e.target.value as '' | 'active' | 'inactive')
+            setTypeFilter(e.target.value as '' | 'raw' | 'wip' | 'final')
             setPage(1)
           }}
           style={{
@@ -200,9 +198,10 @@ export default function ProductView() {
             fontFamily: 'var(--font-sans)',
           }}
         >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="">All Types</option>
+          <option value="raw">Raw</option>
+          <option value="wip">WIP</option>
+          <option value="final">Final</option>
         </select>
       </div>
 
@@ -314,8 +313,8 @@ export default function ProductView() {
                     {item.product_category?.name ?? '—'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
-                    <span style={pillStyle(item.status)}>
-                      {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    <span style={typePillStyle(item.type)}>
+                      {item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : '—'}
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
