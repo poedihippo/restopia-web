@@ -11,16 +11,17 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { X, Loader2, TrendingUp, TrendingDown, SlidersHorizontal } from 'lucide-react'
 
 const schema = z.object({
-  product_inventory_id: z.number({
-    required_error: 'Inventory item is required',
-  }),
-  qty: z
-    .number({
-      required_error: 'Quantity is required',
-    })
-    .min(0.0001, 'Must be greater than 0'),
+  product_inventory_id: z.preprocess(
+    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
+    z.number({ invalid_type_error: 'Inventory item is required' })
+  ),
+  qty: z.preprocess(
+    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
+    z.number({ invalid_type_error: 'Quantity is required' })
+      .min(0.0001, 'Must be greater than 0')
+  ),
   type: z.enum(['in', 'out', 'adjustment'], {
-    required_error: 'Type is required',
+    message: 'Type is required',
   }),
   description: z.string().optional(),
 })

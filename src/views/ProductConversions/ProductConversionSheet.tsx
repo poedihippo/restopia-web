@@ -12,20 +12,23 @@ import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, ArrowRight } from 'lucide-react'
 
 const schema = z.object({
-  product_id: z.number({
-    required_error: 'Product is required',
-  }),
-  from_uom_id: z.number({
-    required_error: 'From UOM is required',
-  }),
-  to_uom_id: z.number({
-    required_error: 'To UOM is required',
-  }),
-  conversion_factor: z
-    .number({
-      required_error: 'Conversion factor is required',
-    })
-    .min(0.0001, 'Must be greater than 0'),
+  product_id: z.preprocess(
+    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
+    z.number({ invalid_type_error: 'Product is required' })
+  ),
+  from_uom_id: z.preprocess(
+    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
+    z.number({ invalid_type_error: 'From UOM is required' })
+  ),
+  to_uom_id: z.preprocess(
+    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
+    z.number({ invalid_type_error: 'To UOM is required' })
+  ),
+  conversion_factor: z.preprocess(
+    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
+    z.number({ invalid_type_error: 'Conversion factor is required' })
+      .min(0.0001, 'Must be greater than 0')
+  ),
 })
 type FormValues = z.infer<typeof schema>
 
