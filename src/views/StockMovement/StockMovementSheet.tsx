@@ -91,7 +91,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   const watchQty = watch('qty')
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => stockMovementsService.create(data),
+    mutationFn: (data: FormValues) => stockMovementsService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stock-movements'] })
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })

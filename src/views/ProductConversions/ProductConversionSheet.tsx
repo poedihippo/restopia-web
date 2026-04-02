@@ -94,7 +94,7 @@ export default function ProductConversionSheet({
   }, [editData, reset])
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => productConversionsService.create(data),
+    mutationFn: (data: FormValues) => productConversionsService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-conversions'] })
       toast.success('Conversion created')
@@ -105,7 +105,7 @@ export default function ProductConversionSheet({
 
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) =>
-      productConversionsService.update(editData!.id, data),
+      productConversionsService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-conversions'] })
       toast.success('Conversion updated')

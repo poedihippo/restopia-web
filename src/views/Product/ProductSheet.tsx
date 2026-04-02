@@ -80,7 +80,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   }, [editData, reset])
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => productsService.create(data),
+    mutationFn: (data: FormValues) => productsService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       toast.success('Product created')
@@ -90,7 +90,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) => productsService.update(editData!.id, data),
+    mutationFn: (data: FormValues) => productsService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
       toast.success('Product updated')

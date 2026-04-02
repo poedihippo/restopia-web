@@ -91,7 +91,7 @@ export default function ProductInventorySheet({
   }, [editData, reset])
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => productInventoriesService.create(data),
+    mutationFn: (data: FormValues) => productInventoriesService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
       toast.success('Inventory item created')
@@ -102,7 +102,7 @@ export default function ProductInventorySheet({
 
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) =>
-      productInventoriesService.update(editData!.id, data),
+      productInventoriesService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
       toast.success('Inventory item updated')

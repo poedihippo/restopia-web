@@ -100,7 +100,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   }, [editData, reset])
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => productUomsService.create(data),
+    mutationFn: (data: FormValues) => productUomsService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
       toast.success('Product UOM created')
@@ -110,7 +110,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) => productUomsService.update(editData!.id, data),
+    mutationFn: (data: FormValues) => productUomsService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
       toast.success('Product UOM updated')

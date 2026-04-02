@@ -43,7 +43,7 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
   }, [editData, reset])
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => productCategoriesService.create(data),
+    mutationFn: (data: FormValues) => productCategoriesService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-categories'] })
       toast.success('Category created')
@@ -54,7 +54,7 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
 
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) =>
-      productCategoriesService.update(editData!.id, data),
+      productCategoriesService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-categories'] })
       toast.success('Category updated')

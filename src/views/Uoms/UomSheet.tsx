@@ -43,7 +43,7 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
   }, [editData, reset])
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => uomsService.create(data),
+    mutationFn: (data: FormValues) => uomsService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['uoms'] })
       toast.success('UOM created')
@@ -53,7 +53,7 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) => uomsService.update(editData!.id, data),
+    mutationFn: (data: FormValues) => uomsService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['uoms'] })
       toast.success('UOM updated')
