@@ -13,8 +13,7 @@ import { X, Loader2 } from 'lucide-react'
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   code: z.string().optional(),
-  product_category_id: z.coerce.number()
-    .min(1, 'Category is required'),
+  product_category_id: z.coerce.number().min(1, 'Category is required'),
   description: z.string().optional(),
   status: z.enum(['active', 'inactive']),
 })
@@ -42,12 +41,12 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     reset,
     control,
     formState: { errors },
-  } = useForm<FormValues>({
+  } = useForm<FormValues, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: '',
       code: '',
-      product_category_id: undefined as unknown as number,
+      product_category_id: 0,
       description: '',
       status: 'active',
     },
@@ -73,7 +72,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       reset({
         name: '',
         code: '',
-        product_category_id: undefined as unknown as number,
+        product_category_id: 0,
         description: '',
         status: 'active',
       })
