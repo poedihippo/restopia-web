@@ -1,12 +1,7 @@
-import { GlobalLayout } from "@/components/global-layout";
 import Suppliers from "@/views/Suppliers";
 
 const SuppliersPage = () => {
-  return (
-    <GlobalLayout name="Suppliers" breadcrumb={["Suppliers"]}>
-      <Suppliers />
-    </GlobalLayout>
-  );
+  return <Suppliers />;
 };
 
 export default SuppliersPage;

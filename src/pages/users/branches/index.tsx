@@ -1,12 +1,7 @@
-import { GlobalLayout } from "@/components/global-layout";
 import Branches from "@/views/Branches";
 
 const BranchPage = () => {
-  return (
-    <GlobalLayout name="Branches" breadcrumb={["Users", "Branches"]}>
-      <Branches />
-    </GlobalLayout>
-  );
+  return <Branches />;
 };
 
 export default BranchPage;
