@@ -50,7 +50,7 @@ export default function ProductConversionSheet({
     control,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     defaultValues: {
       product_id: undefined,
       from_uom_id: undefined,

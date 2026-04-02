@@ -41,8 +41,8 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     reset,
     control,
     formState: { errors },
-  } = useForm<FormValues, unknown, FormValues>({
-    resolver: zodResolver(schema),
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema) as any,
     defaultValues: {
       name: '',
       code: '',

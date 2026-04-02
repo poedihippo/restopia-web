@@ -66,7 +66,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
     control,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     defaultValues: {
       product_inventory_id: undefined,
       qty: undefined,

@@ -47,7 +47,7 @@ export default function ProductInventorySheet({
     control,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     defaultValues: {
       product_uom_id: undefined,
       branch_id: undefined,
