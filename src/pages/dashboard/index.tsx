@@ -1,11 +1,6 @@
-import { GlobalLayout } from "@/components/global-layout";
+import React from 'react';
+import DashboardView from '@/views/Dashboard';
 
-const DashboardPage = () => {
-  return (
-    <GlobalLayout name="Dashboard" breadcrumb={["Dashboard"]}>
-      <h1>Hallo</h1>
-    </GlobalLayout>
-  );
-};
-
-export default DashboardPage;
+export default function DashboardPage() {
+  return <DashboardView />;
+}

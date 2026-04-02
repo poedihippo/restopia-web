@@ -1,381 +1,404 @@
-import {
-  ChevronsUpDown,
-  ChevronRight,
-  LogOut,
-  User,
-  Building,
-  GitBranch,
-  ShieldCheck,
-  Image,
-  Package,
-  Tag,
-  Ruler,
-  ArrowLeftRight,
-  PackageCheck,
-  Warehouse,
-  UtensilsCrossed,
-  Factory,
-  Truck,
-  ClipboardList,
-  SendHorizontal,
-  PackageOpen,
-  Users,
-  Ticket,
-  ShoppingCart,
-} from "lucide-react";
-import * as React from "react";
+'use client';
 
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { cn } from '@/lib/utils';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-} from "@/components/ui/sidebar";
-import { useAuth } from "@/hooks/useAuth";
-import usePermission from "@/hooks/usePermission";
-import { useRouter } from "next/router";
-import useUserBranchPatch from "@/hooks/user/useUserBranchPatch";
-import BranchSwitcherDialog from "./branch-switcher-dialog";
+  LayoutDashboard,
+  ShoppingCart,
+  Factory,
+  Warehouse,
+  Truck,
+  PackageSearch,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  Store,
+  ReceiptText,
+  Tag,
+  BookOpen,
+  Package,
+  ArrowLeftRight,
+  Building2,
+  ShieldCheck,
+  Boxes,
+  ChevronDown,
+} from 'lucide-react';
 
 type NavItem = {
-  title: string;
-  url: string;
-  icon?: React.ReactNode;
-  permission: string | null;
+  label: string;
+  href?: string;
+  icon: React.ElementType;
+  children?: { label: string; href: string }[];
 };
 
 type NavGroup = {
   title: string;
-  url: string;
-  permission?: string | null;
-  items?: NavItem[];
+  items: NavItem[];
 };
 
-const navMain: NavGroup[] = [
+const NAV_GROUPS: NavGroup[] = [
   {
-    title: "Dashboard",
-    url: "/dashboard",
-    permission: null,
+    title: 'OPERATIONS',
+    items: [
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'Point of Sale', href: '/pos', icon: ShoppingCart },
+    ],
   },
   {
-    title: "User Master",
-    url: "#",
+    title: 'PRODUCTION',
     items: [
       {
-        title: "Users",
-        url: "/users",
-        icon: <User />,
-        permission: "user",
+        label: 'Production',
+        icon: Factory,
+        children: [
+          { label: 'Factory', href: '/production' },
+          { label: 'Recipes', href: '/production/recipes' },
+        ],
       },
       {
-        title: "Companies",
-        url: "/users/companies",
-        icon: <Building />,
-        permission: "company",
-      },
-      {
-        title: "Branches",
-        url: "/users/branches",
-        icon: <GitBranch />,
-        permission: "branch",
-      },
-      {
-        title: "Roles",
-        url: "/users/roles",
-        icon: <ShieldCheck />,
-        permission: "role",
+        label: 'Inventory',
+        icon: Boxes,
+        children: [
+          { label: 'Products', href: '/products' },
+          { label: 'Categories', href: '/products/product-categories' },
+          { label: 'UOM', href: '/products/uom' },
+          { label: 'Product UOMs', href: '/products/product-uoms' },
+          { label: 'Conversions', href: '/products/product-conversions' },
+          { label: 'Stock', href: '/products/product-inventory' },
+          { label: 'Movements', href: '/products/product-inventory/stock-movements' },
+        ],
       },
     ],
   },
   {
-    title: "Media",
-    url: "/media",
-    permission: null,
-  },
-  {
-    title: "Product Master",
-    url: "#",
+    title: 'PROCUREMENT',
     items: [
       {
-        title: "Product",
-        url: "/products",
-        icon: <Package />,
-        permission: "product",
+        label: 'Purchase Orders',
+        icon: PackageSearch,
+        children: [
+          { label: 'Orders', href: '/purchase/purchase-orders' },
+          { label: 'Suppliers', href: '/purchase/suppliers' },
+        ],
       },
       {
-        title: "Product Category",
-        url: "/products/product-categories",
-        icon: <Tag />,
-        permission: "product-category",
-      },
-      {
-        title: "UOM",
-        url: "/products/uom",
-        icon: <Ruler />,
-        permission: "uom",
-      },
-      {
-        title: "Product Conversion",
-        url: "/products/product-conversions",
-        icon: <ArrowLeftRight />,
-        permission: "product-conversion",
-      },
-      {
-        title: "Product UOM",
-        url: "/products/product-uoms",
-        icon: <PackageCheck />,
-        permission: "product-uom",
-      },
-      {
-        title: "Product Inventory",
-        url: "/products/product-inventory",
-        icon: <Warehouse />,
-        permission: "product-inventory",
+        label: 'Transfer',
+        icon: ArrowLeftRight,
+        children: [
+          { label: 'Deliveries', href: '/transfer/deliveries' },
+          { label: 'Receipts', href: '/transfer/receipts' },
+        ],
       },
     ],
   },
   {
-    title: "Production Master",
-    url: "#",
+    title: 'SALES',
     items: [
       {
-        title: "Recipes",
-        url: "/production/recipes",
-        icon: <UtensilsCrossed />,
-        permission: "recipe",
+        label: 'Sales Orders',
+        icon: ReceiptText,
+        children: [
+          { label: 'Orders', href: '/sales/sales-orders' },
+          { label: 'Customers', href: '/sales/customers' },
+          { label: 'Vouchers', href: '/sales/vouchers' },
+        ],
       },
-      {
-        title: "Production",
-        url: "/production",
-        icon: <Factory />,
-        permission: "production",
-      },
+      { label: 'Bundles', href: '/bundles', icon: Tag },
     ],
   },
   {
-    title: "Purchase Master",
-    url: "#",
+    title: 'SETTINGS',
     items: [
       {
-        title: "Suppliers",
-        url: "/purchase/suppliers",
-        icon: <Truck />,
-        permission: "supplier",
+        label: 'Users',
+        icon: Users,
+        children: [
+          { label: 'All Users', href: '/users' },
+          { label: 'Roles', href: '/users/roles' },
+          { label: 'Branches', href: '/users/branches' },
+          { label: 'Companies', href: '/users/companies' },
+        ],
       },
-      {
-        title: "Purchase Order",
-        url: "/purchase/purchase-orders",
-        icon: <ClipboardList />,
-        permission: "purchase-order",
-      },
-    ],
-  },
-  {
-    title: "Transfer Master",
-    url: "#",
-    items: [
-      {
-        title: "Deliveries",
-        url: "/transfer/deliveries",
-        icon: <SendHorizontal />,
-        permission: "delivery",
-      },
-      {
-        title: "Receipts",
-        url: "/transfer/receipts",
-        icon: <PackageOpen />,
-        permission: "receipt",
-      },
-    ],
-  },
-  {
-    title: "Sales Master",
-    url: "#",
-    items: [
-      {
-        title: "Customers",
-        url: "/sales/customers",
-        icon: <Users />,
-        permission: "customer",
-      },
-      {
-        title: "Vouchers",
-        url: "/sales/vouchers",
-        icon: <Ticket />,
-        permission: "voucher",
-      },
-      {
-        title: "Sales Orders",
-        url: "/sales/sales-orders",
-        icon: <ShoppingCart />,
-        permission: "sales-order",
-      },
+      { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck },
     ],
   },
 ];
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { logout, refreshUser, user, } = useAuth();
-  const { canRead } = usePermission();
+export default function AppSidebar() {
   const router = useRouter();
-  const [branchDialogOpen, setBranchDialogOpen] = React.useState(false)
-  const { mutate: changeBranch, isPending } = useUserBranchPatch()
-  const handleChangeBranch = (branchId: number) => {
-    changeBranch({ branch_id: branchId }, {
-      onSuccess: () => {
-        setBranchDialogOpen(false)
-        refreshUser()
+  const [collapsed, setCollapsed] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const initial: Record<string, boolean> = {};
+    for (const group of NAV_GROUPS) {
+      for (const item of group.items) {
+        if (item.children) {
+          const hasActive = item.children.some(
+            (child) =>
+              router.pathname === child.href ||
+              router.pathname.startsWith(child.href + '/')
+          );
+          if (hasActive) {
+            initial[item.label] = true;
+          }
+        }
       }
-    })
+    }
+    setOpenGroups(initial);
+  }, [router.pathname]);
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
   }
+
+  function isActive(href: string): boolean {
+    if (router.pathname === href) return true;
+    if (href !== '/dashboard' && router.pathname.startsWith(href + '/')) return true;
+    return false;
+  }
+
   return (
-    <Sidebar {...props}>
-      <SidebarHeader>
-        <h1 className="text-2xl font-bold text-black text-center">
-          Dapur Cokelat
-        </h1>
-      </SidebarHeader>
-      <SidebarContent className="gap-0">
-        {navMain.map((item) => {
-          const visibleItems = item.items?.filter((child) =>
-            child.permission === null || canRead(child.permission)
-          );
-          // Top-level item dengan children: hide kalau semua child hidden
-          if (item.items && visibleItems?.length === 0) return null;
-          // Top-level item tanpa children (Dashboard, Media): hide kalau ada permission dan tidak punya
-          if (!item.items && item.permission != null && !canRead(item.permission)) return null;
-
-          return (
-          <Collapsible
-            key={item.title}
-            title={item.title}
-            className="group/collapsible"
+    <aside
+      style={{
+        width: collapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)',
+        transition: 'width 200ms ease',
+        background: 'var(--sidebar-bg)',
+        borderRight: '1px solid var(--sidebar-border)',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        flexShrink: 0,
+        position: 'relative',
+      }}
+    >
+      {/* Logo */}
+      <div
+        style={{
+          padding: '16px 12px',
+          borderBottom: '1px solid var(--sidebar-border)',
+        }}
+      >
+        {collapsed ? (
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              background: 'var(--accent)',
+              borderRadius: 'var(--radius-md)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto',
+            }}
           >
-            <SidebarGroup>
-              <SidebarGroupLabel
-                asChild
-                className="group/label text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sm"
+            <span
+              style={{
+                color: 'white',
+                fontFamily: 'var(--font-display)',
+                fontSize: 14,
+                fontWeight: 600,
+              }}
+            >
+              D
+            </span>
+          </div>
+        ) : (
+          <div>
+            <div>
+              <span
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                }}
               >
-                <CollapsibleTrigger>
+                Dapur
+              </span>
+            </div>
+            <div>
+              <span
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 10,
+                  fontWeight: 500,
+                  letterSpacing: 2,
+                  color: 'var(--foreground-muted)',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Coklat
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
-                  {item.url === '#' ? <p className="font-bold">{item.title}{" "}</p> :
-                    <a className="font-bold" href={item.url}>
-                      {item.title}{" "}
-                    </a>
-                  }
-                  {(item?.items?.length ?? 0) > 0 && (
-                    <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                  )}
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  {(visibleItems?.length ?? 0) > 0 && (
-                    <SidebarMenu>
-                      {visibleItems?.map((item) => (
-                        <SidebarMenuItem key={item.title}>
-                          <SidebarMenuButton
-                            className="ml-2"
-                            asChild
-                            isActive={
-                              router.pathname === item.url ||
-                              router.pathname.startsWith(item.url + "/")
-                            }
-                          >
-                            <a href={item.url}>
-                              {item.icon}
-                              {item.title}
-                            </a>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  )}
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-          );
-        })}
-      </SidebarContent>
-      <SidebarRail />
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="w-full">
-                  <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-xs font-semibold">
-                    {user?.name?.charAt(0)?.toUpperCase() ?? "U"}
-                  </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">
-                      {user?.name ?? "-"}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {user?.email}
-                    </span>
-                  </div>
-                  <ChevronsUpDown className="ml-auto size-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="top"
-                className="w-[--radix-popper-anchor-width]"
-                align="start"
+      {/* Nav scroll area */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+        {NAV_GROUPS.map((group) => (
+          <div key={group.title}>
+            {!collapsed && (
+              <div
+                style={{
+                  padding: '12px 16px 4px',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: 1.5,
+                  color: 'var(--sidebar-text-muted)',
+                  textTransform: 'uppercase',
+                }}
               >
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  {user?.email}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {(user?.branches?.length ?? 0) > 1 && (
-                  <>
-                    <DropdownMenuItem onClick={() => setBranchDialogOpen(true)}>
-                      <GitBranch className="mr-2 size-4" />
-                      Change Branch
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuItem
-                  onClick={logout}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 size-4" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-      <BranchSwitcherDialog
-        open={branchDialogOpen}
-        onOpenChange={setBranchDialogOpen}
-        branches={user?.branches ?? []}
-        currentBranchId={user?.branch_id}
-        onSelect={handleChangeBranch}
-        isLoading={isPending}
-      />
-    </Sidebar>
+                {group.title}
+              </div>
+            )}
+
+            {group.items.map((item) => {
+              const Icon = item.icon;
+
+              if (!item.children) {
+                const active = isActive(item.href!);
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href!}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: collapsed ? '10px 0' : '8px 12px',
+                      margin: '1px 8px',
+                      borderRadius: 'var(--radius-md)',
+                      textDecoration: 'none',
+                      fontSize: 13.5,
+                      fontWeight: active ? 500 : 400,
+                      color: active ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-text)',
+                      background: active ? 'var(--sidebar-item-active-bg)' : 'transparent',
+                      justifyContent: collapsed ? 'center' : 'flex-start',
+                      transition: 'background 150ms ease',
+                    }}
+                  >
+                    <Icon size={16} />
+                    {!collapsed && (
+                      <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                    )}
+                  </Link>
+                );
+              }
+
+              const isOpen = !!openGroups[item.label];
+              const anyChildActive = item.children.some((c) => isActive(c.href));
+
+              return (
+                <div key={item.label}>
+                  <button
+                    onClick={() => toggleGroup(item.label)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: collapsed ? '10px 0' : '8px 12px',
+                      margin: '1px 8px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 13.5,
+                      fontWeight: anyChildActive ? 500 : 400,
+                      color: anyChildActive ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-text)',
+                      background: anyChildActive ? 'var(--sidebar-item-active-bg)' : 'transparent',
+                      justifyContent: collapsed ? 'center' : 'flex-start',
+                      transition: 'background 150ms ease',
+                      cursor: 'pointer',
+                      border: 'none',
+                      width: 'calc(100% - 16px)',
+                    }}
+                  >
+                    <Icon size={16} />
+                    {!collapsed && (
+                      <>
+                        <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                        <ChevronDown
+                          size={14}
+                          style={{
+                            marginLeft: 'auto',
+                            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 150ms ease',
+                          }}
+                        />
+                      </>
+                    )}
+                  </button>
+
+                  {isOpen && !collapsed && (
+                    <div>
+                      {item.children.map((child) => {
+                        const childActive = isActive(child.href);
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            style={{
+                              padding: '6px 12px 6px 38px',
+                              margin: '1px 8px',
+                              fontSize: 13,
+                              color: childActive ? 'var(--accent)' : 'var(--foreground-muted)',
+                              fontWeight: childActive ? 500 : 400,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              borderRadius: 'var(--radius-md)',
+                              textDecoration: 'none',
+                              background: childActive ? 'var(--accent-light-bg)' : 'transparent',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 4,
+                                height: 4,
+                                borderRadius: 99,
+                                background: childActive ? 'var(--accent-light)' : 'var(--border-strong)',
+                                flexShrink: 0,
+                              }}
+                            />
+                            {child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Collapse toggle */}
+      <div
+        style={{
+          borderTop: '1px solid var(--sidebar-border)',
+          padding: '12px 8px',
+        }}
+      >
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-end',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--foreground-muted)',
+            padding: 4,
+          }}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      </div>
+    </aside>
   );
 }
