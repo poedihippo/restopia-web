@@ -11,18 +11,11 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { X, Loader2, TrendingUp, TrendingDown, SlidersHorizontal } from 'lucide-react'
 
 const schema = z.object({
-  product_inventory_id: z.preprocess(
-    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ message: 'Inventory item is required' })
-  ),
-  qty: z.preprocess(
-    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ message: 'Quantity is required' })
-      .min(0.0001, 'Must be greater than 0')
-  ),
-  type: z.enum(['in', 'out', 'adjustment'], {
-    message: 'Type is required',
-  }),
+  product_inventory_id: z.coerce.number()
+    .min(1, 'Inventory item is required'),
+  qty: z.coerce.number()
+    .min(0.0001, 'Must be greater than 0'),
+  type: z.enum(['in', 'out', 'adjustment']),
   description: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>

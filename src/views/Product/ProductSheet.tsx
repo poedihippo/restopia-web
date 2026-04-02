@@ -13,10 +13,8 @@ import { X, Loader2 } from 'lucide-react'
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   code: z.string().optional(),
-  product_category_id: z.preprocess(
-    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ message: 'Category is required' })
-  ),
+  product_category_id: z.coerce.number()
+    .min(1, 'Category is required'),
   description: z.string().optional(),
   status: z.enum(['active', 'inactive']),
 })

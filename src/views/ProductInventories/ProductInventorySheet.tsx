@@ -12,16 +12,12 @@ import { branchesService } from '@/services/branches.service'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
-  product_uom_id: z.preprocess(
-    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ message: 'Product UOM is required' })
-  ),
-  branch_id: z.preprocess(
-    val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ message: 'Branch is required' })
-  ),
-  qty: z.number().min(0).optional(),
-  min_qty: z.number().min(0).optional(),
+  product_uom_id: z.coerce.number()
+    .min(1, 'Product UOM is required'),
+  branch_id: z.coerce.number()
+    .min(1, 'Branch is required'),
+  qty: z.coerce.number().min(0).optional(),
+  min_qty: z.coerce.number().min(0).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
