@@ -49,8 +49,8 @@ export default function ProductInventorySheet({
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      product_uom_id: undefined,
-      branch_id: undefined,
+      product_uom_id: 0,
+      branch_id: 0,
       qty: 0,
       min_qty: 0,
     },
@@ -82,8 +82,8 @@ export default function ProductInventorySheet({
       })
     } else {
       reset({
-        product_uom_id: undefined,
-        branch_id: undefined,
+        product_uom_id: 0,
+        branch_id: 0,
         qty: 0,
         min_qty: 0,
       })

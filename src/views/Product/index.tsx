@@ -20,7 +20,7 @@ interface Product {
   name: string
   code?: string
   status: 'active' | 'inactive'
-  product_category_id?: number
+  product_category_id: number
   description?: string
   created_at?: string
   product_category?: { id: number; name: string }

@@ -52,9 +52,9 @@ export default function ProductConversionSheet({
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      product_id: undefined,
-      from_uom_id: undefined,
-      to_uom_id: undefined,
+      product_id: 0,
+      from_uom_id: 0,
+      to_uom_id: 0,
       conversion_factor: 1,
     },
   })
@@ -85,9 +85,9 @@ export default function ProductConversionSheet({
       })
     } else {
       reset({
-        product_id: undefined,
-        from_uom_id: undefined,
-        to_uom_id: undefined,
+        product_id: 0,
+        from_uom_id: 0,
+        to_uom_id: 0,
         conversion_factor: 1,
       })
     }
