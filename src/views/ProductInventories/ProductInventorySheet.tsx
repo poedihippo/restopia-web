@@ -14,11 +14,11 @@ import { X, Loader2 } from 'lucide-react'
 const schema = z.object({
   product_uom_id: z.preprocess(
     val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ invalid_type_error: 'Product UOM is required' })
+    z.number({ message: 'Product UOM is required' })
   ),
   branch_id: z.preprocess(
     val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ invalid_type_error: 'Branch is required' })
+    z.number({ message: 'Branch is required' })
   ),
   qty: z.number().min(0).optional(),
   min_qty: z.number().min(0).optional(),

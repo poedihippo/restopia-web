@@ -14,19 +14,19 @@ import { X, Loader2, ArrowRight } from 'lucide-react'
 const schema = z.object({
   product_id: z.preprocess(
     val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ invalid_type_error: 'Product is required' })
+    z.number({ message: 'Product is required' })
   ),
   from_uom_id: z.preprocess(
     val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ invalid_type_error: 'From UOM is required' })
+    z.number({ message: 'From UOM is required' })
   ),
   to_uom_id: z.preprocess(
     val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ invalid_type_error: 'To UOM is required' })
+    z.number({ message: 'To UOM is required' })
   ),
   conversion_factor: z.preprocess(
     val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ invalid_type_error: 'Conversion factor is required' })
+    z.number({ message: 'Conversion factor is required' })
       .min(0.0001, 'Must be greater than 0')
   ),
 })

@@ -15,7 +15,7 @@ const schema = z.object({
   code: z.string().optional(),
   product_category_id: z.preprocess(
     val => (val === '' || val === undefined || val === null) ? undefined : Number(val),
-    z.number({ invalid_type_error: 'Category is required' })
+    z.number({ message: 'Category is required' })
   ),
   description: z.string().optional(),
   status: z.enum(['active', 'inactive']),
