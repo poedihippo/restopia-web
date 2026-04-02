@@ -1,18 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
-import { authApi } from "../useApi";
+import { authService } from "@/services/auth.service";
 import { cookies } from "@/lib/cookies";
-import { ILogin, ILoginResponse } from "@/@types/user";
-import type { AxiosResponse } from "axios";
 
 const useLoginMutation = () => {
   return useMutation({
-    mutationFn: (data: ILogin) =>
-      authApi.post<ILoginResponse>("auth/token", {
+    mutationFn: (data: { email: string; password: string }) =>
+      authService.login({
         email: data.email,
         password: data.password,
       }),
 
-    onSuccess: (res: AxiosResponse<ILoginResponse>) => {
+    onSuccess: (res) => {
       cookies.set("token", res.data.data.access_token, { path: "/" });
     },
   });
