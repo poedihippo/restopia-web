@@ -20,11 +20,14 @@ interface StockMovement {
   qty: number
   type: 'in' | 'out' | 'adjustment'
   description?: string
+  notes?: string
   created_at?: string
   product_inventory?: {
     id: number
     qty: number
     product_uom?: {
+      name?: string
+      code?: string
       product?: { id: number; name: string }
       uom?: { id: number; name: string; code: string }
     }
@@ -80,7 +83,10 @@ export default function StockMovementView() {
           page,
           per_page: 20,
           include:
-            'product_inventory.product_uom.product,product_inventory.product_uom.uom,product_inventory.branch',
+            'product_inventory,product_inventory.product_uom,' +
+            'product_inventory.product_uom.product,' +
+            'product_inventory.product_uom.uom,' +
+            'product_inventory.branch',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
@@ -89,7 +95,10 @@ export default function StockMovementView() {
   })
 
   const items: StockMovement[] = (data as any)?.data ?? []
-  console.log('movement item sample:', items[0])
+  console.log(
+    'movement item sample:',
+    JSON.stringify(items[0], null, 2)
+  )
   const meta = (data as any)?.meta
 
   return (
@@ -369,7 +378,9 @@ export default function StockMovementView() {
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_inventory?.product_uom?.product?.name ?? '—'}
+                          {item.product_inventory?.product_uom?.product?.name
+                            ?? item.product_inventory?.product_uom?.name
+                            ?? '—'}
                         </span>
                         <span
                           style={{
@@ -378,7 +389,9 @@ export default function StockMovementView() {
                             color: 'var(--foreground-muted)',
                           }}
                         >
-                          {item.product_inventory?.product_uom?.uom?.code ?? ''}
+                          {item.product_inventory?.product_uom?.uom?.code
+                            ?? item.product_inventory?.product_uom?.code
+                            ?? '—'}
                         </span>
                       </div>
                     </td>
@@ -420,7 +433,9 @@ export default function StockMovementView() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {item.description || '—'}
+                      {item.description
+                        ?? item.notes
+                        ?? '—'}
                     </td>
 
                     {/* Date */}
