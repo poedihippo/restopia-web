@@ -1,7 +1,6 @@
-import Productions from "@/views/Productions";
+import React from 'react'
+import ProductionsView from '@/views/Productions'
 
-const ProductionPage = () => {
-  return <Productions />;
-};
-
-export default ProductionPage;
+export default function ProductionPage() {
+  return <ProductionsView />
+}
