@@ -1,4 +1,4 @@
-# Dapur Coklat — Claude Code Context
+# # Dapur Coklat — Claude Code Context
 
 ## Project
 Multi-branch bakery management platform. Covers POS, production,
