@@ -103,8 +103,8 @@ export interface UomRequest {
 // Product Conversions
 export interface ProductConversionRequest {
   product_id: number
-  from_uom_id: number
-  to_uom_id: number
+  uom_id: number
+  target_uom_id: number
   conversion_factor: number
 }
 
@@ -127,11 +127,20 @@ export interface ProductInventoryRequest {
   min_qty?: number
 }
 
+export interface ProductInventoryUpdateRequest {
+  code?: string
+  base_price?: number
+  online_price?: number
+  price_editable?: boolean
+  expiry_date?: string
+  status?: 'active' | 'inactive'
+}
+
 // Stock Movements
 export interface StockMovementRequest {
   product_inventory_id: number
   qty: number
-  type: 'in' | 'out' | 'adjustment'
+  direction: 'in' | 'out'
   description?: string
 }
 

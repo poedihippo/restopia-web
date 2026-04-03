@@ -18,15 +18,19 @@ import {
 
 interface ProductInventory {
   id: number
-  code?: string
   qty: number
   min_qty?: number
+  code?: string
+  base_price?: number
+  online_price?: number
+  price_editable?: boolean
+  expiry_date?: string
+  status?: 'active' | 'inactive'
   created_at?: string
   product_uom_id: number
   branch_id: number
   product_uom?: {
     id: number
-    name?: string
     code?: string
     product?: { id: number; name: string }
     uom?: { id: number; name: string; code: string }

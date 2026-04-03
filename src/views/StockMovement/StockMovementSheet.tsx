@@ -8,14 +8,14 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { X, Loader2, TrendingUp, TrendingDown, SlidersHorizontal } from 'lucide-react'
+import { X, Loader2, TrendingUp, TrendingDown } from 'lucide-react'
 
 const schema = z.object({
   product_inventory_id: z.coerce.number()
     .min(1, 'Inventory item is required'),
   qty: z.coerce.number()
     .min(0.0001, 'Must be greater than 0'),
-  type: z.enum(['in', 'out', 'adjustment']),
+  direction: z.enum(['in', 'out']),
   description: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
@@ -44,15 +44,6 @@ const TYPE_OPTIONS = [
     bg: 'var(--destructive-bg)',
     border: 'var(--destructive)',
   },
-  {
-    value: 'adjustment' as const,
-    label: 'Adjustment',
-    description: 'Manual stock correction',
-    icon: SlidersHorizontal,
-    color: 'var(--warning)',
-    bg: 'var(--warning-bg)',
-    border: 'var(--warning)',
-  },
 ]
 
 export default function StockMovementSheet({ open, onClose }: StockMovementSheetProps) {
@@ -70,7 +61,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
     defaultValues: {
       product_inventory_id: 0,
       qty: 0,
-      type: 'in',
+      direction: 'in' as const,
       description: '',
     },
   })
@@ -87,7 +78,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   })
   const inventoryItems = (inventoryData as any)?.data ?? []
 
-  const watchType = watch('type')
+  const watchDirection = watch('direction')
   const watchQty = watch('qty')
 
   const createMutation = useMutation({
@@ -110,27 +101,23 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
 
   const getQtyBorderColor = () => {
     if (!watchQty) return 'var(--border)'
-    if (watchType === 'in') return 'var(--success)'
-    if (watchType === 'out') return 'var(--destructive)'
-    return 'var(--warning)'
+    if (watchDirection === 'in') return 'var(--success)'
+    return 'var(--destructive)'
   }
 
   const getSubmitBg = () => {
-    if (watchType === 'in') return 'var(--success)'
-    if (watchType === 'out') return 'var(--destructive)'
-    return 'var(--warning)'
+    if (watchDirection === 'in') return 'var(--success)'
+    return 'var(--destructive)'
   }
 
   const getSubmitLabel = () => {
-    if (watchType === 'in') return 'Record Stock In'
-    if (watchType === 'out') return 'Record Stock Out'
-    return 'Record Adjustment'
+    if (watchDirection === 'in') return 'Record Stock In'
+    return 'Record Stock Out'
   }
 
   const getQtyLabel = () => {
-    if (watchType === 'in') return 'Quantity to Add'
-    if (watchType === 'out') return 'Quantity to Remove'
-    return 'Adjusted Quantity'
+    if (watchDirection === 'in') return 'Quantity to Add'
+    return 'Quantity to Remove'
   }
 
   const selectStyle = {
@@ -244,13 +231,13 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
               Movement Type
             </label>
             <Controller
-              name="type"
+              name="direction"
               control={control}
               render={({ field }) => (
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
                     gap: 8,
                   }}
                 >

@@ -14,9 +14,9 @@ import { X, Loader2, ArrowRight } from 'lucide-react'
 const schema = z.object({
   product_id: z.coerce.number()
     .min(1, 'Product is required'),
-  from_uom_id: z.coerce.number()
+  uom_id: z.coerce.number()
     .min(1, 'From UOM is required'),
-  to_uom_id: z.coerce.number()
+  target_uom_id: z.coerce.number()
     .min(1, 'To UOM is required'),
   conversion_factor: z.coerce.number()
     .min(0.0001, 'Must be greater than 0'),
@@ -29,8 +29,8 @@ interface ProductConversionSheetProps {
   editData?: {
     id: number
     product_id: number
-    from_uom_id: number
-    to_uom_id: number
+    uom_id: number
+    target_uom_id: number
     conversion_factor: number
   } | null
 }
@@ -53,8 +53,8 @@ export default function ProductConversionSheet({
     resolver: zodResolver(schema) as any,
     defaultValues: {
       product_id: 0,
-      from_uom_id: 0,
-      to_uom_id: 0,
+      uom_id: 0,
+      target_uom_id: 0,
       conversion_factor: 1,
     },
   })
@@ -79,15 +79,15 @@ export default function ProductConversionSheet({
     if (editData) {
       reset({
         product_id: editData.product_id,
-        from_uom_id: editData.from_uom_id,
-        to_uom_id: editData.to_uom_id,
+        uom_id: editData.uom_id,
+        target_uom_id: editData.target_uom_id,
         conversion_factor: editData.conversion_factor,
       })
     } else {
       reset({
         product_id: 0,
-        from_uom_id: 0,
-        to_uom_id: 0,
+        uom_id: 0,
+        target_uom_id: 0,
         conversion_factor: 1,
       })
     }
@@ -126,8 +126,8 @@ export default function ProductConversionSheet({
 
   const watchedValues = watch([
     'product_id',
-    'from_uom_id',
-    'to_uom_id',
+    'uom_id',
+    'target_uom_id',
     'conversion_factor',
   ])
   const [watchedProductId, watchedFromUomId, watchedToUomId, watchedFactor] =
@@ -305,7 +305,7 @@ export default function ProductConversionSheet({
             >
               {/* From UOM */}
               <Controller
-                name="from_uom_id"
+                name="uom_id"
                 control={control}
                 render={({ field }) => (
                   <select
@@ -313,7 +313,7 @@ export default function ProductConversionSheet({
                     onChange={(e) => field.onChange(Number(e.target.value))}
                     style={{
                       ...selectStyle,
-                      border: `1px solid ${errors.from_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
+                      border: `1px solid ${errors.uom_id ? 'var(--destructive)' : 'var(--border)'}`,
                     }}
                   >
                     <option value="" disabled>
@@ -341,7 +341,7 @@ export default function ProductConversionSheet({
 
               {/* To UOM */}
               <Controller
-                name="to_uom_id"
+                name="target_uom_id"
                 control={control}
                 render={({ field }) => (
                   <select
@@ -349,7 +349,7 @@ export default function ProductConversionSheet({
                     onChange={(e) => field.onChange(Number(e.target.value))}
                     style={{
                       ...selectStyle,
-                      border: `1px solid ${errors.to_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
+                      border: `1px solid ${errors.target_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
                     }}
                   >
                     <option value="" disabled>
@@ -364,9 +364,9 @@ export default function ProductConversionSheet({
                 )}
               />
             </div>
-            {(errors.from_uom_id || errors.to_uom_id) && (
+            {(errors.uom_id || errors.target_uom_id) && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.from_uom_id?.message || errors.to_uom_id?.message}
+                {errors.uom_id?.message || errors.target_uom_id?.message}
               </span>
             )}
           </div>

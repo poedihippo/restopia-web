@@ -12,12 +12,16 @@ import { branchesService } from '@/services/branches.service'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
-  product_uom_id: z.coerce.number()
-    .min(1, 'Product UOM is required'),
-  branch_id: z.coerce.number()
-    .min(1, 'Branch is required'),
+  product_uom_id: z.coerce.number().min(0).optional(),
+  branch_id: z.coerce.number().min(0).optional(),
   qty: z.coerce.number().min(0).optional(),
   min_qty: z.coerce.number().min(0).optional(),
+  code: z.string().optional(),
+  base_price: z.coerce.number().min(0).optional(),
+  online_price: z.coerce.number().min(0).optional(),
+  price_editable: z.boolean().optional(),
+  expiry_date: z.string().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -30,6 +34,12 @@ interface ProductInventorySheetProps {
     branch_id: number
     qty?: number
     min_qty?: number
+    code?: string
+    base_price?: number
+    online_price?: number
+    price_editable?: boolean
+    expiry_date?: string
+    status?: 'active' | 'inactive'
   } | null
 }
 
@@ -53,6 +63,12 @@ export default function ProductInventorySheet({
       branch_id: 0,
       qty: 0,
       min_qty: 0,
+      code: '',
+      base_price: 0,
+      online_price: 0,
+      price_editable: false,
+      expiry_date: '',
+      status: 'active',
     },
   })
 
@@ -62,6 +78,7 @@ export default function ProductInventorySheet({
       productUomsService
         .list({ per_page: 200, include: 'product,uom' })
         .then((r) => r.data),
+    enabled: !editData,
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
@@ -69,16 +86,19 @@ export default function ProductInventorySheet({
     queryKey: ['branches-all'],
     queryFn: () =>
       branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !editData,
   })
   const branches = (branchesData as any)?.data ?? []
 
   useEffect(() => {
     if (editData) {
       reset({
-        product_uom_id: editData.product_uom_id,
-        branch_id: editData.branch_id,
-        qty: editData.qty ?? 0,
-        min_qty: editData.min_qty ?? 0,
+        code: editData.code ?? '',
+        base_price: editData.base_price ?? 0,
+        online_price: editData.online_price ?? 0,
+        price_editable: editData.price_editable ?? false,
+        expiry_date: editData.expiry_date ?? '',
+        status: editData.status ?? 'active',
       })
     } else {
       reset({
@@ -86,6 +106,12 @@ export default function ProductInventorySheet({
         branch_id: 0,
         qty: 0,
         min_qty: 0,
+        code: '',
+        base_price: 0,
+        online_price: 0,
+        price_editable: false,
+        expiry_date: '',
+        status: 'active',
       })
     }
   }, [editData, reset])
@@ -102,7 +128,14 @@ export default function ProductInventorySheet({
 
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) =>
-      productInventoriesService.update(editData!.id, data as any),
+      productInventoriesService.update(editData!.id, {
+        code: data.code,
+        base_price: data.base_price,
+        online_price: data.online_price,
+        price_editable: data.price_editable,
+        expiry_date: data.expiry_date || undefined,
+        status: data.status,
+      } as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
       toast.success('Inventory item updated')
@@ -233,145 +266,352 @@ export default function ProductInventorySheet({
             gap: 20,
           }}
         >
-          {/* Product UOM field */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-              }}
-            >
-              Product UOM
-            </label>
-            <Controller
-              name="product_uom_id"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
+          {!editData ? (
+            <>
+              {/* CREATE MODE */}
+
+              {/* Product UOM field */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
                   style={{
-                    ...selectStyle,
-                    border: `1px solid ${errors.product_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
                   }}
                 >
-                  <option value="" disabled>
-                    Select product UOM
-                  </option>
-                  {productUoms.map((pu: any) => (
-                    <option key={pu.id} value={pu.id}>
-                      {pu.product?.name ?? pu.id}
-                      {' — '}
-                      {pu.uom?.name ?? ''}
-                      {pu.code ? ` (${pu.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-            {errors.product_uom_id && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.product_uom_id.message}
-              </span>
-            )}
-          </div>
+                  Product UOM
+                </label>
+                <Controller
+                  name="product_uom_id"
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      style={{
+                        ...selectStyle,
+                        border: `1px solid ${errors.product_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
+                      }}
+                    >
+                      <option value="" disabled>
+                        Select product UOM
+                      </option>
+                      {productUoms.map((pu: any) => (
+                        <option key={pu.id} value={pu.id}>
+                          {pu.product?.name ?? pu.id}
+                          {' — '}
+                          {pu.uom?.name ?? ''}
+                          {pu.code ? ` (${pu.code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                />
+                {errors.product_uom_id && (
+                  <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                    {errors.product_uom_id.message}
+                  </span>
+                )}
+              </div>
 
-          {/* Branch field */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-              }}
-            >
-              Branch
-            </label>
-            <Controller
-              name="branch_id"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
+              {/* Branch field */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
                   style={{
-                    ...selectStyle,
-                    border: `1px solid ${errors.branch_id ? 'var(--destructive)' : 'var(--border)'}`,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
                   }}
                 >
-                  <option value="" disabled>
-                    Select branch
-                  </option>
-                  {branches.map((b: any) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-            {errors.branch_id && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.branch_id.message}
-              </span>
-            )}
-          </div>
+                  Branch
+                </label>
+                <Controller
+                  name="branch_id"
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                      style={{
+                        ...selectStyle,
+                        border: `1px solid ${errors.branch_id ? 'var(--destructive)' : 'var(--border)'}`,
+                      }}
+                    >
+                      <option value="" disabled>
+                        Select branch
+                      </option>
+                      {branches.map((b: any) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                />
+                {errors.branch_id && (
+                  <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                    {errors.branch_id.message}
+                  </span>
+                )}
+              </div>
 
-          {/* Qty + Min Qty row */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 12,
-            }}
-          >
-            {/* Current Qty */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label
+              {/* Qty + Min Qty row */}
+              <div
                 style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
                 }}
               >
-                Current Qty
-              </label>
-              <input
-                {...register('qty', { valueAsNumber: true })}
-                type="number"
-                min="0"
-                placeholder="0"
-                style={inputStyle}
-              />
-              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
-                Initial stock quantity
-              </span>
-            </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    Current Qty
+                  </label>
+                  <input
+                    {...register('qty', { valueAsNumber: true })}
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    style={inputStyle}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                    Initial stock quantity
+                  </span>
+                </div>
 
-            {/* Minimum Qty */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    Minimum Qty
+                  </label>
+                  <input
+                    {...register('min_qty', { valueAsNumber: true })}
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    style={inputStyle}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                    Alert threshold for low stock
+                  </span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* EDIT MODE */}
+
+              {/* SKU Code */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  SKU Code
+                </label>
+                <input
+                  {...register('code')}
+                  type="text"
+                  placeholder="e.g. CHOC-001-KG"
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Base Price + Online Price */}
+              <div
                 style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: 12,
                 }}
               >
-                Minimum Qty
-              </label>
-              <input
-                {...register('min_qty', { valueAsNumber: true })}
-                type="number"
-                min="0"
-                placeholder="0"
-                style={inputStyle}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    Base Price (Rp)
+                  </label>
+                  <input
+                    {...register('base_price', { valueAsNumber: true })}
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    Online Price (Rp)
+                  </label>
+                  <input
+                    {...register('online_price', { valueAsNumber: true })}
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+
+              {/* Expiry Date */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  Expiry Date
+                </label>
+                <input
+                  {...register('expiry_date')}
+                  type="date"
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Status toggle */}
+              <Controller
+                name="status"
+                control={control}
+                render={({ field }) => (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: 'var(--foreground)',
+                      }}
+                    >
+                      Status
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {(['active', 'inactive'] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => field.onChange(s)}
+                          style={{
+                            padding: '7px 16px',
+                            border: `1px solid ${field.value === s
+                              ? s === 'active' ? 'var(--success)' : 'var(--destructive)'
+                              : 'var(--border)'}`,
+                            borderRadius: 'var(--radius-md)',
+                            background: field.value === s
+                              ? s === 'active' ? 'var(--success-bg)' : 'var(--destructive-bg)'
+                              : 'var(--surface)',
+                            color: field.value === s
+                              ? s === 'active' ? 'var(--success)' : 'var(--destructive)'
+                              : 'var(--foreground-muted)',
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               />
-              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
-                Alert threshold for low stock
-              </span>
-            </div>
-          </div>
+
+              {/* Price Editable toggle */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  background: 'var(--background)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    Price Editable
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--foreground-muted)',
+                      marginTop: 2,
+                    }}
+                  >
+                    Allow price to be changed at POS
+                  </div>
+                </div>
+                <Controller
+                  name="price_editable"
+                  control={control}
+                  render={({ field }) => (
+                    <button
+                      type="button"
+                      onClick={() => field.onChange(!field.value)}
+                      style={{
+                        width: 40,
+                        height: 22,
+                        borderRadius: 11,
+                        border: 'none',
+                        background: field.value ? 'var(--success)' : 'var(--border)',
+                        position: 'relative',
+                        cursor: 'pointer',
+                        transition: 'background 150ms ease',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 3,
+                          left: field.value ? 21 : 3,
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          background: 'white',
+                          transition: 'left 150ms ease',
+                        }}
+                      />
+                    </button>
+                  )}
+                />
+              </div>
+            </>
+          )}
         </form>
 
         {/* Footer */}

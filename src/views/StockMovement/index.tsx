@@ -11,16 +11,16 @@ import {
   ChevronRight,
   TrendingUp,
   TrendingDown,
-  SlidersHorizontal,
   ArrowUpDown,
 } from 'lucide-react'
 
 interface StockMovement {
   id: number
   qty: number
-  type: 'in' | 'out' | 'adjustment'
+  direction: 'in' | 'out'
   description?: string
   created_at?: string
+  branch?: { id: number; name: string }
   product_inventory?: {
     id: number
     qty?: number
@@ -42,19 +42,13 @@ const TYPE_META = {
     bg: 'var(--destructive-bg)',
     icon: TrendingDown,
   },
-  adjustment: {
-    label: 'Adjustment',
-    color: 'var(--warning)',
-    bg: 'var(--warning-bg)',
-    icon: SlidersHorizontal,
-  },
 }
 
 export default function StockMovementView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [typeFilter, setTypeFilter] = useState<'' | 'in' | 'out' | 'adjustment'>('')
+  const [directionFilter, setDirectionFilter] = useState<'' | 'in' | 'out'>('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
@@ -67,19 +61,19 @@ export default function StockMovementView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, typeFilter])
+  }, [debouncedSearch, directionFilter])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stock-movements', page, debouncedSearch, typeFilter],
+    queryKey: ['stock-movements', page, debouncedSearch, directionFilter],
     queryFn: () =>
       stockMovementsService
         .list({
           page,
           per_page: 20,
-          include: 'product_inventory,product_inventory.branch',
+          include: 'created_by,branch,product_inventory',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
-          'filter[type]': typeFilter || undefined,
+          'filter[direction]': directionFilter || undefined,
         })
         .then((r) => r.data),
   })
@@ -177,11 +171,11 @@ export default function StockMovementView() {
           />
         </div>
 
-        {/* Type filter */}
+        {/* Direction filter */}
         <select
-          value={typeFilter}
+          value={directionFilter}
           onChange={(e) => {
-            setTypeFilter(e.target.value as '' | 'in' | 'out' | 'adjustment')
+            setDirectionFilter(e.target.value as '' | 'in' | 'out')
             setPage(1)
           }}
           style={{
@@ -196,10 +190,9 @@ export default function StockMovementView() {
             cursor: 'pointer',
           }}
         >
-          <option value="">All Types</option>
+          <option value="">All Directions</option>
           <option value="in">Stock In</option>
           <option value="out">Stock Out</option>
-          <option value="adjustment">Adjustment</option>
         </select>
       </div>
 
@@ -319,7 +312,7 @@ export default function StockMovementView() {
             {!isLoading &&
               items.map((item: any) => {
                 const typeMeta =
-                  TYPE_META[item.type as keyof typeof TYPE_META] ??
+                  TYPE_META[item.direction as keyof typeof TYPE_META] ??
                   TYPE_META['in']
                 const Icon = typeMeta.icon
 
@@ -386,7 +379,9 @@ export default function StockMovementView() {
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.product_inventory?.branch?.name ?? '—'}
+                      {item.branch?.name
+                        ?? item.product_inventory?.branch?.name
+                        ?? '—'}
                     </td>
 
                     {/* Qty */}
@@ -395,10 +390,11 @@ export default function StockMovementView() {
                         style={{
                           fontSize: 14,
                           fontWeight: 600,
-                          color: typeMeta.color,
+                          color: item.direction === 'out'
+                            ? 'var(--destructive)' : 'var(--success)',
                         }}
                       >
-                        {item.type === 'out' ? '−' : '+'}
+                        {item.direction === 'out' ? '−' : '+'}
                         {(item.qty ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>

@@ -19,13 +19,13 @@ import {
 interface ProductConversion {
   id: number
   product_id: number
-  from_uom_id: number
-  to_uom_id: number
+  uom_id: number
+  target_uom_id: number
   conversion_factor: number
   created_at?: string
   product?: { id: number; name: string }
-  from_uom?: { id: number; name: string; code: string }
-  to_uom?: { id: number; name: string; code: string }
+  uom?: { id: number; name: string; code: string }
+  target_uom?: { id: number; name: string; code: string }
 }
 
 export default function ProductConversionsView() {
@@ -57,7 +57,7 @@ export default function ProductConversionsView() {
         .list({
           page,
           per_page: 15,
-          include: 'product,from_uom,to_uom',
+          include: 'product,uom,target_uom',
           'filter[search]': debouncedSearch || undefined,
         })
         .then((r) => r.data),
@@ -318,7 +318,7 @@ export default function ProductConversionsView() {
                           color: 'var(--foreground)',
                         }}
                       >
-                        {item.from_uom?.name ?? '—'}
+                        {item.uom?.name ?? '—'}
                       </span>
                       <span
                         style={{
@@ -327,7 +327,7 @@ export default function ProductConversionsView() {
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.from_uom?.code ?? ''}
+                        {item.uom?.code ?? ''}
                       </span>
                     </div>
                   </td>
@@ -347,7 +347,7 @@ export default function ProductConversionsView() {
                           color: 'var(--foreground)',
                         }}
                       >
-                        {item.to_uom?.name ?? '—'}
+                        {item.target_uom?.name ?? '—'}
                       </span>
                       <span
                         style={{
@@ -356,7 +356,7 @@ export default function ProductConversionsView() {
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.to_uom?.code ?? ''}
+                        {item.target_uom?.code ?? ''}
                       </span>
                     </div>
                   </td>
