@@ -58,6 +58,7 @@ export default function SuppliersView() {
   })
 
   const items: Supplier[] = (data as any)?.data?.data ?? []
+  console.log('suppliers data:', data, 'items:', items)
   const meta = (data as any)?.data?.meta
 
   const deleteMutation = useMutation({
