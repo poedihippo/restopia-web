@@ -18,6 +18,7 @@ import {
 
 interface ProductInventory {
   id: number
+  code?: string
   qty: number
   min_qty?: number
   created_at?: string
@@ -70,7 +71,6 @@ export default function ProductInventoriesView() {
   })
 
   const items: ProductInventory[] = (data as any)?.data ?? []
-  console.log('inventory item sample:', items[0])
   const meta = (data as any)?.meta
 
   const filteredItems = lowStockOnly
@@ -388,8 +388,8 @@ export default function ProductInventoriesView() {
                         color: 'var(--foreground)',
                       }}
                     >
-                      {item.product_uom?.product?.name
-                        ?? item.product_uom?.name
+                      {item.product_uom?.code
+                        ?? item.code
                         ?? '—'}
                     </td>
 
@@ -407,9 +407,7 @@ export default function ProductInventoriesView() {
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.product_uom?.uom?.code
-                          ?? item.product_uom?.code
-                          ?? '—'}
+                        {item.product_uom?.code ?? '—'}
                       </span>
                     </td>
 
