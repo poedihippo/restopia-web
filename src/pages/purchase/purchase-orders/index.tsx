@@ -1,7 +1,6 @@
-import PurchaseOrders from "@/views/PurchaseOrders";
+import React from 'react'
+import PurchaseOrdersView from '@/views/PurchaseOrders'
 
-const PurchaseOrdersPage = () => {
-  return <PurchaseOrders />;
-};
-
-export default PurchaseOrdersPage;
+export default function PurchaseOrdersPage() {
+  return <PurchaseOrdersView />
+}
