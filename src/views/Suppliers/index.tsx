@@ -54,12 +54,11 @@ export default function SuppliersView() {
           per_page: 15,
           'filter[search]': debouncedSearch || undefined,
         })
-        .then((r) => r.data),
+        .then((r) => r.data.data),
   })
 
-  const items: Supplier[] = (data as any)?.data?.data ?? []
-  console.log('suppliers data:', data, 'items:', items)
-  const meta = (data as any)?.data?.meta
+  const items: Supplier[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => suppliersService.delete(id),

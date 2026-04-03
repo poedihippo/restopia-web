@@ -70,6 +70,7 @@ export default function ProductInventoriesView() {
 
   const items: ProductInventory[] = (data as any)?.data?.data ?? []
   const meta = (data as any)?.data?.meta
+  console.log('[ProductInventories] raw data:', data)
 
   const filteredItems = lowStockOnly
     ? items.filter(
