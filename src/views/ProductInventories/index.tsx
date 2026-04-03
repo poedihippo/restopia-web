@@ -74,12 +74,17 @@ export default function ProductInventoriesView() {
   const filteredItems = lowStockOnly
     ? items.filter(
         (i) =>
-          i.min_qty !== undefined && i.min_qty !== null && i.qty <= i.min_qty
+          i.min_qty !== undefined &&
+          i.min_qty !== null &&
+          (i.qty ?? 0) <= (i.min_qty ?? 0)
       )
     : items
 
   const lowCount = items.filter(
-    (i) => i.min_qty !== undefined && i.min_qty !== null && i.qty <= i.min_qty
+    (i) =>
+      i.min_qty !== undefined &&
+      i.min_qty !== null &&
+      (i.qty ?? 0) <= (i.min_qty ?? 0)
   ).length
 
   const deleteMutation = useMutation({
@@ -355,7 +360,7 @@ export default function ProductInventoriesView() {
                 const isLow =
                   item.min_qty !== undefined &&
                   item.min_qty !== null &&
-                  item.qty <= item.min_qty
+                  (item.qty ?? 0) <= (item.min_qty ?? 0)
 
                 return (
                   <tr
@@ -422,7 +427,7 @@ export default function ProductInventoriesView() {
                           color: isLow ? 'var(--warning)' : 'var(--foreground)',
                         }}
                       >
-                        {item.qty.toLocaleString('id-ID')}
+                        {(item.qty ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
 
@@ -435,7 +440,7 @@ export default function ProductInventoriesView() {
                       }}
                     >
                       {item.min_qty !== undefined && item.min_qty !== null
-                        ? item.min_qty.toLocaleString('id-ID')
+                        ? (item.min_qty ?? 0).toLocaleString('id-ID')
                         : '—'}
                     </td>
 

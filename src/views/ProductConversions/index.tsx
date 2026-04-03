@@ -371,7 +371,7 @@ export default function ProductConversionsView() {
                       fontFamily: 'var(--font-display)',
                     }}
                   >
-                    {item.conversion_factor.toLocaleString('id-ID', {
+                    {(item.conversion_factor ?? 0).toLocaleString('id-ID', {
                       maximumFractionDigits: 4,
                     })}
                   </td>

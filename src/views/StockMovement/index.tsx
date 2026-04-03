@@ -401,7 +401,7 @@ export default function StockMovementView() {
                         }}
                       >
                         {item.type === 'out' ? '−' : '+'}
-                        {item.qty.toLocaleString('id-ID')}
+                        {(item.qty ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
 

@@ -30,7 +30,7 @@ interface ProductUom {
 }
 
 const formatIDR = (n?: number) =>
-  n == null ? '—' : `Rp ${n.toLocaleString('id-ID')}`
+  n == null ? '—' : `Rp ${(n ?? 0).toLocaleString('id-ID')}`
 
 export default function ProductUomsView() {
   const queryClient = useQueryClient()
