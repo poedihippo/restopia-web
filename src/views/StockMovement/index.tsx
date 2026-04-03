@@ -18,15 +18,10 @@ interface StockMovement {
   id: number
   qty: number
   direction: 'in' | 'out'
+  product_inventory_id?: number
+  branch_id?: number
   description?: string
   created_at?: string
-  branch?: { id: number; name: string }
-  product_inventory?: {
-    id: number
-    qty?: number
-    code?: string
-    branch?: { id: number; name: string }
-  }
 }
 
 const TYPE_META = {
@@ -70,7 +65,6 @@ export default function StockMovementView() {
         .list({
           page,
           per_page: 20,
-          include: 'created_by,branch,product_inventory',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
@@ -357,7 +351,7 @@ export default function StockMovementView() {
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_inventory?.code ?? '—'}
+                          {item.product_inventory_id ?? '—'}
                         </span>
                         <span
                           style={{
@@ -379,9 +373,7 @@ export default function StockMovementView() {
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.branch?.name
-                        ?? item.product_inventory?.branch?.name
-                        ?? '—'}
+                      {item.branch_id ?? '—'}
                     </td>
 
                     {/* Qty */}
