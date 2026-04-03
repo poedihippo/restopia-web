@@ -54,9 +54,8 @@ export default function UomsView() {
         .then((r) => r.data),
   })
 
-  const items: Uom[] = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
-  console.log('[Uoms] raw data:', data)
+  const items: Uom[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => uomsService.delete(id),

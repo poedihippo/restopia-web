@@ -62,9 +62,8 @@ export default function ProductView() {
         .then((r) => r.data),
   })
 
-  const items: Product[] = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
-  console.log('[Products] raw data:', data)
+  const items: Product[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productsService.delete(id),

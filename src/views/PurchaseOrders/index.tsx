@@ -80,8 +80,8 @@ export default function PurchaseOrdersView() {
         .then((r) => r.data),
   })
 
-  const items: PurchaseOrder[] = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
+  const items: PurchaseOrder[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => purchaseOrdersService.delete(id),

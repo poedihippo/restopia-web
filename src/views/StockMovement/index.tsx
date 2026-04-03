@@ -88,9 +88,8 @@ export default function StockMovementView() {
         .then((r) => r.data),
   })
 
-  const items: StockMovement[] = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
-  console.log('[StockMovements] raw data:', data)
+  const items: StockMovement[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

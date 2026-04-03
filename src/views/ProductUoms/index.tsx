@@ -65,9 +65,8 @@ export default function ProductUomsView() {
         .then((r) => r.data),
   })
 
-  const items: ProductUom[] = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
-  console.log('[ProductUoms] raw data:', data)
+  const items: ProductUom[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productUomsService.delete(id),

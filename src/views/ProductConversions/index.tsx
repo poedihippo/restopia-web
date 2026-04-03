@@ -63,9 +63,8 @@ export default function ProductConversionsView() {
         .then((r) => r.data),
   })
 
-  const items: ProductConversion[] = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
-  console.log('[ProductConversions] raw data:', data)
+  const items: ProductConversion[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productConversionsService.delete(id),

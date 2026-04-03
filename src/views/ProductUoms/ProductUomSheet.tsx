@@ -66,14 +66,14 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         .list({ per_page: 200 })
         .then((r) => r.data),
   })
-  const products = (productsData as any)?.data?.data ?? []
+  const products = (productsData as any)?.data ?? []
 
   const { data: uomsData } = useQuery({
     queryKey: ['uoms-all'],
     queryFn: () =>
       uomsService.list({ per_page: 100 }).then((r) => r.data),
   })
-  const uoms = (uomsData as any)?.data?.data ?? []
+  const uoms = (uomsData as any)?.data ?? []
 
   useEffect(() => {
     if (editData) {

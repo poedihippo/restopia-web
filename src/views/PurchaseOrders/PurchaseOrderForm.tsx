@@ -82,13 +82,13 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     queryKey: ['suppliers-all'],
     queryFn: () => suppliersService.list({ per_page: 200 }).then((r) => r.data),
   })
-  const suppliers = (suppliersData as any)?.data?.data ?? []
+  const suppliers = (suppliersData as any)?.data ?? []
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches-all'],
     queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
-  const branches = (branchesData as any)?.data?.data ?? []
+  const branches = (branchesData as any)?.data ?? []
 
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all'],
@@ -97,7 +97,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         .list({ per_page: 200, include: 'product_uom.product,product_uom.uom,branch' })
         .then((r) => r.data),
   })
-  const inventories = (inventoriesData as any)?.data?.data ?? []
+  const inventories = (inventoriesData as any)?.data ?? []
 
   useEffect(() => {
     if (initialData && mode === 'edit') {

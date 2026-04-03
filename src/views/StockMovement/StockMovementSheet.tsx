@@ -85,7 +85,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
         })
         .then((r) => r.data),
   })
-  const inventoryItems = (inventoryData as any)?.data?.data ?? []
+  const inventoryItems = (inventoryData as any)?.data ?? []
 
   const watchType = watch('type')
   const watchQty = watch('qty')
