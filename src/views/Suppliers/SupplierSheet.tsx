@@ -10,10 +10,11 @@ import { suppliersService } from '@/services/suppliers.service'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
+  code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
   address: z.string().optional(),
   phone: z.string().optional(),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  email: z.string().optional(),
   pic: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
@@ -23,6 +24,7 @@ interface SupplierSheetProps {
   onClose: () => void
   editData?: {
     id: number
+    code: string
     name: string
     address?: string
     phone?: string
@@ -42,6 +44,7 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
+      code: '',
       name: '',
       address: '',
       phone: '',
@@ -53,6 +56,7 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
   useEffect(() => {
     if (editData) {
       reset({
+        code: editData.code,
         name: editData.name,
         address: editData.address ?? '',
         phone: editData.phone ?? '',
@@ -60,7 +64,7 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
         pic: editData.pic ?? '',
       })
     } else {
-      reset({ name: '', address: '', phone: '', email: '', pic: '' })
+      reset({ code: '', name: '', address: '', phone: '', email: '', pic: '' })
     }
   }, [editData, reset])
 
@@ -191,6 +195,23 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
             gap: 20,
           }}
         >
+          {/* Code */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+              Supplier Code
+            </label>
+            <input
+              {...register('code')}
+              placeholder="e.g. SUP-001"
+              style={errors.code ? inputError : inputStyle}
+            />
+            {errors.code && (
+              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                {errors.code.message}
+              </span>
+            )}
+          </div>
+
           {/* Name */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>

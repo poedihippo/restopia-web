@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
-import { productUomsService } from '@/services/product-uoms.service'
+import { productInventoriesService } from '@/services/product-inventories.service'
 import {
   Plus,
   Trash2,
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 
 const detailSchema = z.object({
-  product_uom_id: z.coerce.number().min(1, 'Product is required'),
+  product_inventory_id: z.coerce.number().min(1, 'Product is required'),
   qty: z.coerce.number().min(0.01, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
   description: z.string().optional(),
@@ -66,7 +66,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
-      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+      details: [{ product_inventory_id: 0, qty: 1, price: 0, description: '' }],
     },
   })
 
@@ -90,14 +90,14 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
   const branches = (branchesData as any)?.data?.data ?? []
 
-  const { data: productUomsData } = useQuery({
-    queryKey: ['product-uoms-all'],
+  const { data: inventoriesData } = useQuery({
+    queryKey: ['product-inventories-all'],
     queryFn: () =>
-      productUomsService
-        .list({ per_page: 200, include: 'product,uom' })
+      productInventoriesService
+        .list({ per_page: 200, include: 'product_uom.product,product_uom.uom,branch' })
         .then((r) => r.data),
   })
-  const productUoms = (productUomsData as any)?.data?.data ?? []
+  const inventories = (inventoriesData as any)?.data?.data ?? []
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -443,7 +443,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             <button
               type="button"
               onClick={() =>
-                append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+                append({ product_inventory_id: 0, qty: 1, price: 0, description: '' })
               }
               style={{
                 display: 'flex',
@@ -504,10 +504,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 alignItems: 'start',
               }}
             >
-              {/* Product UOM */}
+              {/* Product Inventory */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <Controller
-                  name={`details.${index}.product_uom_id`}
+                  name={`details.${index}.product_inventory_id`}
                   control={control}
                   render={({ field: f }) => (
                     <select
@@ -517,27 +517,30 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         ...lineInputStyle,
                         cursor: 'pointer',
                         border: `1px solid ${
-                          errors.details?.[index]?.product_uom_id
+                          errors.details?.[index]?.product_inventory_id
                             ? 'var(--destructive)'
                             : 'var(--border)'
                         }`,
                       }}
                     >
                       <option value={0} disabled>Select product</option>
-                      {productUoms.map((pu: any) => (
-                        <option key={pu.id} value={pu.id}>
-                          {pu.product?.name ?? pu.id}
+                      {inventories.map((inv: any) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.product_uom?.product?.name ?? inv.id}
                           {' — '}
-                          {pu.uom?.name ?? ''}
-                          {pu.code ? ` (${pu.code})` : ''}
+                          {inv.product_uom?.uom?.code ?? ''}
+                          {' ('}
+                          {inv.branch?.name ?? 'Unknown'}
+                          {') — Stock: '}
+                          {inv.qty}
                         </option>
                       ))}
                     </select>
                   )}
                 />
-                {errors.details?.[index]?.product_uom_id && (
+                {errors.details?.[index]?.product_inventory_id && (
                   <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                    {errors.details[index]!.product_uom_id!.message}
+                    {errors.details[index]!.product_inventory_id!.message}
                   </span>
                 )}
               </div>

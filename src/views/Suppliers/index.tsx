@@ -17,6 +17,7 @@ import {
 
 interface Supplier {
   id: number
+  code: string
   name: string
   address?: string
   phone?: string
@@ -181,6 +182,7 @@ export default function SuppliersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 120 }}>Code</th>
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 160 }}>PIC</th>
               <th style={{ ...thStyle, width: 150 }}>Phone</th>
@@ -193,14 +195,14 @@ export default function SuppliersView() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 5 ? 40 : '80%',
+                          width: j === 6 ? 40 : '80%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -210,7 +212,7 @@ export default function SuppliersView() {
               ))
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -237,6 +239,22 @@ export default function SuppliersView() {
                     (e.currentTarget.style.background = 'transparent')
                   }
                 >
+                  <td style={tdStyle}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--background)',
+                        border: '1px solid var(--border)',
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      {item.code}
+                    </span>
+                  </td>
                   <td style={tdStyle}>
                     <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                       {item.name}

@@ -166,6 +166,7 @@ export interface ProductionRequest {
 
 // Suppliers
 export interface SupplierRequest {
+  code: string
   name: string
   address?: string
   phone?: string
@@ -175,16 +176,17 @@ export interface SupplierRequest {
 
 // Purchase Orders
 export interface PurchaseOrderDetail {
-  product_uom_id: number
+  id?: number
+  product_inventory_id: number
   qty: number
   price: number
   description?: string
 }
 export interface PurchaseOrderRequest {
   code: string
-  supplier_id: number
+  supplier_id?: number
   supplier_branch_id?: number
-  branch_id: number
+  branch_id?: number
   date: string
   total_price: number
   status: 'pending' | 'final'
