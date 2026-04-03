@@ -89,6 +89,7 @@ export default function StockMovementView() {
   })
 
   const items: StockMovement[] = (data as any)?.data ?? []
+  console.log('movement item sample:', items[0])
   const meta = (data as any)?.meta
 
   return (
@@ -321,8 +322,10 @@ export default function StockMovementView() {
             )}
 
             {!isLoading &&
-              items.map((item) => {
-                const typeMeta = TYPE_META[item.type]
+              items.map((item: any) => {
+                const typeMeta =
+                  TYPE_META[item.type as keyof typeof TYPE_META] ??
+                  TYPE_META['in']
                 const Icon = typeMeta.icon
 
                 return (

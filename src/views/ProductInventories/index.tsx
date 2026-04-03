@@ -25,6 +25,7 @@ interface ProductInventory {
   branch_id: number
   product_uom?: {
     id: number
+    name?: string
     code?: string
     product?: { id: number; name: string }
     uom?: { id: number; name: string; code: string }
@@ -62,13 +63,14 @@ export default function ProductInventoriesView() {
         .list({
           page,
           per_page: 15,
-          include: 'product_uom.product,product_uom.uom,branch',
+          include: 'product_uom,branch',
           'filter[search]': debouncedSearch || undefined,
         })
         .then((r) => r.data),
   })
 
   const items: ProductInventory[] = (data as any)?.data ?? []
+  console.log('inventory item sample:', items[0])
   const meta = (data as any)?.meta
 
   const filteredItems = lowStockOnly
@@ -386,7 +388,9 @@ export default function ProductInventoriesView() {
                         color: 'var(--foreground)',
                       }}
                     >
-                      {item.product_uom?.product?.name ?? '—'}
+                      {item.product_uom?.product?.name
+                        ?? item.product_uom?.name
+                        ?? '—'}
                     </td>
 
                     {/* UOM */}
@@ -403,7 +407,9 @@ export default function ProductInventoriesView() {
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.product_uom?.uom?.code ?? '—'}
+                        {item.product_uom?.uom?.code
+                          ?? item.product_uom?.code
+                          ?? '—'}
                       </span>
                     </td>
 
