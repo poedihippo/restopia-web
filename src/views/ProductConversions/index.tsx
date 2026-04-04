@@ -21,7 +21,7 @@ interface ProductConversion {
   product_id: number
   uom_id: number
   target_uom_id: number
-  conversion_factor: number
+  amount: number
   created_at?: string
   product?: { id: number; name: string }
   uom?: { id: number; name: string; code: string }
@@ -194,7 +194,7 @@ export default function ProductConversionsView() {
                   { label: 'From', width: 140 },
                   { label: '', width: 40 },
                   { label: 'To', width: 140 },
-                  { label: 'Factor', width: 120 },
+                  { label: 'Amount', width: 120 },
                   { label: 'Created', width: 140 },
                   { label: '', width: 80 },
                 ] as const
@@ -361,7 +361,7 @@ export default function ProductConversionsView() {
                     </div>
                   </td>
 
-                  {/* Factor */}
+                  {/* Amount */}
                   <td
                     style={{
                       padding: '12px 16px',
@@ -371,7 +371,7 @@ export default function ProductConversionsView() {
                       fontFamily: 'var(--font-display)',
                     }}
                   >
-                    {(item.conversion_factor ?? 0).toLocaleString('id-ID', {
+                    {(item.amount ?? 0).toLocaleString('id-ID', {
                       maximumFractionDigits: 4,
                     })}
                   </td>

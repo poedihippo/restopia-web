@@ -18,7 +18,7 @@ const schema = z.object({
     .min(1, 'From UOM is required'),
   target_uom_id: z.coerce.number()
     .min(1, 'To UOM is required'),
-  conversion_factor: z.coerce.number()
+  amount: z.coerce.number()
     .min(0.0001, 'Must be greater than 0'),
 })
 type FormValues = z.infer<typeof schema>
@@ -31,7 +31,7 @@ interface ProductConversionSheetProps {
     product_id: number
     uom_id: number
     target_uom_id: number
-    conversion_factor: number
+    amount: number
   } | null
 }
 
@@ -55,7 +55,7 @@ export default function ProductConversionSheet({
       product_id: 0,
       uom_id: 0,
       target_uom_id: 0,
-      conversion_factor: 1,
+      amount: 1,
     },
   })
 
@@ -81,14 +81,14 @@ export default function ProductConversionSheet({
         product_id: editData.product_id,
         uom_id: editData.uom_id,
         target_uom_id: editData.target_uom_id,
-        conversion_factor: editData.conversion_factor,
+        amount: editData.amount,
       })
     } else {
       reset({
         product_id: 0,
         uom_id: 0,
         target_uom_id: 0,
-        conversion_factor: 1,
+        amount: 1,
       })
     }
   }, [editData, reset])
@@ -128,18 +128,18 @@ export default function ProductConversionSheet({
     'product_id',
     'uom_id',
     'target_uom_id',
-    'conversion_factor',
+    'amount',
   ])
-  const [watchedProductId, watchedFromUomId, watchedToUomId, watchedFactor] =
+  const [watchedProductId, watchedFromUomId, watchedToUomId, watchedAmount] =
     watchedValues
 
   const showPreview =
     watchedProductId !== undefined &&
     watchedFromUomId !== undefined &&
     watchedToUomId !== undefined &&
-    watchedFactor !== undefined &&
-    !isNaN(watchedFactor) &&
-    watchedFactor >= 0.0001
+    watchedAmount !== undefined &&
+    !isNaN(watchedAmount) &&
+    watchedAmount >= 0.0001
 
   const fromUomName = uoms.find((u: any) => u.id === watchedFromUomId)?.name ?? ''
   const toUomName = uoms.find((u: any) => u.id === watchedToUomId)?.name ?? ''
@@ -371,7 +371,7 @@ export default function ProductConversionSheet({
             )}
           </div>
 
-          {/* Conversion factor */}
+          {/* Amount */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label
               style={{
@@ -380,10 +380,10 @@ export default function ProductConversionSheet({
                 color: 'var(--foreground)',
               }}
             >
-              Conversion Factor
+              Amount
             </label>
             <input
-              {...register('conversion_factor', { valueAsNumber: true })}
+              {...register('amount', { valueAsNumber: true })}
               type="number"
               step="0.0001"
               min="0.0001"
@@ -391,7 +391,7 @@ export default function ProductConversionSheet({
               style={{
                 width: '100%',
                 padding: '9px 12px',
-                border: `1px solid ${errors.conversion_factor ? 'var(--destructive)' : 'var(--border)'}`,
+                border: `1px solid ${errors.amount ? 'var(--destructive)' : 'var(--border)'}`,
                 borderRadius: 'var(--radius-md)',
                 fontSize: 14,
                 color: 'var(--foreground)',
@@ -401,9 +401,9 @@ export default function ProductConversionSheet({
                 boxSizing: 'border-box',
               }}
             />
-            {errors.conversion_factor && (
+            {errors.amount && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.conversion_factor.message}
+                {errors.amount.message}
               </span>
             )}
             <span
@@ -412,8 +412,8 @@ export default function ProductConversionSheet({
                 color: 'var(--foreground-subtle)',
               }}
             >
-              1 [{watchedFromUomId ? fromUomName || 'From UOM' : 'From UOM'}] ={' '}
-              {watchedFactor || '?'} [{watchedToUomId ? toUomName || 'To UOM' : 'To UOM'}]
+              1 {watchedFromUomId ? fromUomName || 'From UOM' : 'From UOM'} ={' '}
+              {watchedAmount ?? '?'} {watchedToUomId ? toUomName || 'To UOM' : 'To UOM'}
             </span>
           </div>
 
@@ -467,7 +467,7 @@ export default function ProductConversionSheet({
                     fontFamily: 'var(--font-display)',
                   }}
                 >
-                  {watchedFactor} {toUomName}
+                  {watchedAmount} {toUomName}
                 </span>
               </div>
             </div>

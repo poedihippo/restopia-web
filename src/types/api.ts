@@ -105,7 +105,7 @@ export interface ProductConversionRequest {
   product_id: number
   uom_id: number
   target_uom_id: number
-  conversion_factor: number
+  amount: number
 }
 
 // Product UOMs
@@ -122,9 +122,12 @@ export interface ProductUomRequest {
 // Product Inventories
 export interface ProductInventoryRequest {
   product_uom_id: number
-  branch_id: number
-  qty?: number
-  min_qty?: number
+  code: string
+  base_price: number
+  online_price: number
+  price_editable?: boolean
+  expiry_date?: string
+  status: 'active' | 'inactive'
 }
 
 export interface ProductInventoryUpdateRequest {

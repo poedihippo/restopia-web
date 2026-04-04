@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { recipesService } from '@/services/recipes.service'
 import {
   Plus,
   Trash2,
@@ -18,9 +19,10 @@ import {
   Save,
   ChevronDown,
   ChevronUp,
+  BookOpen,
 } from 'lucide-react'
 
-// ── Schemas ─────────────────────────────────────────────────────────────────
+// ── Schemas ──────────────────────────────────────────────────────────────────
 
 const materialSchema = z.object({
   product_inventory_id: z.coerce.number().min(1, 'Material required'),
@@ -46,7 +48,7 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
-// ── Props ────────────────────────────────────────────────────────────────────
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface ProductionFormProps {
   mode: 'create' | 'edit'
@@ -54,7 +56,7 @@ interface ProductionFormProps {
   productionId?: number
 }
 
-// ── Shared styles ────────────────────────────────────────────────────────────
+// ── Shared styles ─────────────────────────────────────────────────────────────
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -80,6 +82,19 @@ const lineInputStyle: React.CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
   fontSize: 13,
+  color: 'var(--foreground)',
+  background: 'var(--surface)',
+  outline: 'none',
+  fontFamily: 'var(--font-sans)',
+  boxSizing: 'border-box',
+}
+
+const matInputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '7px 10px',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  fontSize: 12,
   color: 'var(--foreground)',
   background: 'var(--surface)',
   outline: 'none',
@@ -123,7 +138,17 @@ const cardStyle: React.CSSProperties = {
   boxShadow: 'var(--shadow-sm)',
 }
 
-// ── MaterialsFieldArray sub-component ───────────────────────────────────────
+// ── MaterialsFieldArray sub-component ────────────────────────────────────────
+
+interface MaterialsFieldArrayProps {
+  control: any
+  detailIndex: number
+  register: any
+  inventories: any[]
+  errors: any
+  onLoadFromRecipe: (detailIndex: number) => void
+  isLoadingRecipe: boolean
+}
 
 export function MaterialsFieldArray({
   control,
@@ -131,13 +156,9 @@ export function MaterialsFieldArray({
   register,
   inventories,
   errors,
-}: {
-  control: any
-  detailIndex: number
-  register: any
-  inventories: any[]
-  errors: any
-}) {
+  onLoadFromRecipe,
+  isLoadingRecipe,
+}: MaterialsFieldArrayProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: `details.${detailIndex}.materials` as any,
@@ -145,13 +166,12 @@ export function MaterialsFieldArray({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* Materials header */}
+      {/* Header */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: 4,
         }}
       >
         <span
@@ -165,26 +185,58 @@ export function MaterialsFieldArray({
         >
           Raw Materials
         </span>
-        <button
-          type="button"
-          onClick={() => append({ product_inventory_id: 0, qty: 1 })}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '4px 10px',
-            background: 'var(--accent-light-bg)',
-            color: 'var(--accent)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 11,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={11} />
-          Add Material
-        </button>
+
+        <div style={{ display: 'flex', gap: 6 }}>
+          {/* Load from Recipe */}
+          <button
+            type="button"
+            onClick={() => onLoadFromRecipe(detailIndex)}
+            disabled={isLoadingRecipe}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '4px 10px',
+              background: 'var(--accent-light-bg)',
+              color: 'var(--accent)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: isLoadingRecipe ? 'not-allowed' : 'pointer',
+              opacity: isLoadingRecipe ? 0.6 : 1,
+            }}
+          >
+            {isLoadingRecipe ? (
+              <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <BookOpen size={11} />
+            )}
+            {isLoadingRecipe ? 'Loading...' : 'Load from Recipe'}
+          </button>
+
+          {/* Add Material */}
+          <button
+            type="button"
+            onClick={() => append({ product_inventory_id: 0, qty: 1 })}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 10px',
+              background: 'var(--surface)',
+              color: 'var(--foreground-muted)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={11} />
+            Add Material
+          </button>
+        </div>
       </div>
 
       {/* Material rows */}
@@ -193,45 +245,61 @@ export function MaterialsFieldArray({
           key={matField.id}
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 100px 32px',
+            gridTemplateColumns: '1fr 120px 32px',
             gap: 8,
-            alignItems: 'center',
+            alignItems: 'start',
           }}
         >
           {/* Inventory select */}
-          <Controller
-            name={`details.${detailIndex}.materials.${matIndex}.product_inventory_id` as any}
-            control={control}
-            render={({ field }) => (
-              <select
-                value={field.value ?? 0}
-                onChange={(e) => field.onChange(Number(e.target.value))}
-                style={{ ...lineInputStyle, cursor: 'pointer' }}
-              >
-                <option value={0} disabled>Select material</option>
-                {inventories.map((inv: any) => (
-                  <option key={inv.id} value={inv.id}>
-                    {inv.code ?? inv.id}
-                    {inv.branch ? ` (${inv.branch.name})` : ''}
-                    {' — Stock: '}
-                    {inv.qty ?? 0}
-                  </option>
-                ))}
-              </select>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Controller
+              name={
+                `details.${detailIndex}.materials.${matIndex}.product_inventory_id` as any
+              }
+              control={control}
+              render={({ field }) => (
+                <select
+                  value={field.value ?? 0}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                  style={{ ...matInputStyle, cursor: 'pointer' }}
+                >
+                  <option value={0} disabled>Select inventory item</option>
+                  {inventories.map((inv: any) => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.code ?? `INV-${inv.id}`}
+                      {inv.branch ? ` (${inv.branch.name})` : ''}
+                      {' — Stock: '}
+                      {inv.qty ?? 0}
+                    </option>
+                  ))}
+                </select>
+              )}
+            />
+            {errors.details?.[detailIndex]?.materials?.[matIndex]
+              ?.product_inventory_id && (
+              <span style={{ fontSize: 10, color: 'var(--destructive)' }}>
+                {
+                  errors.details[detailIndex]!.materials![matIndex]!
+                    .product_inventory_id!.message
+                }
+              </span>
             )}
-          />
+          </div>
 
           {/* Qty */}
-          <input
-            type="number"
-            min={0.001}
-            step={0.001}
-            {...register(
-              `details.${detailIndex}.materials.${matIndex}.qty`,
-              { valueAsNumber: true }
-            )}
-            style={lineInputStyle}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <input
+              type="number"
+              min={0.001}
+              step={0.001}
+              {...register(
+                `details.${detailIndex}.materials.${matIndex}.qty`,
+                { valueAsNumber: true }
+              )}
+              placeholder="Qty"
+              style={matInputStyle}
+            />
+          </div>
 
           {/* Remove */}
           <button
@@ -239,7 +307,8 @@ export function MaterialsFieldArray({
             onClick={() => remove(matIndex)}
             disabled={fields.length === 1}
             style={{
-              padding: 4,
+              padding: 5,
+              marginTop: 2,
               background: 'none',
               border: 'none',
               cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
@@ -256,7 +325,7 @@ export function MaterialsFieldArray({
   )
 }
 
-// ── Main component ───────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProductionForm({
   mode,
@@ -267,12 +336,15 @@ export default function ProductionForm({
   const queryClient = useQueryClient()
 
   const [expandedDetails, setExpandedDetails] = useState<number[]>([0])
+  const [loadingRecipeFor, setLoadingRecipeFor] = useState<number | null>(null)
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     control,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -300,7 +372,9 @@ export default function ProductionForm({
     remove: removeDetail,
   } = useFieldArray({ control, name: 'details' })
 
-  // ── Dropdown data ────────────────────────────────────────────────────────
+  const watchDetails = watch('details')
+
+  // ── Dropdown data ─────────────────────────────────────────────────────────
 
   const { data: productUomsData } = useQuery({
     queryKey: ['product-uoms-all'],
@@ -320,15 +394,18 @@ export default function ProductionForm({
   })
   const inventories = (inventoriesData as any)?.data ?? []
 
-  // ── Edit pre-fill ────────────────────────────────────────────────────────
+  // ── Edit pre-fill ─────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (mode === 'edit' && initialData) {
       reset(initialData)
+      setExpandedDetails(
+        initialData.details?.map((_: any, i: number) => i) ?? [0]
+      )
     }
   }, [initialData, mode, reset])
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   const toggleDetail = (index: number) => {
     setExpandedDetails((prev) =>
@@ -336,7 +413,66 @@ export default function ProductionForm({
     )
   }
 
-  // ── Mutations ────────────────────────────────────────────────────────────
+  const handleLoadFromRecipe = useCallback(
+    async (detailIndex: number) => {
+      const productUomId = watchDetails[detailIndex]?.product_uom_id
+      if (!productUomId || productUomId === 0) {
+        toast.error('Select a product first')
+        return
+      }
+
+      setLoadingRecipeFor(detailIndex)
+      try {
+        const res = await recipesService.list({
+          per_page: 1,
+          include: 'recipe_materials',
+          'filter[product_id]': productUomId,
+          'filter[is_default]': 1,
+        } as any)
+
+        const recipes = (res.data as any)?.data ?? []
+
+        if (recipes.length === 0) {
+          toast.error('No default recipe found for this product')
+          return
+        }
+
+        const recipe = recipes[0]
+        const materials = recipe.recipe_materials ?? []
+
+        if (materials.length === 0) {
+          toast.error('Recipe has no materials defined')
+          return
+        }
+
+        const mappedMaterials = materials.map((mat: any) => {
+          const matchingInventory = inventories.find(
+            (inv: any) => inv.product_uom_id === mat.product_uom_id
+          )
+          return {
+            product_inventory_id: matchingInventory?.id ?? 0,
+            qty: mat.qty,
+          }
+        })
+
+        setValue(
+          `details.${detailIndex}.materials`,
+          mappedMaterials.length > 0
+            ? mappedMaterials
+            : [{ product_inventory_id: 0, qty: 1 }]
+        )
+
+        toast.success(`Loaded ${materials.length} material(s) from recipe`)
+      } catch {
+        toast.error('Failed to load recipe')
+      } finally {
+        setLoadingRecipeFor(null)
+      }
+    },
+    [watchDetails, inventories, setValue]
+  )
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
     mutationFn: (values: FormValues) => productionsService.create(values as any),
@@ -370,7 +506,7 @@ export default function ProductionForm({
 
   const isPending = createMutation.isPending || updateMutation.isPending
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div
@@ -437,7 +573,7 @@ export default function ProductionForm({
         onSubmit={handleSubmit(onSubmit)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
-        {/* ── Section 1: Production Details ─────────────────────────────── */}
+        {/* ── Section 1: Production Details ──────────────────────────────── */}
         <div style={cardStyle}>
           <div style={sectionHeaderStyle}>
             <span style={sectionLabelStyle}>Production Details</span>
@@ -535,9 +671,8 @@ export default function ProductionForm({
           </div>
         </div>
 
-        {/* ── Section 2: Production Items ───────────────────────────────── */}
+        {/* ── Section 2: Production Items ────────────────────────────────── */}
         <div style={cardStyle}>
-          {/* Section header */}
           <div
             style={{
               ...sectionHeaderStyle,
@@ -550,7 +685,6 @@ export default function ProductionForm({
             <button
               type="button"
               onClick={() => {
-                const newIndex = detailFields.length
                 appendDetail({
                   product_uom_id: 0,
                   qty: 1,
@@ -559,7 +693,7 @@ export default function ProductionForm({
                   description: '',
                   materials: [{ product_inventory_id: 0, qty: 1 }],
                 })
-                setExpandedDetails((prev) => [...prev, newIndex])
+                setExpandedDetails((prev) => [...prev, detailFields.length])
               }}
               style={{
                 display: 'flex',
@@ -616,11 +750,7 @@ export default function ProductionForm({
                       flexShrink: 0,
                     }}
                   >
-                    {isExpanded ? (
-                      <ChevronUp size={13} />
-                    ) : (
-                      <ChevronDown size={13} />
-                    )}
+                    {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                   </div>
 
                   {/* Product UOM select */}
@@ -642,7 +772,7 @@ export default function ProductionForm({
                             }`,
                           }}
                         >
-                          <option value={0} disabled>Select product UOM</option>
+                          <option value={0} disabled>Select finished product</option>
                           {productUoms.map((pu: any) => (
                             <option key={pu.id} value={pu.id}>
                               {pu.product?.name ?? pu.id}
@@ -665,6 +795,7 @@ export default function ProductionForm({
                       {...register(`details.${detailIndex}.qty`, {
                         valueAsNumber: true,
                       })}
+                      placeholder="Qty"
                       style={lineInputStyle}
                     />
                   </div>
@@ -747,7 +878,7 @@ export default function ProductionForm({
                       gap: 16,
                     }}
                   >
-                    {/* Row 1: expiry_date + description */}
+                    {/* Expiry date + notes */}
                     <div
                       style={{
                         display: 'grid',
@@ -780,6 +911,8 @@ export default function ProductionForm({
                       register={register}
                       inventories={inventories}
                       errors={errors}
+                      onLoadFromRecipe={handleLoadFromRecipe}
+                      isLoadingRecipe={loadingRecipeFor === detailIndex}
                     />
                   </div>
                 )}
@@ -797,7 +930,7 @@ export default function ProductionForm({
           )}
         </div>
 
-        {/* ── Form actions ──────────────────────────────────────────────── */}
+        {/* ── Form actions ───────────────────────────────────────────────── */}
         <div
           style={{
             display: 'flex',
@@ -840,10 +973,11 @@ export default function ProductionForm({
               opacity: isPending ? 0.7 : 1,
             }}
           >
-            {isPending && (
+            {isPending ? (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+            ) : (
+              <Save size={14} />
             )}
-            <Save size={14} />
             {mode === 'edit'
               ? isPending ? 'Saving...' : 'Save Changes'
               : isPending ? 'Creating...' : 'Create Production'}
