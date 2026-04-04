@@ -1,4 +1,4 @@
-import ProductionDetail from "@/views/Productions/Details/ProductionDetail";
+import ProductionDetail from '@/views/Productions/ProductionDetail'
 import { useRouter } from "next/router";
 
 const ProductionDetailPage = () => {

@@ -40,25 +40,13 @@ const STATUS_META = {
   },
 }
 
-const inputStyle: React.CSSProperties = {
-  padding: '7px 10px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  background: 'var(--surface)',
-  outline: 'none',
-  fontFamily: 'var(--font-sans)',
-}
-
 export default function ProductionsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -86,7 +74,7 @@ export default function ProductionsView() {
           'filter[status]': statusFilter || undefined,
           'filter[start_date]': dateFrom || undefined,
           'filter[end_date]': dateTo || undefined,
-        })
+        } as any)
         .then((r) => r.data),
   })
 
@@ -96,19 +84,21 @@ export default function ProductionsView() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productionsService.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['productions'] })
+      queryClient.invalidateQueries({
+        queryKey: ['productions'],
+      })
       toast.success('Production deleted')
       setDeleteConfirmId(null)
     },
     onError: () => toast.error('Failed to delete'),
   })
 
-  const anyFilter = !!(debouncedSearch || statusFilter || dateFrom || dateTo)
+  const anyFilter = statusFilter || dateFrom || dateTo
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Page header */}
+      {/* PAGE HEADER */}
       <div
         style={{
           display: 'flex',
@@ -130,7 +120,13 @@ export default function ProductionsView() {
           >
             Productions
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0 0' }}>
+          <p
+            style={{
+              fontSize: 13,
+              color: 'var(--foreground-muted)',
+              margin: '4px 0 0 0',
+            }}
+          >
             Manage factory production orders
           </p>
         </div>
@@ -155,10 +151,8 @@ export default function ProductionsView() {
         </button>
       </div>
 
-      {/* Toolbar */}
+      {/* TOOLBAR */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-
-        {/* Search */}
         <div style={{ position: 'relative', maxWidth: 280 }}>
           <Search
             size={14}
@@ -176,55 +170,89 @@ export default function ProductionsView() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search productions..."
             style={{
-              ...inputStyle,
-              paddingLeft: 32,
-              width: 280,
-              boxSizing: 'border-box',
+              width: '100%',
+              padding: '8px 10px 8px 32px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
             }}
           />
         </div>
 
-        {/* Status */}
         <select
           value={statusFilter}
           onChange={(e) => {
-            setStatusFilter(e.target.value as any)
+            setStatusFilter(e.target.value)
             setPage(1)
           }}
-          style={{ ...inputStyle, cursor: 'pointer' }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+            outline: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+          }}
         >
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="final">Final</option>
         </select>
 
-        {/* Date from */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>From</span>
+          <label style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>From</label>
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-            style={inputStyle}
+            onChange={(e) => {
+              setDateFrom(e.target.value)
+              setPage(1)
+            }}
+            style={{
+              padding: '7px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 12,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
+            }}
           />
         </div>
 
-        {/* Date to */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>To</span>
+          <label style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>To</label>
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-            style={inputStyle}
+            onChange={(e) => {
+              setDateTo(e.target.value)
+              setPage(1)
+            }}
+            style={{
+              padding: '7px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 12,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
+            }}
           />
         </div>
 
-        {/* Clear */}
         {anyFilter && (
           <button
             onClick={() => {
-              setSearch('')
               setStatusFilter('')
               setDateFrom('')
               setDateTo('')
@@ -232,7 +260,7 @@ export default function ProductionsView() {
             }}
             style={{
               padding: '7px 12px',
-              background: 'var(--surface)',
+              background: 'none',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               fontSize: 12,
@@ -245,7 +273,7 @@ export default function ProductionsView() {
         )}
       </div>
 
-      {/* Table */}
+      {/* TABLE */}
       <div
         style={{
           background: 'var(--surface)',
@@ -258,19 +286,12 @@ export default function ProductionsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr
-              style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}
+              style={{
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--background)',
+              }}
             >
-              {(
-                [
-                  { label: 'Code', width: 160 },
-                  { label: 'Branch', width: 160 },
-                  { label: 'Date', width: 130 },
-                  { label: 'Status', width: 110 },
-                  { label: 'Items', width: 80 },
-                  { label: 'Created', width: 140 },
-                  { label: '', width: 100 },
-                ] as const
-              ).map(({ label, width }, i) => (
+              {['Code', 'Branch', 'Date', 'Status', 'Items', 'Created', ''].map((h, i) => (
                 <th
                   key={i}
                   style={{
@@ -281,29 +302,47 @@ export default function ProductionsView() {
                     color: 'var(--foreground-muted)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.6px',
-                    width,
+                    width:
+                      i === 0
+                        ? 160
+                        : i === 1
+                          ? 160
+                          : i === 2
+                            ? 130
+                            : i === 3
+                              ? 110
+                              : i === 4
+                                ? 80
+                                : i === 5
+                                  ? 140
+                                  : 100,
                   }}
                 >
-                  {label}
+                  {h}
                 </th>
               ))}
             </tr>
           </thead>
-
           <tbody>
             {isLoading && (
               <tr>
                 <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
                     {[60, 40, 80, 50, 70].map((w, i) => (
                       <div
                         key={i}
                         style={{
-                          height: 14,
+                          height: 16,
                           borderRadius: 4,
                           background: 'var(--border)',
                           width: `${w}%`,
-                          animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
                     ))}
@@ -311,18 +350,21 @@ export default function ProductionsView() {
                 </td>
               </tr>
             )}
-
             {isError && (
               <tr>
                 <td
                   colSpan={7}
-                  style={{ padding: 48, textAlign: 'center', fontSize: 13, color: 'var(--destructive)' }}
+                  style={{
+                    padding: '48px 16px',
+                    textAlign: 'center',
+                    fontSize: 13,
+                    color: 'var(--destructive)',
+                  }}
                 >
                   Failed to load productions
                 </td>
               </tr>
             )}
-
             {!isLoading && !isError && items.length === 0 && (
               <tr>
                 <td colSpan={7}>
@@ -343,139 +385,126 @@ export default function ProductionsView() {
                 </td>
               </tr>
             )}
-
-            {!isLoading &&
-              items.map((item) => {
-                const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending
-                return (
-                  <tr
-                    key={item.id}
-                    onMouseEnter={() => setHoveredRow(item.id)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                    style={{
-                      borderBottom: '1px solid var(--border)',
-                      background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
-                    }}
-                  >
-                    {/* Code */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <span
-                        style={{
-                          fontFamily: 'monospace',
-                          fontWeight: 600,
-                          color: 'var(--accent)',
-                          fontSize: 13,
-                        }}
-                      >
-                        {item.code}
-                      </span>
-                    </td>
-
-                    {/* Branch */}
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                      {item.branch?.name ?? '—'}
-                    </td>
-
-                    {/* Date */}
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {item.date
-                        ? new Date(item.date).toLocaleDateString('id-ID')
-                        : '—'}
-                    </td>
-
-                    {/* Status */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <span
-                        style={{
-                          padding: '3px 10px',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: 11,
-                          fontWeight: 700,
-                          background: statusMeta.bg,
-                          color: statusMeta.color,
-                        }}
-                      >
-                        {statusMeta.label}
-                      </span>
-                    </td>
-
-                    {/* Items */}
-                    <td
+            {items.map((item) => {
+              const sm = STATUS_META[item.status] ?? STATUS_META.pending
+              return (
+                <tr
+                  key={item.id}
+                  style={{
+                    borderBottom: '1px solid var(--border)',
+                    background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
+                  }}
+                  onMouseEnter={() => setHoveredRow(item.id)}
+                  onMouseLeave={() => setHoveredRow(null)}
+                >
+                  <td style={{ padding: '12px 16px' }}>
+                    <span
                       style={{
-                        padding: '12px 16px',
+                        fontFamily: 'monospace',
                         fontSize: 13,
-                        color: 'var(--foreground-muted)',
-                        textAlign: 'center',
+                        fontWeight: 600,
+                        color: 'var(--accent)',
                       }}
                     >
-                      {item.production_details?.length ?? 0}
-                    </td>
-
-                    {/* Created */}
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {item.created_at
-                        ? new Date(item.created_at).toLocaleDateString('id-ID')
-                        : '—'}
-                    </td>
-
-                    {/* Actions */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => router.push(`/production/${item.id}/detail`)}
-                          title="View"
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Eye size={14} />
-                        </button>
-                        <button
-                          onClick={() => router.push(`/production/${item.id}/edit`)}
-                          title="Edit"
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          title="Delete"
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                      {item.code}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    {item.branch?.name ?? '—'}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    {item.date
+                      ? new Date(item.date).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : '—'}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '3px 10px',
+                        borderRadius: 99,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: sm.bg,
+                        color: sm.color,
+                      }}
+                    >
+                      {sm.label}
+                    </span>
+                  </td>
+                  <td
+                    style={{
+                      padding: '12px 16px',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {item.production_details?.length ?? 0}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                    {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : '—'}
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={() => router.push(`/production/${item.id}/detail`)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
+                        onClick={() => router.push(`/production/${item.id}/edit`)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Pagination */}
+      {/* PAGINATION */}
       {meta && meta.last_page > 1 && (
         <div
           style={{
@@ -498,7 +527,7 @@ export default function ProductionsView() {
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 12,
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
+                cursor: 'pointer',
                 color: 'var(--foreground-muted)',
                 display: 'flex',
                 alignItems: 'center',
@@ -528,7 +557,7 @@ export default function ProductionsView() {
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 12,
-                cursor: page === meta.last_page ? 'not-allowed' : 'pointer',
+                cursor: 'pointer',
                 color: 'var(--foreground-muted)',
                 display: 'flex',
                 alignItems: 'center',
@@ -543,7 +572,7 @@ export default function ProductionsView() {
         </div>
       )}
 
-      {/* Delete confirm dialog */}
+      {/* DELETE CONFIRM */}
       {deleteConfirmId !== null && (
         <div
           style={{
@@ -556,8 +585,12 @@ export default function ProductionsView() {
           }}
         >
           <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.25)',
+            }}
             onClick={() => setDeleteConfirmId(null)}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)' }}
           />
           <div
             style={{
@@ -572,16 +605,26 @@ export default function ProductionsView() {
             }}
           >
             <h3
-              style={{ fontSize: 15, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                margin: '0 0 8px',
+                color: 'var(--foreground)',
+              }}
             >
               Delete Production
             </h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px' }}>
+            <p
+              style={{
+                fontSize: 13,
+                color: 'var(--foreground-muted)',
+                margin: '0 0 20px',
+              }}
+            >
               This will permanently remove the production order and all its details.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
-                type="button"
                 onClick={() => setDeleteConfirmId(null)}
                 style={{
                   padding: '8px 16px',
@@ -617,13 +660,6 @@ export default function ProductionsView() {
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
     </div>
   )
 }

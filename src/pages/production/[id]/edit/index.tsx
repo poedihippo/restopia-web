@@ -1,10 +1,10 @@
-import ProductionEditForm from "@/views/Productions/Form/ProductionEditForm";
-import { useRouter } from "next/router";
+import ProductionEdit from '@/views/Productions/ProductionEdit'
+import { useRouter } from 'next/router'
 
 const ProductionEditPage = () => {
-  const router = useRouter();
-  const id = router.query.id;
-  return <ProductionEditForm id={Number(id)} />;
-};
+  const router = useRouter()
+  const id = router.query.id
+  return <ProductionEdit id={Number(id)} />
+}
 
 export default ProductionEditPage;
