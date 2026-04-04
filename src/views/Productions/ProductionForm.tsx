@@ -25,13 +25,13 @@ import {
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
 const materialSchema = z.object({
-  product_inventory_id: z.coerce.number().min(1, 'Material required'),
-  qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
+  product_inventory_id: z.coerce.number().min(1),
+  qty: z.coerce.number().min(0.001),
 })
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Product required'),
-  qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
+  qty: z.coerce.number().min(0.001, 'Qty required'),
   status: z.enum(['pending', 'final']),
   expiry_date: z.string().optional(),
   description: z.string().optional(),
@@ -43,7 +43,7 @@ const schema = z.object({
   date: z.string().min(1, 'Date is required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
-  details: z.array(detailSchema).min(1, 'At least one item required'),
+  details: z.array(detailSchema).min(1),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -58,43 +58,12 @@ interface ProductionFormProps {
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
-const inputStyle: React.CSSProperties = {
+const fieldInputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '9px 12px',
+  padding: '8px 10px',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
   fontSize: 13,
-  color: 'var(--foreground)',
-  background: 'var(--surface)',
-  outline: 'none',
-  fontFamily: 'var(--font-sans)',
-  boxSizing: 'border-box',
-}
-
-const inputErrorStyle: React.CSSProperties = {
-  ...inputStyle,
-  border: '1px solid var(--destructive)',
-}
-
-const lineInputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '6px 10px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  background: 'var(--surface)',
-  outline: 'none',
-  fontFamily: 'var(--font-sans)',
-  boxSizing: 'border-box',
-}
-
-const matInputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '7px 10px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
-  fontSize: 12,
   color: 'var(--foreground)',
   background: 'var(--surface)',
   outline: 'none',
@@ -103,42 +72,22 @@ const matInputStyle: React.CSSProperties = {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 500,
   color: 'var(--foreground)',
   marginBottom: 4,
   display: 'block',
 }
 
-const errorStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--destructive)',
-  marginTop: 4,
-}
-
 const sectionHeaderStyle: React.CSSProperties = {
-  padding: '14px 20px',
-  borderBottom: '1px solid var(--border)',
-  background: 'var(--background)',
-}
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
+  fontSize: 11,
+  fontWeight: 700,
   color: 'var(--foreground-muted)',
   textTransform: 'uppercase',
   letterSpacing: '0.6px',
 }
 
-const cardStyle: React.CSSProperties = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-lg)',
-  overflow: 'hidden',
-  boxShadow: 'var(--shadow-sm)',
-}
-
-// ── MaterialsFieldArray sub-component ────────────────────────────────────────
+// ── MaterialsFieldArray ───────────────────────────────────────────────────────
 
 interface MaterialsFieldArrayProps {
   control: any
@@ -146,7 +95,7 @@ interface MaterialsFieldArrayProps {
   register: any
   inventories: any[]
   errors: any
-  onLoadFromRecipe: (detailIndex: number) => void
+  onLoadFromRecipe: (index: number) => void
   isLoadingRecipe: boolean
 }
 
@@ -167,27 +116,9 @@ export function MaterialsFieldArray({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: 'var(--foreground-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}
-        >
-          Raw Materials
-        </span>
-
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={sectionHeaderStyle}>Raw Materials</span>
         <div style={{ display: 'flex', gap: 6 }}>
-          {/* Load from Recipe */}
           <button
             type="button"
             onClick={() => onLoadFromRecipe(detailIndex)}
@@ -204,7 +135,7 @@ export function MaterialsFieldArray({
               fontSize: 11,
               fontWeight: 500,
               cursor: isLoadingRecipe ? 'not-allowed' : 'pointer',
-              opacity: isLoadingRecipe ? 0.6 : 1,
+              opacity: isLoadingRecipe ? 0.7 : 1,
             }}
           >
             {isLoadingRecipe ? (
@@ -214,8 +145,6 @@ export function MaterialsFieldArray({
             )}
             {isLoadingRecipe ? 'Loading...' : 'Load from Recipe'}
           </button>
-
-          {/* Add Material */}
           <button
             type="button"
             onClick={() => append({ product_inventory_id: 0, qty: 1 })}
@@ -229,7 +158,6 @@ export function MaterialsFieldArray({
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               fontSize: 11,
-              fontWeight: 500,
               cursor: 'pointer',
             }}
           >
@@ -239,10 +167,10 @@ export function MaterialsFieldArray({
         </div>
       </div>
 
-      {/* Material rows */}
-      {fields.map((matField, matIndex) => (
+      {/* Rows */}
+      {fields.map((field, matIndex) => (
         <div
-          key={matField.id}
+          key={field.id}
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 120px 32px',
@@ -250,71 +178,72 @@ export function MaterialsFieldArray({
             alignItems: 'start',
           }}
         >
-          {/* Inventory select */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Controller
-              name={
-                `details.${detailIndex}.materials.${matIndex}.product_inventory_id` as any
-              }
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? 0}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                  style={{ ...matInputStyle, cursor: 'pointer' }}
-                >
-                  <option value={0} disabled>Select inventory item</option>
-                  {inventories.map((inv: any) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.code ?? `INV-${inv.id}`}
-                      {inv.branch ? ` (${inv.branch.name})` : ''}
-                      {' — Stock: '}
-                      {inv.qty ?? 0}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-            {errors.details?.[detailIndex]?.materials?.[matIndex]
-              ?.product_inventory_id && (
-              <span style={{ fontSize: 10, color: 'var(--destructive)' }}>
-                {
-                  errors.details[detailIndex]!.materials![matIndex]!
-                    .product_inventory_id!.message
-                }
-              </span>
+          <Controller
+            name={`details.${detailIndex}.materials.${matIndex}.product_inventory_id` as any}
+            control={control}
+            render={({ field: f }) => (
+              <select
+                value={f.value ?? 0}
+                onChange={(e) => f.onChange(Number(e.target.value))}
+                style={{
+                  padding: '7px 10px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  background: 'var(--surface)',
+                  outline: 'none',
+                  width: '100%',
+                  color: 'var(--foreground)',
+                  fontFamily: 'var(--font-sans)',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value={0} disabled>Select inventory</option>
+                {inventories.map((inv: any) => (
+                  <option key={inv.id} value={inv.id}>
+                    {`${inv.code ?? `INV-${inv.id}`}${inv.branch ? ` (${inv.branch.name})` : ''} — Stock: ${inv.qty ?? 0}`}
+                  </option>
+                ))}
+              </select>
             )}
-          </div>
+          />
 
-          {/* Qty */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <input
-              type="number"
-              min={0.001}
-              step={0.001}
-              {...register(
-                `details.${detailIndex}.materials.${matIndex}.qty`,
-                { valueAsNumber: true }
-              )}
-              placeholder="Qty"
-              style={matInputStyle}
-            />
-          </div>
+          <input
+            type="number"
+            min={0.001}
+            step={0.001}
+            {...register(
+              `details.${detailIndex}.materials.${matIndex}.qty` as any,
+              { valueAsNumber: true }
+            )}
+            placeholder="Qty"
+            style={{
+              padding: '7px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 12,
+              outline: 'none',
+              width: '100%',
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              fontFamily: 'var(--font-sans)',
+              boxSizing: 'border-box',
+            }}
+          />
 
-          {/* Remove */}
           <button
             type="button"
             onClick={() => remove(matIndex)}
             disabled={fields.length === 1}
             style={{
               padding: 5,
-              marginTop: 2,
               background: 'none',
               border: 'none',
               cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
               color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
               display: 'flex',
               alignItems: 'center',
+              marginTop: 2,
             }}
           >
             <Trash2 size={13} />
@@ -325,7 +254,7 @@ export function MaterialsFieldArray({
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ProductionForm({
   mode,
@@ -342,8 +271,8 @@ export default function ProductionForm({
     register,
     handleSubmit,
     reset,
-    watch,
     control,
+    watch,
     setValue,
     formState: { errors },
   } = useForm<FormValues>({
@@ -366,46 +295,34 @@ export default function ProductionForm({
     },
   })
 
-  const {
-    fields: detailFields,
-    append: appendDetail,
-    remove: removeDetail,
-  } = useFieldArray({ control, name: 'details' })
+  const { fields: detailFields, append: appendDetail, remove: removeDetail } =
+    useFieldArray({ control, name: 'details' })
 
   const watchDetails = watch('details')
 
-  // ── Dropdown data ─────────────────────────────────────────────────────────
-
+  // Queries
   const { data: productUomsData } = useQuery({
     queryKey: ['product-uoms-all'],
     queryFn: () =>
-      productUomsService
-        .list({ per_page: 200, include: 'product,uom' })
-        .then((r) => r.data),
+      productUomsService.list({ per_page: 200, include: 'product,uom' }).then((r) => r.data),
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all'],
     queryFn: () =>
-      productInventoriesService
-        .list({ per_page: 200, include: 'branch' })
-        .then((r) => r.data),
+      productInventoriesService.list({ per_page: 200, include: 'branch' }).then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
 
-  // ── Edit pre-fill ─────────────────────────────────────────────────────────
-
+  // Edit mode: prefill
   useEffect(() => {
     if (mode === 'edit' && initialData) {
       reset(initialData)
-      setExpandedDetails(
-        initialData.details?.map((_: any, i: number) => i) ?? [0]
-      )
+      const indices = (initialData.details ?? []).map((_: any, i: number) => i)
+      setExpandedDetails(indices)
     }
-  }, [initialData, mode, reset])
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  }, [mode, initialData, reset])
 
   const toggleDetail = (index: number) => {
     setExpandedDetails((prev) =>
@@ -420,48 +337,39 @@ export default function ProductionForm({
         toast.error('Select a product first')
         return
       }
-
       setLoadingRecipeFor(detailIndex)
       try {
         const res = await recipesService.list({
           per_page: 1,
           include: 'recipe_materials',
-          'filter[product_id]': productUomId,
           'filter[is_default]': 1,
         } as any)
-
         const recipes = (res.data as any)?.data ?? []
-
-        if (recipes.length === 0) {
-          toast.error('No default recipe found for this product')
+        if (!recipes.length) {
+          toast.error('No default recipe found')
           return
         }
-
         const recipe = recipes[0]
         const materials = recipe.recipe_materials ?? []
-
-        if (materials.length === 0) {
-          toast.error('Recipe has no materials defined')
+        if (!materials.length) {
+          toast.error('Recipe has no materials')
           return
         }
-
         const mappedMaterials = materials.map((mat: any) => {
-          const matchingInventory = inventories.find(
+          const match = inventories.find(
             (inv: any) => inv.product_uom_id === mat.product_uom_id
           )
           return {
-            product_inventory_id: matchingInventory?.id ?? 0,
+            product_inventory_id: match?.id ?? 0,
             qty: mat.qty,
           }
         })
-
         setValue(
           `details.${detailIndex}.materials`,
           mappedMaterials.length > 0
             ? mappedMaterials
             : [{ product_inventory_id: 0, qty: 1 }]
         )
-
         toast.success(`Loaded ${materials.length} material(s) from recipe`)
       } catch {
         toast.error('Failed to load recipe')
@@ -471,8 +379,6 @@ export default function ProductionForm({
     },
     [watchDetails, inventories, setValue]
   )
-
-  // ── Mutations ─────────────────────────────────────────────────────────────
 
   const createMutation = useMutation({
     mutationFn: (values: FormValues) => productionsService.create(values as any),
@@ -489,7 +395,7 @@ export default function ProductionForm({
       productionsService.update(productionId!, values as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productions'] })
-      queryClient.invalidateQueries({ queryKey: ['production-detail', productionId] })
+      queryClient.invalidateQueries({ queryKey: ['production', productionId] })
       toast.success('Production updated')
       router.push(`/production/${productionId}/detail`)
     },
@@ -497,7 +403,7 @@ export default function ProductionForm({
   })
 
   const onSubmit = (values: FormValues) => {
-    if (mode === 'edit' && productionId) {
+    if (mode === 'edit') {
       updateMutation.mutate(values)
     } else {
       createMutation.mutate(values)
@@ -506,19 +412,9 @@ export default function ProductionForm({
 
   const isPending = createMutation.isPending || updateMutation.isPending
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
-    <div
-      style={{
-        padding: '32px 32px 64px',
-        maxWidth: 1000,
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 24,
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1000 }}>
+
       {/* Top bar */}
       <div
         style={{
@@ -536,13 +432,13 @@ export default function ProductionForm({
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            padding: '6px 10px',
-            background: 'none',
+            padding: '6px 12px',
+            background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
             fontSize: 13,
-            color: 'var(--foreground-muted)',
             cursor: 'pointer',
+            color: 'var(--foreground-muted)',
           }}
         >
           <ArrowLeft size={14} />
@@ -552,7 +448,7 @@ export default function ProductionForm({
           <h1
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: 500,
               margin: 0,
               color: 'var(--foreground)',
@@ -560,10 +456,10 @@ export default function ProductionForm({
           >
             {mode === 'edit' ? 'Edit Production' : 'New Production'}
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '2px 0 0' }}>
             {mode === 'edit'
               ? 'Update production order details'
-              : 'Create a new production order'}
+              : 'Create a new factory production order'}
           </p>
         </div>
       </div>
@@ -573,11 +469,26 @@ export default function ProductionForm({
         onSubmit={handleSubmit(onSubmit)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
-        {/* ── Section 1: Production Details ──────────────────────────────── */}
-        <div style={cardStyle}>
-          <div style={sectionHeaderStyle}>
-            <span style={sectionLabelStyle}>Production Details</span>
+        {/* Section 1 — Production Details */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div
+            style={{
+              padding: '14px 20px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--background)',
+            }}
+          >
+            <span style={sectionHeaderStyle}>Production Details</span>
           </div>
+
           <div
             style={{
               padding: 20,
@@ -592,9 +503,16 @@ export default function ProductionForm({
               <input
                 {...register('code')}
                 placeholder="e.g. PN-2026-001"
-                style={errors.code ? inputErrorStyle : inputStyle}
+                style={{
+                  ...fieldInputStyle,
+                  border: `1px solid ${errors.code ? 'var(--destructive)' : 'var(--border)'}`,
+                }}
               />
-              {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
+              {errors.code && (
+                <span style={{ fontSize: 11, color: 'var(--destructive)', marginTop: 3 }}>
+                  {errors.code.message}
+                </span>
+              )}
             </div>
 
             {/* Date */}
@@ -603,9 +521,16 @@ export default function ProductionForm({
               <input
                 type="date"
                 {...register('date')}
-                style={errors.date ? inputErrorStyle : inputStyle}
+                style={{
+                  ...fieldInputStyle,
+                  border: `1px solid ${errors.date ? 'var(--destructive)' : 'var(--border)'}`,
+                }}
               />
-              {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
+              {errors.date && (
+                <span style={{ fontSize: 11, color: 'var(--destructive)', marginTop: 3 }}>
+                  {errors.date.message}
+                </span>
+              )}
             </div>
 
             {/* Status */}
@@ -617,30 +542,29 @@ export default function ProductionForm({
                 render={({ field }) => (
                   <div style={{ display: 'flex', gap: 8 }}>
                     {(['pending', 'final'] as const).map((s) => {
-                      const isSelected = field.value === s
-                      const isWarning = s === 'pending'
+                      const isSel = field.value === s
                       return (
                         <button
                           key={s}
                           type="button"
                           onClick={() => field.onChange(s)}
                           style={{
-                            padding: '6px 16px',
+                            padding: '6px 14px',
                             borderRadius: 'var(--radius-md)',
                             fontSize: 13,
                             fontWeight: 500,
                             cursor: 'pointer',
-                            background: isSelected
-                              ? isWarning ? 'var(--warning-bg)' : 'var(--success-bg)'
-                              : 'var(--background)',
-                            color: isSelected
-                              ? isWarning ? 'var(--warning)' : 'var(--success)'
-                              : 'var(--foreground-muted)',
-                            border: isSelected
-                              ? isWarning
-                                ? '1px solid var(--warning)'
-                                : '1px solid var(--success)'
+                            border: isSel
+                              ? s === 'final'
+                                ? '1px solid var(--success)'
+                                : '1px solid var(--warning)'
                               : '1px solid var(--border)',
+                            background: isSel
+                              ? s === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)'
+                              : 'var(--surface)',
+                            color: isSel
+                              ? s === 'final' ? 'var(--success)' : 'var(--warning)'
+                              : 'var(--foreground-muted)',
                           }}
                         >
                           {s.charAt(0).toUpperCase() + s.slice(1)}
@@ -652,36 +576,44 @@ export default function ProductionForm({
               />
             </div>
 
-            {/* Notes */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gridColumn: 'span 2',
-              }}
-            >
+            {/* Description */}
+            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
-                placeholder="Optional production notes"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+                placeholder="Optional notes"
+                style={{
+                  ...fieldInputStyle,
+                  resize: 'vertical',
+                  fontFamily: 'var(--font-sans)',
+                }}
               />
             </div>
           </div>
         </div>
 
-        {/* ── Section 2: Production Items ────────────────────────────────── */}
-        <div style={cardStyle}>
+        {/* Section 2 — Production Items */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
           <div
             style={{
-              ...sectionHeaderStyle,
+              padding: '14px 20px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--background)',
               display: 'flex',
-              alignItems: 'center',
               justifyContent: 'space-between',
+              alignItems: 'center',
             }}
           >
-            <span style={sectionLabelStyle}>Production Items</span>
+            <span style={sectionHeaderStyle}>Production Items</span>
             <button
               type="button"
               onClick={() => {
@@ -698,8 +630,8 @@ export default function ProductionForm({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                padding: '5px 10px',
+                gap: 4,
+                padding: '5px 12px',
                 background: 'var(--accent-light-bg)',
                 color: 'var(--accent)',
                 border: '1px solid var(--border)',
@@ -714,223 +646,240 @@ export default function ProductionForm({
             </button>
           </div>
 
-          {/* Detail rows */}
-          {detailFields.map((field, detailIndex) => {
-            const isExpanded = expandedDetails.includes(detailIndex)
-
-            return (
-              <div
-                key={field.id}
-                style={{ borderBottom: '1px solid var(--border)' }}
-              >
-                {/* Detail header row */}
+          <div style={{ padding: 0 }}>
+            {detailFields.map((field, detailIndex) => {
+              const isExpanded = expandedDetails.includes(detailIndex)
+              return (
                 <div
-                  onClick={() => toggleDetail(detailIndex)}
-                  style={{
-                    padding: '12px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    background: isExpanded
-                      ? 'var(--accent-light-bg)'
-                      : 'var(--background)',
-                    cursor: 'pointer',
-                  }}
+                  key={field.id}
+                  style={{ borderBottom: '1px solid var(--border)' }}
                 >
-                  {/* Expand toggle */}
+                  {/* Detail header row */}
                   <div
+                    onClick={() => toggleDetail(detailIndex)}
                     style={{
-                      width: 24,
-                      height: 24,
+                      padding: '12px 20px',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--border)',
-                      flexShrink: 0,
+                      gap: 12,
+                      cursor: 'pointer',
+                      background: isExpanded ? 'var(--accent-light-bg)' : 'var(--background)',
                     }}
                   >
-                    {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                  </div>
-
-                  {/* Product UOM select */}
-                  <div style={{ flex: 1 }} onClick={(e) => e.stopPropagation()}>
-                    <Controller
-                      name={`details.${detailIndex}.product_uom_id`}
-                      control={control}
-                      render={({ field: f }) => (
-                        <select
-                          value={f.value ?? 0}
-                          onChange={(e) => f.onChange(Number(e.target.value))}
-                          style={{
-                            ...lineInputStyle,
-                            cursor: 'pointer',
-                            border: `1px solid ${
-                              errors.details?.[detailIndex]?.product_uom_id
-                                ? 'var(--destructive)'
-                                : 'var(--border)'
-                            }`,
-                          }}
-                        >
-                          <option value={0} disabled>Select finished product</option>
-                          {productUoms.map((pu: any) => (
-                            <option key={pu.id} value={pu.id}>
-                              {pu.product?.name ?? pu.id}
-                              {' — '}
-                              {pu.uom?.name ?? ''}
-                              {pu.code ? ` (${pu.code})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    />
-                  </div>
-
-                  {/* Qty */}
-                  <div style={{ width: 100 }} onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="number"
-                      min={0.001}
-                      step={0.001}
-                      {...register(`details.${detailIndex}.qty`, {
-                        valueAsNumber: true,
-                      })}
-                      placeholder="Qty"
-                      style={lineInputStyle}
-                    />
-                  </div>
-
-                  {/* Status toggle */}
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Controller
-                      name={`details.${detailIndex}.status`}
-                      control={control}
-                      render={({ field: f }) => (
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          {(['pending', 'final'] as const).map((s) => (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={() => f.onChange(s)}
-                              style={{
-                                padding: '4px 10px',
-                                fontSize: 11,
-                                fontWeight: 600,
-                                borderRadius: 'var(--radius-sm)',
-                                border: 'none',
-                                cursor: 'pointer',
-                                background:
-                                  f.value === s
-                                    ? s === 'pending'
-                                      ? 'var(--warning-bg)'
-                                      : 'var(--success-bg)'
-                                    : 'var(--border)',
-                                color:
-                                  f.value === s
-                                    ? s === 'pending'
-                                      ? 'var(--warning)'
-                                      : 'var(--success)'
-                                    : 'var(--foreground-muted)',
-                              }}
-                            >
-                              {s.charAt(0).toUpperCase() + s.slice(1)}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    />
-                  </div>
-
-                  {/* Delete detail */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      removeDetail(detailIndex)
-                    }}
-                    disabled={detailFields.length === 1}
-                    style={{
-                      padding: 4,
-                      background: 'none',
-                      border: 'none',
-                      cursor: detailFields.length === 1 ? 'not-allowed' : 'pointer',
-                      color:
-                        detailFields.length === 1
-                          ? 'var(--border)'
-                          : 'var(--destructive)',
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-
-                {/* Detail expanded body */}
-                {isExpanded && (
-                  <div
-                    style={{
-                      padding: '16px 20px 20px',
-                      background: 'var(--surface)',
-                      borderTop: '1px solid var(--border)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 16,
-                    }}
-                  >
-                    {/* Expiry date + notes */}
+                    {/* Expand icon */}
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 12,
+                        width: 24,
+                        height: 24,
+                        background: 'var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={labelStyle}>Expiry Date</label>
-                        <input
-                          type="date"
-                          {...register(`details.${detailIndex}.expiry_date`)}
-                          style={lineInputStyle}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <label style={labelStyle}>Notes</label>
-                        <input
-                          {...register(`details.${detailIndex}.description`)}
-                          placeholder="Optional note"
-                          style={lineInputStyle}
-                        />
-                      </div>
+                      {isExpanded ? (
+                        <ChevronUp size={13} style={{ color: 'var(--foreground-muted)' }} />
+                      ) : (
+                        <ChevronDown size={13} style={{ color: 'var(--foreground-muted)' }} />
+                      )}
                     </div>
 
-                    {/* Materials */}
-                    <MaterialsFieldArray
-                      control={control}
-                      detailIndex={detailIndex}
-                      register={register}
-                      inventories={inventories}
-                      errors={errors}
-                      onLoadFromRecipe={handleLoadFromRecipe}
-                      isLoadingRecipe={loadingRecipeFor === detailIndex}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                    {/* Product UOM select */}
+                    <div
+                      style={{ flex: 1 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Controller
+                        name={`details.${detailIndex}.product_uom_id` as any}
+                        control={control}
+                        render={({ field: f }) => (
+                          <select
+                            value={f.value ?? 0}
+                            onChange={(e) => f.onChange(Number(e.target.value))}
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: 13,
+                              background: 'var(--surface)',
+                              outline: 'none',
+                              color: 'var(--foreground)',
+                              fontFamily: 'var(--font-sans)',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value={0} disabled>Select finished product</option>
+                            {productUoms.map((pu: any) => (
+                              <option key={pu.id} value={pu.id}>
+                                {`${pu.product?.name ?? pu.id} — ${pu.uom?.name ?? ''}${pu.code ? ` (${pu.code})` : ''}`}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      />
+                    </div>
 
-          {/* Array-level error */}
-          {errors.details && typeof (errors.details as any).message === 'string' && (
-            <div style={{ padding: '8px 20px' }}>
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {(errors.details as any).message}
-              </span>
-            </div>
-          )}
+                    {/* Qty */}
+                    <div
+                      style={{ width: 100 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="number"
+                        min={0.001}
+                        step={0.001}
+                        {...register(`details.${detailIndex}.qty` as any, {
+                          valueAsNumber: true,
+                        })}
+                        placeholder="Qty"
+                        style={{
+                          width: '100%',
+                          padding: '6px 10px',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 13,
+                          outline: 'none',
+                          color: 'var(--foreground)',
+                          background: 'var(--surface)',
+                          fontFamily: 'var(--font-sans)',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    {/* Per-detail status */}
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Controller
+                        name={`details.${detailIndex}.status` as any}
+                        control={control}
+                        render={({ field: f }) => (
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {(['pending', 'final'] as const).map((s) => {
+                              const isSel = f.value === s
+                              return (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => f.onChange(s)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    fontSize: 11,
+                                    fontWeight: 600,
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    background: isSel
+                                      ? s === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)'
+                                      : 'var(--surface)',
+                                    color: isSel
+                                      ? s === 'final' ? 'var(--success)' : 'var(--warning)'
+                                      : 'var(--foreground-subtle)',
+                                  }}
+                                >
+                                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      />
+                    </div>
+
+                    {/* Delete detail */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        removeDetail(detailIndex)
+                      }}
+                      disabled={detailFields.length === 1}
+                      style={{
+                        padding: 4,
+                        background: 'none',
+                        border: 'none',
+                        cursor: detailFields.length === 1 ? 'not-allowed' : 'pointer',
+                        color:
+                          detailFields.length === 1
+                            ? 'var(--border)'
+                            : 'var(--destructive)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+
+                  {/* Detail expanded body */}
+                  {isExpanded && (
+                    <div
+                      style={{
+                        padding: '16px 20px 20px',
+                        background: 'var(--surface)',
+                        borderTop: '1px solid var(--border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                      }}
+                    >
+                      {/* Expiry + description row */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={labelStyle}>Expiry Date</label>
+                          <input
+                            type="date"
+                            {...register(`details.${detailIndex}.expiry_date` as any)}
+                            style={fieldInputStyle}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={labelStyle}>Note</label>
+                          <input
+                            {...register(`details.${detailIndex}.description` as any)}
+                            placeholder="Optional note"
+                            style={fieldInputStyle}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Materials */}
+                      <MaterialsFieldArray
+                        control={control}
+                        detailIndex={detailIndex}
+                        register={register}
+                        inventories={inventories}
+                        errors={errors}
+                        onLoadFromRecipe={handleLoadFromRecipe}
+                        isLoadingRecipe={loadingRecipeFor === detailIndex}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {errors.details &&
+              typeof (errors.details as any).message === 'string' && (
+                <div style={{ padding: '8px 20px' }}>
+                  <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                    {(errors.details as any).message}
+                  </span>
+                </div>
+              )}
+          </div>
         </div>
 
-        {/* ── Form actions ───────────────────────────────────────────────── */}
+        {/* Form actions */}
         <div
           style={{
             display: 'flex',
@@ -949,8 +898,8 @@ export default function ProductionForm({
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              color: 'var(--foreground)',
               cursor: 'pointer',
+              color: 'var(--foreground)',
             }}
           >
             Cancel

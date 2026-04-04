@@ -1,5 +1,10 @@
 import React from 'react'
-import ProductionsView from '@/views/Productions'
+import dynamic from 'next/dynamic'
+
+const ProductionsView = dynamic(
+  () => import('@/views/Productions'),
+  { ssr: false }
+)
 
 export default function ProductionPage() {
   return <ProductionsView />

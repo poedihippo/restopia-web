@@ -1,5 +1,10 @@
 import React from 'react'
-import ProductionForm from '@/views/Productions/ProductionForm'
+import dynamic from 'next/dynamic'
+
+const ProductionForm = dynamic(
+  () => import('@/views/Productions/ProductionForm'),
+  { ssr: false }
+)
 
 export default function ProductionCreatePage() {
   return <ProductionForm mode="create" />
