@@ -79,6 +79,10 @@ const errorTextStyle: React.CSSProperties = {
   marginTop: 3,
 }
 
+function productUomOptionLabel(pu: any) {
+  return `${pu.product?.name ?? '—'} — ${pu.uom?.name ?? ''}${pu.uom?.code ? ` (${pu.uom.code})` : ''}${pu.code ? ` · SKU: ${pu.code}` : ''}`
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProps) {
@@ -268,10 +272,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                   <option value={0} disabled>Select finished product</option>
                   {productUoms.map((pu: any) => (
                     <option key={pu.id} value={pu.id}>
-                      {pu.product?.name ?? pu.id}
-                      {' — '}
-                      {pu.uom?.name ?? ''}
-                      {pu.code ? ` (${pu.code})` : ''}
+                      {productUomOptionLabel(pu)}
                     </option>
                   ))}
                 </select>
@@ -419,8 +420,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         <option value={0} disabled>Select ingredient</option>
                         {productUoms.map((pu: any) => (
                           <option key={pu.id} value={pu.id}>
-                            {pu.product?.name ?? pu.id}
-                            {pu.uom?.code ? ` (${pu.uom.code})` : ''}
+                            {productUomOptionLabel(pu)}
                           </option>
                         ))}
                       </select>

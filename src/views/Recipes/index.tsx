@@ -36,7 +36,7 @@ interface Recipe {
       id: number
       code?: string
       product?: { name: string }
-      uom?: { code: string }
+      uom?: { name?: string; code: string }
     }
   }>
 }
@@ -411,6 +411,12 @@ export default function RecipesView() {
                             }}
                           >
                             {mat.product_uom?.product?.name ?? '—'}
+                            {mat.product_uom?.uom?.name
+                              ? ` — ${mat.product_uom.uom.name}`
+                              : ''}
+                            {mat.product_uom?.uom?.code
+                              ? ` (${mat.product_uom.uom.code})`
+                              : ''}
                           </span>
                           <span
                             style={{
