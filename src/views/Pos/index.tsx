@@ -63,8 +63,6 @@ export default function PosView() {
   const [sortBy, setSortBy] = useState<string>('code')
   const [productPage, setProductPage] = useState(1)
   const [inStockOnly, setInStockOnly] = useState<boolean>(false)
-  const [customPrices, setCustomPrices] = useState<Record<number, number>>({})
-
   // Cart / order state
   const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
   const [showPayment, setShowPayment] = useState(false)
@@ -220,8 +218,8 @@ export default function PosView() {
         })
         .then((r) => r.data),
   })
-  const orders: any[] = (historyData as any)?.data?.data ?? []
-  const historyMeta = (historyData as any)?.data?.meta
+  const orders: any[] = (historyData as any)?.data ?? []
+  const historyMeta = (historyData as any)?.meta
 
   // Totals
   const subtotal =
@@ -277,7 +275,6 @@ export default function PosView() {
     setCashTendered('')
     setShowReceipt(false)
     setReceiptData(null)
-    setCustomPrices({})
   }, [])
 
   // Add to cart
@@ -288,17 +285,14 @@ export default function PosView() {
         return
       }
       const linePrice =
-        customPrices[item.id] ??
-        (orderType === 'online'
+        orderType === 'online'
           ? (item.online_price ?? item.base_price ?? 0)
-          : (item.base_price ?? 0))
+          : (item.base_price ?? 0)
       setCart((prev) => {
         const existing = prev.find((c) => c.product_inventory_id === item.id)
         if (existing) {
           return prev.map((c) =>
-            c.product_inventory_id === item.id
-              ? { ...c, qty: c.qty + 1, price: linePrice }
-              : c
+            c.product_inventory_id === item.id ? { ...c, qty: c.qty + 1 } : c
           )
         }
         return [
@@ -313,11 +307,12 @@ export default function PosView() {
             code: item.code,
             price: linePrice,
             qty: 1,
+            price_editable: item.price_editable ?? false,
           },
         ]
       })
     },
-    [orderType, customPrices]
+    [orderType]
   )
 
   const addBundleToCart = useCallback((bundle: any) => {
@@ -741,66 +736,20 @@ export default function PosView() {
                       Stock: {item.stock ?? 0}
                     </span>
                     <div style={{ marginTop: 'auto' }}>
-                      {item.price_editable ? (
-                        <div
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ marginTop: 4 }}
-                        >
-                          <label
-                            style={{
-                              fontSize: 11,
-                              color: 'var(--foreground-muted)',
-                              display: 'block',
-                              marginBottom: 2,
-                            }}
-                          >
-                            Price (editable)
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={
-                              customPrices[item.id] ??
-                              (orderType === 'online'
-                                ? (item.online_price ?? item.base_price ?? 0)
-                                : (item.base_price ?? 0))
-                            }
-                            onChange={(e) =>
-                              setCustomPrices((prev) => ({
-                                ...prev,
-                                [item.id]: Number(e.target.value),
-                              }))
-                            }
-                            style={{
-                              width: '100%',
-                              height: 32,
-                              border: '1px solid var(--accent-light)',
-                              borderRadius: 'var(--radius-sm)',
-                              padding: '0 8px',
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: 'var(--accent)',
-                              background: 'var(--accent-light-bg)',
-                              boxSizing: 'border-box',
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: 'var(--accent)',
-                            marginTop: 4,
-                          }}
-                        >
-                          Rp{' '}
-                          {(orderType === 'online'
-                            ? (item.online_price ?? item.base_price ?? 0)
-                            : (item.base_price ?? 0)
-                          ).toLocaleString('id-ID')}
-                        </span>
-                      )}
+                      <span
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 700,
+                          color: 'var(--accent)',
+                          marginTop: 4,
+                        }}
+                      >
+                        Rp{' '}
+                        {(orderType === 'online'
+                          ? (item.online_price ?? item.base_price ?? 0)
+                          : (item.base_price ?? 0)
+                        ).toLocaleString('id-ID')}
+                      </span>
                     </div>
                   </div>
                 )
@@ -1183,6 +1132,46 @@ export default function PosView() {
                     Rp {(item.price * item.qty).toLocaleString('id-ID')}
                   </span>
                 </div>
+                {item.price_editable && (
+                  <div style={{ marginTop: 6 }}>
+                    <label
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--foreground-muted)',
+                        display: 'block',
+                        marginBottom: 2,
+                      }}
+                    >
+                      Custom Price (Rp)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={item.price}
+                      onChange={(e) =>
+                        setCart((prev) =>
+                          prev.map((c) =>
+                            c.product_inventory_id === item.product_inventory_id
+                              ? { ...c, price: Number(e.target.value) }
+                              : c
+                          )
+                        )
+                      }
+                      style={{
+                        width: '100%',
+                        height: 32,
+                        border: '1px solid var(--accent-light)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '0 8px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--accent)',
+                        background: 'var(--accent-light-bg)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ))
           )}

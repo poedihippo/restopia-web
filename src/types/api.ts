@@ -324,6 +324,7 @@ export interface PosCartItem {
   code: string
   price: number
   qty: number
+  price_editable?: boolean
 }
 
 export interface BundleDetail {
