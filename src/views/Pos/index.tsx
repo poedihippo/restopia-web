@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import salesOrderService from '@/services/sales-order.service'
@@ -92,6 +92,33 @@ export default function PosView() {
   const [historyDateTo, setHistoryDateTo] = useState<string>(
     new Date().toISOString().slice(0, 10)
   )
+  // Editing existing order state
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
+  const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null)
+
+  // Pre-orders panel state
+  const [showPreorders, setShowPreorders] = useState(false)
+  const [preorderSearch, setPreorderSearch] = useState('')
+  const [preorderSearchDebounced, setPreorderSearchDebounced] = useState('')
+  const [preorderDateFrom, setPreorderDateFrom] = useState('')
+  const [preorderDateTo, setPreorderDateTo] = useState('')
+  const [preorderPage, setPreorderPage] = useState(1)
+
+  // Pre-order modal state
+  const [showPreorder, setShowPreorder] = useState(false)
+  const [poCustomerId, setPoCustomerId] = useState<number | null>(null)
+  const [poCustomerSearch, setPoCustomerSearch] = useState('')
+  const [poCustomerSearchDebounced, setPoCustomerSearchDebounced] = useState('')
+  const [poShowCustomerDrop, setPoShowCustomerDrop] = useState(false)
+  const [poGuestName, setPoGuestName] = useState('')
+  const [poGuestPhone, setPoGuestPhone] = useState('')
+  const [poFulfillmentDate, setPoFulfillmentDate] = useState('')
+  const [poNote, setPoNote] = useState('')
+  const [poItems, setPoItems] = useState<PosCartItem[]>([])
+  const [poProductSearch, setPoProductSearch] = useState('')
+  const [poProductSearchDebounced, setPoProductSearchDebounced] = useState('')
+  const [poShowProductDrop, setPoShowProductDrop] = useState(false)
+
   const [receiptData, setReceiptData] = useState<{
     cart: PosCartItem[]
     subtotal: number
@@ -124,6 +151,24 @@ export default function PosView() {
     const t = setTimeout(() => setHistorySearchDebounced(historySearch), 400)
     return () => clearTimeout(t)
   }, [historySearch])
+
+  // Pre-orders panel search debounce
+  useEffect(() => {
+    const t = setTimeout(() => setPreorderSearchDebounced(preorderSearch), 400)
+    return () => clearTimeout(t)
+  }, [preorderSearch])
+
+  // Pre-order customer search debounce
+  useEffect(() => {
+    const t = setTimeout(() => setPoCustomerSearchDebounced(poCustomerSearch), 400)
+    return () => clearTimeout(t)
+  }, [poCustomerSearch])
+
+  // Pre-order product search debounce
+  useEffect(() => {
+    const t = setTimeout(() => setPoProductSearchDebounced(poProductSearch), 400)
+    return () => clearTimeout(t)
+  }, [poProductSearch])
 
   // Close customer dropdown on outside click
   useEffect(() => {
@@ -212,6 +257,58 @@ export default function PosView() {
   })
   const bundles: any[] = (bundleData as any)?.data ?? []
 
+  // Pre-order customer search query
+  const { data: poCustomerData } = useQuery({
+    queryKey: ['po-customers', poCustomerSearchDebounced],
+    enabled: showPreorder && poCustomerSearchDebounced.length >= 2,
+    queryFn: () =>
+      customerService
+        .list({
+          per_page: 10,
+          'filter[search]': poCustomerSearchDebounced,
+        })
+        .then((r) => r.data),
+  })
+  const poCustomers: any[] = (poCustomerData as any)?.data ?? []
+
+  // Pre-order product search query
+  const { data: poProductData } = useQuery({
+    queryKey: ['po-products', poProductSearchDebounced],
+    enabled: showPreorder && poShowProductDrop,
+    queryFn: () => {
+      const params: Record<string, any> = {
+        per_page: 15,
+        'filter[product_type]': 'final',
+        'filter[status]': 'active',
+        include: 'product_uom,product_uom.product',
+      }
+      if (poProductSearchDebounced) params['filter[search]'] = poProductSearchDebounced
+      return productInventoriesService.list(params).then((r) => r.data)
+    },
+  })
+  const poProducts: any[] = (poProductData as any)?.data ?? []
+
+  // Pending pre-orders panel query
+  const { data: preorderData, isLoading: isPreordersLoading } = useQuery({
+    queryKey: ['pos-preorders', preorderPage, preorderSearchDebounced, preorderDateFrom, preorderDateTo],
+    enabled: showPreorders,
+    queryFn: () => {
+      const params: Record<string, any> = {
+        page: preorderPage,
+        per_page: 20,
+        sort: 'fulfillment_date',
+        'filter[status]': 'pending',
+        include: 'sales_order_details,customer',
+      }
+      if (preorderSearchDebounced) params['filter[search]'] = preorderSearchDebounced
+      if (preorderDateFrom) params['filter[fulfillment_date_gte]'] = preorderDateFrom
+      if (preorderDateTo) params['filter[fulfillment_date_lte]'] = preorderDateTo
+      return salesOrderService.list(params).then((r) => r.data)
+    },
+  })
+  const preorders: any[] = (preorderData as any)?.data ?? []
+  const preorderMeta = (preorderData as any)?.meta
+
   const { data: historyData, isLoading: isHistoryLoading } = useQuery({
     queryKey: [
       'pos-history',
@@ -259,12 +356,114 @@ export default function PosView() {
     .filter((v) => v >= total)
     .slice(0, 4)
 
-  // Sales order mutation
+  const qc = useQueryClient()
+
+  // Pre-order mutation
+  const { mutate: poMutate, isPending: poIsPending } = useMutation({
+    mutationFn: () => {
+      const subtotal = poItems.reduce((s, i) => s + i.price * i.qty, 0)
+      const payload = {
+        code: `PO-${Date.now()}`,
+        type: 'offline' as const,
+        customer_id: poCustomerId ?? null,
+        customer_name: poCustomerId ? undefined : poGuestName || undefined,
+        customer_phone: poCustomerId ? undefined : poGuestPhone || undefined,
+        date: new Date().toISOString().slice(0, 10),
+        fulfillment_date: new Date(poFulfillmentDate).toISOString(),
+        subtotal_price: subtotal,
+        discount_price: 0,
+        total_price: subtotal,
+        status: 'pending' as const,
+        description: poNote || undefined,
+        details: poItems.map((i) => ({
+          product_inventory_id: i.product_inventory_id,
+          bundle_id: null,
+          bundle_details: null,
+          qty: i.qty,
+          price: i.price,
+          status: 'pending' as const,
+        })),
+      }
+      return salesOrderService.create(payload as any)
+    },
+    onSuccess: () => {
+      toast.success('Pre-order created')
+      resetPreorder()
+      qc.invalidateQueries({ queryKey: ['pos-preorders'] })
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Error'),
+  })
+
+  const resetPreorder = () => {
+    setShowPreorder(false)
+    setPoCustomerId(null)
+    setPoCustomerSearch('')
+    setPoGuestName('')
+    setPoGuestPhone('')
+    setPoFulfillmentDate('')
+    setPoNote('')
+    setPoItems([])
+    setPoProductSearch('')
+    setPoShowProductDrop(false)
+    setPoShowCustomerDrop(false)
+  }
+
+  const poSubtotal = poItems.reduce((s, i) => s + i.price * i.qty, 0)
+
+  const loadPreorderToCart = (order: any) => {
+    setCart([])
+    setBundleCart([])
+
+    const details = order.sales_order_details ?? []
+    const newCart: PosCartItem[] = details
+      .filter((d: any) => !d.bundle_id)
+      .map((d: any) => ({
+        product_inventory_id: d.product_inventory_id,
+        name:
+          d.product_inventory_snapshot?.product_uom?.product?.name ??
+          d.description ??
+          `Item #${d.product_inventory_id}`,
+        code: d.product_inventory_snapshot?.code ?? '',
+        price: Number(d.price),
+        qty: Number(d.qty),
+        price_editable: d.product_inventory_snapshot?.price_editable ?? false,
+      }))
+    setCart(newCart)
+
+    if (order.customer_id) {
+      setSelectedCustomerId(order.customer_id)
+      setCustomerSearch(order.customer?.name ?? '')
+    } else {
+      setSelectedCustomerId(null)
+      setGuestName(order.customer_name ?? '')
+      setGuestPhone(order.customer_phone ?? '')
+    }
+
+    setFulfillmentDate(
+      order.fulfillment_date
+        ? new Date(order.fulfillment_date).toISOString().slice(0, 16)
+        : todayISO()
+    )
+    setOrderNote(order.description ?? '')
+    setEditingOrderId(order.id)
+    setEditingOrderCode(order.code)
+    setShowPreorders(false)
+    setActiveTab('products')
+    toast.success(`Pre-order ${order.code} loaded into cart`)
+  }
+
+  // Sales order mutation — creates new order or updates a pre-order
   const { mutate, isPending } = useMutation({
-    mutationFn: (payload: any) => salesOrderService.create(payload as any),
+    mutationFn: (payload: any) =>
+      editingOrderId
+        ? salesOrderService.update(editingOrderId, payload as any)
+        : salesOrderService.create(payload as any),
     onSuccess: () => {
       setShowReceipt(true)
       toast.success('Order placed!')
+      if (editingOrderId) {
+        qc.invalidateQueries({ queryKey: ['pos-preorders'] })
+      }
     },
     onError: (err: any) => {
       setReceiptData(null)
@@ -291,6 +490,8 @@ export default function PosView() {
     setCashTendered('')
     setShowReceipt(false)
     setReceiptData(null)
+    setEditingOrderId(null)
+    setEditingOrderCode(null)
   }, [])
 
   // Add to cart
@@ -371,7 +572,7 @@ export default function PosView() {
       paymentMethod === 'cash' ? Number(cashTendered.replace(/\D/g, '')) : total
     const orderChange = paymentMethod === 'cash' ? Math.max(0, tendered - total) : 0
     const payload = {
-      code: `POS-${Date.now()}`,
+      code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
       customer_id: selectedCustomerId ?? null,
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
@@ -500,6 +701,48 @@ export default function PosView() {
             }}
           >
             🧾 History
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPreorder(true)}
+            style={{
+              height: 36,
+              padding: '0 14px',
+              border: '1px solid var(--accent-light)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-light-bg)',
+              color: 'var(--accent)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flexShrink: 0,
+            }}
+          >
+            📋 Pre-order
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowPreorders(true)}
+            style={{
+              height: 36,
+              padding: '0 14px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              color: 'var(--foreground)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flexShrink: 0,
+            }}
+          >
+            🗂 Pending
           </button>
         </div>
 
@@ -1059,6 +1302,27 @@ export default function PosView() {
             ✕ Clear
           </button>
         </div>
+
+        {/* Editing pre-order banner */}
+        {editingOrderId && (
+          <div style={{
+            padding: '6px 16px',
+            background: 'var(--warning-bg)',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 12, color: 'var(--warning)', fontWeight: 500 }}>
+              ✏️ Editing pre-order: {editingOrderCode}
+            </span>
+            <button
+              type="button"
+              onClick={() => { setEditingOrderId(null); setEditingOrderCode(null) }}
+              style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--warning)', cursor: 'pointer' }}
+            >
+              Cancel edit
+            </button>
+          </div>
+        )}
 
         {/* Cart items */}
         <div
@@ -2101,6 +2365,471 @@ export default function PosView() {
             </div>
           </div>
         </div>
+      )}
+
+      {showPreorder && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--surface)',
+            borderRadius: 'var(--radius-xl)',
+            width: 560, maxHeight: '90vh',
+            display: 'flex', flexDirection: 'column',
+            boxShadow: 'var(--shadow-lg)',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px', borderBottom: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              flexShrink: 0,
+            }}>
+              <div>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, margin: 0, color: 'var(--accent)' }}>
+                  New Pre-order
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+                  Creates a pending order — no payment yet
+                </p>
+              </div>
+              <button onClick={resetPreorder} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--foreground-muted)' }}>×</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Fulfillment date */}
+              <div>
+                <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>
+                  Fulfillment Date &amp; Time *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={poFulfillmentDate}
+                  onChange={e => setPoFulfillmentDate(e.target.value)}
+                  style={{
+                    width: '100%', height: 40,
+                    border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    padding: '0 12px', fontSize: 14,
+                    color: 'var(--foreground)', background: 'var(--surface)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Customer */}
+              <div>
+                <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>
+                  Customer (optional)
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    value={poCustomerSearch}
+                    onChange={e => { setPoCustomerSearch(e.target.value); setPoShowCustomerDrop(true); if (!e.target.value) setPoCustomerId(null) }}
+                    onFocus={() => setPoShowCustomerDrop(true)}
+                    placeholder="Search registered customer..."
+                    style={{
+                      width: '100%', height: 38,
+                      border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                      padding: '0 12px', fontSize: 14,
+                      color: 'var(--foreground)', background: 'var(--surface)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {poShowCustomerDrop && poCustomers.length > 0 && (
+                    <div style={{
+                      position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                      background: 'var(--surface)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)',
+                      maxHeight: 160, overflowY: 'auto',
+                    }}>
+                      {poCustomers.map((c: any) => (
+                        <div key={c.id}
+                          onClick={() => { setPoCustomerId(c.id); setPoCustomerSearch(c.name); setPoShowCustomerDrop(false) }}
+                          style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 14 }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--background)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
+                        >
+                          <span style={{ fontWeight: 600 }}>{c.name}</span>
+                          {c.phone && <span style={{ color: 'var(--foreground-muted)', marginLeft: 8, fontSize: 12 }}>{c.phone}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {!poCustomerId && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                    <input
+                      value={poGuestName}
+                      onChange={e => setPoGuestName(e.target.value)}
+                      placeholder="Guest name"
+                      style={{
+                        height: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                        padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)',
+                      }}
+                    />
+                    <input
+                      value={poGuestPhone}
+                      onChange={e => setPoGuestPhone(e.target.value)}
+                      placeholder="Guest phone"
+                      style={{
+                        height: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                        padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Items */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <label style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Items (optional — add later)</label>
+                  <div style={{ position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPoShowProductDrop(v => !v)}
+                      style={{
+                        height: 30, padding: '0 12px', background: 'var(--accent)', color: 'white',
+                        border: 'none', borderRadius: 'var(--radius-sm)', fontSize: 12,
+                        fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >+ Add Item</button>
+                    {poShowProductDrop && (
+                      <div style={{
+                        position: 'absolute', top: '110%', right: 0, width: 300, zIndex: 20,
+                        background: 'var(--surface)', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)', overflow: 'hidden',
+                      }}>
+                        <div style={{ padding: 8 }}>
+                          <input
+                            autoFocus
+                            value={poProductSearch}
+                            onChange={e => setPoProductSearch(e.target.value)}
+                            placeholder="Search products..."
+                            style={{
+                              width: '100%', height: 34, border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-sm)', padding: '0 10px', fontSize: 13,
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+                        <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                          {poProducts.map((p: any) => (
+                            <div key={p.id}
+                              onClick={() => {
+                                setPoItems(prev => {
+                                  const exists = prev.findIndex(i => i.product_inventory_id === p.id)
+                                  if (exists >= 0) return prev.map((i, idx) => idx === exists ? { ...i, qty: i.qty + 1 } : i)
+                                  return [...prev, {
+                                    product_inventory_id: p.id,
+                                    name: p.product_uom?.product?.name ?? p.code,
+                                    code: p.code,
+                                    price: p.base_price ?? 0,
+                                    qty: 1,
+                                  }]
+                                })
+                                setPoShowProductDrop(false)
+                                setPoProductSearch('')
+                              }}
+                              style={{
+                                padding: '8px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--background)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
+                            >
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 500 }}>{p.product_uom?.product?.name ?? p.code}</div>
+                                <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{p.code}</div>
+                              </div>
+                              <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+                                Rp {Number(p.base_price).toLocaleString('id-ID')}
+                              </span>
+                            </div>
+                          ))}
+                          {poProducts.length === 0 && (
+                            <p style={{ padding: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
+                              {poProductSearchDebounced ? 'No products found' : 'Type to search...'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {poItems.length === 0 ? (
+                  <div style={{
+                    padding: '16px', border: '1px dashed var(--border)',
+                    borderRadius: 'var(--radius-md)', textAlign: 'center',
+                    fontSize: 13, color: 'var(--foreground-subtle)',
+                  }}>
+                    No items added — you can add items when the customer comes to pick up
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {poItems.map((item, idx) => (
+                      <div key={idx} style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 12px', border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)', background: 'var(--background)',
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>{item.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{item.code}</div>
+                        </div>
+                        <input
+                          type="number" min={1} value={item.qty}
+                          onChange={e => setPoItems(prev => prev.map((i, ix) => ix === idx ? { ...i, qty: Math.max(1, Number(e.target.value)) } : i))}
+                          style={{ width: 48, height: 30, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textAlign: 'center', fontSize: 13 }}
+                        />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', minWidth: 90, textAlign: 'right' }}>
+                          Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPoItems(prev => prev.filter((_, ix) => ix !== idx))}
+                          style={{ background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+                        >×</button>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
+                        Est. Total: Rp {poSubtotal.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Note */}
+              <div>
+                <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>
+                  Deposit Note
+                </label>
+                <textarea
+                  value={poNote}
+                  onChange={e => setPoNote(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Paid deposit Rp 100.000 cash..."
+                  style={{
+                    width: '100%', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    padding: '8px 12px', fontSize: 14, resize: 'none',
+                    color: 'var(--foreground)', background: 'var(--surface)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '16px 24px', borderTop: '1px solid var(--border)',
+              display: 'flex', gap: 12, flexShrink: 0,
+            }}>
+              <button
+                type="button"
+                onClick={resetPreorder}
+                style={{
+                  flex: 1, height: 44, border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)', background: 'var(--surface)',
+                  cursor: 'pointer', fontSize: 14, color: 'var(--foreground)',
+                }}
+              >Cancel</button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!poFulfillmentDate) { toast.error('Fulfillment date is required'); return }
+                  if (!poCustomerId && !poGuestName) { toast.error('Customer name or registered customer is required'); return }
+                  poMutate()
+                }}
+                disabled={poIsPending}
+                style={{
+                  flex: 2, height: 44, border: 'none',
+                  borderRadius: 'var(--radius-md)', background: 'var(--accent)',
+                  color: 'white', cursor: poIsPending ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 700, opacity: poIsPending ? 0.7 : 1,
+                }}
+              >
+                {poIsPending ? 'Saving...' : '📋 Save Pre-order (Pending)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPreorders && (
+        <>
+          <div
+            onClick={() => setShowPreorders(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.35)' }}
+          />
+          <div style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 90,
+            width: 520, background: 'var(--surface)',
+            borderLeft: '1px solid var(--border)',
+            display: 'flex', flexDirection: 'column',
+            boxShadow: 'var(--shadow-lg)',
+          }}>
+            {/* Header */}
+            <div style={{
+              height: 56, padding: '0 20px',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', gap: 10,
+              flexShrink: 0,
+            }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
+                Pending Pre-orders
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowPreorders(false)}
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--foreground-muted)' }}
+              >×</button>
+            </div>
+
+            {/* Filters */}
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+              <input
+                type="text"
+                placeholder="Search by code or customer..."
+                value={preorderSearch}
+                onChange={e => { setPreorderSearch(e.target.value); setPreorderPage(1) }}
+                style={{
+                  width: '100%', height: 36,
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                  padding: '0 12px', fontSize: 13,
+                  color: 'var(--foreground)', background: 'var(--background)',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>Fulfillment:</span>
+                <input
+                  type="date" value={preorderDateFrom}
+                  onChange={e => { setPreorderDateFrom(e.target.value); setPreorderPage(1) }}
+                  style={{ flex: 1, height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 12, color: 'var(--foreground)', background: 'var(--background)' }}
+                />
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>–</span>
+                <input
+                  type="date" value={preorderDateTo}
+                  onChange={e => { setPreorderDateTo(e.target.value); setPreorderPage(1) }}
+                  style={{ flex: 1, height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 12, color: 'var(--foreground)', background: 'var(--background)' }}
+                />
+              </div>
+            </div>
+
+            {/* Orders list */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {isPreordersLoading && Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ height: 100, borderRadius: 'var(--radius-md)', background: 'var(--border)', opacity: 0.4 }} />
+              ))}
+
+              {!isPreordersLoading && preorders.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--foreground-muted)' }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+                  <p style={{ fontSize: 14 }}>No pending pre-orders</p>
+                </div>
+              )}
+
+              {preorders.map((order: any) => (
+                <div key={order.id} style={{
+                  border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
+                  padding: '14px 16px', background: 'var(--background)',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)' }}>{order.code}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '2px 8px',
+                      borderRadius: 'var(--radius-xl)',
+                      background: 'var(--warning-bg)', color: 'var(--warning)',
+                    }}>Pending</span>
+                  </div>
+
+                  <div style={{ fontSize: 13, color: 'var(--foreground)', marginBottom: 4 }}>
+                    👤 {order.customer?.name ?? order.customer_name ?? 'Walk-in'}
+                    {(order.customer?.phone ?? order.customer_phone) && (
+                      <span style={{ color: 'var(--foreground-muted)', marginLeft: 6 }}>
+                        · {order.customer?.phone ?? order.customer_phone}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 8 }}>
+                    📅 Pickup:{' '}
+                    {order.fulfillment_date
+                      ? new Date(order.fulfillment_date).toLocaleString('id-ID', {
+                          day: '2-digit', month: 'short', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })
+                      : '—'}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      {order.sales_order_details?.length ?? 0} item(s)
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+                      Rp {Number(order.total_price).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+
+                  {order.description && (
+                    <div style={{
+                      fontSize: 12, color: 'var(--foreground-muted)',
+                      background: 'var(--background)', padding: '6px 10px',
+                      borderRadius: 'var(--radius-sm)', marginBottom: 10,
+                      borderLeft: '3px solid var(--warning)',
+                    }}>
+                      {order.description}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => loadPreorderToCart(order)}
+                    style={{
+                      width: '100%', height: 38,
+                      background: 'var(--accent)', color: 'white',
+                      border: 'none', borderRadius: 'var(--radius-md)',
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    }}
+                  >
+                    ✓ Complete Order — Load to Cart
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {preorderMeta && (preorderMeta.last_page ?? preorderMeta.total_pages ?? 1) > 1 && (
+              <div style={{
+                padding: '12px 20px', borderTop: '1px solid var(--border)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                flexShrink: 0,
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setPreorderPage(p => Math.max(1, p - 1))}
+                  disabled={preorderPage === 1}
+                  style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: preorderPage === 1 ? 'not-allowed' : 'pointer', color: preorderPage === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', fontSize: 13 }}
+                >← Prev</button>
+                <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  {preorderPage} / {preorderMeta.last_page ?? preorderMeta.total_pages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreorderPage(p => Math.min(preorderMeta.last_page ?? preorderMeta.total_pages, p + 1))}
+                  disabled={preorderPage === (preorderMeta.last_page ?? preorderMeta.total_pages)}
+                  style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: preorderPage === (preorderMeta.last_page ?? preorderMeta.total_pages) ? 'not-allowed' : 'pointer', color: preorderPage === (preorderMeta.last_page ?? preorderMeta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', fontSize: 13 }}
+                >Next →</button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {showHistory && (
