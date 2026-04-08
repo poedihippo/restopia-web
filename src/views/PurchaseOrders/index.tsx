@@ -496,7 +496,7 @@ export default function PurchaseOrdersView() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
           style={{
             display: 'flex',
@@ -524,11 +524,15 @@ export default function PurchaseOrdersView() {
             <ChevronLeft size={15} />
           </button>
           <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Page {page} of {meta.last_page}
+            Page {page} of {meta.last_page ?? meta.total_pages ?? 1}
           </span>
           <button
-            onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-            disabled={page === meta.last_page}
+            onClick={() =>
+              setPage((p) =>
+                Math.min(meta.last_page ?? meta.total_pages ?? 1, p + 1)
+              )
+            }
+            disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -537,8 +541,13 @@ export default function PurchaseOrdersView() {
               borderRadius: 'var(--radius-md)',
               background: 'var(--surface)',
               color:
-                page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === meta.last_page ? 'not-allowed' : 'pointer',
+                page === (meta.last_page ?? meta.total_pages ?? 1)
+                  ? 'var(--foreground-subtle)'
+                  : 'var(--foreground)',
+              cursor:
+                page === (meta.last_page ?? meta.total_pages ?? 1)
+                  ? 'not-allowed'
+                  : 'pointer',
               fontSize: 13,
             }}
           >

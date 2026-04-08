@@ -505,7 +505,7 @@ export default function ProductionsView() {
       </div>
 
       {/* PAGINATION */}
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
           style={{
             display: 'flex',
@@ -546,10 +546,10 @@ export default function ProductionsView() {
                 fontWeight: 500,
               }}
             >
-              {page} / {meta.last_page}
+              {page} / {meta.last_page ?? meta.total_pages ?? 1}
             </span>
             <button
-              disabled={page === meta.last_page}
+              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
               onClick={() => setPage((p) => p + 1)}
               style={{
                 padding: '5px 10px',
@@ -562,7 +562,7 @@ export default function ProductionsView() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                opacity: page === meta.last_page ? 0.5 : 1,
+                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
               }}
             >
               Next

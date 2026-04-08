@@ -432,7 +432,7 @@ export default function StockMovementView() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
           style={{
             display: 'flex',
@@ -476,11 +476,11 @@ export default function StockMovementView() {
                 fontWeight: 500,
               }}
             >
-              {page} / {meta.last_page}
+              {page} / {meta.last_page ?? meta.total_pages ?? 1}
             </span>
 
             <button
-              disabled={page === meta.last_page}
+              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
               onClick={() => setPage((p) => p + 1)}
               style={{
                 padding: '5px 10px',
@@ -488,12 +488,12 @@ export default function StockMovementView() {
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 12,
-                cursor: page === meta.last_page ? 'not-allowed' : 'pointer',
+                cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
                 color: 'var(--foreground-muted)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                opacity: page === meta.last_page ? 0.5 : 1,
+                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
               }}
             >
               Next

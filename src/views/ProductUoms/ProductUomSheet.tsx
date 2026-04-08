@@ -49,8 +49,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      product_id: 0,
-      uom_id: 0,
+      product_id: editData?.product_id ?? 0,
+      uom_id: editData?.uom_id ?? 0,
       code: '',
       base_price: 0,
       online_price: 0,
@@ -78,8 +78,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   useEffect(() => {
     if (editData) {
       reset({
-        product_id: editData.product_id,
-        uom_id: editData.uom_id,
+        product_id: editData.product_id ?? 0,
+        uom_id: editData.uom_id ?? 0,
         code: editData.code ?? '',
         base_price: editData.base_price ?? 0,
         online_price: editData.online_price ?? 0,
@@ -240,25 +240,20 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
               Product
             </label>
-            <Controller
-              name="product_id"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                  style={{
-                    ...selectStyle,
-                    border: `1px solid ${errors.product_id ? 'var(--destructive)' : 'var(--border)'}`,
-                  }}
-                >
-                  <option value="" disabled>Select product</option>
-                  {products.map((p: any) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              )}
-            />
+            <select
+              {...register('product_id', { valueAsNumber: true })}
+              style={{
+                ...selectStyle,
+                border: `1px solid ${errors.product_id ? 'var(--destructive)' : 'var(--border)'}`,
+              }}
+            >
+              <option value={0}>Select product</option>
+              {products.map((p: any) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
             {errors.product_id && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
                 {errors.product_id.message}
@@ -271,25 +266,20 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
               Unit of Measure
             </label>
-            <Controller
-              name="uom_id"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                  style={{
-                    ...selectStyle,
-                    border: `1px solid ${errors.uom_id ? 'var(--destructive)' : 'var(--border)'}`,
-                  }}
-                >
-                  <option value="" disabled>Select UOM</option>
-                  {uoms.map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.code})</option>
-                  ))}
-                </select>
-              )}
-            />
+            <select
+              {...register('uom_id', { valueAsNumber: true })}
+              style={{
+                ...selectStyle,
+                border: `1px solid ${errors.uom_id ? 'var(--destructive)' : 'var(--border)'}`,
+              }}
+            >
+              <option value={0}>Select UOM</option>
+              {uoms.map((u: any) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.code})
+                </option>
+              ))}
+            </select>
             {errors.uom_id && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
                 {errors.uom_id.message}

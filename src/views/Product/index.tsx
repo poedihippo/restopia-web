@@ -361,7 +361,7 @@ export default function ProductView() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12 }}>
           <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
             Showing {(page - 1) * 15 + 1}–{Math.min(page * 15, meta.total)} of {meta.total}
@@ -388,10 +388,10 @@ export default function ProductView() {
               Prev
             </button>
             <span style={{ fontSize: 12, color: 'var(--foreground)', padding: '0 8px', fontWeight: 500 }}>
-              {page} / {meta.last_page}
+              {page} / {meta.last_page ?? meta.total_pages ?? 1}
             </span>
             <button
-              disabled={page === meta.last_page}
+              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
               onClick={() => setPage((p) => p + 1)}
               style={{
                 padding: '5px 10px',
@@ -399,12 +399,12 @@ export default function ProductView() {
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 12,
-                cursor: page === meta.last_page ? 'not-allowed' : 'pointer',
+                cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
                 color: 'var(--foreground-muted)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                opacity: page === meta.last_page ? 0.5 : 1,
+                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
               }}
             >
               Next

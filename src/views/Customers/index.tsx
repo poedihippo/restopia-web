@@ -118,12 +118,12 @@ export default function CustomersView() {
         </table>
       </div>
 
-      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{meta.total} customers · Page {page} of {meta.last_page ?? meta.total_pages}</span>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{meta.total} customers · Page {page} of {meta.last_page ?? meta.total_pages ?? 1}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: page === 1 ? 'not-allowed' : 'pointer', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', fontSize: 13 }}>← Prev</button>
-            <button onClick={() => setPage(p => Math.min(meta.last_page ?? meta.total_pages, p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', fontSize: 13 }}>Next →</button>
+            <button onClick={() => setPage(p => Math.min(meta.last_page ?? meta.total_pages ?? 1, p + 1))} disabled={page === (meta.last_page ?? meta.total_pages ?? 1)} style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer', color: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'var(--foreground-subtle)' : 'var(--foreground)', fontSize: 13 }}>Next →</button>
           </div>
         </div>
       )}
