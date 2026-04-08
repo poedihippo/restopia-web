@@ -107,7 +107,7 @@ export default function PosView() {
         })
         .then((r) => r.data),
   })
-  const items: any[] = (data as any)?.data?.data ?? []
+  const items: any[] = (data as any)?.data ?? []
 
   // Customer search query
   const { data: customerData } = useQuery({
