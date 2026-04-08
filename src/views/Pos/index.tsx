@@ -102,8 +102,9 @@ export default function PosView() {
         .list({
           per_page: 60,
           sort: 'code',
-          'filter[search]': searchDebounced || undefined,
-          include: 'product,product_uom',
+          'filter[product_uom_code]': searchDebounced || undefined,
+          'filter[type]': 'final',
+          include: 'product_uom.product,product_uom.uom',
         })
         .then((r) => r.data),
   })
@@ -166,7 +167,7 @@ export default function PosView() {
         ...prev,
         {
           product_inventory_id: item.id,
-          name: item.product?.name ?? item.code,
+          name: item.product_uom?.product?.name ?? item.code,
           code: item.code,
           price: item.base_price ?? 0,
           qty: 1,
@@ -355,7 +356,7 @@ export default function PosView() {
                         lineHeight: '1.35',
                       }}
                     >
-                      {item.product?.name ?? item.code}
+                      {item.product_uom?.product?.name ?? item.code}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
                       {item.code}
