@@ -123,6 +123,7 @@ interface MaterialsFieldArrayProps {
   setSharedMaterialProductName: (v: string) => void
   setSharedShowMaterialUomPicker: (v: boolean) => void
   onSelectMaterialInventory: (detailIndex: number, matIndex: number, inv: any, productName: string) => void
+  materialLabels: Record<string, string>
 }
 
 export function MaterialsFieldArray({
@@ -146,6 +147,7 @@ export function MaterialsFieldArray({
   setSharedMaterialProductName,
   setSharedShowMaterialUomPicker,
   onSelectMaterialInventory,
+  materialLabels,
 }: MaterialsFieldArrayProps) {
   const { fields, append, remove } = useFieldArray({
     control,
@@ -211,8 +213,9 @@ export function MaterialsFieldArray({
         const isActive =
           activeMaterialIndex?.detail === detailIndex &&
           activeMaterialIndex?.mat === matIndex
-        const currentId = (field as any).product_inventory_id
-        const existingLabel = currentId && currentId !== 0 ? `Inventory #${currentId}` : ''
+        const labelKey = `${detailIndex}-${matIndex}`
+        const existingLabel =
+          materialLabels[labelKey] ?? `Material #${matIndex + 1}`
 
         return (
           <div
@@ -638,7 +641,8 @@ export default function ProductionForm({
       try {
         const res = await recipesService.list({
           per_page: 1,
-          include: 'recipe_materials',
+          include:
+            'recipe_materials,recipe_materials.product_uom,recipe_materials.product_uom.product,recipe_materials.product_uom.uom',
           'filter[is_default]': 1,
         } as any)
         const recipes = (res.data as any)?.data ?? []
@@ -661,6 +665,21 @@ export default function ProductionForm({
             qty: mat.qty,
           }
         })
+        const labels: Record<string, string> = {}
+        materials.forEach((m: any, idx: number) => {
+          const productName =
+            m.product_uom?.product?.name ?? String(m.product_uom?.product_id ?? '?')
+          const uomCode = m.product_uom?.uom?.code ?? ''
+          const sku = m.product_uom?.code ?? ''
+          labels[`${detailIndex}-${idx}`] = `${productName} · ${uomCode} · ${sku}`
+        })
+        setMaterialLabels((prev) => {
+          const next = { ...prev }
+          Object.keys(next).forEach((k) => {
+            if (k.startsWith(`${detailIndex}-`)) delete next[k]
+          })
+          return { ...next, ...labels }
+        })
         setValue(
           `details.${detailIndex}.materials`,
           mappedMaterials.length > 0
@@ -674,7 +693,7 @@ export default function ProductionForm({
         setLoadingRecipeFor(null)
       }
     },
-    [watchDetails, inventories, setValue]
+    [watchDetails, inventories, setValue],
   )
 
   const handleSelectMaterialInventory = useCallback(
@@ -1308,6 +1327,7 @@ export default function ProductionForm({
                         setSharedMaterialProductName={setSharedMaterialProductName}
                         setSharedShowMaterialUomPicker={setSharedShowMaterialUomPicker}
                         onSelectMaterialInventory={handleSelectMaterialInventory}
+                        materialLabels={materialLabels}
                       />
                     </div>
                   )}
