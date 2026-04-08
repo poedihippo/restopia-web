@@ -63,6 +63,7 @@ export default function PosView() {
   const [sortBy, setSortBy] = useState<string>('code')
   const [productPage, setProductPage] = useState(1)
   const [inStockOnly, setInStockOnly] = useState<boolean>(false)
+  const [customPrices, setCustomPrices] = useState<Record<number, number>>({})
 
   // Cart / order state
   const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
@@ -130,7 +131,22 @@ export default function PosView() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Product inventories query — fully server-driven
+  // Product inventories query — fully server-driven (no undefined filter values)
+  const posParams: Record<string, any> = {
+    page: productPage,
+    per_page: 20,
+    'filter[product_type]': 'final',
+    'filter[status]': 'active',
+    include: 'product_uom,product_uom.product,product_uom.product.product_category',
+  }
+  if (searchDebounced) posParams['filter[search]'] = searchDebounced
+  if (categoryId !== null) posParams['filter[product_category_id]'] = categoryId
+  if (inStockOnly) posParams['filter[stock_gte]'] = 1
+  if (sortBy === 'price_asc') posParams.sort = 'base_price'
+  else if (sortBy === 'price_desc') posParams.sort = '-base_price'
+  else if (sortBy === 'stock_desc') posParams.sort = '-stock'
+  else posParams.sort = 'code'
+
   const { data, isLoading } = useQuery({
     queryKey: [
       'product-inventories-pos',
@@ -141,27 +157,7 @@ export default function PosView() {
       inStockOnly,
       orderType,
     ],
-    queryFn: () =>
-      productInventoriesService
-        .list({
-          page: productPage,
-          per_page: 20,
-          'filter[search]': searchDebounced || undefined,
-          'filter[product_type]': 'final',
-          'filter[status]': 'active',
-          'filter[product_category_id]': categoryId ?? undefined,
-          'filter[stock_gte]': inStockOnly ? 1 : undefined,
-          sort:
-            sortBy === 'price_asc'
-              ? 'base_price'
-              : sortBy === 'price_desc'
-              ? '-base_price'
-              : sortBy === 'stock_desc'
-              ? '-stock'
-              : 'code',
-          include: 'product_uom,product_uom.product,product_uom.product.product_category',
-        })
-        .then((r) => r.data),
+    queryFn: () => productInventoriesService.list(posParams).then((r) => r.data),
   })
   const items: any[] = (data as any)?.data?.data ?? []
   const productMeta = (data as any)?.data?.meta
@@ -279,6 +275,7 @@ export default function PosView() {
     setCashTendered('')
     setShowReceipt(false)
     setReceiptData(null)
+    setCustomPrices({})
   }, [])
 
   // Add to cart
@@ -289,14 +286,17 @@ export default function PosView() {
         return
       }
       const linePrice =
-        orderType === 'online'
+        customPrices[item.id] ??
+        (orderType === 'online'
           ? (item.online_price ?? item.base_price ?? 0)
-          : (item.base_price ?? 0)
+          : (item.base_price ?? 0))
       setCart((prev) => {
         const existing = prev.find((c) => c.product_inventory_id === item.id)
         if (existing) {
           return prev.map((c) =>
-            c.product_inventory_id === item.id ? { ...c, qty: c.qty + 1 } : c
+            c.product_inventory_id === item.id
+              ? { ...c, qty: c.qty + 1, price: linePrice }
+              : c
           )
         }
         return [
@@ -315,7 +315,7 @@ export default function PosView() {
         ]
       })
     },
-    [orderType]
+    [orderType, customPrices]
   )
 
   const addBundleToCart = useCallback((bundle: any) => {
@@ -739,9 +739,66 @@ export default function PosView() {
                       Stock: {item.stock ?? 0}
                     </span>
                     <div style={{ marginTop: 'auto' }}>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--accent)' }}>
-                        Rp {(item.base_price ?? 0).toLocaleString('id-ID')}
-                      </span>
+                      {item.price_editable ? (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ marginTop: 4 }}
+                        >
+                          <label
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--foreground-muted)',
+                              display: 'block',
+                              marginBottom: 2,
+                            }}
+                          >
+                            Price (editable)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={
+                              customPrices[item.id] ??
+                              (orderType === 'online'
+                                ? (item.online_price ?? item.base_price ?? 0)
+                                : (item.base_price ?? 0))
+                            }
+                            onChange={(e) =>
+                              setCustomPrices((prev) => ({
+                                ...prev,
+                                [item.id]: Number(e.target.value),
+                              }))
+                            }
+                            style={{
+                              width: '100%',
+                              height: 32,
+                              border: '1px solid var(--accent-light)',
+                              borderRadius: 'var(--radius-sm)',
+                              padding: '0 8px',
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: 'var(--accent)',
+                              background: 'var(--accent-light-bg)',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: 'var(--accent)',
+                            marginTop: 4,
+                          }}
+                        >
+                          Rp{' '}
+                          {(orderType === 'online'
+                            ? (item.online_price ?? item.base_price ?? 0)
+                            : (item.base_price ?? 0)
+                          ).toLocaleString('id-ID')}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )
