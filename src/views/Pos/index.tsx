@@ -103,12 +103,12 @@ export default function PosView() {
           per_page: 60,
           sort: 'code',
           'filter[product_uom_code]': searchDebounced || undefined,
-          'filter[type]': 'final',
-          include: 'product_uom.product,product_uom.uom',
+          include: 'product_uom,product_uom.product,product_uom.uom',
         })
         .then((r) => r.data),
   })
   const items: any[] = (data as any)?.data ?? []
+  console.log(items[0])
 
   // Customer search query
   const { data: customerData } = useQuery({
@@ -167,7 +167,11 @@ export default function PosView() {
         ...prev,
         {
           product_inventory_id: item.id,
-          name: item.product_uom?.product?.name ?? item.code,
+          name:
+            item.product_uom?.product?.name ??
+            item.productUom?.product?.name ??
+            item.product?.name ??
+            item.code,
           code: item.code,
           price: item.base_price ?? 0,
           qty: 1,
@@ -356,7 +360,10 @@ export default function PosView() {
                         lineHeight: '1.35',
                       }}
                     >
-                      {item.product_uom?.product?.name ?? item.code}
+                      {item.product_uom?.product?.name ??
+                        item.productUom?.product?.name ??
+                        item.product?.name ??
+                        item.code}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
                       {item.code}
