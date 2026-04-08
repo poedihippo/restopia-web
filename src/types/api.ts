@@ -325,3 +325,27 @@ export interface PosCartItem {
   price: number
   qty: number
 }
+
+export interface BundleDetail {
+  product_uom_id: number
+  qty: number
+}
+
+export interface Bundle {
+  id: number
+  code: string
+  name: string
+  price: number
+  status: 'active' | 'inactive'
+  description?: string
+  details?: BundleDetail[]
+}
+
+export interface PosCartBundle {
+  bundle_id: number
+  name: string
+  code: string
+  price: number
+  qty: number
+  bundle_details: { product_inventory_id: number; qty: number }[]
+}

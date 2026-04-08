@@ -7,8 +7,9 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { productCategoriesService } from '@/services/product-categories.service'
 import salesOrderService from '@/services/sales-order.service'
 import customerService from '@/services/customer.service'
+import bundleService from '@/services/bundle.service'
 import { toast } from 'sonner'
-import type { PosCartItem } from '@/types/api'
+import type { PosCartItem, PosCartBundle } from '@/types/api'
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -50,9 +51,13 @@ export default function PosView() {
   const todayISO = () => new Date().toISOString().slice(0, 16)
 
   // Product grid state
+  const [activeTab, setActiveTab] = useState<'products' | 'bundles'>('products')
   const [cart, setCart] = useState<PosCartItem[]>([])
+  const [bundleCart, setBundleCart] = useState<PosCartBundle[]>([])
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
+  const [bundleSearch, setBundleSearch] = useState('')
+  const [bundleSearchDebounced, setBundleSearchDebounced] = useState('')
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<string>('name')
@@ -73,6 +78,10 @@ export default function PosView() {
   const [orderNote, setOrderNote] = useState('')
   const [fulfillmentDate, setFulfillmentDate] = useState<string>(todayISO())
   const [showReceipt, setShowReceipt] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [historySearch, setHistorySearch] = useState('')
+  const [historySearchDebounced, setHistorySearchDebounced] = useState('')
+  const [historyPage, setHistoryPage] = useState(1)
   const [receiptData, setReceiptData] = useState<{
     cart: PosCartItem[]
     subtotal: number
@@ -93,6 +102,18 @@ export default function PosView() {
     const t = setTimeout(() => setSearchDebounced(search), 400)
     return () => clearTimeout(t)
   }, [search])
+
+  // Bundle search debounce
+  useEffect(() => {
+    const t = setTimeout(() => setBundleSearchDebounced(bundleSearch), 400)
+    return () => clearTimeout(t)
+  }, [bundleSearch])
+
+  // History search debounce
+  useEffect(() => {
+    const t = setTimeout(() => setHistorySearchDebounced(historySearch), 400)
+    return () => clearTimeout(t)
+  }, [historySearch])
 
   // Close customer dropdown on outside click
   useEffect(() => {
@@ -176,8 +197,44 @@ export default function PosView() {
   })
   const customers: any[] = (customerData as any)?.data?.data ?? []
 
+  const { data: bundleData, isLoading: isBundleLoading } = useQuery({
+    queryKey: ['pos-bundles', bundleSearchDebounced],
+    queryFn: () =>
+      bundleService
+        .list({
+          per_page: 60,
+          'filter[status]': 'active',
+          'filter[search]': bundleSearchDebounced || undefined,
+          include: 'bundle_details',
+        })
+        .then((r) => r.data),
+  })
+  const bundles: any[] = (bundleData as any)?.data ?? []
+
+  const { data: historyData, isLoading: isHistoryLoading } = useQuery({
+    queryKey: ['pos-history', historyPage, historySearchDebounced],
+    enabled: showHistory,
+    queryFn: () =>
+      salesOrderService
+        .list({
+          page: historyPage,
+          per_page: 20,
+          sort: '-created_at',
+          'filter[search]': historySearchDebounced || undefined,
+          'filter[type]': 'offline',
+          'filter[date_gte]': new Date().toISOString().slice(0, 10),
+          'filter[date_lte]': new Date().toISOString().slice(0, 10),
+          include: 'sales_order_details',
+        })
+        .then((r) => r.data),
+  })
+  const orders: any[] = (historyData as any)?.data?.data ?? []
+  const historyMeta = (historyData as any)?.data?.meta
+
   // Totals
-  const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0)
+  const subtotal =
+    cart.reduce((s, c) => s + c.price * c.qty, 0) +
+    bundleCart.reduce((s, c) => s + c.price * c.qty, 0)
   const total = Math.max(0, subtotal - voucherDiscount)
 
   // Payment modal derived values
@@ -211,6 +268,9 @@ export default function PosView() {
 
   const resetCart = useCallback(() => {
     setCart([])
+    setBundleCart([])
+    setActiveTab('products')
+    setBundleSearch('')
     setSelectedCustomerId(null)
     setCustomerSearch('')
     setGuestName('')
@@ -264,9 +324,34 @@ export default function PosView() {
     [orderType]
   )
 
+  const addBundleToCart = useCallback((bundle: any) => {
+    setBundleCart((prev) => {
+      const existing = prev.find((c) => c.bundle_id === bundle.id)
+      if (existing) {
+        return prev.map((c) =>
+          c.bundle_id === bundle.id ? { ...c, qty: c.qty + 1 } : c
+        )
+      }
+      return [
+        ...prev,
+        {
+          bundle_id: bundle.id,
+          name: bundle.name,
+          code: bundle.code,
+          price: bundle.price ?? 0,
+          qty: 1,
+          bundle_details: (bundle.details ?? []).map((d: any) => ({
+            product_inventory_id: d.product_inventory_id ?? d.product_uom_id,
+            qty: d.qty,
+          })),
+        },
+      ]
+    })
+  }, [])
+
   // Payment gate — opens payment modal
   const handleCharge = () => {
-    if (cart.length === 0) {
+    if (cart.length === 0 && bundleCart.length === 0) {
       toast.error('Cart is empty')
       return
     }
@@ -292,12 +377,24 @@ export default function PosView() {
       total_price: total,
       status: 'final' as const,
       description: orderNote || undefined,
-      details: cart.map((c) => ({
-        product_inventory_id: c.product_inventory_id,
-        qty: c.qty,
-        price: c.price,
-        status: 'completed' as const,
-      })),
+      details: [
+        ...cart.map((c) => ({
+          product_inventory_id: c.product_inventory_id,
+          bundle_id: null,
+          bundle_details: null,
+          qty: c.qty,
+          price: c.price,
+          status: 'completed' as const,
+        })),
+        ...bundleCart.map((c) => ({
+          product_inventory_id: null,
+          bundle_id: c.bundle_id,
+          bundle_details: c.bundle_details,
+          qty: c.qty,
+          price: c.price,
+          status: 'completed' as const,
+        })),
+      ],
     }
     setReceiptData({
       cart: [...cart],
@@ -375,8 +472,67 @@ export default function PosView() {
               fontFamily: 'var(--font-sans)',
             }}
           />
+          <button
+            type="button"
+            onClick={() => setShowHistory(true)}
+            style={{
+              marginLeft: 'auto',
+              height: 36,
+              padding: '0 14px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              color: 'var(--foreground)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flexShrink: 0,
+            }}
+          >
+            🧾 History
+          </button>
         </div>
 
+        {/* Products / Bundles tab switcher */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 0,
+            padding: '0 20px',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--surface)',
+            flexShrink: 0,
+          }}
+        >
+          {(['products', 'bundles'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              style={{
+                height: 40,
+                padding: '0 20px',
+                border: 'none',
+                borderBottom:
+                  activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+                background: 'none',
+                color: activeTab === tab ? 'var(--accent)' : 'var(--foreground-muted)',
+                fontWeight: activeTab === tab ? 600 : 400,
+                fontSize: 14,
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+              }}
+            >
+              {tab === 'products' ? '🛍 Products' : '🎁 Bundles'}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'products' && (
+        <>
         {/* Category tabs */}
         <div
           style={{
@@ -494,8 +650,7 @@ export default function PosView() {
 
         {/* Product grid area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
-          {isLoading ? (
-            <div
+          {isLoading ? (            <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
@@ -600,6 +755,146 @@ export default function PosView() {
             </div>
           )}
         </div>
+        </>
+        )}
+
+        {activeTab === 'bundles' && (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            {/* Bundle search */}
+            <div
+              style={{
+                padding: '10px 20px',
+                borderBottom: '1px solid var(--border)',
+                flexShrink: 0,
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Search bundles..."
+                value={bundleSearch}
+                onChange={(e) => setBundleSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: 36,
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0 12px',
+                  fontSize: 13,
+                  color: 'var(--foreground)',
+                  background: 'var(--background)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {/* Bundle grid */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+              {isBundleLoading && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                    gap: 12,
+                  }}
+                >
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        height: 120,
+                        borderRadius: 'var(--radius-lg)',
+                        background: 'var(--border)',
+                        opacity: 0.5,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {!isBundleLoading && bundles.length === 0 && (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '48px 0',
+                    color: 'var(--foreground-muted)',
+                  }}
+                >
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>🎁</div>
+                  <p style={{ fontSize: 14 }}>No bundles available</p>
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                  gap: 12,
+                }}
+              >
+                {bundles.map((bundle: any) => (
+                  <div
+                    key={bundle.id}
+                    onClick={() => addBundleToCart(bundle)}
+                    style={{
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-lg)',
+                      padding: '14px 16px',
+                      cursor: 'pointer',
+                      background: 'var(--surface)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.borderColor = 'var(--accent-light)')
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.borderColor = 'var(--border)')
+                    }
+                  >
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'var(--accent)',
+                        background: 'var(--accent-light-bg)',
+                        padding: '2px 6px',
+                        borderRadius: 'var(--radius-sm)',
+                        alignSelf: 'flex-start',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                      }}
+                    >
+                      Bundle
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--foreground)' }}>
+                      {bundle.name}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      {bundle.code}
+                    </span>
+                    {bundle.details && bundle.details.length > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                        {bundle.details.length} item(s) included
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: 'var(--accent)',
+                        marginTop: 4,
+                      }}
+                    >
+                      Rp {Number(bundle.price).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ─── RIGHT — Cart Panel ─── */}
@@ -657,7 +952,7 @@ export default function PosView() {
           </div>
           <button
             type="button"
-            onClick={() => setCart([])}
+            onClick={() => { setCart([]); setBundleCart([]) }}
             title="Clear cart"
             style={{
               background: 'none',
@@ -687,7 +982,7 @@ export default function PosView() {
             gap: 8,
           }}
         >
-          {cart.length === 0 ? (
+          {cart.length === 0 && bundleCart.length === 0 ? (
             <p style={{ color: 'var(--foreground-muted)', fontSize: 14, textAlign: 'center', marginTop: 24 }}>
               Cart is empty.
             </p>
@@ -767,6 +1062,130 @@ export default function PosView() {
               </div>
             ))
           )}
+
+          {/* Bundle cart items */}
+          {bundleCart.map((item) => (
+            <div
+              key={`bundle-${item.bundle_id}`}
+              style={{ padding: '10px 0', borderBottom: '1px solid var(--border)' }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  marginBottom: 4,
+                }}
+              >
+                <div>
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'var(--accent)',
+                        background: 'var(--accent-light-bg)',
+                        padding: '1px 5px',
+                        borderRadius: 'var(--radius-sm)',
+                      }}
+                    >
+                      Bundle
+                    </span>
+                    <span
+                      style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}
+                    >
+                      {item.name}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                    {item.code}
+                  </span>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
+                  Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBundleCart((prev) =>
+                      prev
+                        .map((c) =>
+                          c.bundle_id === item.bundle_id
+                            ? { ...c, qty: Math.max(1, c.qty - 1) }
+                            : c
+                        )
+                        .filter((c) => c.qty > 0)
+                    )
+                  }
+                  style={{
+                    width: 28,
+                    height: 28,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--surface)',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                  }}
+                >
+                  −
+                </button>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    minWidth: 20,
+                    textAlign: 'center',
+                  }}
+                >
+                  {item.qty}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBundleCart((prev) =>
+                      prev.map((c) =>
+                        c.bundle_id === item.bundle_id ? { ...c, qty: c.qty + 1 } : c
+                      )
+                    )
+                  }
+                  style={{
+                    width: 28,
+                    height: 28,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--surface)',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                  }}
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBundleCart((prev) =>
+                      prev.filter((c) => c.bundle_id !== item.bundle_id)
+                    )
+                  }
+                  style={{
+                    marginLeft: 'auto',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--destructive)',
+                    cursor: 'pointer',
+                    fontSize: 18,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Customer section */}
@@ -1524,6 +1943,320 @@ export default function PosView() {
             </div>
           </div>
         </div>
+      )}
+
+      {showHistory && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setShowHistory(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 80,
+              background: 'rgba(0,0,0,0.35)',
+            }}
+          />
+
+          {/* Panel */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 90,
+              width: 480,
+              background: 'var(--surface)',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-lg)',
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                height: 56,
+                padding: '0 20px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: 'var(--accent)',
+                }}
+              >
+                Transaction History
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Today</span>
+              <button
+                type="button"
+                onClick={() => setShowHistory(false)}
+                style={{
+                  marginLeft: 'auto',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 22,
+                  cursor: 'pointer',
+                  color: 'var(--foreground-muted)',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Search */}
+            <div
+              style={{
+                padding: '12px 20px',
+                borderBottom: '1px solid var(--border)',
+                flexShrink: 0,
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Search by order code or customer..."
+                value={historySearch}
+                onChange={(e) => {
+                  setHistorySearch(e.target.value)
+                  setHistoryPage(1)
+                }}
+                style={{
+                  width: '100%',
+                  height: 36,
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0 12px',
+                  fontSize: 13,
+                  color: 'var(--foreground)',
+                  background: 'var(--background)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            {/* Orders list */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '12px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              {isHistoryLoading &&
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 80,
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--border)',
+                      opacity: 0.5,
+                    }}
+                  />
+                ))}
+
+              {!isHistoryLoading && orders.length === 0 && (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '48px 0',
+                    color: 'var(--foreground-muted)',
+                  }}
+                >
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>🧾</div>
+                  <p style={{ fontSize: 14 }}>No transactions today</p>
+                </div>
+              )}
+
+              {orders.map((order: any) => (
+                <div
+                  key={order.id}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px 16px',
+                    background: 'var(--background)',
+                  }}
+                >
+                  {/* Order header row */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--foreground)' }}>
+                      {order.code}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-xl)',
+                        background:
+                          order.status === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)',
+                        color: order.status === 'final' ? 'var(--success)' : 'var(--warning)',
+                        textTransform: 'capitalize',
+                      }}
+                    >
+                      {order.status}
+                    </span>
+                  </div>
+
+                  {/* Customer + date row */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      {order.customer_name || order.customer?.name || 'Walk-in'}
+                      {order.customer_phone ? ` · ${order.customer_phone}` : ''}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
+                      {new Date(order.created_at).toLocaleTimeString('id-ID', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+
+                  {/* Items summary */}
+                  {order.sales_order_details && order.sales_order_details.length > 0 && (
+                    <div
+                      style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 8 }}
+                    >
+                      {order.sales_order_details.length} item(s)
+                    </div>
+                  )}
+
+                  {/* Total */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Total</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+                      Rp {Number(order.total_price).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {historyMeta && historyMeta.last_page > 1 && (
+              <div
+                style={{
+                  padding: '12px 20px',
+                  borderTop: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+                  disabled={historyPage === 1}
+                  style={{
+                    height: 32,
+                    padding: '0 14px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--surface)',
+                    color:
+                      historyPage === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
+                    cursor: historyPage === 1 ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  ← Prev
+                </button>
+
+                <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  Page {historyPage} of {historyMeta.last_page}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setHistoryPage((p) => Math.min(historyMeta.last_page, p + 1))
+                  }
+                  disabled={historyPage === historyMeta.last_page}
+                  style={{
+                    height: 32,
+                    padding: '0 14px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--surface)',
+                    color:
+                      historyPage === historyMeta.last_page
+                        ? 'var(--foreground-subtle)'
+                        : 'var(--foreground)',
+                    cursor:
+                      historyPage === historyMeta.last_page ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+
+            {/* Summary footer */}
+            {!isHistoryLoading && orders.length > 0 && (
+              <div
+                style={{
+                  padding: '12px 20px',
+                  borderTop: '1px solid var(--border)',
+                  background: 'var(--accent-light-bg)',
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    {historyMeta?.total ?? orders.length} transactions today
+                  </span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+                    Rp{' '}
+                    {orders
+                      .reduce((sum: number, o: any) => sum + Number(o.total_price), 0)
+                      .toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       <style>{`
