@@ -48,7 +48,11 @@ const qtyBtnStyle: React.CSSProperties = {
 }
 
 export default function PosView() {
-  const todayISO = () => new Date().toISOString().slice(0, 16)
+  const todayISO = () => {
+    const now = new Date()
+    const offset = now.getTimezoneOffset() * 60000
+    return new Date(now.getTime() - offset).toISOString().slice(0, 16)
+  }
 
   // Product grid state
   const [activeTab, setActiveTab] = useState<'products' | 'bundles'>('products')
@@ -1113,17 +1117,32 @@ export default function PosView() {
                     >
                       −
                     </button>
-                    <span
+                    <input
+                      type="number"
+                      min={1}
+                      value={item.qty}
+                      onChange={(e) => {
+                        const val = Math.max(1, Number(e.target.value))
+                        setCart((prev) =>
+                          prev.map((c) =>
+                            c.product_inventory_id === item.product_inventory_id
+                              ? { ...c, qty: val }
+                              : c
+                          )
+                        )
+                      }}
                       style={{
-                        minWidth: 24,
+                        width: 48,
+                        height: 28,
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
                         textAlign: 'center',
                         fontSize: 14,
                         fontWeight: 600,
                         color: 'var(--foreground)',
+                        background: 'var(--surface)',
                       }}
-                    >
-                      {item.qty}
-                    </span>
+                    />
                     <button
                       type="button"
                       style={qtyBtnStyle}
@@ -1258,16 +1277,30 @@ export default function PosView() {
                 >
                   −
                 </button>
-                <span
+                <input
+                  type="number"
+                  min={1}
+                  value={item.qty}
+                  onChange={(e) => {
+                    const val = Math.max(1, Number(e.target.value))
+                    setBundleCart((prev) =>
+                      prev.map((c) =>
+                        c.bundle_id === item.bundle_id ? { ...c, qty: val } : c
+                      )
+                    )
+                  }}
                   style={{
+                    width: 48,
+                    height: 28,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    textAlign: 'center',
                     fontSize: 14,
                     fontWeight: 600,
-                    minWidth: 20,
-                    textAlign: 'center',
+                    color: 'var(--foreground)',
+                    background: 'var(--surface)',
                   }}
-                >
-                  {item.qty}
-                </span>
+                />
                 <button
                   type="button"
                   onClick={() =>
