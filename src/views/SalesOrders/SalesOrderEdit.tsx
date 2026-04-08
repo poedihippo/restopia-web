@@ -1,17 +1,17 @@
-'use client'
+'use client';
 
-import { useRouter } from 'next/router'
-import { useQuery } from '@tanstack/react-query'
-import salesOrderService from '@/services/sales-order.service'
-import SalesOrderForm from './SalesOrderForm'
+import { useRouter } from 'next/router';
+import { useQuery } from '@tanstack/react-query';
+import salesOrderService from '@/services/sales-order.service';
+import SalesOrderForm from './SalesOrderForm';
 
 export default function SalesOrderEdit() {
-  const router = useRouter()
-  const id = Number(router.query.id)
+  const router = useRouter();
+  const id = Number(router.query.id);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['sales-order', id],
-    enabled: router.isReady && Number.isFinite(id) && id > 0,
+    queryKey: ['sales-order-edit', id],
+    enabled: router.isReady && !!id && Number.isFinite(id),
     queryFn: () =>
       salesOrderService
         .findById(id, {
@@ -19,37 +19,24 @@ export default function SalesOrderEdit() {
             'customer,sales_order_details,sales_order_details.product_inventory,sales_order_details.bundle',
         })
         .then((r) => r.data),
-  })
+  });
 
-  const order = (data as any)?.data
+  const order = (data as any)?.data;
 
-  if (!router.isReady || isLoading) {
-    return (
-      <div
-        style={{
-          padding: '32px 40px',
-          fontFamily: 'var(--font-sans)',
-          color: 'var(--foreground-muted)',
-        }}
-      >
-        Loading order...
-      </div>
-    )
-  }
+  if (!router.isReady || isLoading) return (
+    <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)', color: 'var(--foreground-muted)' }}>
+      Loading order...
+    </div>
+  );
 
-  if (!order) {
-    return (
-      <div
-        style={{
-          padding: '32px 40px',
-          fontFamily: 'var(--font-sans)',
-          color: 'var(--foreground-muted)',
-        }}
-      >
-        Order not found.
-      </div>
-    )
-  }
+  if (!order) return (
+    <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)', color: 'var(--foreground-muted)' }}>
+      Order not found.{' '}
+      <button onClick={() => router.back()} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+        Go back
+      </button>
+    </div>
+  );
 
-  return <SalesOrderForm editingOrder={order} />
+  return <SalesOrderForm editingOrder={order} />;
 }

@@ -14,6 +14,7 @@ const schema = z.object({
   name: z.string().min(1, 'Name is required'),
   code: z.string().optional(),
   product_category_id: z.coerce.number().min(1, 'Category is required'),
+  type: z.string().min(1, 'Type is required'),
   description: z.string().optional(),
   status: z.enum(['active', 'inactive']),
 })
@@ -27,6 +28,7 @@ interface ProductSheetProps {
     name: string
     code?: string
     product_category_id: number
+    type?: 'raw' | 'wip' | 'final'
     description?: string
     status: 'active' | 'inactive'
   } | null
@@ -47,6 +49,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       name: '',
       code: '',
       product_category_id: 0,
+      type: '',
       description: '',
       status: 'active',
     },
@@ -65,6 +68,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         name: editData.name,
         code: editData.code ?? '',
         product_category_id: editData.product_category_id,
+        type: editData.type ?? '',
         description: editData.description ?? '',
         status: editData.status,
       })
@@ -73,6 +77,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         name: '',
         code: '',
         product_category_id: 0,
+        type: '',
         description: '',
         status: 'active',
       })
@@ -116,6 +121,13 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       {text}
     </label>
   )
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 13,
+    color: 'var(--foreground-muted)',
+    display: 'block',
+    marginBottom: 6,
+  }
 
   const inputBase = (hasError: boolean): React.CSSProperties => ({
     width: '100%',
@@ -274,6 +286,42 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               )}
             />
             {errorMsg(errors.product_category_id?.message)}
+          </div>
+
+          {/* Type */}
+          <div>
+            <label style={labelStyle}>Type *</label>
+            <select
+              {...register('type')}
+              style={{
+                width: '100%',
+                height: 40,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0 12px',
+                fontSize: 14,
+                color: 'var(--foreground)',
+                background: 'var(--surface)',
+                boxSizing: 'border-box' as const,
+              }}
+            >
+              <option value="">Select type...</option>
+              <option value="raw">Raw</option>
+              <option value="wip">WIP</option>
+              <option value="final">Final</option>
+            </select>
+            {errors.type && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--destructive)',
+                  marginTop: 4,
+                  display: 'block',
+                }}
+              >
+                {errors.type.message}
+              </span>
+            )}
           </div>
 
           {/* Status */}

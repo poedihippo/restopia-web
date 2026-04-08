@@ -994,6 +994,28 @@ export default function PosView() {
                     >
                       Stock: {item.stock ?? 0}
                     </span>
+                    {item.expiry_date && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color:
+                            new Date(item.expiry_date) < new Date()
+                              ? 'var(--destructive)'
+                              : new Date(item.expiry_date) <
+                                  new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                                ? 'var(--warning)'
+                                : 'var(--foreground-muted)',
+                        }}
+                      >
+                        Exp:{' '}
+                        {new Date(item.expiry_date).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    )}
                     <div style={{ marginTop: 'auto' }}>
                       <span
                         style={{
