@@ -230,3 +230,11 @@ Every list view must have:
   product-inventories-all: ['product-inventories-all']
   roles-all             : ['roles-all']
   product-categories-all: ['product-categories-all']
+
+## Recent implementation (technical)
+
+- **Product inventories:** `ProductInventoryRequest` in `src/types/api.ts` matches API (`product_uom_id`, `code`, `base_price`, `online_price`, optional `price_editable`/`expiry_date`, `status`). `ProductInventorySheet` uses create vs edit Zod schemas, `product-uoms-all` for create, no `branch_id` on form.
+- **Product conversions:** API field renamed `conversion_factor` → `amount` in types, `ProductConversionSheet`, and list view (`ProductConversionRequest`, table column “Amount”).
+- **Recipes:** `RecipeSheet` and recipe card ingredient lines show `product — UOM (code)` and optional `· SKU: …` for product-UOM options; expanded card materials append UOM name + code after product name.
+- **Productions:** `src/views/Productions/` is only `index.tsx` (list: filters, `productions` query with `sort: -created_at`, `filter[search|status|start_date|end_date]`), `ProductionForm.tsx` (nested `details` + `materials`, load-from-recipe), `ProductionDetail.tsx`, `ProductionEdit.tsx` (maps API → form). Pages: `production/index.tsx` and `production/create.tsx` use `next/dynamic` + `ssr: false`; **do not** add `pages/production/create/index.tsx` (duplicate route pulled old `Form/ProductionForm`). Removed legacy `Form/`, `Details/`, `Productions.tsx`, hooks under Productions.
+- **List unwrap note:** Some list views use `(data as any)?.data` when the service `queryFn` already returns `r.data` (single `data` array); others use `?.data?.data` per envelope — match the service response when wiring queries.

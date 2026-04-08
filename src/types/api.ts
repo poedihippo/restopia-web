@@ -263,7 +263,9 @@ export interface ReceiptRequest {
 // Customers
 export interface CustomerRequest {
   name: string
-  phone: string
+  phone?: string
+  email?: string
+  address?: string
 }
 
 // Vouchers
@@ -291,21 +293,35 @@ export interface VoucherRequest {
 
 // Sales Orders
 export interface SalesOrderDetail {
-  product_uom_id: number
+  product_inventory_id?: number | null
+  bundle_id?: number | null
+  bundle_details?: { product_inventory_id: number; qty: number }[] | null
   qty: number
   price: number
-  discount?: number
+  status: 'pending' | 'process' | 'completed'
   description?: string
 }
 export interface SalesOrderRequest {
   code: string
-  branch_id: number
-  customer_id?: number
-  voucher_id?: number
-  date: string
-  total_price: number
-  status: 'pending' | 'final' | 'cancelled'
   type: 'offline' | 'online'
+  customer_id?: number | null
+  customer_name?: string
+  customer_phone?: string
+  date: string
+  fulfillment_date?: string
+  voucher_id?: number | null
+  subtotal_price: number
+  discount_price: number
+  total_price: number
+  status: 'pending' | 'final'
   description?: string
   details: SalesOrderDetail[]
+}
+
+export interface PosCartItem {
+  product_inventory_id: number
+  name: string
+  code: string
+  price: number
+  qty: number
 }

@@ -1,0 +1,40 @@
+@media print {
+  body > * {
+    display: none !important;
+  }
+  #pos-receipt {
+    display: block !important;
+  }
+}
+
+#pos-receipt {
+  display: none;
+  font-family: monospace;
+  font-size: 13px;
+  width: 280px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+#pos-receipt h2 {
+  text-align: center;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+#pos-receipt .divider {
+  border-top: 1px dashed #000;
+  margin: 8px 0;
+}
+
+#pos-receipt .row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+#pos-receipt .total-row {
+  font-weight: bold;
+  font-size: 15px;
+  margin-top: 4px;
+}
