@@ -82,6 +82,12 @@ export default function PosView() {
   const [historySearch, setHistorySearch] = useState('')
   const [historySearchDebounced, setHistorySearchDebounced] = useState('')
   const [historyPage, setHistoryPage] = useState(1)
+  const [historyDateFrom, setHistoryDateFrom] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  )
+  const [historyDateTo, setHistoryDateTo] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  )
   const [receiptData, setReceiptData] = useState<{
     cart: PosCartItem[]
     subtotal: number
@@ -203,20 +209,26 @@ export default function PosView() {
   const bundles: any[] = (bundleData as any)?.data ?? []
 
   const { data: historyData, isLoading: isHistoryLoading } = useQuery({
-    queryKey: ['pos-history', historyPage, historySearchDebounced],
+    queryKey: [
+      'pos-history',
+      historyPage,
+      historySearchDebounced,
+      historyDateFrom,
+      historyDateTo,
+    ],
     enabled: showHistory,
-    queryFn: () =>
-      salesOrderService
-        .list({
-          page: historyPage,
-          per_page: 20,
-          sort: '-created_at',
-          include: 'sales_order_details',
-          ...(historySearchDebounced ? { 'filter[search]': historySearchDebounced } : {}),
-          'filter[date_gte]': new Date().toISOString().slice(0, 10),
-          'filter[date_lte]': new Date().toISOString().slice(0, 10),
-        })
-        .then((r) => r.data),
+    queryFn: () => {
+      const params: Record<string, any> = {
+        page: historyPage,
+        per_page: 20,
+        sort: '-created_at',
+        include: 'sales_order_details',
+      }
+      if (historySearchDebounced) params['filter[search]'] = historySearchDebounced
+      if (historyDateFrom) params['filter[date_gte]'] = historyDateFrom
+      if (historyDateTo) params['filter[date_lte]'] = historyDateTo
+      return salesOrderService.list(params).then((r) => r.data)
+    },
   })
   const orders: any[] = (historyData as any)?.data ?? []
   const historyMeta = (historyData as any)?.meta
@@ -2109,7 +2121,43 @@ export default function PosView() {
               >
                 Transaction History
               </span>
-              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Today</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+                <input
+                  type="date"
+                  value={historyDateFrom}
+                  onChange={(e) => {
+                    setHistoryDateFrom(e.target.value)
+                    setHistoryPage(1)
+                  }}
+                  style={{
+                    height: 28,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0 6px',
+                    fontSize: 12,
+                    color: 'var(--foreground)',
+                    background: 'var(--background)',
+                  }}
+                />
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>–</span>
+                <input
+                  type="date"
+                  value={historyDateTo}
+                  onChange={(e) => {
+                    setHistoryDateTo(e.target.value)
+                    setHistoryPage(1)
+                  }}
+                  style={{
+                    height: 28,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0 6px',
+                    fontSize: 12,
+                    color: 'var(--foreground)',
+                    background: 'var(--background)',
+                  }}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => setShowHistory(false)}
@@ -2357,14 +2405,17 @@ export default function PosView() {
                   }}
                 >
                   <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {historyMeta?.total ?? orders.length} transactions today
+                    {historyMeta?.total ?? orders.length} transactions
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
-                    Rp{' '}
-                    {orders
-                      .reduce((sum: number, o: any) => sum + Number(o.total_price), 0)
-                      .toLocaleString('id-ID')}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Page total</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+                      Rp{' '}
+                      {orders
+                        .reduce((sum: number, o: any) => sum + Number(o.total_price), 0)
+                        .toLocaleString('id-ID')}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
