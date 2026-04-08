@@ -1384,16 +1384,25 @@ export default function PosView() {
               boxShadow: 'var(--shadow-lg)',
             }}
           >
-            <h2
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 20,
-                marginBottom: 4,
-                color: 'var(--accent)',
-              }}
-            >
-              Order Complete
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, margin: 0, color: 'var(--accent)' }}>
+                Order Complete
+              </h2>
+              <button
+                onClick={resetCart}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 22,
+                  cursor: 'pointer',
+                  color: 'var(--foreground-muted)',
+                  lineHeight: 1,
+                  padding: '0 4px',
+                }}
+              >
+                ×
+              </button>
+            </div>
             <p style={{ color: 'var(--foreground-muted)', fontSize: 13, marginBottom: 20 }}>
               {receiptData.code} · {receiptData.date} · {receiptData.customerName}
             </p>
