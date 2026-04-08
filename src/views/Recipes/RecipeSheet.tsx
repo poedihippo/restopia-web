@@ -91,6 +91,19 @@ function productUomOptionLabel(pu: any) {
   return `${pu.product?.name ?? '—'} — ${pu.uom?.name ?? ''}${pu.uom?.code ? ` (${pu.uom.code})` : ''}${pu.code ? ` · SKU: ${pu.code}` : ''}`
 }
 
+/** API envelope is either `{ data: T[] }` or `{ data: { data: T[], meta } }`. */
+function unwrapProductsList(resp: any): any[] {
+  if (!resp) return []
+  const d = resp.data
+  if (Array.isArray(d)) return d
+  if (d && Array.isArray(d.data)) return d.data
+  return []
+}
+
+function productUomsOf(p: any): any[] {
+  return p?.product_uoms ?? p?.productUoms ?? []
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProps) {
@@ -159,7 +172,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       return api.get('/products', { params }).then((r) => r.data)
     },
   })
-  const finishedProducts = (finishedData as any)?.data ?? []
+  const finishedProducts = unwrapProductsList(finishedData)
 
   const { data: materialSearchData } = useQuery({
     queryKey: ['recipe-material-search', materialSearchDebounced, materialTypeFilter],
@@ -175,7 +188,29 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       return api.get('/products', { params }).then((r) => r.data)
     },
   })
-  const materialProducts = (materialSearchData as any)?.data ?? []
+  const materialProducts = unwrapProductsList(materialSearchData)
+
+  const finishedRowItems = finishedProducts.flatMap((p: any) =>
+    productUomsOf(p).map((pu: any) => ({
+      id: pu.id,
+      productName: p.name,
+      uomName: pu.uom?.name ?? '',
+      uomCode: pu.uom?.code ?? '',
+      code: pu.code,
+      label: `${p.name} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`,
+    })),
+  )
+
+  const materialRowItems = materialProducts.flatMap((p: any) =>
+    productUomsOf(p).map((pu: any) => ({
+      id: pu.id,
+      productName: p.name,
+      productType: p.type,
+      uomName: pu.uom?.name ?? '',
+      uomCode: pu.uom?.code ?? '',
+      code: pu.code,
+    })),
+  )
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -448,8 +483,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     overflowY: 'auto',
                   }}
                 >
-                  {finishedProducts.flatMap((p: any) => p.product_uoms ?? []).length ===
-                    0 && (
+                  {finishedRowItems.length === 0 &&
+                    finishedProducts.length === 0 && (
                     <p
                       style={{
                         padding: '12px 14px',
@@ -463,23 +498,62 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         : 'No products found'}
                     </p>
                   )}
-                  {finishedProducts
-                    .flatMap((p: any) =>
-                      (p.product_uoms ?? []).map((pu: any) => ({
-                        id: pu.id,
-                        productName: p.name,
-                        uomName: pu.uom?.name ?? '',
-                        uomCode: pu.uom?.code ?? '',
-                        code: pu.code,
-                        label: `${p.name} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`,
-                      })),
-                    )
-                    .map((item: any) => (
+                  {finishedRowItems.map((item: any) => (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setValue('product_uom_id', item.id)
+                        setSelectedFinishedLabel(item.label)
+                        setFinishedSearch('')
+                        setShowFinishedDrop(false)
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = 'var(--background)')
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = 'var(--surface)')
+                      }
+                    >
                       <div
-                        key={item.id}
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--foreground)',
+                        }}
+                      >
+                        {item.productName}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--foreground-muted)',
+                          marginTop: 2,
+                        }}
+                      >
+                        {item.uomName} ({item.uomCode}) · SKU: {item.code}
+                      </div>
+                    </div>
+                  ))}
+                  {finishedRowItems.length === 0 &&
+                    finishedProducts.length > 0 &&
+                    finishedProducts.map((p: any) => (
+                      <div
+                        key={p.id}
                         onClick={() => {
-                          setValue('product_uom_id', item.id)
-                          setSelectedFinishedLabel(item.label)
+                          const uoms = productUomsOf(p)
+                          const pu = uoms[0]
+                          if (!pu?.id) {
+                            toast.error('No UOM variants for this product')
+                            return
+                          }
+                          const label = `${p.name} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code ?? ''}`
+                          setValue('product_uom_id', pu.id)
+                          setSelectedFinishedLabel(label)
                           setFinishedSearch('')
                           setShowFinishedDrop(false)
                         }}
@@ -502,7 +576,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.productName}
+                          {p.name}
                         </div>
                         <div
                           style={{
@@ -511,7 +585,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                             marginTop: 2,
                           }}
                         >
-                          {item.uomName} ({item.uomCode}) · SKU: {item.code}
+                          {p.code} · {p.type}
                         </div>
                       </div>
                     ))}
@@ -680,8 +754,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     overflowY: 'auto',
                   }}
                 >
-                  {materialProducts.flatMap((p: any) => p.product_uoms ?? []).length ===
-                    0 && (
+                  {materialRowItems.length === 0 &&
+                    materialProducts.length === 0 && (
                     <p
                       style={{
                         padding: '12px 14px',
@@ -695,101 +769,185 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         : 'No results found'}
                     </p>
                   )}
-                  {materialProducts
-                    .flatMap((p: any) =>
-                      (p.product_uoms ?? []).map((pu: any) => ({
-                        id: pu.id,
-                        productName: p.name,
-                        productType: p.type,
-                        uomName: pu.uom?.name ?? '',
-                        uomCode: pu.uom?.code ?? '',
-                        code: pu.code,
-                      })),
-                    )
-                    .map((item: any) => {
-                      const typeColor =
-                        item.productType === 'raw'
-                          ? 'var(--info)'
-                          : item.productType === 'wip'
-                            ? 'var(--warning)'
-                            : 'var(--success)'
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => {
-                            append({ product_uom_id: item.id, qty: 1 })
-                            setMaterialInfoMap((prev) => ({
-                              ...prev,
-                              [item.id]: {
-                                product: { name: item.productName },
-                                uom: { name: item.uomName, code: item.uomCode },
-                                code: item.code,
-                              },
-                            }))
-                            setMaterialSearch('')
-                            setShowMaterialDrop(false)
-                          }}
-                          style={{
-                            padding: '10px 14px',
-                            cursor: 'pointer',
-                            borderBottom: '1px solid var(--border)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = 'var(--background)')
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = 'var(--surface)')
-                          }
-                        >
-                          <div>
-                            <div
+                  {materialRowItems.map((item: any) => {
+                    const typeColor =
+                      item.productType === 'raw'
+                        ? 'var(--info)'
+                        : item.productType === 'wip'
+                          ? 'var(--warning)'
+                          : 'var(--success)'
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          append({ product_uom_id: item.id, qty: 1 })
+                          setMaterialInfoMap((prev) => ({
+                            ...prev,
+                            [item.id]: {
+                              product: { name: item.productName },
+                              uom: { name: item.uomName, code: item.uomCode },
+                              code: item.code,
+                            },
+                          }))
+                          setMaterialSearch('')
+                          setShowMaterialDrop(false)
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = 'var(--background)')
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = 'var(--surface)')
+                        }
+                      >
+                        <div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <span
                               style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: 'var(--foreground)',
                               }}
                             >
+                              {item.productName}
+                            </span>
+                            {item.productType ? (
                               <span
                                 style={{
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: 'var(--foreground)',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: typeColor,
+                                  padding: '1px 5px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: `1px solid ${typeColor}`,
+                                  textTransform: 'uppercase',
                                 }}
                               >
-                                {item.productName}
+                                {item.productType}
                               </span>
-                              {item.productType ? (
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    fontWeight: 700,
-                                    color: typeColor,
-                                    padding: '1px 5px',
-                                    borderRadius: 'var(--radius-sm)',
-                                    border: `1px solid ${typeColor}`,
-                                    textTransform: 'uppercase',
-                                  }}
-                                >
-                                  {item.productType}
-                                </span>
-                              ) : null}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 11,
-                                color: 'var(--foreground-muted)',
-                                marginTop: 2,
-                              }}
-                            >
-                              {item.uomName} ({item.uomCode}) · SKU: {item.code}
-                            </div>
+                            ) : null}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--foreground-muted)',
+                              marginTop: 2,
+                            }}
+                          >
+                            {item.uomName} ({item.uomCode}) · SKU: {item.code}
                           </div>
                         </div>
-                      )
-                    })}
+                      </div>
+                    )
+                  })}
+                  {materialRowItems.length === 0 &&
+                    materialProducts.length > 0 &&
+                    materialProducts.map((p: any) => (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          const uoms = productUomsOf(p)
+                          const pu = uoms[0]
+                          if (!pu?.id) {
+                            toast.error('No UOM variants for this product')
+                            return
+                          }
+                          append({ product_uom_id: pu.id, qty: 1 })
+                          setMaterialInfoMap((prev) => ({
+                            ...prev,
+                            [pu.id]: {
+                              product: { name: p.name },
+                              uom: { name: pu.uom?.name ?? '', code: pu.uom?.code ?? '' },
+                              code: pu.code,
+                            },
+                          }))
+                          setMaterialSearch('')
+                          setShowMaterialDrop(false)
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = 'var(--background)')
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = 'var(--surface)')
+                        }
+                      >
+                        <div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: 'var(--foreground)',
+                              }}
+                            >
+                              {p.name}
+                            </span>
+                            {p.type ? (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color:
+                                    p.type === 'raw'
+                                      ? 'var(--info)'
+                                      : p.type === 'wip'
+                                        ? 'var(--warning)'
+                                        : 'var(--success)',
+                                  padding: '1px 5px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: `1px solid ${
+                                    p.type === 'raw'
+                                      ? 'var(--info)'
+                                      : p.type === 'wip'
+                                        ? 'var(--warning)'
+                                        : 'var(--success)'
+                                  }`,
+                                  textTransform: 'uppercase',
+                                }}
+                              >
+                                {p.type}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--foreground-muted)',
+                              marginTop: 2,
+                            }}
+                          >
+                            {p.code} · {p.type}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               )}
             </div>
