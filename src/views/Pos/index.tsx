@@ -158,8 +158,8 @@ export default function PosView() {
       return productInventoriesService.list(params).then((r) => r.data)
     },
   })
-  const items: any[] = (data as any)?.data?.data ?? []
-  const productMeta = (data as any)?.data?.meta
+  const items: any[] = (data as any)?.data ?? []
+  const productMeta = (data as any)?.meta
 
   const filteredItems = useMemo(() => {
     if (categoryId === null) return items
@@ -174,10 +174,7 @@ export default function PosView() {
     queryFn: () =>
       productCategoriesService.list({ per_page: 100 }).then((r) => r.data),
   })
-  const categories: any[] =
-    (catData as any)?.data?.data ?? (catData as any)?.data ?? []
-  console.log('catData raw:', catData)
-  console.log('categories:', categories)
+  const categories: any[] = (catData as any)?.data ?? []
 
   // Customer search query
   const { data: customerData } = useQuery({
@@ -812,7 +809,8 @@ export default function PosView() {
           )}
 
           {/* Product grid pagination */}
-          {productMeta && productMeta.last_page > 1 && (
+          {productMeta &&
+            (productMeta?.last_page ?? productMeta?.total_pages ?? 1) > 1 && (
             <div
               style={{
                 display: 'flex',
@@ -840,12 +838,23 @@ export default function PosView() {
                 ← Prev
               </button>
               <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                {productPage} / {productMeta.last_page}
+                {productPage} /{' '}
+                {productMeta?.last_page ?? productMeta?.total_pages ?? 1}
               </span>
               <button
                 type="button"
-                onClick={() => setProductPage((p) => Math.min(productMeta.last_page, p + 1))}
-                disabled={productPage === productMeta.last_page}
+                onClick={() =>
+                  setProductPage((p) =>
+                    Math.min(
+                      productMeta?.last_page ?? productMeta?.total_pages ?? 1,
+                      p + 1
+                    )
+                  )
+                }
+                disabled={
+                  productPage ===
+                  (productMeta?.last_page ?? productMeta?.total_pages ?? 1)
+                }
                 style={{
                   height: 32,
                   padding: '0 14px',
@@ -853,11 +862,15 @@ export default function PosView() {
                   borderRadius: 'var(--radius-sm)',
                   background: 'var(--surface)',
                   color:
-                    productPage === productMeta.last_page
+                    productPage ===
+                    (productMeta?.last_page ?? productMeta?.total_pages ?? 1)
                       ? 'var(--foreground-subtle)'
                       : 'var(--foreground)',
                   cursor:
-                    productPage === productMeta.last_page ? 'not-allowed' : 'pointer',
+                    productPage ===
+                    (productMeta?.last_page ?? productMeta?.total_pages ?? 1)
+                      ? 'not-allowed'
+                      : 'pointer',
                   fontSize: 13,
                 }}
               >
