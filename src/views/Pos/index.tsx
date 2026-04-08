@@ -102,13 +102,13 @@ export default function PosView() {
         .list({
           per_page: 60,
           sort: 'code',
-          'filter[product_uom_code]': searchDebounced || undefined,
+          'filter[search]': searchDebounced || undefined,
+          'filter[product_type]': 'final',
           include: 'product_uom,product_uom.product,product_uom.uom',
         })
         .then((r) => r.data),
   })
   const items: any[] = (data as any)?.data ?? []
-  console.log(items[0])
 
   // Customer search query
   const { data: customerData } = useQuery({
@@ -367,6 +367,15 @@ export default function PosView() {
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
                       {item.code}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: item.stock > 0 ? 'var(--success)' : 'var(--destructive)',
+                        fontWeight: 500,
+                      }}
+                    >
+                      Stock: {item.stock ?? 0}
                     </span>
                     <div style={{ marginTop: 'auto' }}>
                       <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--accent)' }}>
