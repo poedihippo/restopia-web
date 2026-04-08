@@ -6,7 +6,8 @@ interface Props {
 
 const useSalesOrdersDetail = ({ id }: Props) => {
     const { data, isLoading } = useGetSalesOrder(id, {
-        include: "created_by,updated_by,branch,customer,media,sales_order_details",
+        include:
+            'created_by,updated_by,branch,customer,media,sales_order_details,sales_order_details.product_inventory_snapshot,sales_order_details.product_inventory_snapshot.product_uom,sales_order_details.product_inventory_snapshot.product_uom.product',
     });
 
     return {

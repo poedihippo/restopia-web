@@ -104,18 +104,33 @@ const SalesOrdersDetail = ({ id }: Props) => {
                     <h1 className='text-xl font-semibold mb-4'>Delivery Order Details</h1>
                     <div className='space-y-4'>
                         {data.sales_order_details.map((detail, index) => {
-                            const product = detail.product_inventory?.product_uom?.product
-                            const uom = detail.product_inventory?.product_uom?.uom
+                            const d = detail as any
+                            const name =
+                                d.product_inventory_snapshot?.product_uom?.product?.name
+                                ?? d.product_inventory?.product_uom?.product?.name
+                                ?? d.bundle?.name
+                                ?? d.description
+                                ?? `Item ${index + 1}`
+                            const code =
+                                d.product_inventory_snapshot?.code
+                                ?? d.product_inventory_snapshot?.sku
+                                ?? d.product_inventory?.code
+                                ?? d.product_inventory?.sku
+                                ?? d.bundle?.code
+                                ?? '—'
+                            const uom =
+                                d.product_inventory_snapshot?.product_uom?.uom
+                                ?? d.product_inventory?.product_uom?.uom
                             return (
                                 <div key={detail.id ?? index} className='border rounded-xl overflow-hidden'>
                                     <div className='bg-gray-50 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-b'>
                                         <div>
                                             <p className='text-xs text-gray-400'>Product</p>
-                                            <p className='font-semibold text-sm'>{product?.name ?? '-'}</p>
+                                            <p className='font-semibold text-sm'>{name}</p>
                                         </div>
                                         <div>
                                             <p className='text-xs text-gray-400'>SKU</p>
-                                            <p className='font-semibold text-sm'>{detail.product_inventory?.sku ?? '-'}</p>
+                                            <p className='font-semibold text-sm'>{code}</p>
                                         </div>
                                         <div>
                                             <p className='text-xs text-gray-400'>Qty</p>
