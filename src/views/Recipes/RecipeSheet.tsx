@@ -100,10 +100,6 @@ function unwrapProductsList(resp: any): any[] {
   return []
 }
 
-function productUomsOf(p: any): any[] {
-  return p?.product_uoms ?? p?.productUoms ?? []
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProps) {
@@ -119,6 +115,13 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   const [finishedSearchDebounced, setFinishedSearchDebounced] = useState('')
   const [showFinishedDrop, setShowFinishedDrop] = useState(false)
   const [selectedFinishedLabel, setSelectedFinishedLabel] = useState('')
+  const [selectedFinishedProductId, setSelectedFinishedProductId] = useState<number | null>(null)
+  const [selectedFinishedProductName, setSelectedFinishedProductName] = useState('')
+  const [showUomPicker, setShowUomPicker] = useState(false)
+
+  const [selectedMaterialProductId, setSelectedMaterialProductId] = useState<number | null>(null)
+  const [selectedMaterialProductName, setSelectedMaterialProductName] = useState('')
+  const [showMaterialUomPicker, setShowMaterialUomPicker] = useState(false)
 
   const {
     register,
@@ -190,27 +193,37 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   })
   const materialProducts = unwrapProductsList(materialSearchData)
 
-  const finishedRowItems = finishedProducts.flatMap((p: any) =>
-    productUomsOf(p).map((pu: any) => ({
-      id: pu.id,
-      productName: p.name,
-      uomName: pu.uom?.name ?? '',
-      uomCode: pu.uom?.code ?? '',
-      code: pu.code,
-      label: `${p.name} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`,
-    })),
-  )
+  const { data: finishedUomData } = useQuery({
+    queryKey: ['recipe-finished-uoms', selectedFinishedProductId],
+    enabled: !!selectedFinishedProductId,
+    queryFn: () =>
+      api
+        .get('/product-uoms', {
+          params: {
+            per_page: 50,
+            include: 'uom',
+            'filter[product_id]': selectedFinishedProductId,
+          },
+        })
+        .then((r) => r.data),
+  })
+  const finishedUoms = unwrapProductsList(finishedUomData)
 
-  const materialRowItems = materialProducts.flatMap((p: any) =>
-    productUomsOf(p).map((pu: any) => ({
-      id: pu.id,
-      productName: p.name,
-      productType: p.type,
-      uomName: pu.uom?.name ?? '',
-      uomCode: pu.uom?.code ?? '',
-      code: pu.code,
-    })),
-  )
+  const { data: materialUomData } = useQuery({
+    queryKey: ['recipe-material-uoms', selectedMaterialProductId],
+    enabled: !!selectedMaterialProductId,
+    queryFn: () =>
+      api
+        .get('/product-uoms', {
+          params: {
+            per_page: 50,
+            include: 'uom',
+            'filter[product_id]': selectedMaterialProductId,
+          },
+        })
+        .then((r) => r.data),
+  })
+  const materialUoms = unwrapProductsList(materialUomData)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -255,6 +268,12 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       })
       setMaterialInfoMap(map)
       setFinishedSearch('')
+      setShowUomPicker(false)
+      setSelectedFinishedProductId(null)
+      setSelectedFinishedProductName('')
+      setShowMaterialUomPicker(false)
+      setSelectedMaterialProductId(null)
+      setSelectedMaterialProductName('')
       if (editData.product_uom) {
         setSelectedFinishedLabel(productUomOptionLabel(editData.product_uom))
       } else {
@@ -270,6 +289,12 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       setMaterialInfoMap({})
       setSelectedFinishedLabel('')
       setFinishedSearch('')
+      setShowUomPicker(false)
+      setSelectedFinishedProductId(null)
+      setSelectedFinishedProductName('')
+      setShowMaterialUomPicker(false)
+      setSelectedMaterialProductId(null)
+      setSelectedMaterialProductName('')
     }
   }, [editData, reset])
 
@@ -430,6 +455,9 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     setSelectedFinishedLabel('')
                     setFinishedSearch('')
                     setValue('product_uom_id', 0)
+                    setShowUomPicker(false)
+                    setSelectedFinishedProductId(null)
+                    setSelectedFinishedProductName('')
                   }}
                   style={{
                     position: 'absolute',
@@ -483,8 +511,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     overflowY: 'auto',
                   }}
                 >
-                  {finishedRowItems.length === 0 &&
-                    finishedProducts.length === 0 && (
+                  {finishedProducts.length === 0 && (
                     <p
                       style={{
                         padding: '12px 14px',
@@ -498,14 +525,15 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         : 'No products found'}
                     </p>
                   )}
-                  {finishedRowItems.map((item: any) => (
+                  {finishedProducts.map((p: any) => (
                     <div
-                      key={item.id}
+                      key={p.id}
                       onClick={() => {
-                        setValue('product_uom_id', item.id)
-                        setSelectedFinishedLabel(item.label)
+                        setSelectedFinishedProductId(p.id)
+                        setSelectedFinishedProductName(p.name)
                         setFinishedSearch('')
                         setShowFinishedDrop(false)
+                        setShowUomPicker(true)
                       }}
                       style={{
                         padding: '10px 14px',
@@ -526,7 +554,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                           color: 'var(--foreground)',
                         }}
                       >
-                        {item.productName}
+                        {p.name}
                       </div>
                       <div
                         style={{
@@ -535,63 +563,97 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                           marginTop: 2,
                         }}
                       >
-                        {item.uomName} ({item.uomCode}) · SKU: {item.code}
+                        {p.code} · {p.type}
                       </div>
                     </div>
                   ))}
-                  {finishedRowItems.length === 0 &&
-                    finishedProducts.length > 0 &&
-                    finishedProducts.map((p: any) => (
-                      <div
-                        key={p.id}
-                        onClick={() => {
-                          const uoms = productUomsOf(p)
-                          const pu = uoms[0]
-                          if (!pu?.id) {
-                            toast.error('No UOM variants for this product')
-                            return
-                          }
-                          const label = `${p.name} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code ?? ''}`
-                          setValue('product_uom_id', pu.id)
-                          setSelectedFinishedLabel(label)
-                          setFinishedSearch('')
-                          setShowFinishedDrop(false)
-                        }}
-                        style={{
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = 'var(--background)')
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = 'var(--surface)')
-                        }
-                      >
-                        <div
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: 'var(--foreground)',
-                          }}
-                        >
-                          {p.name}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: 'var(--foreground-muted)',
-                            marginTop: 2,
-                          }}
-                        >
-                          {p.code} · {p.type}
-                        </div>
-                      </div>
-                    ))}
                 </div>
               )}
             </div>
+
+            {showUomPicker && selectedFinishedProductId && (
+              <div
+                style={{
+                  border: '1px solid var(--accent-light)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--accent-light-bg)',
+                  padding: '10px 14px',
+                  marginTop: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--foreground-muted)',
+                    marginBottom: 8,
+                  }}
+                >
+                  Select UOM for <strong>{selectedFinishedProductName}</strong>:
+                </div>
+                {finishedUoms.length === 0 && (
+                  <p style={{ fontSize: 13, color: 'var(--destructive)', margin: 0 }}>
+                    No UOM variants found for this product. Add one in Product UOMs first.
+                  </p>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {finishedUoms.map((pu: any) => (
+                    <button
+                      key={pu.id}
+                      type="button"
+                      onClick={() => {
+                        const label = `${selectedFinishedProductName} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`
+                        setValue('product_uom_id', pu.id)
+                        setSelectedFinishedLabel(label)
+                        setShowUomPicker(false)
+                        setSelectedFinishedProductId(null)
+                        setSelectedFinishedProductName('')
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        border: '1px solid var(--accent)',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--surface)',
+                        color: 'var(--accent)',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {pu.uom?.name ?? '?'} ({pu.uom?.code ?? '?'})
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--foreground-muted)',
+                          marginLeft: 6,
+                        }}
+                      >
+                        SKU: {pu.code}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUomPicker(false)
+                    setSelectedFinishedProductId(null)
+                    setSelectedFinishedProductName('')
+                  }}
+                  style={{
+                    marginTop: 10,
+                    fontSize: 12,
+                    color: 'var(--foreground-muted)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  ← Back to search
+                </button>
+              </div>
+            )}
+
             {errors.product_uom_id && (
               <span style={errorTextStyle}>{errors.product_uom_id.message}</span>
             )}
@@ -754,8 +816,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     overflowY: 'auto',
                   }}
                 >
-                  {materialRowItems.length === 0 &&
-                    materialProducts.length === 0 && (
+                  {materialProducts.length === 0 && (
                     <p
                       style={{
                         padding: '12px 14px',
@@ -769,113 +830,22 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         : 'No results found'}
                     </p>
                   )}
-                  {materialRowItems.map((item: any) => {
+                  {materialProducts.map((p: any) => {
                     const typeColor =
-                      item.productType === 'raw'
+                      p.type === 'raw'
                         ? 'var(--info)'
-                        : item.productType === 'wip'
+                        : p.type === 'wip'
                           ? 'var(--warning)'
                           : 'var(--success)'
                     return (
                       <div
-                        key={item.id}
-                        onClick={() => {
-                          append({ product_uom_id: item.id, qty: 1 })
-                          setMaterialInfoMap((prev) => ({
-                            ...prev,
-                            [item.id]: {
-                              product: { name: item.productName },
-                              uom: { name: item.uomName, code: item.uomCode },
-                              code: item.code,
-                            },
-                          }))
-                          setMaterialSearch('')
-                          setShowMaterialDrop(false)
-                        }}
-                        style={{
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = 'var(--background)')
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = 'var(--surface)')
-                        }
-                      >
-                        <div>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: 'var(--foreground)',
-                              }}
-                            >
-                              {item.productName}
-                            </span>
-                            {item.productType ? (
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  color: typeColor,
-                                  padding: '1px 5px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  border: `1px solid ${typeColor}`,
-                                  textTransform: 'uppercase',
-                                }}
-                              >
-                                {item.productType}
-                              </span>
-                            ) : null}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: 'var(--foreground-muted)',
-                              marginTop: 2,
-                            }}
-                          >
-                            {item.uomName} ({item.uomCode}) · SKU: {item.code}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {materialRowItems.length === 0 &&
-                    materialProducts.length > 0 &&
-                    materialProducts.map((p: any) => (
-                      <div
                         key={p.id}
                         onClick={() => {
-                          const uoms = productUomsOf(p)
-                          const pu = uoms[0]
-                          if (!pu?.id) {
-                            toast.error('No UOM variants for this product')
-                            return
-                          }
-                          append({ product_uom_id: pu.id, qty: 1 })
-                          setMaterialInfoMap((prev) => ({
-                            ...prev,
-                            [pu.id]: {
-                              product: { name: p.name },
-                              uom: { name: pu.uom?.name ?? '', code: pu.uom?.code ?? '' },
-                              code: pu.code,
-                            },
-                          }))
+                          setSelectedMaterialProductId(p.id)
+                          setSelectedMaterialProductName(p.name)
                           setMaterialSearch('')
                           setShowMaterialDrop(false)
+                          setShowMaterialUomPicker(true)
                         }}
                         style={{
                           padding: '10px 14px',
@@ -914,21 +884,10 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                                 style={{
                                   fontSize: 10,
                                   fontWeight: 700,
-                                  color:
-                                    p.type === 'raw'
-                                      ? 'var(--info)'
-                                      : p.type === 'wip'
-                                        ? 'var(--warning)'
-                                        : 'var(--success)',
+                                  color: typeColor,
                                   padding: '1px 5px',
                                   borderRadius: 'var(--radius-sm)',
-                                  border: `1px solid ${
-                                    p.type === 'raw'
-                                      ? 'var(--info)'
-                                      : p.type === 'wip'
-                                        ? 'var(--warning)'
-                                        : 'var(--success)'
-                                  }`,
+                                  border: `1px solid ${typeColor}`,
                                   textTransform: 'uppercase',
                                 }}
                               >
@@ -947,10 +906,100 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                           </div>
                         </div>
                       </div>
-                    ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
+
+            {showMaterialUomPicker && selectedMaterialProductId && (
+              <div
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--background)',
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--foreground-muted)',
+                    marginBottom: 8,
+                  }}
+                >
+                  Select UOM for <strong>{selectedMaterialProductName}</strong>:
+                </div>
+                {materialUoms.length === 0 && (
+                  <p style={{ fontSize: 13, color: 'var(--destructive)', margin: 0 }}>
+                    No UOM variants found for this product.
+                  </p>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {materialUoms.map((pu: any) => (
+                    <button
+                      key={pu.id}
+                      type="button"
+                      onClick={() => {
+                        append({ product_uom_id: pu.id, qty: 1 })
+                        setMaterialInfoMap((prev) => ({
+                          ...prev,
+                          [pu.id]: {
+                            product: { name: selectedMaterialProductName },
+                            uom: { name: pu.uom?.name ?? '', code: pu.uom?.code ?? '' },
+                            code: pu.code,
+                          },
+                        }))
+                        setShowMaterialUomPicker(false)
+                        setSelectedMaterialProductId(null)
+                        setSelectedMaterialProductName('')
+                      }}
+                      style={{
+                        padding: '6px 14px',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--surface)',
+                        color: 'var(--foreground)',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {pu.uom?.name ?? '?'} ({pu.uom?.code ?? '?'})
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: 'var(--foreground-muted)',
+                          marginLeft: 6,
+                        }}
+                      >
+                        {pu.code}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMaterialUomPicker(false)
+                    setSelectedMaterialProductId(null)
+                    setSelectedMaterialProductName('')
+                  }}
+                  style={{
+                    marginTop: 10,
+                    fontSize: 12,
+                    color: 'var(--foreground-muted)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  ← Back to search
+                </button>
+              </div>
+            )}
 
             {/* Material rows */}
             {fields.map((field, index) => {
