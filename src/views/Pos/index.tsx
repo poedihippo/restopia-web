@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { productCategoriesService } from '@/services/product-categories.service'
 import salesOrderService from '@/services/sales-order.service'
 import customerService from '@/services/customer.service'
 import { toast } from 'sonner'
@@ -46,11 +47,16 @@ const qtyBtnStyle: React.CSSProperties = {
 }
 
 export default function PosView() {
+  const todayISO = () => new Date().toISOString().slice(0, 16)
+
   // Product grid state
   const [cart, setCart] = useState<PosCartItem[]>([])
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
+  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [sortBy, setSortBy] = useState<string>('name')
+  const [inStockOnly, setInStockOnly] = useState<boolean>(false)
 
   // Cart / order state
   const [customerSearch, setCustomerSearch] = useState('')
@@ -61,6 +67,7 @@ export default function PosView() {
   const [voucherDiscount, setVoucherDiscount] = useState(0)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [orderNote, setOrderNote] = useState('')
+  const [fulfillmentDate, setFulfillmentDate] = useState<string>(todayISO())
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptData, setReceiptData] = useState<{
     cart: PosCartItem[]
@@ -104,11 +111,46 @@ export default function PosView() {
           sort: 'code',
           'filter[search]': searchDebounced || undefined,
           'filter[product_type]': 'final',
-          include: 'product_uom,product_uom.product,product_uom.uom',
+          include: 'product_uom,product_uom.product,product_uom.product.product_category',
         })
         .then((r) => r.data),
   })
   const items: any[] = (data as any)?.data ?? []
+
+  // Product categories query
+  const { data: catData } = useQuery({
+    queryKey: ['product-categories-all'],
+    queryFn: () =>
+      productCategoriesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const categories: any[] = (catData as any)?.data?.data ?? []
+
+  // Filtered + sorted items (client-side)
+  const filteredItems = useMemo(() => {
+    let result = [...items]
+    if (categoryId !== null) {
+      result = result.filter(
+        (item) => item.product_uom?.product?.product_category_id === categoryId
+      )
+    }
+    if (inStockOnly) {
+      result = result.filter((item) => (item.stock ?? 0) > 0)
+    }
+    if (sortBy === 'name') {
+      result.sort((a, b) => {
+        const na = a.product_uom?.product?.name ?? a.code
+        const nb = b.product_uom?.product?.name ?? b.code
+        return na.localeCompare(nb)
+      })
+    } else if (sortBy === 'price_asc') {
+      result.sort((a, b) => (a.base_price ?? 0) - (b.base_price ?? 0))
+    } else if (sortBy === 'price_desc') {
+      result.sort((a, b) => (b.base_price ?? 0) - (a.base_price ?? 0))
+    } else if (sortBy === 'stock_desc') {
+      result.sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0))
+    }
+    return result
+  }, [items, categoryId, sortBy, inStockOnly])
 
   // Customer search query
   const { data: customerData } = useQuery({
@@ -150,6 +192,7 @@ export default function PosView() {
     setVoucherCode('')
     setVoucherDiscount(0)
     setOrderNote('')
+    setFulfillmentDate(todayISO())
     setShowReceipt(false)
     setReceiptData(null)
   }, [])
@@ -193,6 +236,7 @@ export default function PosView() {
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
       date: new Date().toISOString().slice(0, 10),
+      fulfillment_date: new Date(fulfillmentDate).toISOString(),
       voucher_id: null,
       subtotal_price: subtotal,
       discount_price: voucherDiscount,
@@ -281,6 +325,121 @@ export default function PosView() {
           />
         </div>
 
+        {/* Category tabs */}
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            padding: '8px 20px',
+            overflowX: 'auto',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--surface)',
+            flexShrink: 0,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setCategoryId(null)}
+            style={{
+              padding: '5px 14px',
+              borderRadius: 'var(--radius-xl)',
+              border: '1px solid',
+              borderColor: categoryId === null ? 'var(--accent)' : 'var(--border)',
+              background: categoryId === null ? 'var(--accent)' : 'var(--surface)',
+              color: categoryId === null ? 'white' : 'var(--foreground)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            All
+          </button>
+          {categories.map((cat: any) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setCategoryId(cat.id)}
+              style={{
+                padding: '5px 14px',
+                borderRadius: 'var(--radius-xl)',
+                border: '1px solid',
+                borderColor: categoryId === cat.id ? 'var(--accent)' : 'var(--border)',
+                background: categoryId === cat.id ? 'var(--accent)' : 'var(--surface)',
+                color: categoryId === cat.id ? 'white' : 'var(--foreground)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Sort + Filter bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '8px 20px',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--background)',
+            flexShrink: 0,
+          }}
+        >
+          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+            Sort:
+          </label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            style={{
+              height: 32,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0 8px',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              cursor: 'pointer',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
+            }}
+          >
+            <option value="name">Name A–Z</option>
+            <option value="price_asc">Price Low–High</option>
+            <option value="price_desc">Price High–Low</option>
+            <option value="stock_desc">Stock High–Low</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setInStockOnly((v) => !v)}
+            style={{
+              height: 32,
+              padding: '0 12px',
+              border: '1px solid',
+              borderColor: inStockOnly ? 'var(--success)' : 'var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              background: inStockOnly ? 'var(--success-bg)' : 'var(--surface)',
+              color: inStockOnly ? 'var(--success)' : 'var(--foreground-muted)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {inStockOnly ? '✓ In Stock Only' : 'In Stock Only'}
+          </button>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--foreground-subtle)' }}>
+            {filteredItems.length} items
+          </span>
+        </div>
+
         {/* Product grid area */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
           {isLoading ? (
@@ -303,7 +462,7 @@ export default function PosView() {
                 />
               ))}
             </div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div
               style={{
                 display: 'flex',
@@ -327,7 +486,7 @@ export default function PosView() {
                 gap: 12,
               }}
             >
-              {items.map((item: any) => {
+              {filteredItems.map((item: any) => {
                 const isHovered = hoveredCard === item.id
                 return (
                   <div
@@ -708,6 +867,36 @@ export default function PosView() {
               background: 'var(--background)',
               outline: 'none',
               fontFamily: 'var(--font-sans)',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        <div style={{ padding: '0 16px 8px' }}>
+          <label
+            style={{
+              fontSize: 12,
+              color: 'var(--foreground-muted)',
+              display: 'block',
+              marginBottom: 4,
+            }}
+          >
+            Fulfillment Date & Time
+          </label>
+          <input
+            type="datetime-local"
+            value={fulfillmentDate}
+            onChange={(e) => setFulfillmentDate(e.target.value)}
+            style={{
+              width: '100%',
+              height: 36,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0 10px',
+              fontSize: 13,
+              fontFamily: 'var(--font-sans)',
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
               boxSizing: 'border-box',
             }}
           />
