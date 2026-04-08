@@ -68,6 +68,8 @@ export default function StockMovementView() {
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
+          include:
+            'created_by,branch,product_inventory,product_inventory.product_uom,product_inventory.product_uom.product',
         })
         .then((r) => r.data),
   })
@@ -343,25 +345,24 @@ export default function StockMovementView() {
 
                     {/* Product */}
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span
+                      <div>
+                        <div
                           style={{
-                            fontSize: 13,
                             fontWeight: 500,
+                            fontSize: 14,
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_inventory_id ?? '—'}
-                        </span>
-                        <span
+                          {item.product_inventory?.product_uom?.product?.name ?? '—'}
+                        </div>
+                        <div
                           style={{
-                            fontSize: 11,
-                            fontFamily: 'monospace',
+                            fontSize: 12,
                             color: 'var(--foreground-muted)',
                           }}
                         >
-                          —
-                        </span>
+                          {item.product_inventory?.code ?? ''}
+                        </div>
                       </div>
                     </td>
 

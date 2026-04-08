@@ -70,7 +70,7 @@ export default function ProductInventoriesView() {
           page,
           per_page: 15,
           sort: '-id',
-          include: 'branch',
+          include: 'branch,product_uom,product_uom.product,product_uom.uom',
           'filter[search]': debouncedSearch || undefined,
         })
         .then((r) => r.data),
@@ -386,34 +386,41 @@ export default function ProductInventoriesView() {
                     }}
                   >
                     {/* Product */}
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: 'var(--foreground)',
-                      }}
-                    >
-                      {item.product_uom?.code
-                        ?? item.code
-                        ?? '—'}
+                    <td style={{ padding: '12px 16px' }}>
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            fontSize: 14,
+                            color: 'var(--foreground)',
+                          }}
+                        >
+                          {item.product_uom?.product?.name ?? '—'}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: 'var(--foreground-muted)',
+                          }}
+                        >
+                          {item.code}
+                        </div>
+                      </div>
                     </td>
 
                     {/* UOM */}
                     <td style={{ padding: '12px 16px' }}>
                       <span
                         style={{
-                          display: 'inline-block',
+                          fontSize: 12,
+                          fontWeight: 600,
                           padding: '2px 8px',
-                          background: 'var(--background)',
                           border: '1px solid var(--border)',
-                          borderRadius: 4,
-                          fontSize: 11,
-                          fontFamily: 'monospace',
+                          borderRadius: 'var(--radius-sm)',
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        —
+                        {item.product_uom?.uom?.code ?? '—'}
                       </span>
                     </td>
 
