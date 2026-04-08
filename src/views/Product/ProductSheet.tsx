@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
-import { productCategoriesService } from '@/services/product-categories.service'
+import api from '@/hooks/useApi'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
@@ -48,26 +48,30 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     defaultValues: {
       name: '',
       code: '',
-      product_category_id: 0,
+      product_category_id: editData?.product_category_id ?? 0,
       type: '',
       description: '',
       status: 'active',
     },
   })
 
-  const { data: categoriesData } = useQuery({
+  const { data: catData } = useQuery({
     queryKey: ['product-categories-all'],
     queryFn: () =>
-      productCategoriesService.list({ per_page: 100 }).then((r) => r.data),
+      api
+        .get('/product-categories', {
+          params: { per_page: 100 },
+        })
+        .then((r) => r.data),
   })
-  const categories: { id: number; name: string }[] = (categoriesData as any)?.data ?? []
+  const categories = (catData as any)?.data ?? []
 
   useEffect(() => {
     if (editData) {
       reset({
         name: editData.name,
         code: editData.code ?? '',
-        product_category_id: editData.product_category_id,
+        product_category_id: editData.product_category_id ?? 0,
         type: editData.type ?? '',
         description: editData.description ?? '',
         status: editData.status,
@@ -248,44 +252,41 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           </div>
 
           {/* Category */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {fieldLabel('Category')}
-            <Controller
-              name="product_category_id"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) =>
-                    field.onChange(e.target.value ? Number(e.target.value) : undefined)
-                  }
-                  style={{
-                    width: '100%',
-                    padding: '9px 12px',
-                    border: `1px solid ${errors.product_category_id ? 'var(--destructive)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 14,
-                    color: 'var(--foreground)',
-                    background: 'var(--surface)',
-                    outline: 'none',
-                    appearance: 'none',
-                    fontFamily: 'var(--font-sans)',
-                    cursor: 'pointer',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <option value="" disabled>
-                    Select a category
-                  </option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            />
-            {errorMsg(errors.product_category_id?.message)}
+          <div>
+            <label style={labelStyle}>Category *</label>
+            <select
+              {...register('product_category_id', { valueAsNumber: true })}
+              style={{
+                width: '100%',
+                height: 40,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0 12px',
+                fontSize: 14,
+                color: 'var(--foreground)',
+                background: 'var(--surface)',
+                boxSizing: 'border-box' as const,
+              }}
+            >
+              <option value={0}>Select category...</option>
+              {categories.map((cat: any) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            {errors.product_category_id && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--destructive)',
+                  marginTop: 4,
+                  display: 'block',
+                }}
+              >
+                {errors.product_category_id.message}
+              </span>
+            )}
           </div>
 
           {/* Type */}
