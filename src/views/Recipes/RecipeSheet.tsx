@@ -38,6 +38,12 @@ interface RecipeSheetProps {
     product_uom_id: number
     qty: number
     is_default: boolean
+    product_uom?: {
+      id: number
+      code?: string
+      product?: { id?: number; name?: string }
+      uom?: { id?: number; name?: string; code?: string }
+    }
     recipe_materials?: Array<{
       id: number
       product_uom_id: number
@@ -96,10 +102,16 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   const [showMaterialDrop, setShowMaterialDrop] = useState(false)
   const [materialInfoMap, setMaterialInfoMap] = useState<Record<number, any>>({})
 
+  const [finishedSearch, setFinishedSearch] = useState('')
+  const [finishedSearchDebounced, setFinishedSearchDebounced] = useState('')
+  const [showFinishedDrop, setShowFinishedDrop] = useState(false)
+  const [selectedFinishedLabel, setSelectedFinishedLabel] = useState('')
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     control,
     formState: { errors },
   } = useForm<FormValues>({
@@ -127,6 +139,27 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     const timer = setTimeout(() => setMaterialSearchDebounced(materialSearch), 400)
     return () => clearTimeout(timer)
   }, [materialSearch])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setFinishedSearchDebounced(finishedSearch), 400)
+    return () => clearTimeout(timer)
+  }, [finishedSearch])
+
+  const { data: finishedData } = useQuery({
+    queryKey: ['recipe-finished-search', finishedSearchDebounced],
+    enabled: showFinishedDrop,
+    queryFn: () => {
+      const params: Record<string, any> = {
+        per_page: 20,
+        include: 'product,uom',
+        'filter[product_type]': 'final',
+        sort: 'code',
+      }
+      if (finishedSearchDebounced) params['filter[search]'] = finishedSearchDebounced
+      return api.get('/product-uoms', { params }).then((r) => r.data)
+    },
+  })
+  const finishedResults = (finishedData as any)?.data ?? []
 
   const { data: materialSearchData } = useQuery({
     queryKey: ['recipe-material-search', materialSearchDebounced, materialTypeFilter],
@@ -156,6 +189,18 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   }, [])
 
   useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-finished-search]')) {
+        setShowFinishedDrop(false)
+        setFinishedSearch('')
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
     if (editData) {
       reset({
         product_uom_id: editData.product_uom_id,
@@ -174,6 +219,12 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         }
       })
       setMaterialInfoMap(map)
+      setFinishedSearch('')
+      if (editData.product_uom) {
+        setSelectedFinishedLabel(productUomOptionLabel(editData.product_uom))
+      } else {
+        setSelectedFinishedLabel(`Product UOM #${editData.product_uom_id}`)
+      }
     } else {
       reset({
         product_uom_id: 0,
@@ -182,6 +233,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         materials: [{ product_uom_id: 0, qty: 1 }],
       })
       setMaterialInfoMap({})
+      setSelectedFinishedLabel('')
+      setFinishedSearch('')
     }
   }, [editData, reset])
 
@@ -306,28 +359,156 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
           {/* Finished product */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <label style={labelStyle}>Finished Product (Output)</label>
-            <Controller
-              name="product_uom_id"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? 0}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
+            <div data-finished-search style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={finishedSearch}
+                onChange={(e) => {
+                  setFinishedSearch(e.target.value)
+                  setShowFinishedDrop(true)
+                  if (!e.target.value) {
+                    setValue('product_uom_id', 0)
+                    setSelectedFinishedLabel('')
+                  }
+                }}
+                onFocus={() => setShowFinishedDrop(true)}
+                placeholder={selectedFinishedLabel || 'Search finished product...'}
+                style={{
+                  width: '100%',
+                  height: 40,
+                  border: `1px solid ${errors.product_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0 36px 0 12px',
+                  fontSize: 14,
+                  color:
+                    selectedFinishedLabel && !finishedSearch
+                      ? 'var(--foreground-muted)'
+                      : 'var(--foreground)',
+                  background: 'var(--surface)',
+                  boxSizing: 'border-box',
+                }}
+              />
+              {selectedFinishedLabel && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFinishedLabel('')
+                    setFinishedSearch('')
+                    setValue('product_uom_id', 0)
+                  }}
                   style={{
-                    ...fieldStyle,
+                    position: 'absolute',
+                    right: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
                     cursor: 'pointer',
-                    border: `1px solid ${errors.product_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
+                    color: 'var(--foreground-muted)',
+                    fontSize: 18,
                   }}
                 >
-                  <option value={0} disabled>Select finished product</option>
-                  {productUoms.map((pu: any) => (
-                    <option key={pu.id} value={pu.id}>
-                      {productUomOptionLabel(pu)}
-                    </option>
-                  ))}
-                </select>
+                  ×
+                </button>
               )}
-            />
+
+              {selectedFinishedLabel && !finishedSearch && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 36,
+                    height: 40,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 12px',
+                    fontSize: 14,
+                    color: 'var(--foreground)',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {selectedFinishedLabel}
+                </div>
+              )}
+
+              {showFinishedDrop && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-lg)',
+                    maxHeight: 240,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {finishedResults.length === 0 && (
+                    <p
+                      style={{
+                        padding: '12px 14px',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                        margin: 0,
+                      }}
+                    >
+                      {finishedSearchDebounced
+                        ? 'No products found'
+                        : 'Type to search finished products...'}
+                    </p>
+                  )}
+                  {finishedResults.map((p: any) => {
+                    const label = `${p.product?.name ?? '—'} — ${p.uom?.name ?? ''} (${p.uom?.code ?? ''}) · SKU: ${p.code}`
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          setValue('product_uom_id', p.id)
+                          setSelectedFinishedLabel(label)
+                          setFinishedSearch('')
+                          setShowFinishedDrop(false)
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = 'var(--background)')
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = 'var(--surface)')
+                        }
+                      >
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: 'var(--foreground)',
+                          }}
+                        >
+                          {p.product?.name ?? '—'}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--foreground-muted)',
+                            marginTop: 2,
+                          }}
+                        >
+                          {p.uom?.name} ({p.uom?.code}) · SKU: {p.code}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
             {errors.product_uom_id && (
               <span style={errorTextStyle}>{errors.product_uom_id.message}</span>
             )}
