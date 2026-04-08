@@ -59,6 +59,10 @@ export default function PosView() {
   const [inStockOnly, setInStockOnly] = useState<boolean>(false)
 
   // Cart / order state
+  const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
+  const [showPayment, setShowPayment] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash')
+  const [cashTendered, setCashTendered] = useState<string>('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
   const [guestName, setGuestName] = useState('')
@@ -77,6 +81,9 @@ export default function PosView() {
     customerName: string
     code: string
     date: string
+    paymentMethod: 'cash' | 'transfer'
+    cashTendered: number
+    change: number
   } | null>(null)
 
   const customerDropdownRef = useRef<HTMLDivElement>(null)
@@ -123,7 +130,10 @@ export default function PosView() {
     queryFn: () =>
       productCategoriesService.list({ per_page: 100 }).then((r) => r.data),
   })
-  const categories: any[] = (catData as any)?.data?.data ?? []
+  const categories: any[] =
+    (catData as any)?.data?.data ?? (catData as any)?.data ?? []
+  console.log('catData raw:', catData)
+  console.log('categories:', categories)
 
   // Filtered + sorted items (client-side)
   const filteredItems = useMemo(() => {
@@ -170,6 +180,22 @@ export default function PosView() {
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0)
   const total = Math.max(0, subtotal - voucherDiscount)
 
+  // Payment modal derived values
+  const change =
+    paymentMethod === 'cash'
+      ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - total)
+      : 0
+  const quickAmounts = [
+    total,
+    Math.ceil(total / 10000) * 10000 + 10000,
+    50000,
+    100000,
+    200000,
+  ]
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .filter((v) => v >= total)
+    .slice(0, 4)
+
   // Sales order mutation
   const { mutate, isPending } = useMutation({
     mutationFn: (payload: any) => salesOrderService.create(payload as any),
@@ -193,45 +219,68 @@ export default function PosView() {
     setVoucherDiscount(0)
     setOrderNote('')
     setFulfillmentDate(todayISO())
+    setOrderType('offline')
+    setShowPayment(false)
+    setPaymentMethod('cash')
+    setCashTendered('')
     setShowReceipt(false)
     setReceiptData(null)
   }, [])
 
   // Add to cart
-  const addToCart = useCallback((item: any) => {
-    setCart((prev) => {
-      const existing = prev.find((c) => c.product_inventory_id === item.id)
-      if (existing) {
-        return prev.map((c) =>
-          c.product_inventory_id === item.id ? { ...c, qty: c.qty + 1 } : c
-        )
+  const addToCart = useCallback(
+    (item: any) => {
+      if ((item.stock ?? 0) <= 0) {
+        toast.error('Item is out of stock')
+        return
       }
-      return [
-        ...prev,
-        {
-          product_inventory_id: item.id,
-          name:
-            item.product_uom?.product?.name ??
-            item.productUom?.product?.name ??
-            item.product?.name ??
-            item.code,
-          code: item.code,
-          price: item.base_price ?? 0,
-          qty: 1,
-        },
-      ]
-    })
-  }, [])
+      const linePrice =
+        orderType === 'online'
+          ? (item.online_price ?? item.base_price ?? 0)
+          : (item.base_price ?? 0)
+      setCart((prev) => {
+        const existing = prev.find((c) => c.product_inventory_id === item.id)
+        if (existing) {
+          return prev.map((c) =>
+            c.product_inventory_id === item.id ? { ...c, qty: c.qty + 1 } : c
+          )
+        }
+        return [
+          ...prev,
+          {
+            product_inventory_id: item.id,
+            name:
+              item.product_uom?.product?.name ??
+              item.productUom?.product?.name ??
+              item.product?.name ??
+              item.code,
+            code: item.code,
+            price: linePrice,
+            qty: 1,
+          },
+        ]
+      })
+    },
+    [orderType]
+  )
 
-  // Charge handler
+  // Payment gate — opens payment modal
   const handleCharge = () => {
     if (cart.length === 0) {
       toast.error('Cart is empty')
       return
     }
+    setShowPayment(true)
+  }
+
+  // Confirm payment — submits order after payment modal confirms
+  const handleConfirmPayment = () => {
+    const tendered =
+      paymentMethod === 'cash' ? Number(cashTendered.replace(/\D/g, '')) : total
+    const orderChange = paymentMethod === 'cash' ? Math.max(0, tendered - total) : 0
     const payload = {
       code: `POS-${Date.now()}`,
-      type: 'offline' as const,
+      type: orderType,
       customer_id: selectedCustomerId ?? null,
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
@@ -258,6 +307,9 @@ export default function PosView() {
       customerName: selectedCustomerId ? customerSearch : guestName || 'Walk-in',
       code: payload.code,
       date: payload.date,
+      paymentMethod,
+      cashTendered: tendered,
+      change: orderChange,
     })
     mutate(payload)
   }
@@ -499,7 +551,8 @@ export default function PosView() {
                       border: `1px solid ${isHovered ? 'var(--accent-light)' : 'var(--border)'}`,
                       borderRadius: 'var(--radius-lg)',
                       padding: 12,
-                      cursor: 'pointer',
+                      opacity: (item.stock ?? 0) <= 0 ? 0.45 : 1,
+                      cursor: (item.stock ?? 0) <= 0 ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 8,
@@ -571,9 +624,37 @@ export default function PosView() {
             flexShrink: 0,
           }}
         >
-          <span style={{ fontWeight: 600, fontSize: 16, color: 'var(--foreground)' }}>
-            Order
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, fontSize: 16, color: 'var(--foreground)' }}>
+              Order
+            </span>
+            <div style={{ display: 'flex', gap: 4, marginLeft: 12 }}>
+              {(['offline', 'online'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    setOrderType(t)
+                    setCart([])
+                  }}
+                  style={{
+                    padding: '3px 10px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid',
+                    borderColor: orderType === t ? 'var(--accent)' : 'var(--border)',
+                    background: orderType === t ? 'var(--accent)' : 'var(--surface)',
+                    color: orderType === t ? 'white' : 'var(--foreground-muted)',
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => setCart([])}
@@ -963,6 +1044,259 @@ export default function PosView() {
         </div>
       </div>
 
+      {showPayment && !showReceipt && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-xl)',
+              padding: 32,
+              width: 380,
+              boxShadow: 'var(--shadow-lg)',
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 24,
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 20,
+                  color: 'var(--accent)',
+                  margin: 0,
+                }}
+              >
+                Payment
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowPayment(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Total due */}
+            <div
+              style={{
+                background: 'var(--accent-light-bg)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 16px',
+                marginBottom: 20,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>Total Due</span>
+              <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
+                Rp {total.toLocaleString('id-ID')}
+              </span>
+            </div>
+
+            {/* Payment method toggle */}
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 8 }}
+              >
+                Payment Method
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {(['cash', 'transfer'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => {
+                      setPaymentMethod(m)
+                      setCashTendered('')
+                    }}
+                    style={{
+                      flex: 1,
+                      height: 40,
+                      border: '1px solid',
+                      borderColor: paymentMethod === m ? 'var(--accent)' : 'var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: paymentMethod === m ? 'var(--accent)' : 'var(--surface)',
+                      color: paymentMethod === m ? 'white' : 'var(--foreground)',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {m === 'cash' ? '💵 Cash' : '🏦 Transfer'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Cash tendered section */}
+            {paymentMethod === 'cash' && (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <label
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--foreground-muted)',
+                      display: 'block',
+                      marginBottom: 6,
+                    }}
+                  >
+                    Cash Tendered
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Enter amount..."
+                    value={
+                      cashTendered
+                        ? `Rp ${Number(cashTendered.replace(/\D/g, '')).toLocaleString('id-ID')}`
+                        : ''
+                    }
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D/g, '')
+                      setCashTendered(raw)
+                    }}
+                    style={{
+                      width: '100%',
+                      height: 44,
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '0 14px',
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: 'var(--foreground)',
+                      background: 'var(--surface)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                {/* Quick amount buttons */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+                  {quickAmounts.map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setCashTendered(String(amt))}
+                      style={{
+                        flex: '1 1 auto',
+                        height: 34,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        background:
+                          cashTendered === String(amt)
+                            ? 'var(--accent-light-bg)'
+                            : 'var(--background)',
+                        color: 'var(--foreground)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Rp {amt.toLocaleString('id-ID')}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Change */}
+                {Number(cashTendered) >= total && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: 'var(--success-bg)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '10px 16px',
+                      marginBottom: 20,
+                    }}
+                  >
+                    <span style={{ fontSize: 14, color: 'var(--success)', fontWeight: 500 }}>
+                      Change
+                    </span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--success)' }}>
+                      Rp {change.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Transfer info */}
+            {paymentMethod === 'transfer' && (
+              <div
+                style={{
+                  background: 'var(--info-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 16px',
+                  marginBottom: 20,
+                  fontSize: 13,
+                  color: 'var(--info)',
+                }}
+              >
+                Ask customer to transfer Rp {total.toLocaleString('id-ID')} and confirm receipt
+                before completing.
+              </div>
+            )}
+
+            {/* Confirm button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  paymentMethod === 'cash' &&
+                  Number(cashTendered.replace(/\D/g, '')) < total
+                ) {
+                  toast.error('Cash tendered is less than total')
+                  return
+                }
+                setShowPayment(false)
+                handleConfirmPayment()
+              }}
+              disabled={isPending}
+              style={{
+                width: '100%',
+                height: 48,
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: isPending ? 'not-allowed' : 'pointer',
+                opacity: isPending ? 0.7 : 1,
+              }}
+            >
+              {isPending ? 'Processing...' : 'Confirm Payment'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {showReceipt &&
         receiptData &&
         createPortal(
@@ -1004,6 +1338,23 @@ export default function PosView() {
               <span>TOTAL</span>
               <span>Rp {receiptData.total.toLocaleString('id-ID')}</span>
             </div>
+            <div className="divider" />
+            <div className="row">
+              <span>Payment</span>
+              <span>{receiptData.paymentMethod}</span>
+            </div>
+            {receiptData.paymentMethod === 'cash' && (
+              <>
+                <div className="row">
+                  <span>Cash</span>
+                  <span>Rp {receiptData.cashTendered.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="row">
+                  <span>Change</span>
+                  <span>Rp {receiptData.change.toLocaleString('id-ID')}</span>
+                </div>
+              </>
+            )}
             <div className="divider" />
             <p style={{ textAlign: 'center', marginTop: 8 }}>Thank you!</p>
           </div>,
@@ -1087,13 +1438,43 @@ export default function PosView() {
                 justifyContent: 'space-between',
                 fontWeight: 700,
                 fontSize: 16,
-                marginBottom: 24,
+                marginBottom: 16,
               }}
             >
               <span>Total</span>
               <span style={{ color: 'var(--accent)' }}>
                 Rp {receiptData.total.toLocaleString('id-ID')}
               </span>
+            </div>
+
+            <div style={{ fontSize: 13, color: 'var(--foreground-muted)', marginBottom: 16 }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}
+              >
+                <span>Payment</span>
+                <span style={{ textTransform: 'capitalize' }}>{receiptData.paymentMethod}</span>
+              </div>
+              {receiptData.paymentMethod === 'cash' && (
+                <>
+                  <div
+                    style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}
+                  >
+                    <span>Cash</span>
+                    <span>Rp {receiptData.cashTendered.toLocaleString('id-ID')}</span>
+                  </div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      color: 'var(--success)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span>Change</span>
+                    <span>Rp {receiptData.change.toLocaleString('id-ID')}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 12 }}>
