@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
@@ -113,7 +114,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       toast.success('Purchase order created')
       router.push('/purchase/purchase-orders')
     },
-    onError: () => toast.error('Failed to create purchase order'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create purchase order'),
   })
 
   const updateMutation = useMutation({
@@ -125,7 +127,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       toast.success('Purchase order updated')
       router.push(`/purchase/purchase-orders/${orderId}/detail`)
     },
-    onError: () => toast.error('Failed to update purchase order'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update purchase order'),
   })
 
   const onSubmit = (values: FormValues) => {

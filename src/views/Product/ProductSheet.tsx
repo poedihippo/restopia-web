@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import api from '@/hooks/useApi'
 import { X, Loader2 } from 'lucide-react'
 
@@ -95,7 +96,8 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       toast.success('Product created')
       onClose()
     },
-    onError: () => toast.error('Failed to create product'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create product'),
   })
 
   const updateMutation = useMutation({
@@ -105,7 +107,8 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       toast.success('Product updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update product'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update product'),
   })
 
   const onSubmit = (values: FormValues) => {

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import ProductInventorySheet from './ProductInventorySheet'
 import {
   Plus,
@@ -68,6 +69,7 @@ export default function ProductInventoriesView() {
         .list({
           page,
           per_page: 15,
+          sort: '-id',
           include: 'branch',
           'filter[search]': debouncedSearch || undefined,
         })
@@ -100,7 +102,7 @@ export default function ProductInventoriesView() {
       toast.success('Inventory item deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   return (

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import customerService from '@/services/customer.service';
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -41,7 +42,7 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
       toast.success(editing ? 'Customer updated' : 'Customer created');
       onClose();
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Error'),
+    onError: (err: any) => toastMutationApiError(err),
   });
 
   if (!open) return null;

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2 } from 'lucide-react'
 
@@ -153,7 +154,8 @@ export default function ProductInventorySheet({
       toast.success('Inventory item created')
       onClose()
     },
-    onError: () => toast.error('Failed to create inventory item'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create inventory item'),
   })
 
   const updateMutation = useMutation({
@@ -171,7 +173,8 @@ export default function ProductInventorySheet({
       toast.success('Inventory item updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update inventory item'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update inventory item'),
   })
 
   const onSubmit = (values: FormValues) => {

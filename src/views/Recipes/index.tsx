@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { recipesService } from '@/services/recipes.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import RecipeSheet from './RecipeSheet'
 import {
   Plus,
@@ -84,7 +85,7 @@ export default function RecipesView() {
       toast.success('Recipe deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   return (

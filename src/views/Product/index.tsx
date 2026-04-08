@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import ProductSheet from './ProductSheet'
 import {
   Plus,
@@ -55,6 +56,7 @@ export default function ProductView() {
         .list({
           page,
           per_page: 15,
+          sort: '-id',
           include: 'product_category',
           'filter[search]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
@@ -72,7 +74,7 @@ export default function ProductView() {
       toast.success('Product deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const typePillStyle = (type?: string): React.CSSProperties => {

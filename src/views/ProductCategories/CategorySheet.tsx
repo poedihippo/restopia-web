@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productCategoriesService } from '@/services/product-categories.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
@@ -49,7 +50,8 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
       toast.success('Category created')
       onClose()
     },
-    onError: () => toast.error('Failed to create category'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create category'),
   })
 
   const updateMutation = useMutation({
@@ -60,7 +62,8 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
       toast.success('Category updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update category'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update category'),
   })
 
   const onSubmit = (values: FormValues) => {

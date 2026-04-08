@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import {
   Plus,
   Search,
@@ -90,7 +91,7 @@ export default function ProductionsView() {
       toast.success('Production deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const anyFilter = statusFilter || dateFrom || dateTo

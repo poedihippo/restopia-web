@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productConversionsService } from '@/services/product-conversions.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import ProductConversionSheet from './ProductConversionSheet'
 import {
   Plus,
@@ -73,7 +74,7 @@ export default function ProductConversionsView() {
       toast.success('Conversion deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   return (

@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { recipesService } from '@/services/recipes.service'
@@ -387,7 +388,8 @@ export default function ProductionForm({
       toast.success('Production created')
       router.push('/production')
     },
-    onError: () => toast.error('Failed to create production'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create production'),
   })
 
   const updateMutation = useMutation({
@@ -399,7 +401,8 @@ export default function ProductionForm({
       toast.success('Production updated')
       router.push(`/production/${productionId}/detail`)
     },
-    onError: () => toast.error('Failed to update production'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update production'),
   })
 
   const onSubmit = (values: FormValues) => {

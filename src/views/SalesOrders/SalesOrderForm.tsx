@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import salesOrderService from '@/services/sales-order.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import customerService from '@/services/customer.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import bundleService from '@/services/bundle.service'
@@ -240,7 +241,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       const id = res?.data?.data?.id ?? editingOrder?.id
       router.push(id ? `/sales-orders/${id}` : '/sales-orders')
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Error'),
+    onError: (err: any) => toastMutationApiError(err),
   })
 
   // ── Styles ────────────────────────────────────────────────────────────────

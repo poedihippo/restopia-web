@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { uomsService } from '@/services/uoms.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
@@ -49,7 +50,7 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
       toast.success('UOM created')
       onClose()
     },
-    onError: () => toast.error('Failed to create UOM'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create UOM'),
   })
 
   const updateMutation = useMutation({
@@ -59,7 +60,7 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
       toast.success('UOM updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update UOM'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update UOM'),
   })
 
   const onSubmit = (values: FormValues) => {

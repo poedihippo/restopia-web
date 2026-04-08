@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import salesOrderService from '@/services/sales-order.service'
+import { toastMutationApiError } from '@/utils/apiError'
 
 export default function SalesOrdersView() {
   const router = useRouter()
@@ -51,7 +52,7 @@ export default function SalesOrdersView() {
       toast.success('Order deleted')
       setDeleteTarget(null)
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Error'),
+    onError: (err: any) => toastMutationApiError(err),
   })
 
   const statusColor = (s: string) =>

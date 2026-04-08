@@ -65,7 +65,7 @@ export default function StockMovementView() {
         .list({
           page,
           per_page: 20,
-          sort: '-created_at',
+          sort: '-id',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
         })

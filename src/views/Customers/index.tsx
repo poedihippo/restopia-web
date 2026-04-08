@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import customerService from '@/services/customer.service';
+import { toastMutationApiError } from '@/utils/apiError';
 import CustomerSheet from './CustomerSheet';
 
 export default function CustomersView() {
@@ -24,7 +25,7 @@ export default function CustomersView() {
     queryFn: () => customerService.list({
       page,
       per_page: 15,
-      sort: 'name',
+      sort: '-id',
       ...(searchDebounced ? { 'filter[search]': searchDebounced } : {}),
     }).then(r => r.data),
   });
@@ -39,7 +40,7 @@ export default function CustomersView() {
       toast.success('Customer deleted');
       setDeleteTarget(null);
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Error'),
+    onError: (err: any) => toastMutationApiError(err),
   });
 
   const thStyle: React.CSSProperties = {

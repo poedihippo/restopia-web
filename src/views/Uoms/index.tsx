@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { uomsService } from '@/services/uoms.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import UomSheet from './UomSheet'
 import {
   Plus,
@@ -49,6 +50,7 @@ export default function UomsView() {
         .list({
           page,
           per_page: 15,
+          sort: '-id',
           'filter[search]': debouncedSearch || undefined,
         })
         .then((r) => r.data),
@@ -64,7 +66,7 @@ export default function UomsView() {
       toast.success('UOM deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   return (

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productUomsService } from '@/services/product-uoms.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2 } from 'lucide-react'
@@ -106,7 +107,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       toast.success('Product UOM created')
       onClose()
     },
-    onError: () => toast.error('Failed to create product UOM'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create product UOM'),
   })
 
   const updateMutation = useMutation({
@@ -116,7 +118,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       toast.success('Product UOM updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update product UOM'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update product UOM'),
   })
 
   const onSubmit = (values: FormValues) => {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import {
   ArrowLeft,
   Pencil,
@@ -93,7 +94,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
       toast.success('Purchase order deleted')
       router.push('/purchase/purchase-orders')
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const details = order?.purchase_order_details ?? []

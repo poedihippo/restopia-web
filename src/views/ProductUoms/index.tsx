@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import api from '@/hooks/useApi'
 import { productUomsService } from '@/services/product-uoms.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import ProductUomSheet from './ProductUomSheet'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -37,6 +38,10 @@ export default function ProductUomsView() {
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [productSearch, setProductSearch] = useState('')
+  const [productSearchDebounced, setProductSearchDebounced] = useState('')
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
+  const [showProductDrop, setShowProductDrop] = useState(false)
   const [page, setPage] = useState(1)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductUom | null>(null)
@@ -49,18 +54,41 @@ export default function ProductUomsView() {
   }, [search])
 
   useEffect(() => {
+    const timer = setTimeout(() => setProductSearchDebounced(productSearch), 400)
+    return () => clearTimeout(timer)
+  }, [productSearch])
+
+  useEffect(() => {
     setPage(1)
   }, [debouncedSearch])
 
+  const { data: productSearchData } = useQuery({
+    queryKey: ['product-uoms-product-search', productSearchDebounced],
+    enabled: productSearchDebounced.length >= 2 && !selectedProductId,
+    queryFn: () =>
+      api
+        .get('/products', {
+          params: {
+            per_page: 10,
+            'filter[search]': productSearchDebounced,
+            sort: 'name',
+          },
+        })
+        .then((r) => r.data),
+  })
+  const productResults = (productSearchData as any)?.data ?? []
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-uoms', page, debouncedSearch],
+    queryKey: ['product-uoms', page, debouncedSearch, selectedProductId],
     queryFn: () =>
       productUomsService
         .list({
           page,
           per_page: 15,
+          sort: '-id',
           include: 'product,uom',
           'filter[search]': debouncedSearch || undefined,
+          ...(selectedProductId ? { 'filter[product_id]': selectedProductId } : {}),
         })
         .then((r) => r.data),
   })
@@ -75,7 +103,7 @@ export default function ProductUomsView() {
       toast.success('Product UOM deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const boolPill = (val?: boolean): React.CSSProperties => ({
@@ -141,37 +169,144 @@ export default function ProductUomsView() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
+      <div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+          {/* Product name search */}
+          <div style={{ position: 'relative' }}>
+            <input
+              value={productSearch}
+              onChange={(e) => {
+                setProductSearch(e.target.value)
+                setShowProductDrop(true)
+                if (!e.target.value) {
+                  setSelectedProductId(null)
+                  setPage(1)
+                }
+              }}
+              onFocus={() => setShowProductDrop(true)}
+              placeholder="Search by product name..."
+              style={{
+                height: 36,
+                width: 240,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '0 12px',
+                fontSize: 13,
+                color: 'var(--foreground)',
+                background: 'var(--surface)',
+              }}
+            />
+            {selectedProductId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedProductId(null)
+                  setProductSearch('')
+                  setPage(1)
+                }}
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--foreground-muted)',
+                  fontSize: 16,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            )}
+            {showProductDrop && productResults.length > 0 && !selectedProductId && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  zIndex: 30,
+                  width: 280,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: 'var(--shadow-md)',
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                }}
+              >
+                {productResults.map((p: any) => (
+                  <div
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedProductId(p.id)
+                      setProductSearch(p.name)
+                      setShowProductDrop(false)
+                      setPage(1)
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid var(--border)',
+                      fontSize: 13,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--background)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'var(--surface)'
+                    }}
+                  >
+                    <span style={{ fontWeight: 500 }}>{p.name}</span>
+                    <span
+                      style={{
+                        color: 'var(--foreground-muted)',
+                        marginLeft: 8,
+                        fontSize: 11,
+                      }}
+                    >
+                      {p.code}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Code search — keep existing */}
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search product UOMs..."
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+            placeholder="Search by code..."
             style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
+              height: 36,
+              width: 180,
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
+              padding: '0 12px',
               fontSize: 13,
               color: 'var(--foreground)',
               background: 'var(--surface)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
             }}
           />
         </div>
+        {selectedProductId && (
+          <span
+            style={{
+              fontSize: 12,
+              color: 'var(--accent)',
+              background: 'var(--accent-light-bg)',
+              padding: '2px 8px',
+              borderRadius: 'var(--radius-xl)',
+            }}
+          >
+            Filtered by: {productSearch}
+          </span>
+        )}
       </div>
 
       {/* Table */}

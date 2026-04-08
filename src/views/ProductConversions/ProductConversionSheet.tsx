@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productConversionsService } from '@/services/product-conversions.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, ArrowRight } from 'lucide-react'
@@ -100,7 +101,8 @@ export default function ProductConversionSheet({
       toast.success('Conversion created')
       onClose()
     },
-    onError: () => toast.error('Failed to create conversion'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create conversion'),
   })
 
   const updateMutation = useMutation({
@@ -111,7 +113,8 @@ export default function ProductConversionSheet({
       toast.success('Conversion updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update conversion'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update conversion'),
   })
 
   const onSubmit = (values: FormValues) => {

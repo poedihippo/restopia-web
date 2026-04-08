@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { stockMovementsService } from '@/services/stock-movements.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { X, Loader2, TrendingUp, TrendingDown } from 'lucide-react'
 
@@ -90,7 +91,8 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
       reset()
       onClose()
     },
-    onError: () => toast.error('Failed to record movement'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to record movement'),
   })
 
   const onSubmit = (values: FormValues) => {

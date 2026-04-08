@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { suppliersService } from '@/services/suppliers.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
@@ -75,7 +76,8 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
       toast.success('Supplier created')
       onClose()
     },
-    onError: () => toast.error('Failed to create supplier'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create supplier'),
   })
 
   const updateMutation = useMutation({
@@ -85,7 +87,8 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
       toast.success('Supplier updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update supplier'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update supplier'),
   })
 
   const onSubmit = (values: FormValues) => {

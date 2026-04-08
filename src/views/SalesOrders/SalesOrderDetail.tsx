@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import salesOrderService from '@/services/sales-order.service';
+import { toastMutationApiError } from '@/utils/apiError';
 import SalesOrdersDetail from './Detail/SalesOrdersDetail';
 
 export default function SalesOrderDetail() {
@@ -33,8 +34,7 @@ export default function SalesOrderDetail() {
       toast.success('Order deleted');
       router.push('/sales-orders');
     },
-    onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Error'),
+    onError: (err: any) => toastMutationApiError(err),
   });
 
   if (!router.isReady || Number.isNaN(id) || id < 1) {

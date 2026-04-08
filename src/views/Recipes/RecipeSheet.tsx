@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { recipesService } from '@/services/recipes.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 
@@ -144,7 +145,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       toast.success('Recipe created')
       onClose()
     },
-    onError: () => toast.error('Failed to create recipe'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to create recipe'),
   })
 
   const updateMutation = useMutation({
@@ -155,7 +157,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       toast.success('Recipe updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update recipe'),
+    onError: (err: any) =>
+      toastMutationApiError(err, 'Failed to update recipe'),
   })
 
   const onSubmit = (values: FormValues) => {
