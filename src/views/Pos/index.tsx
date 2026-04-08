@@ -521,7 +521,7 @@ export default function PosView() {
               item.productUom?.product?.name ??
               item.product?.name ??
               item.code,
-            code: item.code,
+            code: item.product_uom?.code ?? item.code,
             price: linePrice,
             qty: 1,
             price_editable: item.price_editable ?? false,
@@ -983,7 +983,7 @@ export default function PosView() {
                         item.code}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {item.code}
+                      {item.product_uom?.code ?? item.code}
                     </span>
                     <span
                       style={{

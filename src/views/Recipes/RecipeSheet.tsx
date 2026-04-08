@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,7 +9,8 @@ import { toast } from 'sonner'
 import { recipesService } from '@/services/recipes.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { productUomsService } from '@/services/product-uoms.service'
-import { X, Loader2, Plus, Trash2 } from 'lucide-react'
+import api from '@/hooks/useApi'
+import { X, Loader2, Trash2 } from 'lucide-react'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,12 @@ function productUomOptionLabel(pu: any) {
 export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProps) {
   const queryClient = useQueryClient()
 
+  const [materialSearch, setMaterialSearch] = useState('')
+  const [materialSearchDebounced, setMaterialSearchDebounced] = useState('')
+  const [materialTypeFilter, setMaterialTypeFilter] = useState<'raw' | 'wip' | 'final' | ''>('raw')
+  const [showMaterialDrop, setShowMaterialDrop] = useState(false)
+  const [materialInfoMap, setMaterialInfoMap] = useState<Record<number, any>>({})
+
   const {
     register,
     handleSubmit,
@@ -117,6 +124,38 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   const productUoms = (productUomsData as any)?.data ?? []
 
   useEffect(() => {
+    const timer = setTimeout(() => setMaterialSearchDebounced(materialSearch), 400)
+    return () => clearTimeout(timer)
+  }, [materialSearch])
+
+  const { data: materialSearchData } = useQuery({
+    queryKey: ['recipe-material-search', materialSearchDebounced, materialTypeFilter],
+    enabled: showMaterialDrop,
+    queryFn: () => {
+      const params: Record<string, any> = {
+        per_page: 20,
+        include: 'product,uom',
+        sort: 'code',
+      }
+      if (materialSearchDebounced) params['filter[search]'] = materialSearchDebounced
+      if (materialTypeFilter) params['filter[product_type]'] = materialTypeFilter
+      return api.get('/product-uoms', { params }).then((r) => r.data)
+    },
+  })
+  const materialResults = (materialSearchData as any)?.data ?? []
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-material-search]')) {
+        setShowMaterialDrop(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
     if (editData) {
       reset({
         product_uom_id: editData.product_uom_id,
@@ -128,6 +167,13 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
             qty: m.qty,
           })) ?? [{ product_uom_id: 0, qty: 1 }],
       })
+      const map: Record<number, any> = {}
+      editData.recipe_materials?.forEach((m) => {
+        if (m.product_uom_id && m.product_uom) {
+          map[m.product_uom_id] = m.product_uom
+        }
+      })
+      setMaterialInfoMap(map)
     } else {
       reset({
         product_uom_id: 0,
@@ -135,6 +181,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         is_default: false,
         materials: [{ product_uom_id: 0, qty: 1 }],
       })
+      setMaterialInfoMap({})
     }
   }, [editData, reset])
 
@@ -360,127 +407,286 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
           {/* Materials section */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* Materials header */}
+            <label style={labelStyle}>Raw Materials (Ingredients)</label>
+
+            {/* Type filter pills */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {(
+                [
+                  { label: 'Raw', value: 'raw' },
+                  { label: 'WIP', value: 'wip' },
+                  { label: 'Final', value: 'final' },
+                  { label: 'All', value: '' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setMaterialTypeFilter(opt.value)
+                    setShowMaterialDrop(true)
+                  }}
+                  style={{
+                    height: 28,
+                    padding: '0 12px',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    border: '1px solid',
+                    borderColor:
+                      materialTypeFilter === opt.value ? 'var(--accent)' : 'var(--border)',
+                    borderRadius: 'var(--radius-xl)',
+                    background:
+                      materialTypeFilter === opt.value ? 'var(--accent)' : 'var(--surface)',
+                    color:
+                      materialTypeFilter === opt.value ? 'white' : 'var(--foreground-muted)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Search input + dropdown */}
             <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
+              data-material-search
+              style={{ position: 'relative', marginBottom: 12 }}
             >
-              <label style={labelStyle}>Raw Materials (Ingredients)</label>
-              <button
-                type="button"
-                onClick={() => append({ product_uom_id: 0, qty: 1 })}
+              <input
+                type="text"
+                value={materialSearch}
+                onChange={(e) => {
+                  setMaterialSearch(e.target.value)
+                  setShowMaterialDrop(true)
+                }}
+                onFocus={() => setShowMaterialDrop(true)}
+                placeholder="Search ingredient by name or code..."
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 10px',
-                  background: 'var(--accent-light-bg)',
-                  color: 'var(--accent)',
+                  width: '100%',
+                  height: 38,
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
+                  padding: '0 12px',
+                  fontSize: 14,
+                  color: 'var(--foreground)',
+                  background: 'var(--surface)',
+                  boxSizing: 'border-box',
                 }}
-              >
-                <Plus size={12} />
-                Add Material
-              </button>
+              />
+
+              {showMaterialDrop && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-lg)',
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {materialResults.length === 0 && (
+                    <p
+                      style={{
+                        padding: '12px 14px',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                        margin: 0,
+                      }}
+                    >
+                      {materialSearchDebounced
+                        ? 'No results found'
+                        : 'Type to search ingredients...'}
+                    </p>
+                  )}
+                  {materialResults.map((m: any) => {
+                    const productName = m.product?.name ?? '—'
+                    const uomName = m.uom?.name ?? ''
+                    const uomCode = m.uom?.code ?? ''
+                    const sku = m.code ?? ''
+                    const productType = m.product?.type ?? ''
+                    const typeColor =
+                      productType === 'raw'
+                        ? 'var(--info)'
+                        : productType === 'wip'
+                          ? 'var(--warning)'
+                          : 'var(--success)'
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => {
+                          append({ product_uom_id: m.id, qty: 1 })
+                          setMaterialInfoMap((prev) => ({ ...prev, [m.id]: m }))
+                          setMaterialSearch('')
+                          setShowMaterialDrop(false)
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = 'var(--background)')
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = 'var(--surface)')
+                        }
+                      >
+                        <div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: 'var(--foreground)',
+                              }}
+                            >
+                              {productName}
+                            </span>
+                            {productType && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: typeColor,
+                                  padding: '1px 5px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: `1px solid ${typeColor}`,
+                                  textTransform: 'uppercase',
+                                }}
+                              >
+                                {productType}
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--foreground-muted)',
+                              marginTop: 2,
+                            }}
+                          >
+                            {uomName}
+                            {uomCode ? ` (${uomCode})` : ''}
+                            {sku ? ` · SKU: ${sku}` : ''}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Material rows */}
-            {fields.map((field, index) => (
-              <div
-                key={field.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 100px 32px',
-                  gap: 8,
-                  alignItems: 'start',
-                }}
-              >
-                {/* Material select */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <Controller
-                    name={`materials.${index}.product_uom_id`}
-                    control={control}
-                    render={({ field: f }) => (
-                      <select
-                        value={f.value ?? 0}
-                        onChange={(e) => f.onChange(Number(e.target.value))}
-                        style={{
-                          ...fieldStyle,
-                          cursor: 'pointer',
-                          border: `1px solid ${
-                            errors.materials?.[index]?.product_uom_id
-                              ? 'var(--destructive)'
-                              : 'var(--border)'
-                          }`,
-                        }}
-                      >
-                        <option value={0} disabled>Select ingredient</option>
-                        {productUoms.map((pu: any) => (
-                          <option key={pu.id} value={pu.id}>
-                            {productUomOptionLabel(pu)}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  />
-                  {errors.materials?.[index]?.product_uom_id && (
-                    <span style={errorTextStyle}>
-                      {errors.materials[index]!.product_uom_id!.message}
-                    </span>
-                  )}
-                </div>
-
-                {/* Qty */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <input
-                    type="number"
-                    min={0.001}
-                    step={0.001}
-                    {...register(`materials.${index}.qty`, { valueAsNumber: true })}
-                    placeholder="Qty"
-                    style={{
-                      ...fieldStyle,
-                      border: `1px solid ${
-                        errors.materials?.[index]?.qty
-                          ? 'var(--destructive)'
-                          : 'var(--border)'
-                      }`,
-                    }}
-                  />
-                  {errors.materials?.[index]?.qty && (
-                    <span style={errorTextStyle}>
-                      {errors.materials[index]!.qty!.message}
-                    </span>
-                  )}
-                </div>
-
-                {/* Remove */}
-                <button
-                  type="button"
-                  onClick={() => remove(index)}
-                  disabled={fields.length === 1}
+            {fields.map((field, index) => {
+              const puId = (field as any).product_uom_id
+              const info = materialInfoMap[puId]
+              const fromAll = productUoms.find((p: any) => p.id === puId)
+              const displayName =
+                info?.product?.name ?? fromAll?.product?.name ?? `Item #${puId}`
+              const uomCode = info?.uom?.code ?? fromAll?.uom?.code ?? ''
+              const sku = info?.code ?? fromAll?.code ?? ''
+              return (
+                <div
+                  key={field.id}
                   style={{
-                    padding: 6,
-                    marginTop: 2,
-                    background: 'none',
-                    border: 'none',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                    color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                    display: 'flex',
-                    alignItems: 'center',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 100px 32px',
+                    gap: 8,
+                    alignItems: 'start',
                   }}
                 >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+                  {/* Material display */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div
+                      style={{
+                        padding: '8px 10px',
+                        border: `1px solid ${
+                          errors.materials?.[index]?.product_uom_id
+                            ? 'var(--destructive)'
+                            : 'var(--border)'
+                        }`,
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--background)',
+                        fontSize: 13,
+                      }}
+                    >
+                      <div style={{ fontWeight: 500, color: 'var(--foreground)' }}>
+                        {displayName}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                        {uomCode}
+                        {sku ? ` · ${sku}` : ''}
+                      </div>
+                    </div>
+                    {errors.materials?.[index]?.product_uom_id && (
+                      <span style={errorTextStyle}>
+                        {errors.materials[index]!.product_uom_id!.message}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Qty */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <input
+                      type="number"
+                      min={0.001}
+                      step={0.001}
+                      {...register(`materials.${index}.qty`, { valueAsNumber: true })}
+                      placeholder="Qty"
+                      style={{
+                        ...fieldStyle,
+                        border: `1px solid ${
+                          errors.materials?.[index]?.qty
+                            ? 'var(--destructive)'
+                            : 'var(--border)'
+                        }`,
+                      }}
+                    />
+                    {errors.materials?.[index]?.qty && (
+                      <span style={errorTextStyle}>
+                        {errors.materials[index]!.qty!.message}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Remove */}
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    disabled={fields.length === 1}
+                    style={{
+                      padding: 6,
+                      marginTop: 2,
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
+                      color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )
+            })}
 
             {/* Array-level materials error */}
             {errors.materials && typeof (errors.materials as any).message === 'string' && (
