@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
@@ -60,7 +60,8 @@ export default function PosView() {
   const [bundleSearchDebounced, setBundleSearchDebounced] = useState('')
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
   const [categoryId, setCategoryId] = useState<number | null>(null)
-  const [sortBy, setSortBy] = useState<string>('name')
+  const [sortBy, setSortBy] = useState<string>('code')
+  const [productPage, setProductPage] = useState(1)
   const [inStockOnly, setInStockOnly] = useState<boolean>(false)
 
   // Cart / order state
@@ -129,21 +130,41 @@ export default function PosView() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Product inventories query
+  // Product inventories query — fully server-driven
   const { data, isLoading } = useQuery({
-    queryKey: ['product-inventories-pos', searchDebounced],
+    queryKey: [
+      'product-inventories-pos',
+      productPage,
+      searchDebounced,
+      categoryId,
+      sortBy,
+      inStockOnly,
+      orderType,
+    ],
     queryFn: () =>
       productInventoriesService
         .list({
-          per_page: 60,
-          sort: 'code',
+          page: productPage,
+          per_page: 20,
           'filter[search]': searchDebounced || undefined,
           'filter[product_type]': 'final',
+          'filter[status]': 'active',
+          'filter[product_category_id]': categoryId ?? undefined,
+          'filter[stock_gte]': inStockOnly ? 1 : undefined,
+          sort:
+            sortBy === 'price_asc'
+              ? 'base_price'
+              : sortBy === 'price_desc'
+              ? '-base_price'
+              : sortBy === 'stock_desc'
+              ? '-stock'
+              : 'code',
           include: 'product_uom,product_uom.product,product_uom.product.product_category',
         })
         .then((r) => r.data),
   })
-  const items: any[] = (data as any)?.data ?? []
+  const items: any[] = (data as any)?.data?.data ?? []
+  const productMeta = (data as any)?.data?.meta
 
   // Product categories query
   const { data: catData } = useQuery({
@@ -155,33 +176,6 @@ export default function PosView() {
     (catData as any)?.data?.data ?? (catData as any)?.data ?? []
   console.log('catData raw:', catData)
   console.log('categories:', categories)
-
-  // Filtered + sorted items (client-side)
-  const filteredItems = useMemo(() => {
-    let result = [...items]
-    if (categoryId !== null) {
-      result = result.filter(
-        (item) => item.product_uom?.product?.product_category_id === categoryId
-      )
-    }
-    if (inStockOnly) {
-      result = result.filter((item) => (item.stock ?? 0) > 0)
-    }
-    if (sortBy === 'name') {
-      result.sort((a, b) => {
-        const na = a.product_uom?.product?.name ?? a.code
-        const nb = b.product_uom?.product?.name ?? b.code
-        return na.localeCompare(nb)
-      })
-    } else if (sortBy === 'price_asc') {
-      result.sort((a, b) => (a.base_price ?? 0) - (b.base_price ?? 0))
-    } else if (sortBy === 'price_desc') {
-      result.sort((a, b) => (b.base_price ?? 0) - (a.base_price ?? 0))
-    } else if (sortBy === 'stock_desc') {
-      result.sort((a, b) => (b.stock ?? 0) - (a.stock ?? 0))
-    }
-    return result
-  }, [items, categoryId, sortBy, inStockOnly])
 
   // Customer search query
   const { data: customerData } = useQuery({
@@ -457,7 +451,7 @@ export default function PosView() {
           </span>
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setProductPage(1) }}
             placeholder="Search products..."
             style={{
               flex: 1,
@@ -547,7 +541,7 @@ export default function PosView() {
         >
           <button
             type="button"
-            onClick={() => setCategoryId(null)}
+            onClick={() => { setCategoryId(null); setProductPage(1) }}
             style={{
               padding: '5px 14px',
               borderRadius: 'var(--radius-xl)',
@@ -568,7 +562,7 @@ export default function PosView() {
             <button
               key={cat.id}
               type="button"
-              onClick={() => setCategoryId(cat.id)}
+              onClick={() => { setCategoryId(cat.id); setProductPage(1) }}
               style={{
                 padding: '5px 14px',
                 borderRadius: 'var(--radius-xl)',
@@ -605,7 +599,7 @@ export default function PosView() {
           </label>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => { setSortBy(e.target.value); setProductPage(1) }}
             style={{
               height: 32,
               border: '1px solid var(--border)',
@@ -619,14 +613,14 @@ export default function PosView() {
               fontFamily: 'var(--font-sans)',
             }}
           >
-            <option value="name">Name A–Z</option>
+            <option value="code">Code A–Z</option>
             <option value="price_asc">Price Low–High</option>
             <option value="price_desc">Price High–Low</option>
             <option value="stock_desc">Stock High–Low</option>
           </select>
           <button
             type="button"
-            onClick={() => setInStockOnly((v) => !v)}
+            onClick={() => { setInStockOnly((v) => !v); setProductPage(1) }}
             style={{
               height: 32,
               padding: '0 12px',
@@ -644,7 +638,7 @@ export default function PosView() {
             {inStockOnly ? '✓ In Stock Only' : 'In Stock Only'}
           </button>
           <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--foreground-subtle)' }}>
-            {filteredItems.length} items
+            {productMeta?.total ?? items.length} items
           </span>
         </div>
 
@@ -669,7 +663,7 @@ export default function PosView() {
                 />
               ))}
             </div>
-          ) : filteredItems.length === 0 ? (
+          ) : items.length === 0 ? (
             <div
               style={{
                 display: 'flex',
@@ -693,7 +687,7 @@ export default function PosView() {
                 gap: 12,
               }}
             >
-              {filteredItems.map((item: any) => {
+              {items.map((item: any) => {
                 const isHovered = hoveredCard === item.id
                 return (
                   <div
@@ -752,6 +746,61 @@ export default function PosView() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* Product grid pagination */}
+          {productMeta && productMeta.last_page > 1 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 12,
+                padding: '16px 0',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setProductPage((p) => Math.max(1, p - 1))}
+                disabled={productPage === 1}
+                style={{
+                  height: 32,
+                  padding: '0 14px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--surface)',
+                  color: productPage === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
+                  cursor: productPage === 1 ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                ← Prev
+              </button>
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                {productPage} / {productMeta.last_page}
+              </span>
+              <button
+                type="button"
+                onClick={() => setProductPage((p) => Math.min(productMeta.last_page, p + 1))}
+                disabled={productPage === productMeta.last_page}
+                style={{
+                  height: 32,
+                  padding: '0 14px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--surface)',
+                  color:
+                    productPage === productMeta.last_page
+                      ? 'var(--foreground-subtle)'
+                      : 'var(--foreground)',
+                  cursor:
+                    productPage === productMeta.last_page ? 'not-allowed' : 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                Next →
+              </button>
             </div>
           )}
         </div>
