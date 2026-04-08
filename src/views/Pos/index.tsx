@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
@@ -131,36 +131,42 @@ export default function PosView() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Product inventories query — fully server-driven (no undefined filter values)
-  const posParams: Record<string, any> = {
-    page: productPage,
-    per_page: 20,
-    'filter[product_type]': 'final',
-    'filter[status]': 'active',
-    include: 'product_uom,product_uom.product,product_uom.product.product_category',
-  }
-  if (searchDebounced) posParams['filter[search]'] = searchDebounced
-  if (categoryId !== null) posParams['filter[product_category_id]'] = categoryId
-  if (inStockOnly) posParams['filter[stock_gte]'] = 1
-  if (sortBy === 'price_asc') posParams.sort = 'base_price'
-  else if (sortBy === 'price_desc') posParams.sort = '-base_price'
-  else if (sortBy === 'stock_desc') posParams.sort = '-stock'
-  else posParams.sort = 'code'
-
+  // Product inventories query — params built inside queryFn (no unsupported filters)
   const { data, isLoading } = useQuery({
     queryKey: [
       'product-inventories-pos',
       productPage,
       searchDebounced,
-      categoryId,
       sortBy,
       inStockOnly,
       orderType,
     ],
-    queryFn: () => productInventoriesService.list(posParams).then((r) => r.data),
+    queryFn: () => {
+      const params: Record<string, any> = {
+        page: productPage,
+        per_page: 20,
+        'filter[product_type]': 'final',
+        'filter[status]': 'active',
+        include: 'product_uom,product_uom.product,product_uom.product.product_category',
+      }
+      if (searchDebounced) params['filter[search]'] = searchDebounced
+      if (inStockOnly) params['filter[stock_gte]'] = 1
+      if (sortBy === 'price_asc') params['sort'] = 'base_price'
+      else if (sortBy === 'price_desc') params['sort'] = '-base_price'
+      else if (sortBy === 'stock_desc') params['sort'] = '-stock'
+      else params['sort'] = 'code'
+      return productInventoriesService.list(params).then((r) => r.data)
+    },
   })
   const items: any[] = (data as any)?.data?.data ?? []
   const productMeta = (data as any)?.data?.meta
+
+  const filteredItems = useMemo(() => {
+    if (categoryId === null) return items
+    return items.filter(
+      (item: any) => item.product_uom?.product?.product_category_id === categoryId
+    )
+  }, [items, categoryId])
 
   // Product categories query
   const { data: catData } = useQuery({
@@ -210,11 +216,10 @@ export default function PosView() {
           page: historyPage,
           per_page: 20,
           sort: '-created_at',
-          'filter[search]': historySearchDebounced || undefined,
-          'filter[type]': 'offline',
+          include: 'sales_order_details',
+          ...(historySearchDebounced ? { 'filter[search]': historySearchDebounced } : {}),
           'filter[date_gte]': new Date().toISOString().slice(0, 10),
           'filter[date_lte]': new Date().toISOString().slice(0, 10),
-          include: 'sales_order_details',
         })
         .then((r) => r.data),
   })
@@ -663,7 +668,7 @@ export default function PosView() {
                 />
               ))}
             </div>
-          ) : items.length === 0 ? (
+          ) : filteredItems.length === 0 ? (
             <div
               style={{
                 display: 'flex',
@@ -687,7 +692,7 @@ export default function PosView() {
                 gap: 12,
               }}
             >
-              {items.map((item: any) => {
+              {filteredItems.map((item: any) => {
                 const isHovered = hoveredCard === item.id
                 return (
                   <div
