@@ -147,35 +147,35 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
 
   const { data: finishedData } = useQuery({
     queryKey: ['recipe-finished-search', finishedSearchDebounced],
-    enabled: showFinishedDrop,
+    enabled: showFinishedDrop && finishedSearchDebounced.length >= 2,
     queryFn: () => {
       const params: Record<string, any> = {
-        per_page: 20,
-        include: 'product,uom',
-        'filter[product_type]': 'final',
-        sort: 'code',
+        per_page: 50,
+        include: 'product_uoms,product_uoms.uom',
+        'filter[type]': 'final',
+        sort: 'name',
       }
       if (finishedSearchDebounced) params['filter[search]'] = finishedSearchDebounced
-      return api.get('/product-uoms', { params }).then((r) => r.data)
+      return api.get('/products', { params }).then((r) => r.data)
     },
   })
-  const finishedResults = (finishedData as any)?.data ?? []
+  const finishedProducts = (finishedData as any)?.data ?? []
 
   const { data: materialSearchData } = useQuery({
     queryKey: ['recipe-material-search', materialSearchDebounced, materialTypeFilter],
-    enabled: showMaterialDrop,
+    enabled: showMaterialDrop && materialSearchDebounced.length >= 2,
     queryFn: () => {
       const params: Record<string, any> = {
-        per_page: 20,
-        include: 'product,uom',
-        sort: 'code',
+        per_page: 50,
+        include: 'product_uoms,product_uoms.uom',
+        sort: 'name',
       }
       if (materialSearchDebounced) params['filter[search]'] = materialSearchDebounced
-      if (materialTypeFilter) params['filter[product_type]'] = materialTypeFilter
-      return api.get('/product-uoms', { params }).then((r) => r.data)
+      if (materialTypeFilter) params['filter[type]'] = materialTypeFilter
+      return api.get('/products', { params }).then((r) => r.data)
     },
   })
-  const materialResults = (materialSearchData as any)?.data ?? []
+  const materialProducts = (materialSearchData as any)?.data ?? []
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -448,7 +448,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     overflowY: 'auto',
                   }}
                 >
-                  {finishedResults.length === 0 && (
+                  {finishedProducts.flatMap((p: any) => p.product_uoms ?? []).length ===
+                    0 && (
                     <p
                       style={{
                         padding: '12px 14px',
@@ -457,19 +458,28 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         margin: 0,
                       }}
                     >
-                      {finishedSearchDebounced
-                        ? 'No products found'
-                        : 'Type to search finished products...'}
+                      {finishedSearchDebounced.length < 2
+                        ? 'Type at least 2 characters to search...'
+                        : 'No products found'}
                     </p>
                   )}
-                  {finishedResults.map((p: any) => {
-                    const label = `${p.product?.name ?? '—'} — ${p.uom?.name ?? ''} (${p.uom?.code ?? ''}) · SKU: ${p.code}`
-                    return (
+                  {finishedProducts
+                    .flatMap((p: any) =>
+                      (p.product_uoms ?? []).map((pu: any) => ({
+                        id: pu.id,
+                        productName: p.name,
+                        uomName: pu.uom?.name ?? '',
+                        uomCode: pu.uom?.code ?? '',
+                        code: pu.code,
+                        label: `${p.name} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`,
+                      })),
+                    )
+                    .map((item: any) => (
                       <div
-                        key={p.id}
+                        key={item.id}
                         onClick={() => {
-                          setValue('product_uom_id', p.id)
-                          setSelectedFinishedLabel(label)
+                          setValue('product_uom_id', item.id)
+                          setSelectedFinishedLabel(item.label)
                           setFinishedSearch('')
                           setShowFinishedDrop(false)
                         }}
@@ -492,7 +502,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                             color: 'var(--foreground)',
                           }}
                         >
-                          {p.product?.name ?? '—'}
+                          {item.productName}
                         </div>
                         <div
                           style={{
@@ -501,11 +511,10 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                             marginTop: 2,
                           }}
                         >
-                          {p.uom?.name} ({p.uom?.code}) · SKU: {p.code}
+                          {item.uomName} ({item.uomCode}) · SKU: {item.code}
                         </div>
                       </div>
-                    )
-                  })}
+                    ))}
                 </div>
               )}
             </div>
@@ -671,7 +680,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     overflowY: 'auto',
                   }}
                 >
-                  {materialResults.length === 0 && (
+                  {materialProducts.flatMap((p: any) => p.product_uoms ?? []).length ===
+                    0 && (
                     <p
                       style={{
                         padding: '12px 14px',
@@ -680,95 +690,106 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         margin: 0,
                       }}
                     >
-                      {materialSearchDebounced
-                        ? 'No results found'
-                        : 'Type to search ingredients...'}
+                      {materialSearchDebounced.length < 2
+                        ? 'Type at least 2 characters to search...'
+                        : 'No results found'}
                     </p>
                   )}
-                  {materialResults.map((m: any) => {
-                    const productName = m.product?.name ?? '—'
-                    const uomName = m.uom?.name ?? ''
-                    const uomCode = m.uom?.code ?? ''
-                    const sku = m.code ?? ''
-                    const productType = m.product?.type ?? ''
-                    const typeColor =
-                      productType === 'raw'
-                        ? 'var(--info)'
-                        : productType === 'wip'
-                          ? 'var(--warning)'
-                          : 'var(--success)'
-                    return (
-                      <div
-                        key={m.id}
-                        onClick={() => {
-                          append({ product_uom_id: m.id, qty: 1 })
-                          setMaterialInfoMap((prev) => ({ ...prev, [m.id]: m }))
-                          setMaterialSearch('')
-                          setShowMaterialDrop(false)
-                        }}
-                        style={{
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = 'var(--background)')
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = 'var(--surface)')
-                        }
-                      >
-                        <div>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                            }}
-                          >
-                            <span
+                  {materialProducts
+                    .flatMap((p: any) =>
+                      (p.product_uoms ?? []).map((pu: any) => ({
+                        id: pu.id,
+                        productName: p.name,
+                        productType: p.type,
+                        uomName: pu.uom?.name ?? '',
+                        uomCode: pu.uom?.code ?? '',
+                        code: pu.code,
+                      })),
+                    )
+                    .map((item: any) => {
+                      const typeColor =
+                        item.productType === 'raw'
+                          ? 'var(--info)'
+                          : item.productType === 'wip'
+                            ? 'var(--warning)'
+                            : 'var(--success)'
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            append({ product_uom_id: item.id, qty: 1 })
+                            setMaterialInfoMap((prev) => ({
+                              ...prev,
+                              [item.id]: {
+                                product: { name: item.productName },
+                                uom: { name: item.uomName, code: item.uomCode },
+                                code: item.code,
+                              },
+                            }))
+                            setMaterialSearch('')
+                            setShowMaterialDrop(false)
+                          }}
+                          style={{
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid var(--border)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = 'var(--background)')
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = 'var(--surface)')
+                          }
+                        >
+                          <div>
+                            <div
                               style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: 'var(--foreground)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
                               }}
                             >
-                              {productName}
-                            </span>
-                            {productType && (
                               <span
                                 style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  color: typeColor,
-                                  padding: '1px 5px',
-                                  borderRadius: 'var(--radius-sm)',
-                                  border: `1px solid ${typeColor}`,
-                                  textTransform: 'uppercase',
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: 'var(--foreground)',
                                 }}
                               >
-                                {productType}
+                                {item.productName}
                               </span>
-                            )}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: 'var(--foreground-muted)',
-                              marginTop: 2,
-                            }}
-                          >
-                            {uomName}
-                            {uomCode ? ` (${uomCode})` : ''}
-                            {sku ? ` · SKU: ${sku}` : ''}
+                              {item.productType ? (
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    color: typeColor,
+                                    padding: '1px 5px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: `1px solid ${typeColor}`,
+                                    textTransform: 'uppercase',
+                                  }}
+                                >
+                                  {item.productType}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--foreground-muted)',
+                                marginTop: 2,
+                              }}
+                            >
+                              {item.uomName} ({item.uomCode}) · SKU: {item.code}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
                 </div>
               )}
             </div>
