@@ -1,6 +1,7 @@
 import { queryClient } from "@/hooks/query";
 import { AuthProvider } from "@/hooks/useAuth";
 import "@/styles/globals.css";
+import "@/styles/pos-print.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { AppProps } from "next/app";
 import { useRouter } from "next/router";

@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import '@/styles/pos-print.css'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import salesOrderService from '@/services/sales-order.service'
 import customerService from '@/services/customer.service'
