@@ -1,5 +1,6 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -27,14 +28,14 @@ export default function CustomersView() {
         .list({
           page,
           per_page: 15,
-          'filter[search]': searchDebounced || undefined,
           sort: 'name',
+          ...(searchDebounced ? { 'filter[search]': searchDebounced } : {}),
         })
         .then((r) => r.data),
   })
 
-  const items = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
+  const items = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: (id: number) => customerService.delete(id),
@@ -46,20 +47,22 @@ export default function CustomersView() {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Error'),
   })
 
-  const thStyle = {
+  const thStyle: CSSProperties = {
     padding: '10px 16px',
-    textAlign: 'left' as const,
+    textAlign: 'left',
     fontSize: 12,
     fontWeight: 600,
     color: 'var(--foreground-muted)',
     borderBottom: '1px solid var(--border)',
   }
-  const tdStyle = {
+  const tdStyle: CSSProperties = {
     padding: '12px 16px',
     fontSize: 14,
     color: 'var(--foreground)',
     borderBottom: '1px solid var(--border)',
   }
+
+  const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
 
   return (
     <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)' }}>
@@ -118,7 +121,7 @@ export default function CustomersView() {
             setSearch(e.target.value)
             setPage(1)
           }}
-          placeholder="Search customers..."
+          placeholder="Search by name or phone..."
           style={{
             height: 38,
             width: 320,
@@ -146,23 +149,22 @@ export default function CustomersView() {
             <tr>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Phone</th>
-              <th style={thStyle}>Email</th>
-              <th style={thStyle}>Address</th>
-              <th style={{ ...thStyle, width: 100 }}>Actions</th>
+              <th style={thStyle}>Created At</th>
+              <th style={{ ...thStyle, width: 120 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading &&
               Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 4 }).map((_, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 16,
                           background: 'var(--border)',
                           borderRadius: 4,
-                          opacity: 0.6,
+                          opacity: 0.5,
                         }}
                       />
                     </td>
@@ -172,11 +174,11 @@ export default function CustomersView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={4}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
-                    padding: '48px',
+                    padding: 48,
                     color: 'var(--foreground-muted)',
                   }}
                 >
@@ -188,8 +190,9 @@ export default function CustomersView() {
               <tr key={item.id}>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{item.name}</td>
                 <td style={tdStyle}>{item.phone ?? '—'}</td>
-                <td style={tdStyle}>{item.email ?? '—'}</td>
-                <td style={tdStyle}>{item.address ?? '—'}</td>
+                <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
+                  {new Date(item.created_at).toLocaleDateString('id-ID')}
+                </td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -234,7 +237,7 @@ export default function CustomersView() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.last_page > 1 && (
+      {meta && lastPage > 1 && (
         <div
           style={{
             display: 'flex',
@@ -244,7 +247,7 @@ export default function CustomersView() {
           }}
         >
           <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Page {page} of {meta.last_page}
+            {meta.total} customers · Page {page} of {lastPage}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -266,17 +269,16 @@ export default function CustomersView() {
             </button>
             <button
               type="button"
-              onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-              disabled={page === meta.last_page}
+              onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+              disabled={page === lastPage}
               style={{
                 height: 32,
                 padding: '0 14px',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-sm)',
                 background: 'var(--surface)',
-                cursor: page === meta.last_page ? 'not-allowed' : 'pointer',
-                color:
-                  page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)',
+                cursor: page === lastPage ? 'not-allowed' : 'pointer',
+                color: page === lastPage ? 'var(--foreground-subtle)' : 'var(--foreground)',
                 fontSize: 13,
               }}
             >

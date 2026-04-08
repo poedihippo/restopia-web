@@ -41,8 +41,8 @@ export default function SalesOrdersView() {
         .then((r) => r.data),
   })
 
-  const items = (data as any)?.data?.data ?? []
-  const meta = (data as any)?.data?.meta
+  const items = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
 
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: (id: number) => salesOrderService.delete(id),
@@ -406,7 +406,7 @@ export default function SalesOrdersView() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.last_page > 1 && (
+      {meta && (meta?.last_page ?? meta?.total_pages ?? 1) > 1 && (
         <div
           style={{
             display: 'flex',
@@ -416,7 +416,8 @@ export default function SalesOrdersView() {
           }}
         >
           <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            {meta.total} orders · Page {page} of {meta.last_page}
+            {meta.total} orders · Page {page} of{' '}
+            {meta?.last_page ?? meta?.total_pages ?? 1}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -438,17 +439,26 @@ export default function SalesOrdersView() {
             </button>
             <button
               type="button"
-              onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-              disabled={page === meta.last_page}
+              onClick={() =>
+                setPage((p) =>
+                  Math.min(meta?.last_page ?? meta?.total_pages ?? 1, p + 1)
+                )
+              }
+              disabled={page === (meta?.last_page ?? meta?.total_pages ?? 1)}
               style={{
                 height: 32,
                 padding: '0 14px',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-sm)',
                 background: 'var(--surface)',
-                cursor: page === meta.last_page ? 'not-allowed' : 'pointer',
+                cursor:
+                  page === (meta?.last_page ?? meta?.total_pages ?? 1)
+                    ? 'not-allowed'
+                    : 'pointer',
                 color:
-                  page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)',
+                  page === (meta?.last_page ?? meta?.total_pages ?? 1)
+                    ? 'var(--foreground-subtle)'
+                    : 'var(--foreground)',
                 fontSize: 13,
               }}
             >

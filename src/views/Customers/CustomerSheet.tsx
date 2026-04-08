@@ -1,5 +1,6 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,9 +11,7 @@ import customerService from '@/services/customer.service'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  phone: z.string().optional(),
-  email: z.string().optional(),
-  address: z.string().optional(),
+  phone: z.string().min(1, 'Phone is required'),
 })
 type FormData = z.infer<typeof schema>
 
@@ -31,21 +30,16 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { name: '', phone: '', email: '', address: '' },
+    defaultValues: { name: '', phone: '' },
   })
 
   useEffect(() => {
-    if (editing) {
-      reset({
-        name: editing.name,
-        phone: editing.phone ?? '',
-        email: editing.email ?? '',
-        address: editing.address ?? '',
-      })
-    } else {
-      reset({ name: '', phone: '', email: '', address: '' })
-    }
-  }, [editing, reset])
+    reset(
+      editing
+        ? { name: editing.name ?? '', phone: editing.phone ?? '' }
+        : { name: '', phone: '' }
+    )
+  }, [editing, open, reset])
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data: FormData) =>
@@ -62,32 +56,34 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
 
   if (!open) return null
 
-  const fieldStyle = {
+  const fieldStyle: CSSProperties = {
     width: '100%',
-    height: 38,
+    height: 40,
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-sm)',
     padding: '0 12px',
     fontSize: 14,
     color: 'var(--foreground)',
     background: 'var(--surface)',
-    boxSizing: 'border-box' as const,
+    boxSizing: 'border-box',
   }
-  const labelStyle = {
+  const labelStyle: CSSProperties = {
     fontSize: 13,
     color: 'var(--foreground-muted)',
     display: 'block',
-    marginBottom: 4,
+    marginBottom: 6,
   }
 
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end' }}
     >
+      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }}
       />
+      {/* Panel */}
       <div
         style={{
           position: 'relative',
@@ -98,8 +94,10 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
           borderLeft: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
+          boxShadow: 'var(--shadow-lg)',
         }}
       >
+        {/* Header */}
         <div
           style={{
             padding: '20px 24px',
@@ -107,6 +105,7 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            flexShrink: 0,
           }}
         >
           <span
@@ -128,11 +127,14 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
               fontSize: 22,
               cursor: 'pointer',
               color: 'var(--foreground-muted)',
+              lineHeight: 1,
             }}
           >
             ×
           </button>
         </div>
+
+        {/* Form body */}
         <form
           onSubmit={handleSubmit((d) => mutate(d))}
           style={{
@@ -141,78 +143,90 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
             padding: 24,
             display: 'flex',
             flexDirection: 'column',
-            gap: 16,
+            gap: 20,
           }}
         >
           <div>
             <label style={labelStyle}>Name *</label>
-            <input {...register('name')} style={fieldStyle} placeholder="Customer name" />
+            <input {...register('name')} style={fieldStyle} placeholder="Customer full name" />
             {errors.name && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--destructive)',
+                  marginTop: 4,
+                  display: 'block',
+                }}
+              >
                 {errors.name.message}
               </span>
             )}
           </div>
+
           <div>
-            <label style={labelStyle}>Phone</label>
+            <label style={labelStyle}>Phone *</label>
             <input {...register('phone')} style={fieldStyle} placeholder="e.g. 08123456789" />
-          </div>
-          <div>
-            <label style={labelStyle}>Email</label>
-            <input {...register('email')} style={fieldStyle} placeholder="email@example.com" />
-          </div>
-          <div>
-            <label style={labelStyle}>Address</label>
-            <textarea
-              {...register('address')}
-              rows={3}
-              placeholder="Full address"
-              style={{ ...fieldStyle, height: 'auto', padding: '8px 12px', resize: 'none' }}
-            />
-          </div>
-          <div
-            style={{
-              padding: '16px 24px',
-              borderTop: '1px solid var(--border)',
-              display: 'flex',
-              gap: 12,
-              marginTop: 'auto',
-            }}
-          >
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                flex: 1,
-                height: 40,
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--surface)',
-                cursor: 'pointer',
-                fontSize: 14,
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isPending}
-              style={{
-                flex: 1,
-                height: 40,
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--accent)',
-                color: 'white',
-                cursor: isPending ? 'not-allowed' : 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-              }}
-            >
-              {isPending ? 'Saving...' : editing ? 'Update' : 'Create'}
-            </button>
+            {errors.phone && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--destructive)',
+                  marginTop: 4,
+                  display: 'block',
+                }}
+              >
+                {errors.phone.message}
+              </span>
+            )}
           </div>
         </form>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: '16px 24px',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            gap: 12,
+            flexShrink: 0,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1,
+              height: 42,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              cursor: 'pointer',
+              fontSize: 14,
+              color: 'var(--foreground)',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit((d) => mutate(d))}
+            disabled={isPending}
+            style={{
+              flex: 1,
+              height: 42,
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent)',
+              color: 'white',
+              cursor: isPending ? 'not-allowed' : 'pointer',
+              fontSize: 14,
+              fontWeight: 600,
+              opacity: isPending ? 0.7 : 1,
+            }}
+          >
+            {isPending ? 'Saving...' : editing ? 'Update' : 'Create'}
+          </button>
+        </div>
       </div>
     </div>
   )
