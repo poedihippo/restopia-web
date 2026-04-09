@@ -473,7 +473,7 @@ export default function PosView() {
       editingOrderId
         ? salesOrderService.update(editingOrderId, payload as any)
         : salesOrderService.create(payload as any),
-    onSuccess: async (res: any) => {
+    onSuccess: async (res: any, variables: any) => {
       const salesOrderId = res?.data?.data?.id ?? editingOrderId ?? null
       if (salesOrderId && paymentMethodId) {
         try {
@@ -482,7 +482,7 @@ export default function PosView() {
             payment_method_id: paymentMethodId,
             amount: isCashMethod
               ? Number(cashTendered.replace(/\D/g, ''))
-              : total,
+              : variables.total_price,
             description: orderNote || undefined,
           })
         } catch (err: any) {
@@ -606,9 +606,13 @@ export default function PosView() {
 
   // Confirm payment — submits order after payment modal confirms
   const handleConfirmPayment = () => {
+    const cartSubtotal =
+      cart.reduce((s, c) => s + c.price * c.qty, 0) +
+      bundleCart.reduce((s, c) => s + c.price * c.qty, 0)
+    const orderTotal = Math.max(0, cartSubtotal - voucherDiscount)
     const tendered =
-      isCashMethod ? Number(cashTendered.replace(/\D/g, '')) : total
-    const orderChange = isCashMethod ? Math.max(0, tendered - total) : 0
+      isCashMethod ? Number(cashTendered.replace(/\D/g, '')) : orderTotal
+    const orderChange = isCashMethod ? Math.max(0, tendered - orderTotal) : 0
     const payload = {
       code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
@@ -618,9 +622,9 @@ export default function PosView() {
       date: transactionDate,
       fulfillment_date: new Date(fulfillmentDate).toISOString(),
       voucher_id: null,
-      subtotal_price: subtotal,
+      subtotal_price: cartSubtotal,
       discount_price: voucherDiscount,
-      total_price: total,
+      total_price: orderTotal,
       status: 'final' as const,
       description: orderNote || undefined,
       details: [
@@ -644,9 +648,9 @@ export default function PosView() {
     }
     setReceiptData({
       cart: [...cart],
-      subtotal,
+      subtotal: cartSubtotal,
       discount: voucherDiscount,
-      total,
+      total: orderTotal,
       customerName: selectedCustomerId ? customerSearch : guestName || 'Walk-in',
       code: payload.code,
       date: payload.date,

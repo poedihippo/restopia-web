@@ -341,10 +341,22 @@ export default function SalesOrdersView() {
                   <td style={tdStyle}>
                     {item.customer?.name ?? item.customer_name ?? '—'}
                   </td>
-                  <td style={tdStyle}>{item.date}</td>
+                  <td style={tdStyle}>
+                    {item.date
+                      ? new Date(item.date).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : '—'}
+                  </td>
                   <td style={tdStyle}>
                     {item.fulfillment_date
-                      ? new Date(item.fulfillment_date).toLocaleDateString('id-ID')
+                      ? new Date(item.fulfillment_date).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
                       : '—'}
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>
