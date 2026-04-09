@@ -37,22 +37,22 @@ export default function SalesOrderDetail() {
       api
         .get(`/sales-orders/${id}`, {
           params: {
-            include: 'branch,customer,sales_order_details',
+            include:
+              'created_by,updated_by,branch,customer,media,sales_order_details',
           },
         })
-        .then((r) => r.data),
+        .then((r) => {
+          console.log('[SO v3] raw axios r.data:', r.data);
+          console.log(
+            '[SO v3] sales_order_details in r.data.data:',
+            r.data?.data?.sales_order_details,
+          );
+          return r.data;
+        }),
   });
   const order = (data as any)?.data;
 
-  console.log('[SO v2] raw data:', data);
-  console.log('[SO v2] order:', order);
-  console.log('[SO v2] sales_order_details:', order?.sales_order_details);
-
-  const details =
-    order?.sales_order_details ??
-    order?.details ??
-    (data as any)?.data?.sales_order_details ??
-    [];
+  const details = order?.sales_order_details ?? [];
 
   const subtotal = Number(order?.subtotal_price ?? 0)
   const discount = Number(order?.discount_price ?? 0)
