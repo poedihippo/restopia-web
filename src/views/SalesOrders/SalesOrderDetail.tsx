@@ -35,22 +35,21 @@ export default function SalesOrderDetail() {
     enabled: router.isReady && Number.isFinite(id) && id > 0,
     queryFn: () =>
       api
-        .get(`/sales-orders/${id}`, {
+        .get('/sales-orders', {
           params: {
+            'filter[id]': id,
             include:
               'created_by,updated_by,branch,customer,media,sales_order_details',
+            per_page: 1,
           },
         })
-        .then((r) => {
-          console.log('[SO v3] raw axios r.data:', r.data);
-          console.log(
-            '[SO v3] sales_order_details in r.data.data:',
-            r.data?.data?.sales_order_details,
-          );
-          return r.data;
-        }),
+        .then((r) => r.data),
   });
-  const order = (data as any)?.data;
+  const envelope = (data as any)?.data
+  const ordersList = Array.isArray(envelope)
+    ? envelope
+    : (envelope?.data ?? [])
+  const order = ordersList[0] ?? null;
 
   const details = order?.sales_order_details ?? [];
 
