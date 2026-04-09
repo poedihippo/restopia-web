@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ArrowLeft } from 'lucide-react'
@@ -11,6 +11,7 @@ interface Props {
     id: number
     payments?: any[]
     totalPaid?: number
+    lineItemsSlot?: ReactNode
 }
 
 const sectionCardStyle: CSSProperties = {
@@ -21,7 +22,12 @@ const sectionCardStyle: CSSProperties = {
     marginTop: 16,
 }
 
-const SalesOrdersDetail = ({ id, payments = [], totalPaid = 0 }: Props) => {
+const SalesOrdersDetail = ({
+    id,
+    payments = [],
+    totalPaid = 0,
+    lineItemsSlot,
+}: Props) => {
     const router = useRouter()
     const { data, isLoading } = useSalesOrdersDetail({ id })
 
@@ -107,61 +113,7 @@ const SalesOrdersDetail = ({ id, payments = [], totalPaid = 0 }: Props) => {
 
             )}
 
-            {isLoading ? (
-                <div className='bg-gray-300 animate-pulse shadow-xl border p-4 rounded-xl h-64 my-4' />
-            ) : data?.sales_order_details && data.sales_order_details.length > 0 && (
-                <div className='bg-white shadow-xl border p-4 rounded-xl my-4'>
-                    <h1 className='text-xl font-semibold mb-4'>Delivery Order Details</h1>
-                    <div className='space-y-4'>
-                        {data.sales_order_details.map((detail, index) => {
-                            const d = detail as any
-                            const name =
-                                d.product_inventory_snapshot?.product_uom?.product?.name
-                                ?? d.product_inventory_snapshot?.product_uom?.product_id
-                                ?? d.bundle?.name
-                                ?? d.description
-                                ?? `Item ${index + 1}`
-                            const code =
-                                d.product_inventory_snapshot?.code
-                                ?? d.bundle?.code
-                                ?? '—'
-                            const uom =
-                                d.product_inventory_snapshot?.product_uom?.uom
-                                ?? d.product_inventory?.product_uom?.uom
-                            return (
-                                <div key={detail.id ?? index} className='border rounded-xl overflow-hidden'>
-                                    <div className='bg-gray-50 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-b'>
-                                        <div>
-                                            <p className='text-xs text-gray-400'>Product</p>
-                                            <p className='font-semibold text-sm'>{name}</p>
-                                        </div>
-                                        <div>
-                                            <p className='text-xs text-gray-400'>SKU</p>
-                                            <p className='font-semibold text-sm'>{code}</p>
-                                        </div>
-                                        <div>
-                                            <p className='text-xs text-gray-400'>Qty</p>
-                                            <p className='font-semibold text-sm'>
-                                                {detail.qty ?? '-'} <span className='text-gray-400 font-normal'>{uom?.name ?? ''}</span>
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className='text-xs text-gray-400'>Price</p>
-                                            <p className='font-semibold text-sm'>{formatterIDR(detail.price as number) ?? '-'}</p>
-                                        </div>
-                                        {detail.description && (
-                                            <div>
-                                                <p className='text-xs text-gray-400'>Note</p>
-                                                <p className='text-sm text-gray-600'>{detail.description}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
+            {!isLoading && lineItemsSlot}
 
             {!isLoading && data && (
                 <div style={sectionCardStyle}>
