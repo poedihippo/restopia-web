@@ -31,27 +31,28 @@ export default function SalesOrderDetail() {
   const [showDelete, setShowDelete] = useState(false);
 
   const { data } = useQuery({
-    queryKey: ['sales-order-detail-actions', id],
+    queryKey: ['sales-order-detail', id],
     enabled: router.isReady && Number.isFinite(id) && id > 0,
     queryFn: () =>
-      salesOrderService
-        .findById(id, { include: 'branch,customer,sales_order_details' })
+      api
+        .get(`/sales-orders/${id}`, {
+          params: {
+            include: 'branch,customer,sales_order_details',
+          },
+        })
         .then((r) => r.data),
   });
   const order = (data as any)?.data;
 
-  console.log('[SO] full data:', data);
-  console.log('[SO] order:', order);
-  console.log('[SO] order keys:', order ? Object.keys(order) : 'null');
-  console.log('[SO] sales_order_details:', order?.sales_order_details);
+  console.log('[SO v2] raw data:', data);
+  console.log('[SO v2] order:', order);
+  console.log('[SO v2] sales_order_details:', order?.sales_order_details);
 
   const details =
     order?.sales_order_details ??
     order?.details ??
     (data as any)?.data?.sales_order_details ??
     [];
-
-  console.log('[SO] details resolved:', details);
 
   const subtotal = Number(order?.subtotal_price ?? 0)
   const discount = Number(order?.discount_price ?? 0)
