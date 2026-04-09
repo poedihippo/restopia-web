@@ -80,6 +80,9 @@ export default function PosView() {
   const [voucherDiscount, setVoucherDiscount] = useState(0)
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [orderNote, setOrderNote] = useState('')
+  const [transactionDate, setTransactionDate] = useState<string>(
+    new Date().toLocaleDateString('en-CA')
+  )
   const [fulfillmentDate, setFulfillmentDate] = useState<string>(todayISO())
   const [showReceipt, setShowReceipt] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -368,7 +371,7 @@ export default function PosView() {
         customer_id: poCustomerId ?? null,
         customer_name: poCustomerId ? undefined : poGuestName || undefined,
         customer_phone: poCustomerId ? undefined : poGuestPhone || undefined,
-        date: new Date().toISOString().slice(0, 10),
+        date: transactionDate,
         fulfillment_date: new Date(poFulfillmentDate).toISOString(),
         subtotal_price: subtotal,
         discount_price: 0,
@@ -483,6 +486,7 @@ export default function PosView() {
     setVoucherCode('')
     setVoucherDiscount(0)
     setOrderNote('')
+    setTransactionDate(new Date().toLocaleDateString('en-CA'))
     setFulfillmentDate(todayISO())
     setOrderType('offline')
     setShowPayment(false)
@@ -577,7 +581,7 @@ export default function PosView() {
       customer_id: selectedCustomerId ?? null,
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
-      date: new Date().toISOString().slice(0, 10),
+      date: transactionDate,
       fulfillment_date: new Date(fulfillmentDate).toISOString(),
       voucher_id: null,
       subtotal_price: subtotal,
@@ -1811,6 +1815,36 @@ export default function PosView() {
               background: 'var(--background)',
               outline: 'none',
               fontFamily: 'var(--font-sans)',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        <div style={{ padding: '0 16px 8px' }}>
+          <label
+            style={{
+              fontSize: 12,
+              color: 'var(--foreground-muted)',
+              display: 'block',
+              marginBottom: 4,
+            }}
+          >
+            Transaction Date
+          </label>
+          <input
+            type="date"
+            value={transactionDate}
+            onChange={(e) => setTransactionDate(e.target.value)}
+            style={{
+              width: '100%',
+              height: 36,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0 10px',
+              fontSize: 13,
+              fontFamily: 'var(--font-sans)',
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
               boxSizing: 'border-box',
             }}
           />
