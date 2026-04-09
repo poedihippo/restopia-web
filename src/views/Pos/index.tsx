@@ -8,6 +8,8 @@ import { productCategoriesService } from '@/services/product-categories.service'
 import salesOrderService from '@/services/sales-order.service'
 import customerService from '@/services/customer.service'
 import bundleService from '@/services/bundle.service'
+import paymentMethodService from '@/services/payment-method.service'
+import paymentService from '@/services/payment.service'
 import { toast } from 'sonner'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 
@@ -70,7 +72,7 @@ export default function PosView() {
   // Cart / order state
   const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
   const [showPayment, setShowPayment] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash')
+  const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null)
   const [cashTendered, setCashTendered] = useState<string>('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
@@ -130,7 +132,7 @@ export default function PosView() {
     customerName: string
     code: string
     date: string
-    paymentMethod: 'cash' | 'transfer'
+    paymentMethod: string
     cashTendered: number
     change: number
   } | null>(null)
@@ -337,15 +339,25 @@ export default function PosView() {
   const orders: any[] = (historyData as any)?.data ?? []
   const historyMeta = (historyData as any)?.meta
 
+  const { data: paymentMethodsData, isLoading: paymentMethodsLoading } = useQuery({
+    queryKey: ['payment-methods-all'],
+    queryFn: () =>
+      paymentMethodService.list({ per_page: 50, sort: 'id' }).then((r) => r.data),
+  })
+  const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
+
   // Totals
   const subtotal =
     cart.reduce((s, c) => s + c.price * c.qty, 0) +
     bundleCart.reduce((s, c) => s + c.price * c.qty, 0)
   const total = Math.max(0, subtotal - voucherDiscount)
 
+  const selectedMethod = paymentMethods.find((pm: any) => pm.id === paymentMethodId)
+  const isCashMethod = selectedMethod?.name?.toLowerCase().includes('cash') ?? false
+
   // Payment modal derived values
   const change =
-    paymentMethod === 'cash'
+    isCashMethod
       ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - total)
       : 0
   const quickAmounts = [
@@ -461,7 +473,25 @@ export default function PosView() {
       editingOrderId
         ? salesOrderService.update(editingOrderId, payload as any)
         : salesOrderService.create(payload as any),
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
+      const salesOrderId = res?.data?.data?.id ?? editingOrderId ?? null
+      if (salesOrderId && paymentMethodId) {
+        try {
+          await paymentService.create({
+            sales_order_id: salesOrderId,
+            payment_method_id: paymentMethodId,
+            amount: isCashMethod
+              ? Number(cashTendered.replace(/\D/g, ''))
+              : total,
+            description: orderNote || undefined,
+          })
+        } catch (err: any) {
+          toast.error(
+            'Order created but payment recording failed: ' +
+              (err?.response?.data?.message ?? 'Unknown error'),
+          )
+        }
+      }
       setShowReceipt(true)
       toast.success('Order placed!')
       if (editingOrderId) {
@@ -490,7 +520,7 @@ export default function PosView() {
     setFulfillmentDate(todayISO())
     setOrderType('offline')
     setShowPayment(false)
-    setPaymentMethod('cash')
+    setPaymentMethodId(null)
     setCashTendered('')
     setShowReceipt(false)
     setReceiptData(null)
@@ -567,14 +597,18 @@ export default function PosView() {
       toast.error('Cart is empty')
       return
     }
+    if (!paymentMethodsLoading && paymentMethods.length === 0) {
+      toast.error('No payment methods found. Add one in Settings first.')
+      return
+    }
     setShowPayment(true)
   }
 
   // Confirm payment — submits order after payment modal confirms
   const handleConfirmPayment = () => {
     const tendered =
-      paymentMethod === 'cash' ? Number(cashTendered.replace(/\D/g, '')) : total
-    const orderChange = paymentMethod === 'cash' ? Math.max(0, tendered - total) : 0
+      isCashMethod ? Number(cashTendered.replace(/\D/g, '')) : total
+    const orderChange = isCashMethod ? Math.max(0, tendered - total) : 0
     const payload = {
       code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
@@ -616,7 +650,7 @@ export default function PosView() {
       customerName: selectedCustomerId ? customerSearch : guestName || 'Walk-in',
       code: payload.code,
       date: payload.date,
-      paymentMethod,
+      paymentMethod: selectedMethod?.name ?? 'Unknown',
       cashTendered: tendered,
       change: orderChange,
     })
@@ -1920,18 +1954,35 @@ export default function PosView() {
           <button
             type="button"
             onClick={handleCharge}
-            disabled={isPending || cart.length === 0}
+            disabled={
+              isPending ||
+              cart.length === 0 ||
+              (!paymentMethodsLoading && paymentMethods.length === 0)
+            }
             style={{
               width: '100%',
               height: 48,
               marginTop: 6,
-              background: cart.length === 0 ? 'var(--border)' : 'var(--accent)',
-              color: cart.length === 0 ? 'var(--foreground-muted)' : 'white',
+              background:
+                cart.length === 0 ||
+                (!paymentMethodsLoading && paymentMethods.length === 0)
+                  ? 'var(--border)'
+                  : 'var(--accent)',
+              color:
+                cart.length === 0 ||
+                (!paymentMethodsLoading && paymentMethods.length === 0)
+                  ? 'var(--foreground-muted)'
+                  : 'white',
               border: 'none',
               borderRadius: 'var(--radius-md)',
               fontSize: 16,
               fontWeight: 600,
-              cursor: isPending || cart.length === 0 ? 'not-allowed' : 'pointer',
+              cursor:
+                isPending ||
+                cart.length === 0 ||
+                (!paymentMethodsLoading && paymentMethods.length === 0)
+                  ? 'not-allowed'
+                  : 'pointer',
               opacity: isPending ? 0.7 : 1,
               transition: 'background 150ms ease',
             }}
@@ -2014,44 +2065,68 @@ export default function PosView() {
               </span>
             </div>
 
-            {/* Payment method toggle */}
+            {/* Payment method selection */}
             <div style={{ marginBottom: 20 }}>
               <label
-                style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 8 }}
+                style={{
+                  fontSize: 12,
+                  color: 'var(--foreground-muted)',
+                  display: 'block',
+                  marginBottom: 8,
+                }}
               >
                 Payment Method
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['cash', 'transfer'] as const).map((m) => (
+              {paymentMethods.length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--destructive)' }}>
+                  No payment methods found. Add one in Settings first.
+                </p>
+              )}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {paymentMethods.map((pm: any) => (
                   <button
-                    key={m}
+                    key={pm.id}
                     type="button"
                     onClick={() => {
-                      setPaymentMethod(m)
+                      setPaymentMethodId(pm.id)
                       setCashTendered('')
                     }}
                     style={{
-                      flex: 1,
-                      height: 40,
+                      flex: '1 1 auto',
+                      height: 42,
                       border: '1px solid',
-                      borderColor: paymentMethod === m ? 'var(--accent)' : 'var(--border)',
+                      borderColor: paymentMethodId === pm.id ? 'var(--accent)' : 'var(--border)',
                       borderRadius: 'var(--radius-md)',
-                      background: paymentMethod === m ? 'var(--accent)' : 'var(--surface)',
-                      color: paymentMethod === m ? 'white' : 'var(--foreground)',
+                      background: paymentMethodId === pm.id ? 'var(--accent)' : 'var(--surface)',
+                      color: paymentMethodId === pm.id ? 'white' : 'var(--foreground)',
                       fontWeight: 600,
                       fontSize: 14,
                       cursor: 'pointer',
-                      textTransform: 'capitalize',
                     }}
                   >
-                    {m === 'cash' ? '💵 Cash' : '🏦 Transfer'}
+                    {pm.name}
                   </button>
                 ))}
               </div>
             </div>
 
+            {!isCashMethod && paymentMethodId && (
+              <div
+                style={{
+                  background: 'var(--info-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 16px',
+                  marginBottom: 20,
+                  fontSize: 13,
+                  color: 'var(--info)',
+                }}
+              >
+                Confirm receipt of Rp {total.toLocaleString('id-ID')} via {selectedMethod?.name}.
+              </div>
+            )}
+
             {/* Cash tendered section */}
-            {paymentMethod === 'cash' && (
+            {isCashMethod && (
               <>
                 <div style={{ marginBottom: 12 }}>
                   <label
@@ -2143,29 +2218,16 @@ export default function PosView() {
               </>
             )}
 
-            {/* Transfer info */}
-            {paymentMethod === 'transfer' && (
-              <div
-                style={{
-                  background: 'var(--info-bg)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '12px 16px',
-                  marginBottom: 20,
-                  fontSize: 13,
-                  color: 'var(--info)',
-                }}
-              >
-                Ask customer to transfer Rp {total.toLocaleString('id-ID')} and confirm receipt
-                before completing.
-              </div>
-            )}
-
             {/* Confirm button */}
             <button
               type="button"
               onClick={() => {
+                if (!paymentMethodId) {
+                  toast.error('Select a payment method')
+                  return
+                }
                 if (
-                  paymentMethod === 'cash' &&
+                  isCashMethod &&
                   Number(cashTendered.replace(/\D/g, '')) < total
                 ) {
                   toast.error('Cash tendered is less than total')
@@ -2240,7 +2302,7 @@ export default function PosView() {
               <span>Payment</span>
               <span>{receiptData.paymentMethod}</span>
             </div>
-            {receiptData.paymentMethod === 'cash' && (
+            {receiptData.paymentMethod.toLowerCase().includes('cash') && (
               <>
                 <div className="row">
                   <span>Cash</span>
@@ -2360,7 +2422,7 @@ export default function PosView() {
                 <span>Payment</span>
                 <span style={{ textTransform: 'capitalize' }}>{receiptData.paymentMethod}</span>
               </div>
-              {receiptData.paymentMethod === 'cash' && (
+              {receiptData.paymentMethod.toLowerCase().includes('cash') && (
                 <>
                   <div
                     style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}

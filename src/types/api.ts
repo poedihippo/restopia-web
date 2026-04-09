@@ -350,3 +350,15 @@ export interface PosCartBundle {
   qty: number
   bundle_details: { product_inventory_id: number; qty: number }[]
 }
+
+export interface PaymentMethod {
+  id: number
+  name: string
+}
+
+export interface PaymentRequest {
+  sales_order_id: number
+  payment_method_id: number
+  amount: number
+  description?: string
+}

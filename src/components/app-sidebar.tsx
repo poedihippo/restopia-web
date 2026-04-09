@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Boxes,
   ChevronDown,
+  Wallet,
 } from 'lucide-react';
 
 type NavItem = {
@@ -122,6 +123,7 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck },
+      { label: 'Payment Methods', href: '/settings/payment-methods', icon: Wallet },
     ],
   },
 ];
