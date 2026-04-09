@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ArrowLeft } from 'lucide-react'
@@ -8,10 +9,19 @@ import { formatterIDR } from '@/helper/convertCurrency'
 
 interface Props {
     id: number
+    payments?: any[]
+    totalPaid?: number
 }
 
+const sectionCardStyle: CSSProperties = {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-lg)',
+    padding: 24,
+    marginTop: 16,
+}
 
-const SalesOrdersDetail = ({ id }: Props) => {
+const SalesOrdersDetail = ({ id, payments = [], totalPaid = 0 }: Props) => {
     const router = useRouter()
     const { data, isLoading } = useSalesOrdersDetail({ id })
 
@@ -107,15 +117,12 @@ const SalesOrdersDetail = ({ id }: Props) => {
                             const d = detail as any
                             const name =
                                 d.product_inventory_snapshot?.product_uom?.product?.name
-                                ?? d.product_inventory?.product_uom?.product?.name
+                                ?? d.product_inventory_snapshot?.product_uom?.product_id
                                 ?? d.bundle?.name
                                 ?? d.description
                                 ?? `Item ${index + 1}`
                             const code =
                                 d.product_inventory_snapshot?.code
-                                ?? d.product_inventory_snapshot?.sku
-                                ?? d.product_inventory?.code
-                                ?? d.product_inventory?.sku
                                 ?? d.bundle?.code
                                 ?? '—'
                             const uom =
@@ -153,6 +160,209 @@ const SalesOrdersDetail = ({ id }: Props) => {
                             )
                         })}
                     </div>
+                </div>
+            )}
+
+            {!isLoading && data && (
+                <div style={sectionCardStyle}>
+                    <h2
+                        style={{
+                            fontFamily: 'var(--font-display)',
+                            fontSize: 16,
+                            fontWeight: 700,
+                            marginBottom: 20,
+                            color: 'var(--foreground)',
+                        }}
+                    >
+                        Payments
+                    </h2>
+
+                    {payments.length === 0 ? (
+                        <p style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
+                            No payments recorded.
+                        </p>
+                    ) : (
+                        <>
+                            <table
+                                style={{
+                                    width: '100%',
+                                    borderCollapse: 'collapse',
+                                    marginBottom: 16,
+                                }}
+                            >
+                                <thead>
+                                    <tr>
+                                        {['Method', 'Amount', 'Description', 'Date'].map((h) => (
+                                            <th
+                                                key={h}
+                                                style={{
+                                                    padding: '8px 12px',
+                                                    textAlign: 'left',
+                                                    fontSize: 12,
+                                                    fontWeight: 600,
+                                                    color: 'var(--foreground-muted)',
+                                                    borderBottom: '1px solid var(--border)',
+                                                }}
+                                            >
+                                                {h}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {payments.map((p: any) => (
+                                        <tr key={p.id}>
+                                            <td
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    fontSize: 14,
+                                                    borderBottom: '1px solid var(--border)',
+                                                    fontWeight: 500,
+                                                }}
+                                            >
+                                                {p.payment_method?.name ?? '—'}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    fontSize: 14,
+                                                    borderBottom: '1px solid var(--border)',
+                                                    color: 'var(--success)',
+                                                    fontWeight: 600,
+                                                }}
+                                            >
+                                                Rp {Number(p.amount).toLocaleString('id-ID')}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    fontSize: 14,
+                                                    borderBottom: '1px solid var(--border)',
+                                                    color: 'var(--foreground-muted)',
+                                                }}
+                                            >
+                                                {p.description ?? '—'}
+                                            </td>
+                                            <td
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    fontSize: 14,
+                                                    borderBottom: '1px solid var(--border)',
+                                                    color: 'var(--foreground-muted)',
+                                                }}
+                                            >
+                                                {p.created_at
+                                                    ? new Date(p.created_at).toLocaleString(
+                                                          'id-ID',
+                                                          {
+                                                              day: '2-digit',
+                                                              month: 'short',
+                                                              year: 'numeric',
+                                                              hour: '2-digit',
+                                                              minute: '2-digit',
+                                                          },
+                                                      )
+                                                    : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <div style={{ width: 280 }}>
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            marginBottom: 8,
+                                            fontSize: 14,
+                                        }}
+                                    >
+                                        <span style={{ color: 'var(--foreground-muted)' }}>
+                                            Order Total
+                                        </span>
+                                        <span>
+                                            Rp{' '}
+                                            {Number(data.total_price ?? 0).toLocaleString('id-ID')}
+                                        </span>
+                                    </div>
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            marginBottom: 8,
+                                            fontSize: 14,
+                                        }}
+                                    >
+                                        <span style={{ color: 'var(--foreground-muted)' }}>
+                                            Total Paid
+                                        </span>
+                                        <span
+                                            style={{ color: 'var(--success)', fontWeight: 600 }}
+                                        >
+                                            Rp {totalPaid.toLocaleString('id-ID')}
+                                        </span>
+                                    </div>
+                                    {totalPaid < Number(data.total_price ?? 0) && (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontSize: 14,
+                                                borderTop: '1px solid var(--border)',
+                                                paddingTop: 8,
+                                            }}
+                                        >
+                                            <span
+                                                style={{ color: 'var(--destructive)', fontWeight: 600 }}
+                                            >
+                                                Remaining
+                                            </span>
+                                            <span
+                                                style={{ color: 'var(--destructive)', fontWeight: 700 }}
+                                            >
+                                                Rp{' '}
+                                                {(
+                                                    Number(data.total_price ?? 0) - totalPaid
+                                                ).toLocaleString('id-ID')}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {totalPaid >= Number(data.total_price ?? 0) && (
+                                        <div
+                                            style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontSize: 14,
+                                                borderTop: '1px solid var(--border)',
+                                                paddingTop: 8,
+                                            }}
+                                        >
+                                            <span
+                                                style={{ color: 'var(--success)', fontWeight: 600 }}
+                                            >
+                                                ✓ Fully Paid
+                                            </span>
+                                            {totalPaid > Number(data.total_price ?? 0) && (
+                                                <span
+                                                    style={{
+                                                        color: 'var(--foreground-muted)',
+                                                        fontSize: 13,
+                                                    }}
+                                                >
+                                                    Change: Rp{' '}
+                                                    {(
+                                                        totalPaid - Number(data.total_price ?? 0)
+                                                    ).toLocaleString('id-ID')}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 

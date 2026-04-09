@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import salesOrderService from '@/services/sales-order.service';
 import { toastMutationApiError } from '@/utils/apiError';
+import api from '@/hooks/useApi';
 import SalesOrdersDetail from './Detail/SalesOrdersDetail';
 
 export default function SalesOrderDetail() {
@@ -27,6 +28,30 @@ export default function SalesOrderDetail() {
       salesOrderService.findById(id, { include: 'customer' }).then((r) => r.data),
   });
   const order = (orderPayload as any)?.data;
+
+  const { data: paymentsData } = useQuery({
+    queryKey: ['sales-order-payments', id],
+    enabled: router.isReady && Number.isFinite(id) && id > 0,
+    queryFn: () =>
+      api
+        .get('/payments', {
+          params: {
+            per_page: 50,
+            include: 'payment_method',
+            'filter[sales_order_id]': id,
+          },
+        })
+        .then((r) => r.data),
+  });
+  const paymentsEnvelope = (paymentsData as any)?.data
+  const paymentsRaw = Array.isArray(paymentsEnvelope)
+    ? paymentsEnvelope
+    : (paymentsEnvelope as any)?.data ?? []
+  const payments = Array.isArray(paymentsRaw) ? paymentsRaw : []
+  const totalPaid = useMemo(
+    () => payments.reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0),
+    [payments],
+  )
 
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: () => salesOrderService.delete(id),
@@ -100,7 +125,7 @@ export default function SalesOrderDetail() {
         </button>
       </div>
 
-      <SalesOrdersDetail id={id} />
+      <SalesOrdersDetail id={id} payments={payments} totalPaid={totalPaid} />
 
       {showDelete && (
         <div
