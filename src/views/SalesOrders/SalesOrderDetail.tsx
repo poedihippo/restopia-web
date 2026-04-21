@@ -3,11 +3,13 @@
 import { useState, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { useRouter } from 'next/router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import salesOrderService from '@/services/sales-order.service';
+import { Plus, Loader2 } from 'lucide-react';
+import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service';
+import { paymentsService } from '@/services/payments.service';
+import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
-import api from '@/hooks/useApi';
 import SalesOrdersDetail from './Detail/SalesOrdersDetail';
 
 const sectionStyle: CSSProperties = {
@@ -16,6 +18,16 @@ const sectionStyle: CSSProperties = {
   borderRadius: 'var(--radius-lg)',
   padding: 24,
   marginTop: 16,
+}
+
+const SETTLEMENT_META: Record<
+  string,
+  { label: string; color: string; bg: string }
+> = {
+  pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
+  credit: { label: 'Credit', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  settled: { label: 'Settled', color: 'var(--success)', bg: 'var(--success-bg)' },
+  cancelled: { label: 'Cancelled', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
 }
 
 export default function SalesOrderDetail() {
@@ -30,62 +42,86 @@ export default function SalesOrderDetail() {
 
   const [showDelete, setShowDelete] = useState(false);
 
-  const { data } = useQuery({
+  const idReady = router.isReady && Number.isFinite(id) && id > 0
+
+  const { data, isLoading } = useQuery({
     queryKey: ['sales-order-detail', id],
-    enabled: router.isReady && Number.isFinite(id) && id > 0,
+    enabled: idReady,
     queryFn: () =>
-      api
-        .get('/sales-orders', {
-          params: {
-            'filter[id]': id,
-            include:
-              'created_by,updated_by,branch,customer,media,sales_order_details',
-            per_page: 1,
-          },
+      salesOrderService
+        .findById(id, {
+          include: 'branch,customer,created_by,sales_order_details',
         })
         .then((r) => r.data),
   });
-  const envelope = (data as any)?.data
-  const ordersList = Array.isArray(envelope)
-    ? envelope
-    : (envelope?.data ?? [])
-  const order = ordersList[0] ?? null;
-
-  const details = order?.sales_order_details ?? [];
+  const order = (data as any)?.data;
+  const details = order?.sales_order_details ?? []
+  const isDetailsLoading = isLoading
 
   const subtotal = Number(order?.subtotal_price ?? 0)
   const discount = Number(order?.discount_price ?? 0)
   const total = Number(order?.total_price ?? 0)
 
+  const queryClient = useQueryClient()
+
   const { data: paymentsData } = useQuery({
     queryKey: ['sales-order-payments', id],
-    enabled: router.isReady && Number.isFinite(id) && id > 0,
+    enabled: idReady,
     queryFn: () =>
-      api
-        .get('/payments', {
-          params: {
-            per_page: 50,
-            include: 'payment_method',
-            'filter[sales_order_id]': id,
-          },
-        })
+      paymentsService
+        .list({
+          per_page: 50,
+          include: 'payment_method',
+          'filter[sales_order_id]': id,
+        } as any)
         .then((r) => r.data),
   });
-  const paymentsEnvelope = (paymentsData as any)?.data
-  const paymentsRaw = Array.isArray(paymentsEnvelope)
-    ? paymentsEnvelope
-    : (paymentsEnvelope as any)?.data ?? []
-  const payments = Array.isArray(paymentsRaw) ? paymentsRaw : []
+  const payments: any[] = (paymentsData as any)?.data ?? []
   const totalPaid = useMemo(
     () => payments.reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0),
     [payments],
   )
 
+  const { data: paymentMethodsData } = useQuery({
+    queryKey: ['payment-methods-all'],
+    enabled: idReady,
+    queryFn: () =>
+      paymentMethodsService
+        .list({ per_page: 50, sort: 'id' } as any)
+        .then((r) => r.data),
+  })
+  const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
+
+  const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [paymentMethodId, setPaymentMethodId] = useState<number>(0)
+  const [paymentAmount, setPaymentAmount] = useState<number>(0)
+  const [paymentDescription, setPaymentDescription] = useState<string>('')
+
+  const createPaymentMutation = useMutation({
+    mutationFn: () =>
+      paymentsService.create({
+        sales_order_id: id,
+        payment_method_id: paymentMethodId,
+        amount: paymentAmount,
+        description: paymentDescription || undefined,
+      } as any),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-order-payments', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
+      toast.success('Payment recorded')
+      setShowPaymentForm(false)
+      setPaymentMethodId(0)
+      setPaymentAmount(0)
+      setPaymentDescription('')
+    },
+    onError: () => toast.error('Failed to record payment'),
+  })
+
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: () => salesOrderService.delete(id),
     onSuccess: () => {
       toast.success('Order deleted');
-      router.push('/sales-orders');
+      router.push('/sales/sales-orders');
     },
     onError: (err: any) => toastMutationApiError(err),
   });
@@ -119,7 +155,7 @@ export default function SalesOrderDetail() {
       >
         <button
           type="button"
-          onClick={() => router.push(`/sales-orders/${id}/edit`)}
+          onClick={() => router.push(`/sales/sales-orders/${id}/edit`)}
           style={{
             height: 38,
             padding: '0 16px',
@@ -153,12 +189,299 @@ export default function SalesOrderDetail() {
         </button>
       </div>
 
+      {order?.settlement_status && (
+        <div
+          style={{
+            ...sectionStyle,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--foreground-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: 0.6,
+            }}
+          >
+            Settlement
+          </span>
+          {(() => {
+            const settlementMeta =
+              SETTLEMENT_META[order.settlement_status as string] ??
+              SETTLEMENT_META.pending
+            return (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '4px 12px',
+                  borderRadius: 99,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: settlementMeta.bg,
+                  color: settlementMeta.color,
+                }}
+              >
+                {settlementMeta.label}
+              </span>
+            )
+          })()}
+        </div>
+      )}
+
+      <div style={sectionStyle}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+            Payments
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--accent)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              Rp {totalPaid.toLocaleString('id-ID')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowPaymentForm(!showPaymentForm)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '6px 12px',
+                background: 'var(--accent-light-bg)',
+                color: 'var(--accent)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={13} />
+              {showPaymentForm ? 'Cancel' : 'Record Payment'}
+            </button>
+          </div>
+        </div>
+
+        {showPaymentForm && (
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--background)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              marginBottom: 16,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  Payment Method
+                </label>
+                <select
+                  value={paymentMethodId}
+                  onChange={(e) => setPaymentMethodId(Number(e.target.value))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 13,
+                    background: 'var(--surface)',
+                    outline: 'none',
+                    fontFamily: 'var(--font-sans)',
+                    color: 'var(--foreground)',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value={0} disabled>
+                    Select method
+                  </option>
+                  {paymentMethods.map((pm: any) => (
+                    <option key={pm.id} value={pm.id}>
+                      {pm.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  Amount (Rp)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={paymentAmount || ''}
+                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  placeholder={`Rp ${(order?.total_price ?? 0).toLocaleString('id-ID')}`}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 13,
+                    background: 'var(--surface)',
+                    outline: 'none',
+                    fontFamily: 'var(--font-sans)',
+                    color: 'var(--foreground)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                }}
+              >
+                Description (optional)
+              </label>
+              <input
+                type="text"
+                value={paymentDescription}
+                onChange={(e) => setPaymentDescription(e.target.value)}
+                placeholder="e.g. Cash payment, Transfer BCA"
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  background: 'var(--surface)',
+                  outline: 'none',
+                  fontFamily: 'var(--font-sans)',
+                  color: 'var(--foreground)',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                Quick fill:
+              </span>
+              <button
+                type="button"
+                onClick={() => setPaymentAmount(order?.total_price ?? 0)}
+                style={{
+                  padding: '4px 10px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                Full amount (Rp {(order?.total_price ?? 0).toLocaleString('id-ID')})
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowPaymentForm(false)}
+                style={{
+                  padding: '7px 14px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => createPaymentMutation.mutate()}
+                disabled={
+                  paymentMethodId === 0 ||
+                  paymentAmount <= 0 ||
+                  createPaymentMutation.isPending
+                }
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor:
+                    paymentMethodId === 0 ||
+                    paymentAmount <= 0 ||
+                    createPaymentMutation.isPending
+                      ? 'not-allowed'
+                      : 'pointer',
+                  opacity:
+                    paymentMethodId === 0 ||
+                    paymentAmount <= 0 ||
+                    createPaymentMutation.isPending
+                      ? 0.7
+                      : 1,
+                }}
+              >
+                {createPaymentMutation.isPending && (
+                  <Loader2 size={13} className="animate-spin" />
+                )}
+                Record Payment
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <SalesOrdersDetail
         id={id}
         payments={payments}
         totalPaid={totalPaid}
         lineItemsSlot={
-          <div style={sectionStyle}>
+          <div
+            style={sectionStyle}
+            aria-busy={isLoading || isDetailsLoading}
+          >
             <h2
               style={{
                 fontFamily: 'var(--font-display)',
@@ -193,7 +516,31 @@ export default function SalesOrderDetail() {
                 </tr>
               </thead>
               <tbody>
-                {details.length === 0 && (
+                {isDetailsLoading &&
+                  Array.from({ length: 4 }).map((_, skIdx) => (
+                    <tr key={`sk-${skIdx}`}>
+                      {[1, 2, 3, 4, 5, 6, 7].map((c) => (
+                        <td
+                          key={c}
+                          style={{
+                            padding: '12px 12px',
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: 14,
+                              borderRadius: 'var(--radius-sm)',
+                              background: 'var(--border)',
+                              opacity: 0.65,
+                              width: c === 2 ? '70%' : c === 1 ? '40%' : '55%',
+                            }}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                {!isDetailsLoading && details.length === 0 && (
                   <tr>
                     <td
                       colSpan={7}
@@ -208,7 +555,8 @@ export default function SalesOrderDetail() {
                     </td>
                   </tr>
                 )}
-                {details.map((d: any, idx: number) => {
+                {!isDetailsLoading &&
+                  details.map((d: any, idx: number) => {
                   const isBundle = !!d.bundle_id
                   const snap = d.product_inventory_snapshot
                   const name =

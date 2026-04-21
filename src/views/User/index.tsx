@@ -1,1 +1,602 @@
-export {default} from './User'
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { usersService } from '@/services/users.service'
+import UserSheet from './UserSheet'
+import {
+  Plus,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Trash2,
+  Users,
+} from 'lucide-react'
+
+interface User {
+  id: number
+  name: string
+  email: string
+  nik?: string
+  type?: 'superadmin' | 'user'
+  phone?: string
+  birth?: string
+  gender?: 'male' | 'female'
+  created_at?: string
+  branch?: { id: number; name: string }
+  roles?: Array<{ id: number; name: string }>
+  branch_ids?: number[]
+  role_ids?: number[]
+}
+
+const TYPE_META: Record<
+  'superadmin' | 'user',
+  { label: string; color: string; bg: string }
+> = {
+  superadmin: { label: 'Superadmin', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  user: { label: 'User', color: 'var(--info)', bg: 'var(--info-bg)' },
+}
+
+export default function UsersView() {
+  const qc = useQueryClient()
+
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [typeFilter, setTypeFilter] = useState<'' | 'superadmin' | 'user'>('')
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editData, setEditData] = useState<User | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, typeFilter])
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['users', page, debouncedSearch, typeFilter],
+    queryFn: () =>
+      usersService
+        .list({
+          page,
+          per_page: 15,
+          include: 'branch,roles',
+          sort: '-created_at',
+          'filter[search]': debouncedSearch || undefined,
+          'filter[type]': typeFilter || undefined,
+        } as any)
+        .then((r) => r.data),
+  })
+
+  const items: User[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => usersService.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] })
+      toast.success('User deleted')
+      setDeleteConfirmId(null)
+    },
+    onError: () => toast.error('Failed to delete user'),
+  })
+
+  const openEdit = (item: User) => {
+    setEditData({
+      ...item,
+      branch_ids: item.branch ? [item.branch.id] : [],
+      role_ids: (item.roles ?? []).map((r) => r.id),
+    })
+    setSheetOpen(true)
+  }
+
+  const thStyle: React.CSSProperties = {
+    padding: '10px 16px',
+    textAlign: 'left',
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--foreground-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    borderBottom: '1px solid var(--border)',
+    whiteSpace: 'nowrap',
+  }
+
+  const tdStyle: React.CSSProperties = {
+    padding: '12px 16px',
+    borderBottom: '1px solid var(--border)',
+    verticalAlign: 'middle',
+  }
+
+  const inputBase: React.CSSProperties = {
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--foreground)',
+    background: 'var(--surface)',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+  }
+
+  const actionBtnStyle: React.CSSProperties = {
+    padding: 6,
+    background: 'none',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    cursor: 'pointer',
+    color: 'var(--foreground-muted)',
+    display: 'flex',
+  }
+
+  const badge = (bg: string, color: string): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '3px 10px',
+    borderRadius: 99,
+    fontSize: 11,
+    fontWeight: 600,
+    background: bg,
+    color,
+  })
+
+  const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
+
+  return (
+    <div style={{ padding: '32px 32px 64px', maxWidth: 1280, margin: '0 auto' }}>
+      {/* Page header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          marginBottom: 28,
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 26,
+              fontWeight: 600,
+              color: 'var(--foreground)',
+              margin: 0,
+            }}
+          >
+            Users
+          </h1>
+          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+            Manage system users and their access
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          <Plus size={15} />
+          New User
+        </button>
+      </div>
+
+      {/* Toolbar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ position: 'relative', maxWidth: 260 }}>
+          <Search
+            size={15}
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--foreground-muted)',
+              pointerEvents: 'none',
+            }}
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search users..."
+            style={{
+              ...inputBase,
+              width: 260,
+              padding: '8px 12px 8px 32px',
+              fontSize: 13,
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as '' | 'superadmin' | 'user')}
+          style={{ ...inputBase, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}
+        >
+          <option value="">All Types</option>
+          <option value="user">User</option>
+          <option value="superadmin">Superadmin</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+        }}
+      >
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Name</th>
+              <th style={{ ...thStyle, width: 200 }}>Email</th>
+              <th style={{ ...thStyle, width: 110 }}>Type</th>
+              <th style={{ ...thStyle, width: 160 }}>Branch</th>
+              <th style={{ ...thStyle, width: 200 }}>Roles</th>
+              <th style={{ ...thStyle, width: 140 }}>Phone</th>
+              <th style={{ ...thStyle, width: 80 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              Array.from({ length: 7 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 7 }).map((__, j) => (
+                    <td key={j} style={tdStyle}>
+                      <div
+                        style={{
+                          height: 14,
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--border)',
+                          width: j === 6 ? 60 : '75%',
+                          animation: 'pulse 1.5s ease-in-out infinite',
+                        }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : isError ? (
+              <tr>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                  <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
+                    Failed to load users.
+                  </span>
+                </td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 10,
+                      color: 'var(--foreground-muted)',
+                    }}
+                  >
+                    <Users size={32} style={{ opacity: 0.4 }} />
+                    <span style={{ fontSize: 14 }}>No users found</span>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              items.map((item) => {
+                const typeKey = (item.type ?? 'user') as 'superadmin' | 'user'
+                const typeMeta = TYPE_META[typeKey]
+                const rolesList = item.roles ?? []
+                return (
+                  <tr
+                    key={item.id}
+                    style={{ transition: 'background 120ms' }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = 'var(--background)')
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = 'transparent')
+                    }
+                  >
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: 'var(--foreground)',
+                          }}
+                        >
+                          {item.name}
+                        </span>
+                        {item.nik && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: 'var(--foreground-muted)',
+                            }}
+                          >
+                            {item.nik}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--foreground-muted)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: 'block',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {item.email}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      {typeMeta ? (
+                        <span style={badge(typeMeta.bg, typeMeta.color)}>{typeMeta.label}</span>
+                      ) : (
+                        <span style={badge('var(--background)', 'var(--foreground-muted)')}>—</span>
+                      )}
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                        {item.branch?.name ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      {rolesList.length === 0 ? (
+                        <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>—</span>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 4,
+                            alignItems: 'center',
+                          }}
+                        >
+                          {rolesList.slice(0, 2).map((role) => (
+                            <span
+                              key={role.id}
+                              style={{
+                                padding: '1px 8px',
+                                background: 'var(--accent-light-bg)',
+                                color: 'var(--accent)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: 11,
+                                fontWeight: 500,
+                              }}
+                            >
+                              {role.name}
+                            </span>
+                          ))}
+                          {rolesList.length > 2 && (
+                            <span
+                              style={{ fontSize: 11, color: 'var(--foreground-muted)' }}
+                            >
+                              +{rolesList.length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                        {item.phone ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          justifyContent: 'flex-end',
+                        }}
+                      >
+                        <button
+                          onClick={() => openEdit(item)}
+                          style={actionBtnStyle}
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {meta && lastPage > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 8,
+            marginTop: 16,
+          }}
+        >
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
+              cursor: page === 1 ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+            }}
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+            Page {page} of {lastPage}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+            disabled={page === lastPage}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              color: page === lastPage ? 'var(--foreground-subtle)' : 'var(--foreground)',
+              cursor: page === lastPage ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+            }}
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {deleteConfirmId !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={() => setDeleteConfirmId(null)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 70,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '28px 28px 24px',
+              width: 380,
+              boxShadow: 'var(--shadow-lg)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 17,
+                fontWeight: 600,
+                margin: '0 0 8px',
+                color: 'var(--foreground)',
+              }}
+            >
+              Delete User
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>
+              This will permanently remove the user account.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(deleteConfirmId)}
+                disabled={deleteMutation.isPending}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--destructive)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'white',
+                  cursor: 'pointer',
+                  opacity: deleteMutation.isPending ? 0.7 : 1,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sheet */}
+      <UserSheet
+        open={sheetOpen}
+        onClose={() => {
+          setSheetOpen(false)
+          setEditData(null)
+        }}
+        editData={editData}
+      />
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
+    </div>
+  )
+}

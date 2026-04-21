@@ -1,7 +1,10 @@
-import EditRoles from "@/views/Roles/EditRoles";
+import { useEffect } from 'react'
+import { useRouter } from 'next/router'
 
-const RolesEditPage = () => {
-  return <EditRoles />;
-};
-
-export default RolesEditPage;
+export default function RoleEditPage() {
+  const router = useRouter()
+  useEffect(() => {
+    router.replace('/users/roles')
+  }, [router])
+  return null
+}

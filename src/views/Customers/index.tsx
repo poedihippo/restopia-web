@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import customerService from '@/services/customer.service';
+import { customersService as customerService } from '@/services/customers.service';
 import { toastMutationApiError } from '@/utils/apiError';
 import CustomerSheet from './CustomerSheet';
 

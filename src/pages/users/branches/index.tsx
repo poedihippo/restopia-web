@@ -1,7 +1,5 @@
-import Branches from "@/views/Branches";
+import BranchesView from '@/views/Branches'
 
-const BranchPage = () => {
-  return <Branches />;
-};
-
-export default BranchPage;
+export default function BranchesPage() {
+  return <BranchesView />
+}

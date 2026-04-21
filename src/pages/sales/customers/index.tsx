@@ -1,7 +1,7 @@
-import Customer from "@/views/Customer";
+import Customers from "@/views/Customers";
 
 const CustomersPage = () => {
-  return <Customer />;
+  return <Customers />;
 };
 
 export default CustomersPage;

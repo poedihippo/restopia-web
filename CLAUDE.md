@@ -86,11 +86,105 @@ Every sheet must have:
   - onError: toast error
 
 ## Module Build Order
-Completed: Product Categories, UOMs, Products, Product UOMs,
-           Product Conversions, Product Inventories, Stock Movements
-Next: Purchase Orders → Productions → Sales Orders →
-      Deliveries + Receipts → Recipes → Suppliers + Customers →
-      Users + Roles + Branches → POS (separate layout)
+
+### Completed (needs verification):
+- Product Categories, UOMs, Products, Product UOMs
+- Product Conversions (amount field)
+- Product Inventories (create: product_uom_id+code+base_price+online_price+status)
+- Stock Movements (direction: in|out — NOT type)
+- Recipes (card layout, materials use product_uom_id)
+- Productions (nested materials, load from recipe)
+- Suppliers (code+name required)
+- Purchase Orders (details use product_inventory_id)
+
+### In Progress / Broken:
+- Productions detail page — blank, needs fix
+- Stock Movements — 500 error with include
+
+### Not Started (priority order):
+1. Customers (simple list+sheet)
+2. Sales Orders (complex — new fields below)
+3. Vouchers (renamed fields — see below)
+4. Payment Methods (new — simple CRUD)
+5. Payments (new — linked to sales orders)
+6. Deliveries (list + create + detail)
+7. Receipts (list + create + detail)
+8. Users (expanded fields)
+9. Roles + Permissions
+10. Branches + Companies
+11. Bundles
+12. Dashboard (real data from /v1/dashboard/metrics)
+13. POS layout (standalone)
+
+## Critical API Changes (new spec)
+
+### Sales Orders — BREAKING CHANGES:
+Required fields: type, date, subtotal_price, discount_price,
+  total_price, status, details
+New fields:
+  customer_name: string (inline, no customer_id needed)
+  customer_phone: string
+  fulfillment_date: date-time
+  settlement_status: pending|credit|settled|cancelled
+  credit_by_id: integer
+Detail status: pending|process|completed (NOT pending|final)
+Detail supports bundles:
+  bundle_id: integer (optional)
+  bundle_details[]: { product_inventory_id, qty }
+New endpoint: POST /v1/sales-orders/bulk-update-settlement-status
+
+### Vouchers — BREAKING CHANGES:
+discount_type (was: type) — percent|fixed
+discount_value (was: value)
+min_subtotal_price (new)
+max_discount_price (new)
+scope: company|branch (new, required)
+valid_from (was: start_date)
+valid_until (was: end_date)
+New endpoint: PATCH /v1/vouchers/{id}/status
+
+### Branch — updated fields:
+code: string (NOW REQUIRED)
+is_default: boolean (new)
+
+### User — expanded fields:
+nik: string
+type: superadmin|user
+phone: string
+birth: date
+gender: male|female
+branch_ids: integer[] (plural — multiple branches)
+role_ids: integer[]
+
+### New Modules:
+Dashboard:
+  GET /v1/dashboard/metrics
+    filters: company_id, branch_id, created_at_gte, created_at_lte
+  GET /v1/dashboard/insights
+    filters: company_id, branch_id
+
+Enums:
+  GET /v1/enums (no auth required)
+
+Payment Methods:
+  Full CRUD at /v1/payment-methods
+  Request: { name: string }
+  include: created_by,updated_by
+
+Payments:
+  Full CRUD at /v1/payments
+  Create: { sales_order_id, payment_method_id, amount, description? }
+  Update: { payment_method_id, amount, description? }
+  include: created_by,updated_by,branch,sales_order,payment_method
+  List filters: sales_order_id, branch_id, payment_method_id
+
+### Services to add to src/services/:
+- payment-methods.service.ts
+- payments.service.ts
+
+### Sidebar navigation updates needed:
+Add to SALES group: "Payments" → /sales/payments
+Add to SETTINGS group: "Payment Methods" → /settings/payment-methods
 
 ## Routes (NO_LAYOUT_ROUTES — no sidebar/topbar)
   /         → Login page
@@ -219,6 +313,10 @@ Every list view must have:
   roles                 : ['roles', page, search]
   branches              : ['branches', page, search]
   companies             : ['companies', page, search]
+  payment-methods       : ['payment-methods', page, search]
+  payments              : ['payments', page, search]
+  enums                 : ['enums']
+  dashboard-metrics     : ['dashboard-metrics']
 
 ### Dropdown/Select Query Keys (fetch-all for form selects)
   products-all          : ['products-all']
@@ -230,6 +328,7 @@ Every list view must have:
   product-inventories-all: ['product-inventories-all']
   roles-all             : ['roles-all']
   product-categories-all: ['product-categories-all']
+  payment-methods-all   : ['payment-methods-all']
 
 ## Recent implementation (technical)
 

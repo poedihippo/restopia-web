@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/router';
 import { useQuery } from '@tanstack/react-query';
-import salesOrderService from '@/services/sales-order.service';
+import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service';
 import SalesOrderForm from './SalesOrderForm';
 
 export default function SalesOrderEdit() {

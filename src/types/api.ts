@@ -57,11 +57,9 @@ export interface CompanyRequest {
 
 // Branches
 export interface BranchRequest {
-  company_id: number
+  code: string
   name: string
-  address?: string
-  phone?: string
-  email?: string
+  is_default?: boolean
 }
 
 // Roles
@@ -75,7 +73,12 @@ export interface UserRequest {
   name: string
   email: string
   password?: string
-  branch_id: number
+  nik?: string
+  type?: 'superadmin' | 'user'
+  phone?: string
+  birth?: string
+  gender?: 'male' | 'female'
+  branch_ids?: number[]
   role_ids?: number[]
 }
 
@@ -88,10 +91,10 @@ export interface ProductCategoryRequest {
 // Products
 export interface ProductRequest {
   product_category_id: number
+  code: string
   name: string
-  code?: string
+  type: 'raw' | 'wip' | 'final'
   description?: string
-  status: 'active' | 'inactive'
 }
 
 // UOMs
@@ -148,30 +151,34 @@ export interface StockMovementRequest {
 }
 
 // Recipes
-export interface RecipeDetail {
-  product_inventory_id: number
+export interface RecipeMaterialItem {
+  product_uom_id: number
   qty: number
-  description?: string
 }
 export interface RecipeRequest {
   product_uom_id: number
-  name: string
-  yield_qty: number
-  description?: string
-  details: RecipeDetail[]
+  qty: number
+  is_default: boolean
+  materials: RecipeMaterialItem[]
 }
 
 // Productions
-export interface ProductionDetail {
-  recipe_id: number
+export interface ProductionMaterial {
+  product_inventory_id: number
   qty: number
+}
+export interface ProductionDetail {
+  product_uom_id: number
+  qty: number
+  status: 'pending' | 'final'
+  expiry_date?: string
   description?: string
+  materials?: ProductionMaterial[]
 }
 export interface ProductionRequest {
   code: string
-  branch_id: number
   date: string
-  status: 'pending' | 'on_progress' | 'done' | 'cancelled'
+  status: 'pending' | 'final'
   description?: string
   details: ProductionDetail[]
 }
@@ -280,15 +287,22 @@ export interface VoucherProductUom {
 export interface VoucherRequest {
   code: string
   name: string
-  type: 'percentage' | 'fixed'
-  value: number
-  min_purchase?: number
-  quota?: number
-  start_date: string
-  end_date: string
+  discount_type: 'percent' | 'fixed'
+  discount_value: number
+  scope: 'company' | 'branch'
+  valid_from: string
+  valid_until: string
   status: 'active' | 'inactive'
+  min_subtotal_price?: number
+  max_discount_price?: number
+  quota?: number
+  description?: string
   branches?: VoucherBranch[]
   product_uoms?: VoucherProductUom[]
+}
+
+export interface VoucherStatusRequest {
+  status: 'active' | 'inactive'
 }
 
 // Sales Orders
@@ -302,7 +316,7 @@ export interface SalesOrderDetail {
   description?: string
 }
 export interface SalesOrderRequest {
-  code: string
+  code?: string
   type: 'offline' | 'online'
   customer_id?: number | null
   customer_name?: string
@@ -314,8 +328,19 @@ export interface SalesOrderRequest {
   discount_price: number
   total_price: number
   status: 'pending' | 'final'
+  settlement_status?: 'pending' | 'credit' | 'settled' | 'cancelled'
+  credit_by_id?: number | null
   description?: string
   details: SalesOrderDetail[]
+}
+
+export interface SalesOrderSettlementItem {
+  sales_order_id: number
+  settlement_status: 'pending' | 'credit' | 'settled' | 'cancelled'
+}
+
+export interface SalesOrderBulkSettlementRequest {
+  items: SalesOrderSettlementItem[]
 }
 
 export interface PosCartItem {
@@ -325,11 +350,6 @@ export interface PosCartItem {
   price: number
   qty: number
   price_editable?: boolean
-}
-
-export interface BundleDetail {
-  product_uom_id: number
-  qty: number
 }
 
 export interface Bundle {
@@ -358,6 +378,12 @@ export interface PaymentMethod {
 
 export interface PaymentRequest {
   sales_order_id: number
+  payment_method_id: number
+  amount: number
+  description?: string
+}
+
+export interface PaymentUpdateRequest {
   payment_method_id: number
   amount: number
   description?: string

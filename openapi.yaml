@@ -1,0 +1,3941 @@
+openapi: 3.0.3
+
+info:
+  title: Dapur Cokelat API
+  description: >
+    REST API for Dapur Cokelat — a multi-branch bakery management platform.
+    Covers authentication, user/role management, inventory, production,
+    procurement (purchase orders, deliveries, receipts), sales orders,
+    vouchers, payments, and AI queries.
+
+    All protected endpoints require a Bearer token obtained from
+    `POST /v1/auth/token`. Pass the token in the `Authorization` header
+    as `Bearer <access_token>`.
+
+    **Common query conventions**
+    - Pagination: `page` (default 1) and `per_page` (default 10)
+    - Eager-loading relations: `include=relation1,relation2`
+    - Sorting: `sort=field` for ASC, `sort=-field` for DESC
+    - Filtering: `filter[field]=value`
+  version: "1.0.0"
+  contact:
+    name: Dapur Cokelat Engineering
+
+servers:
+  - url: "{base_url}"
+    description: Configurable base URL (set via environment variable)
+    variables:
+      base_url:
+        default: "https://api.example.com"
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # -------------------------------------------------------------------------
+  # Shared parameters
+  # -------------------------------------------------------------------------
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+      description: Page number for pagination.
+    PerPageParam:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        default: 10
+      description: Number of items per page.
+    SortParam:
+      name: sort
+      in: query
+      schema:
+        type: string
+      description: >
+        Field to sort by. Prefix with `-` for descending order.
+        e.g. `id`, `-created_at`.
+    IncludeParam:
+      name: include
+      in: query
+      schema:
+        type: string
+      description: Comma-separated list of relations to eager-load.
+    FilterSearchParam:
+      name: filter[search]
+      in: query
+      schema:
+        type: string
+      description: Keyword search.
+    PathId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Resource identifier.
+
+  # -------------------------------------------------------------------------
+  # Reusable schemas
+  # -------------------------------------------------------------------------
+  schemas:
+
+    # Generic envelope
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          description: Payload — shape varies per endpoint.
+
+    PaginatedMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        last_page:
+          type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    # Auth
+    TokenRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: superadmin@gmail.com
+        password:
+          type: string
+          format: password
+          example: "!AMR00T"
+
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Expiry in seconds.
+
+    ChangeActiveBranchRequest:
+      type: object
+      required: [branch_id]
+      properties:
+        branch_id:
+          type: integer
+          example: 1
+
+    # AI
+    AiQueryRequest:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          example: "what day is it?"
+
+    # Companies
+    CompanyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: Albatech
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Branches
+    BranchRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          example: TGR-001F
+        name:
+          type: string
+          example: Alam Sutera
+        is_default:
+          type: boolean
+          example: false
+
+    Branch:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        is_default:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Permissions
+    Permission:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # Roles
+    RoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: IT
+        permission_ids:
+          type: array
+          items:
+            type: integer
+          example: [5]
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Users
+    UserRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        nik:
+          type: string
+          example: "32011234567807"
+        name:
+          type: string
+          example: Zulfi
+        type:
+          type: string
+          enum: [superadmin, user]
+          example: user
+        phone:
+          type: string
+          example: "1234567890"
+        birth:
+          type: string
+          format: date
+          example: "2002-07-07"
+        gender:
+          type: string
+          enum: [male, female]
+          example: male
+        email:
+          type: string
+          format: email
+          example: zulfsi7@gmail.com
+        password:
+          type: string
+          format: password
+          example: password
+        branch_ids:
+          type: array
+          items:
+            type: integer
+          example: [1]
+        role_ids:
+          type: array
+          items:
+            type: integer
+          example: [1]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        nik:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        phone:
+          type: string
+        birth:
+          type: string
+          format: date
+        gender:
+          type: string
+        email:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Product Categories
+    ProductCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: Book
+
+    # Products
+    ProductRequest:
+      type: object
+      required: [product_category_id, code, name, type]
+      properties:
+        product_category_id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: KS00002TX
+        name:
+          type: string
+          example: Kue Tart
+        type:
+          type: string
+          enum: [raw, wip, final]
+          example: final
+        description:
+          type: string
+          example: Kue enak
+
+    # UOMs
+    UomRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          example: G
+        name:
+          type: string
+          example: Gram
+
+    # Product Conversions
+    ProductConversionRequest:
+      type: object
+      required: [product_id, uom_id, target_uom_id, amount]
+      properties:
+        product_id:
+          type: integer
+          example: 1
+        uom_id:
+          type: integer
+          example: 1
+        target_uom_id:
+          type: integer
+          example: 2
+        amount:
+          type: number
+          example: 50
+
+    # Product UOMs
+    ProductUomRequest:
+      type: object
+      required: [product_id, uom_id, code, base_price, online_price]
+      properties:
+        product_id:
+          type: integer
+          example: 1
+        uom_id:
+          type: integer
+          example: 4
+        code:
+          type: string
+          example: BRWNS00001
+        base_price:
+          type: number
+          example: 20000
+        online_price:
+          type: number
+          example: 23000
+        price_editable:
+          type: boolean
+          example: false
+        is_default:
+          type: boolean
+          example: false
+
+    # Product Inventories
+    ProductInventoryRequest:
+      type: object
+      required: [product_uom_id, code, base_price, online_price, status]
+      properties:
+        product_uom_id:
+          type: integer
+          example: 1
+        code:
+          type: string
+          example: SK00000000001
+        base_price:
+          type: number
+          example: 20000
+        online_price:
+          type: number
+          example: 23000
+        price_editable:
+          type: boolean
+          example: false
+        expiry_date:
+          type: string
+          format: date
+          example: "2026-07-07"
+        status:
+          type: string
+          enum: [active, inactive]
+          example: active
+
+    ProductInventoryUpdateRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          example: SK000000000012
+        base_price:
+          type: number
+          example: 20000
+        online_price:
+          type: number
+          example: 23000
+        price_editable:
+          type: boolean
+          example: false
+        expiry_date:
+          type: string
+          format: date
+          example: "2026-07-07"
+        status:
+          type: string
+          enum: [active, inactive]
+          example: active
+
+    # Stock Movements
+    StockMovementRequest:
+      type: object
+      required: [product_inventory_id, qty, direction]
+      properties:
+        product_inventory_id:
+          type: integer
+          example: 3
+        qty:
+          type: number
+          example: 50
+        direction:
+          type: string
+          enum: [in, out]
+          example: in
+        description:
+          type: string
+          example: Adjust stock due warehousing fault
+
+    # Recipes
+    RecipeMaterialItem:
+      type: object
+      required: [product_uom_id, qty]
+      properties:
+        product_uom_id:
+          type: integer
+          example: 2
+        qty:
+          type: number
+          example: 5
+
+    RecipeRequest:
+      type: object
+      required: [product_uom_id, qty, is_default, materials]
+      properties:
+        product_uom_id:
+          type: integer
+          example: 1
+        qty:
+          type: number
+          example: 2
+        is_default:
+          type: boolean
+          example: true
+        materials:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecipeMaterialItem'
+
+    RecipeUpdateRequest:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        material_product_id:
+          type: integer
+        material_uom_id:
+          type: integer
+        qty:
+          type: number
+
+    # Productions
+    ProductionMaterial:
+      type: object
+      required: [product_inventory_id, qty]
+      properties:
+        product_inventory_id:
+          type: integer
+          example: 1
+        qty:
+          type: number
+          example: 5
+
+    ProductionDetail:
+      type: object
+      required: [product_uom_id, qty, status]
+      properties:
+        product_uom_id:
+          type: integer
+          example: 1
+        qty:
+          type: number
+          example: 30
+        expiry_date:
+          type: string
+          format: date
+          example: "2026-07-07"
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        description:
+          type: string
+        materials:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductionMaterial'
+
+    ProductionRequest:
+      type: object
+      required: [code, date, status, details]
+      properties:
+        code:
+          type: string
+          example: PN00002
+        date:
+          type: string
+          format: date
+          example: "2026-07-07"
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        description:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductionDetail'
+
+    # Suppliers
+    SupplierRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+          example: NGY
+        name:
+          type: string
+          example: Nagoya
+
+    # Purchase Orders
+    PurchaseOrderDetail:
+      type: object
+      required: [product_inventory_id, qty, price]
+      properties:
+        id:
+          type: integer
+          description: Provide when updating an existing detail line.
+        product_inventory_id:
+          type: integer
+          example: 1
+        qty:
+          type: number
+          example: 30
+        price:
+          type: number
+          example: 25000
+        description:
+          type: string
+
+    PurchaseOrderRequest:
+      type: object
+      required: [code, date, total_price, status, details]
+      properties:
+        code:
+          type: string
+          example: PO00001
+        supplier_id:
+          type: integer
+          description: Required if supplier_branch_id is not provided.
+          example: 1
+        supplier_branch_id:
+          type: integer
+          description: Required if supplier_id is not provided.
+          example: 1
+        date:
+          type: string
+          format: date
+          example: "2026-07-07"
+        total_price:
+          type: number
+          example: 2000000
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        description:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseOrderDetail'
+
+    # Bundles
+    BundleDetail:
+      type: object
+      required: [product_uom_id, qty]
+      properties:
+        product_uom_id:
+          type: integer
+          example: 1
+        qty:
+          type: number
+          example: 1
+
+    BundleRequest:
+      type: object
+      required: [code, name, price, status, details]
+      properties:
+        code:
+          type: string
+          example: PARCEL0001
+        name:
+          type: string
+          example: Parsel Lebaran 2026 - Seri 1
+        price:
+          type: number
+          example: 50000
+        status:
+          type: string
+          enum: [active, inactive]
+          example: active
+        description:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/BundleDetail'
+
+    # Deliveries
+    DeliveryDetail:
+      type: object
+      required: [product_inventory_id, qty, price, status]
+      properties:
+        product_inventory_id:
+          type: integer
+          example: 1
+        purchase_order_detail_id:
+          type: integer
+          description: Optional — only when linked to a PO.
+          example: 1
+        qty:
+          type: number
+          example: 30
+        price:
+          type: number
+          example: 25000
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        description:
+          type: string
+
+    DeliveryRequest:
+      type: object
+      required: [code, target_branch_id, date, total_price, status, details]
+      properties:
+        code:
+          type: string
+          example: PO00001
+        target_branch_id:
+          type: integer
+          example: 1
+        purchase_order_id:
+          type: integer
+          description: Optional — only when linked to a PO.
+          example: 3
+        date:
+          type: string
+          format: date
+          example: "2026-07-07"
+        total_price:
+          type: number
+          example: 2000000
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        description:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryDetail'
+
+    # Receipts
+    ReceiptDetail:
+      type: object
+      required: [product_inventory_id, qty, price, status]
+      properties:
+        product_inventory_id:
+          type: integer
+          example: 1
+        delivery_detail_id:
+          type: integer
+          description: Optional — links to a delivery detail line.
+          example: 1
+        qty:
+          type: number
+          example: 25
+        price:
+          type: number
+          example: 50000
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        description:
+          type: string
+        client_ref:
+          type: string
+          example: receipts1
+
+    ReceiptRequest:
+      type: object
+      required: [code, delivery_id, date, status, total_price, details]
+      properties:
+        code:
+          type: string
+          example: test2
+        delivery_id:
+          type: integer
+          example: 1
+        date:
+          type: string
+          format: date
+          example: "2026-03-02"
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        total_price:
+          type: number
+          example: 123123
+        description:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReceiptDetail'
+
+    # Customers
+    CustomerRequest:
+      type: object
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+          example: test
+        phone:
+          type: string
+          example: "0812313"
+
+    # Vouchers
+    VoucherBranch:
+      type: object
+      required: [branch_id]
+      properties:
+        branch_id:
+          type: integer
+          example: 1
+        quota:
+          type: integer
+          example: 300
+          description: Optional per-branch quota override.
+
+    VoucherProductUom:
+      type: object
+      required: [product_uom_id]
+      properties:
+        product_uom_id:
+          type: integer
+          example: 1
+        quota:
+          type: integer
+          example: 100
+          description: Optional per-product-uom quota override.
+
+    VoucherRequest:
+      type: object
+      required: [code, name, discount_type, discount_value, scope, valid_from, valid_until, status]
+      properties:
+        code:
+          type: string
+          example: PROMO2026
+        name:
+          type: string
+          example: New Year Promotion
+        discount_type:
+          type: string
+          enum: [percent, fixed]
+          example: percent
+        discount_value:
+          type: number
+          example: 20
+        min_subtotal_price:
+          type: number
+          example: 100000
+        max_discount_price:
+          type: number
+          example: 50000
+        scope:
+          type: string
+          enum: [company, branch]
+          example: branch
+        valid_from:
+          type: string
+          format: date
+          example: "2026-01-01"
+        valid_until:
+          type: string
+          format: date
+          example: "2027-01-31"
+        quota:
+          type: integer
+          example: 1000
+        status:
+          type: string
+          enum: [active, inactive]
+          example: active
+        description:
+          type: string
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/VoucherBranch'
+        product_uoms:
+          type: array
+          items:
+            $ref: '#/components/schemas/VoucherProductUom'
+
+    VoucherStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [active, inactive]
+          example: active
+
+    # Sales Orders
+    SalesOrderBundleDetail:
+      type: object
+      required: [product_inventory_id, qty]
+      properties:
+        product_inventory_id:
+          type: integer
+          example: 1
+        qty:
+          type: number
+          example: 1
+
+    SalesOrderDetail:
+      type: object
+      required: [qty, price, status]
+      properties:
+        product_inventory_id:
+          type: integer
+          nullable: true
+          example: 1
+          description: Required when not a bundle item.
+        bundle_id:
+          type: integer
+          nullable: true
+          example: null
+          description: Required when selling a bundle.
+        bundle_details:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/SalesOrderBundleDetail'
+          description: Required when bundle_id is set.
+        qty:
+          type: number
+          example: 2
+        price:
+          type: number
+          example: 3000
+        status:
+          type: string
+          enum: [pending, process, completed]
+          example: pending
+        description:
+          type: string
+
+    SalesOrderRequest:
+      type: object
+      required: [type, date, subtotal_price, discount_price, total_price, status, details]
+      properties:
+        code:
+          type: string
+          example: SO00003
+        type:
+          type: string
+          enum: [offline, online]
+          example: offline
+        customer_id:
+          type: integer
+          nullable: true
+        customer_name:
+          type: string
+          example: Zulfi
+        customer_phone:
+          type: string
+          example: "124124123123"
+        date:
+          type: string
+          format: date
+          example: "2026-03-11"
+        fulfillment_date:
+          type: string
+          format: date-time
+          example: "2026-03-11T09:44:00Z"
+        voucher_id:
+          type: integer
+          nullable: true
+        subtotal_price:
+          type: number
+          example: 12000
+        discount_price:
+          type: number
+          example: 0
+        total_price:
+          type: number
+          example: 12000
+        status:
+          type: string
+          enum: [pending, final]
+          example: pending
+        settlement_status:
+          type: string
+          enum: [pending, credit, settled, cancelled]
+          example: pending
+        credit_by_id:
+          type: integer
+          nullable: true
+          example: 2
+        description:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderDetail'
+
+    # Sales Order Bulk Settlement
+    SalesOrderSettlementItem:
+      type: object
+      required: [sales_order_id, settlement_status]
+      properties:
+        sales_order_id:
+          type: integer
+          example: 2
+        settlement_status:
+          type: string
+          enum: [pending, credit, settled, cancelled]
+          example: credit
+
+    SalesOrderBulkSettlementRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesOrderSettlementItem'
+
+    # Payment Methods
+    PaymentMethodRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: Cash
+
+    # Payments
+    PaymentRequest:
+      type: object
+      required: [sales_order_id, payment_method_id, amount]
+      properties:
+        sales_order_id:
+          type: integer
+          example: 3
+        payment_method_id:
+          type: integer
+          example: 1
+        amount:
+          type: number
+          example: 5000
+        description:
+          type: string
+          example: bayar segini
+
+    PaymentUpdateRequest:
+      type: object
+      required: [payment_method_id, amount]
+      properties:
+        payment_method_id:
+          type: integer
+          example: 1
+        amount:
+          type: number
+          example: 5000
+        description:
+          type: string
+          example: bayar segini
+
+    # Media
+    MediaCreateRequest:
+      type: object
+      required: [media_type, media_id, collection_name, files]
+      properties:
+        media_type:
+          type: string
+          enum: [productions, purchase_orders, deliveries, receipts, receipt_details]
+          example: receipts
+        media_id:
+          type: integer
+          description: ID of the related resource.
+          example: 7
+        collection_name:
+          type: string
+          example: image
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+          description: One or more files to upload.
+
+    # Dashboard
+    DashboardMetricsFilters:
+      type: object
+      description: Query filters for dashboard metrics.
+
+# ---------------------------------------------------------------------------
+# Global security (all endpoints are protected unless overridden)
+# ---------------------------------------------------------------------------
+security:
+  - BearerAuth: []
+
+# ---------------------------------------------------------------------------
+# Tags
+# ---------------------------------------------------------------------------
+tags:
+  - name: Auth
+    description: Authentication & session management
+  - name: AI
+    description: AI-powered queries
+  - name: Dashboard
+    description: Dashboard metrics & insights
+  - name: Enums
+    description: Enumeration values
+  - name: Companies
+    description: Company management
+  - name: Branches
+    description: Branch management
+  - name: Permissions
+    description: Permission catalogue
+  - name: Roles
+    description: Role management with permission assignment
+  - name: Users
+    description: User management
+  - name: Media
+    description: File / media management
+  - name: Product Categories
+    description: Product category management
+  - name: Products
+    description: Product catalogue
+  - name: UOMs
+    description: Units of measure
+  - name: Product Conversions
+    description: UOM conversion factors per product
+  - name: Product UOMs
+    description: Product-UOM combinations with pricing
+  - name: Product Inventories
+    description: Per-branch inventory items (SKUs)
+  - name: Stock Movements
+    description: Manual stock adjustments and movement history
+  - name: Recipes
+    description: Bill-of-materials / recipes for finished goods
+  - name: Productions
+    description: Production orders
+  - name: Suppliers
+    description: Supplier management
+  - name: Purchase Orders
+    description: Procurement purchase orders
+  - name: Bundles
+    description: Product bundle / package management
+  - name: Deliveries
+    description: Inbound delivery management
+  - name: Receipts
+    description: Goods receipt management
+  - name: Customers
+    description: Customer management
+  - name: Vouchers
+    description: Discount voucher management
+  - name: Sales Orders
+    description: Sales order management (offline & online)
+  - name: Payment Methods
+    description: Payment method management
+  - name: Payments
+    description: Payment management
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+
+  # =========================================================================
+  # AUTH
+  # =========================================================================
+  /v1/auth/token:
+    post:
+      tags: [Auth]
+      summary: Obtain access & refresh tokens
+      description: Authenticates a user with email and password, returning JWT tokens.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Tokens issued successfully.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/token/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Issues a new access token using a valid refresh token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: New access token issued.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Refresh token invalid or expired.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get authenticated user profile
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: branch.company
+          description: "Available: created_by, updated_by, branch, branch.company, roles, permissions, branches"
+      responses:
+        '200':
+          description: Current user profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/auth/change-active-branch:
+    patch:
+      tags: [Auth]
+      summary: Switch active branch for current session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeActiveBranchRequest'
+      responses:
+        '200':
+          description: Active branch updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/auth/revoke:
+    post:
+      tags: [Auth]
+      summary: Revoke current access token (logout)
+      responses:
+        '200':
+          description: Token revoked successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # AI
+  # =========================================================================
+  /v1/ai/query:
+    post:
+      tags: [AI]
+      summary: Submit a natural language query to the AI assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiQueryRequest'
+      responses:
+        '200':
+          description: AI response returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # DASHBOARD
+  # =========================================================================
+  /v1/dashboard/metrics:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard metrics
+      parameters:
+        - name: filter[company_id]
+          in: query
+          schema:
+            type: integer
+          example: 1
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+          example: 1
+        - name: filter[created_at_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2025-04-15"
+        - name: filter[created_at_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2026-04-15"
+      responses:
+        '200':
+          description: Dashboard metrics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/dashboard/insights:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard insights
+      parameters:
+        - name: filter[company_id]
+          in: query
+          schema:
+            type: integer
+          example: 1
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+          example: 1
+      responses:
+        '200':
+          description: Dashboard insights.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # ENUMS
+  # =========================================================================
+  /v1/enums:
+    get:
+      tags: [Enums]
+      summary: Get all enum values
+      security: []
+      responses:
+        '200':
+          description: All enum values.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # COMPANIES
+  # =========================================================================
+  /v1/companies:
+    get:
+      tags: [Companies]
+      summary: List companies
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+          description: "Available: created_by, updated_by"
+        - $ref: '#/components/parameters/FilterSearchParam'
+      responses:
+        '200':
+          description: Paginated list of companies.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Companies]
+      summary: Create a company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyRequest'
+      responses:
+        '201':
+          description: Company created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/companies/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Companies]
+      summary: Get a company by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+      responses:
+        '200':
+          description: Company detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Companies]
+      summary: Update a company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyRequest'
+      responses:
+        '200':
+          description: Company updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Companies]
+      summary: Delete a company
+      responses:
+        '200':
+          description: Company deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # BRANCHES
+  # =========================================================================
+  /v1/branches:
+    get:
+      tags: [Branches]
+      summary: List branches
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+          description: "Available: created_by, updated_by, company"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[company_id]
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated list of branches.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Branches]
+      summary: Create a branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchRequest'
+      responses:
+        '201':
+          description: Branch created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/branches/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Branches]
+      summary: Get a branch by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: company
+          description: "Available: created_by, updated_by, company"
+      responses:
+        '200':
+          description: Branch detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Branches]
+      summary: Update a branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BranchRequest'
+      responses:
+        '200':
+          description: Branch updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Branches]
+      summary: Delete a branch
+      responses:
+        '200':
+          description: Branch deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PERMISSIONS
+  # =========================================================================
+  /v1/permissions:
+    get:
+      tags: [Permissions]
+      summary: List all permissions
+      responses:
+        '200':
+          description: Full list of permissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # ROLES
+  # =========================================================================
+  /v1/roles:
+    get:
+      tags: [Roles]
+      summary: List roles
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,permissions
+          description: "Available: created_by, updated_by, permissions"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[company_id]
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated list of roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Roles]
+      summary: Create a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+      responses:
+        '201':
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/roles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Roles]
+      summary: Get a role by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,permissions
+      responses:
+        '200':
+          description: Role detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Roles]
+      summary: Update a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleRequest'
+      responses:
+        '200':
+          description: Role updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Roles]
+      summary: Delete a role
+      responses:
+        '200':
+          description: Role deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # USERS
+  # =========================================================================
+  /v1/users:
+    get:
+      tags: [Users]
+      summary: List users
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+          description: "Available: created_by, updated_by, branch, branch.company, roles, permissions, branches"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[type]
+          in: query
+          schema:
+            type: string
+            enum: [superadmin, user]
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated list of users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Users]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+      responses:
+        '201':
+          description: User created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Users]
+      summary: Get a user by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+          description: "Available: created_by, updated_by, branch, branch.company, roles, permissions, branches"
+      responses:
+        '200':
+          description: User detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Users]
+      summary: Update a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRequest'
+      responses:
+        '200':
+          description: User updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Users]
+      summary: Delete a user
+      responses:
+        '200':
+          description: User deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # MEDIA
+  # =========================================================================
+  /v1/media:
+    get:
+      tags: [Media]
+      summary: List media
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[media_type]
+          in: query
+          schema:
+            type: string
+            enum: [productions, purchase_orders, deliveries, receipts, receipt_details]
+        - name: filter[collection_name]
+          in: query
+          schema:
+            type: string
+          example: photo
+        - name: filter[disk]
+          in: query
+          schema:
+            type: string
+          example: s3
+      responses:
+        '200':
+          description: Paginated list of media.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Media]
+      summary: Upload one or more media files
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MediaCreateRequest'
+      responses:
+        '201':
+          description: Media uploaded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/media/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Media]
+      summary: Get a media item by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+      responses:
+        '200':
+          description: Media detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Media]
+      summary: Delete a media item
+      responses:
+        '200':
+          description: Media deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PRODUCT CATEGORIES
+  # =========================================================================
+  /v1/product-categories:
+    get:
+      tags: [Product Categories]
+      summary: List product categories
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+        - $ref: '#/components/parameters/FilterSearchParam'
+      responses:
+        '200':
+          description: Paginated list of product categories.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Product Categories]
+      summary: Create a product category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCategoryRequest'
+      responses:
+        '201':
+          description: Product category created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/product-categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Product Categories]
+      summary: Get a product category by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Product category detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Product Categories]
+      summary: Update a product category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCategoryRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Product Categories]
+      summary: Delete a product category
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PRODUCTS
+  # =========================================================================
+  /v1/products:
+    get:
+      tags: [Products]
+      summary: List products
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,product_category,default_recipe
+          description: "Available: created_by, updated_by, product_category, default_recipe"
+        - name: filter[search]
+          in: query
+          schema:
+            type: string
+          description: Search by code / name.
+        - name: filter[product_category_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[type]
+          in: query
+          schema:
+            type: string
+            enum: [raw, wip, final]
+      responses:
+        '200':
+          description: Paginated list of products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Products]
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '201':
+          description: Product created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Products]
+      summary: Get a product by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,product_category,default_recipe
+      responses:
+        '200':
+          description: Product detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Products]
+      summary: Update a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Products]
+      summary: Delete a product
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # UOMS
+  # =========================================================================
+  /v1/uoms:
+    get:
+      tags: [UOMs]
+      summary: List units of measure
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+        - $ref: '#/components/parameters/FilterSearchParam'
+      responses:
+        '200':
+          description: Paginated list of UOMs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [UOMs]
+      summary: Create a UOM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UomRequest'
+      responses:
+        '201':
+          description: UOM created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/uoms/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [UOMs]
+      summary: Get a UOM by ID
+      responses:
+        '200':
+          description: UOM detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [UOMs]
+      summary: Update a UOM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UomRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [UOMs]
+      summary: Delete a UOM
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PRODUCT CONVERSIONS
+  # =========================================================================
+  /v1/product-conversions:
+    get:
+      tags: [Product Conversions]
+      summary: List product conversions
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+          description: "Available: created_by, updated_by, product, uom, target_uom"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[product_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[uom_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[target_uom_id]
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Product Conversions]
+      summary: Create a product conversion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductConversionRequest'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/product-conversions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Product Conversions]
+      summary: Get a product conversion by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: "Available: created_by, updated_by, product, uom, target_uom"
+      responses:
+        '200':
+          description: Detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Product Conversions]
+      summary: Update a product conversion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductConversionRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Product Conversions]
+      summary: Delete a product conversion
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PRODUCT UOMS
+  # =========================================================================
+  /v1/product-uoms:
+    get:
+      tags: [Product UOMs]
+      summary: List product-UOM combinations
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,product,uom
+          description: "Available: created_by, updated_by, product, uom"
+        - name: filter[search]
+          in: query
+          schema:
+            type: string
+          description: Search by code.
+        - name: filter[product_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[uom_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[base_price_gte]
+          in: query
+          schema:
+            type: number
+        - name: filter[base_price_lte]
+          in: query
+          schema:
+            type: number
+        - name: filter[online_price_gte]
+          in: query
+          schema:
+            type: number
+        - name: filter[online_price_lte]
+          in: query
+          schema:
+            type: number
+        - name: filter[price_editable]
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+        - name: filter[is_default]
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Product UOMs]
+      summary: Create a product-UOM combination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUomRequest'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/product-uoms/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Product UOMs]
+      summary: Get a product-UOM by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,product,uom,default_recipe
+          description: "Available: created_by, updated_by, product, uom, default_recipe"
+      responses:
+        '200':
+          description: Detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Product UOMs]
+      summary: Update a product-UOM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUomRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Product UOMs]
+      summary: Delete a product-UOM
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PRODUCT INVENTORIES
+  # =========================================================================
+  /v1/product-inventories:
+    get:
+      tags: [Product Inventories]
+      summary: List product inventory items (SKUs)
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,product_uom
+          description: "Available: created_by, updated_by, branch, product_uom"
+        - name: filter[search]
+          in: query
+          schema:
+            type: string
+          description: Search by code.
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[product_uom_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[product_type]
+          in: query
+          schema:
+            type: string
+            enum: [raw, wip, final]
+        - name: filter[product_category_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[stock_gte]
+          in: query
+          schema:
+            type: number
+        - name: filter[stock_lte]
+          in: query
+          schema:
+            type: number
+        - name: filter[base_price_gte]
+          in: query
+          schema:
+            type: number
+        - name: filter[base_price_lte]
+          in: query
+          schema:
+            type: number
+        - name: filter[online_price_gte]
+          in: query
+          schema:
+            type: number
+        - name: filter[online_price_lte]
+          in: query
+          schema:
+            type: number
+        - name: filter[expiry_date_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[expiry_date_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Product Inventories]
+      summary: Create an inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInventoryRequest'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/product-inventories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Product Inventories]
+      summary: Get an inventory item by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,product_uom
+      responses:
+        '200':
+          description: Detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Product Inventories]
+      summary: Update an inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInventoryUpdateRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Product Inventories]
+      summary: Delete an inventory item
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # STOCK MOVEMENTS
+  # =========================================================================
+  /v1/stock-movements:
+    get:
+      tags: [Stock Movements]
+      summary: List stock movements
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,branch,product_inventory
+          description: "Available: created_by, branch, product_inventory"
+        - name: filter[search]
+          in: query
+          schema:
+            type: string
+          description: Search by description.
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[product_inventory_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[reference_type]
+          in: query
+          schema:
+            type: string
+            enum: [receipts, sales_orders]
+        - name: filter[reference_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[direction]
+          in: query
+          schema:
+            type: string
+            enum: [in, out]
+      responses:
+        '200':
+          description: Paginated list of stock movements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Stock Movements]
+      summary: Create a manual stock movement (adjustment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockMovementRequest'
+      responses:
+        '201':
+          description: Stock movement recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/stock-movements/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Stock Movements]
+      summary: Get a stock movement by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,branch,product_inventory
+      responses:
+        '200':
+          description: Detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # RECIPES
+  # =========================================================================
+  /v1/recipes:
+    get:
+      tags: [Recipes]
+      summary: List recipes
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,product_uom,recipe_materials
+          description: "Available: created_by, updated_by, product_uom, recipe_materials"
+        - name: filter[product_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[is_default]
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+      responses:
+        '200':
+          description: Paginated list of recipes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Recipes]
+      summary: Create a recipe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeRequest'
+      responses:
+        '201':
+          description: Recipe created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/recipes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Recipes]
+      summary: Get a recipe by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,product_uom,recipe_materials
+      responses:
+        '200':
+          description: Recipe detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Recipes]
+      summary: Update a recipe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeUpdateRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Recipes]
+      summary: Delete a recipe
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PRODUCTIONS
+  # =========================================================================
+  /v1/productions:
+    get:
+      tags: [Productions]
+      summary: List production orders
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch
+          description: "Available: created_by, updated_by, branch, media, production_details"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [pending, final]
+        - name: filter[start_date]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[end_date]
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Productions]
+      summary: Create a production order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionRequest'
+      responses:
+        '201':
+          description: Production order created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/productions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Productions]
+      summary: Get a production order by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,media,production_details
+      responses:
+        '200':
+          description: Detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Productions]
+      summary: Update a production order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Productions]
+      summary: Delete a production order
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # SUPPLIERS
+  # =========================================================================
+  /v1/suppliers:
+    get:
+      tags: [Suppliers]
+      summary: List suppliers
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+        - $ref: '#/components/parameters/FilterSearchParam'
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Suppliers]
+      summary: Create a supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierRequest'
+      responses:
+        '201':
+          description: Supplier created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/suppliers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Suppliers]
+      summary: Get a supplier by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+      responses:
+        '200':
+          description: Supplier detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Suppliers]
+      summary: Update a supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Suppliers]
+      summary: Delete a supplier
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PURCHASE ORDERS
+  # =========================================================================
+  /v1/purchase-orders:
+    get:
+      tags: [Purchase Orders]
+      summary: List purchase orders
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,supplier,supplier_branch,media,purchase_order_details
+          description: "Available: created_by, updated_by, branch, supplier, supplier_branch, media, purchase_order_details"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[supplier_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[supplier_branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[date_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[date_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [pending, final]
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Purchase Orders]
+      summary: Create a purchase order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+      responses:
+        '201':
+          description: Purchase order created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/purchase-orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Purchase Orders]
+      summary: Get a purchase order by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,supplier,supplier_branch,media,purchase_order_details
+      responses:
+        '200':
+          description: Purchase order detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Purchase Orders]
+      summary: Update a purchase order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Purchase Orders]
+      summary: Delete a purchase order
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # BUNDLES
+  # =========================================================================
+  /v1/bundles:
+    get:
+      tags: [Bundles]
+      summary: List bundles
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,media,bundle_details
+          description: "Available: created_by, updated_by, media, bundle_details"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Bundles]
+      summary: Create a bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+      responses:
+        '201':
+          description: Bundle created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/bundles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Bundles]
+      summary: Get a bundle by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,media,bundle_details
+      responses:
+        '200':
+          description: Bundle detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Bundles]
+      summary: Update a bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BundleRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Bundles]
+      summary: Delete a bundle
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # DELIVERIES
+  # =========================================================================
+  /v1/deliveries:
+    get:
+      tags: [Deliveries]
+      summary: List deliveries
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,target_branch,purchase_order,media,delivery_details
+          description: "Available: created_by, updated_by, branch, target_branch, purchase_order, media, delivery_details"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[supplier_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[supplier_branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[start_date]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[end_date]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [pending, final]
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Deliveries]
+      summary: Create a delivery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+      responses:
+        '201':
+          description: Delivery created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/deliveries/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Deliveries]
+      summary: Get a delivery by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,target_branch,purchase_order,media,delivery_details
+      responses:
+        '200':
+          description: Delivery detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Deliveries]
+      summary: Update a delivery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Deliveries]
+      summary: Delete a delivery
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # RECEIPTS
+  # =========================================================================
+  /v1/receipts:
+    get:
+      tags: [Receipts]
+      summary: List receipts
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,delivery,media,receipt_details
+          description: "Available: created_by, updated_by, branch, delivery, media, receipt_details"
+        - name: filter[search]
+          in: query
+          schema:
+            type: string
+          description: Search by code.
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[delivery_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[start_date]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[end_date]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [pending, final]
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Receipts]
+      summary: Create a receipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptRequest'
+      responses:
+        '201':
+          description: Receipt created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/receipts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Receipts]
+      summary: Get a receipt by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,receipt_details
+          description: "Available: created_by, updated_by, branch, delivery, media, receipt_details"
+      responses:
+        '200':
+          description: Receipt detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Receipts]
+      summary: Update a receipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Receipts]
+      summary: Delete a receipt
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # CUSTOMERS
+  # =========================================================================
+  /v1/customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+        - $ref: '#/components/parameters/FilterSearchParam'
+          description: Search by name / phone.
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRequest'
+      responses:
+        '201':
+          description: Customer created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/customers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Customers]
+      summary: Get a customer by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+      responses:
+        '200':
+          description: Customer detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Customers]
+      summary: Update a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Customers]
+      summary: Delete a customer
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # VOUCHERS
+  # =========================================================================
+  /v1/vouchers:
+    get:
+      tags: [Vouchers]
+      summary: List vouchers
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,activated_by,voucher_branches,voucher_product_uoms
+          description: "Available: created_by, updated_by, activated_by, voucher_branches, voucher_product_uoms"
+        - $ref: '#/components/parameters/FilterSearchParam'
+        - name: filter[company_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[discount_type]
+          in: query
+          schema:
+            type: string
+            enum: [percent, fixed]
+        - name: filter[scope]
+          in: query
+          schema:
+            type: string
+            enum: [company, branch]
+        - name: filter[valid_from_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[valid_from_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[valid_until_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[valid_until_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[activated_at_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[activated_at_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Vouchers]
+      summary: Create a voucher
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherRequest'
+      responses:
+        '201':
+          description: Voucher created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/vouchers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Vouchers]
+      summary: Get a voucher by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,activated_by,voucher_branches,voucher_product_uoms
+      responses:
+        '200':
+          description: Voucher detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Vouchers]
+      summary: Update a voucher
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Vouchers]
+      summary: Delete a voucher
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/vouchers/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    patch:
+      tags: [Vouchers]
+      summary: Activate or deactivate a voucher
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VoucherStatusRequest'
+      responses:
+        '200':
+          description: Voucher status updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # SALES ORDERS
+  # =========================================================================
+  /v1/sales-orders:
+    get:
+      tags: [Sales Orders]
+      summary: List sales orders
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,customer,media,sales_order_details
+          description: "Available: created_by, updated_by, branch, customer, credit_by, media, sales_order_details"
+        - name: filter[search]
+          in: query
+          schema:
+            type: string
+          description: Search by code / customer_name / customer_phone.
+        - name: filter[branch_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[type]
+          in: query
+          schema:
+            type: string
+            enum: [offline, online]
+        - name: filter[customer_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[voucher_id]
+          in: query
+          schema:
+            type: integer
+        - name: filter[date_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[date_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[fulfillment_date_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[fulfillment_date_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[status]
+          in: query
+          schema:
+            type: string
+            enum: [pending, final]
+        - name: filter[payment_status]
+          in: query
+          schema:
+            type: string
+            enum: [pending, partial, paid]
+        - name: filter[settlement_status]
+          in: query
+          schema:
+            type: string
+            enum: [pending, credit, settled, cancelled]
+        - name: filter[settlement_at_gte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[settlement_at_lte]
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: filter[credit_by_id]
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Sales Orders]
+      summary: Create a sales order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderRequest'
+      responses:
+        '201':
+          description: Sales order created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/sales-orders/bulk-update-settlement-status:
+    post:
+      tags: [Sales Orders]
+      summary: Bulk update settlement status for multiple sales orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderBulkSettlementRequest'
+      responses:
+        '200':
+          description: Settlement statuses updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/sales-orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Sales Orders]
+      summary: Get a sales order by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,customer,media,sales_order_details
+      responses:
+        '200':
+          description: Sales order detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Sales Orders]
+      summary: Update a sales order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Sales Orders]
+      summary: Delete a sales order
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PAYMENT METHODS
+  # =========================================================================
+  /v1/payment-methods:
+    get:
+      tags: [Payment Methods]
+      summary: List payment methods
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+          description: "Available: created_by, updated_by"
+        - $ref: '#/components/parameters/FilterSearchParam'
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Payment Methods]
+      summary: Create a payment method
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentMethodRequest'
+      responses:
+        '201':
+          description: Payment method created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/payment-methods/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Payment Methods]
+      summary: Get a payment method by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by
+      responses:
+        '200':
+          description: Payment method detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Payment Methods]
+      summary: Update a payment method
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentMethodRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Payment Methods]
+      summary: Delete a payment method
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # =========================================================================
+  # PAYMENTS
+  # =========================================================================
+  /v1/payments:
+    get:
+      tags: [Payments]
+      summary: List payments
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PerPageParam'
+        - $ref: '#/components/parameters/SortParam'
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,sales_order,payment_method
+          description: "Available: created_by, updated_by, branch, sales_order, payment_method"
+        - $ref: '#/components/parameters/FilterSearchParam'
+          description: Search by description.
+      responses:
+        '200':
+          description: Paginated list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    post:
+      tags: [Payments]
+      summary: Create a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '201':
+          description: Payment created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /v1/payments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+    get:
+      tags: [Payments]
+      summary: Get a payment by ID
+      parameters:
+        - name: include
+          in: query
+          schema:
+            type: string
+          example: created_by,updated_by,branch,sales_order,payment_method
+      responses:
+        '200':
+          description: Payment detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    patch:
+      tags: [Payments]
+      summary: Update a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentUpdateRequest'
+      responses:
+        '200':
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+    delete:
+      tags: [Payments]
+      summary: Delete a payment
+      responses:
+        '200':
+          description: Deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'

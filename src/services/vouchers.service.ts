@@ -16,4 +16,7 @@ export const vouchersService = {
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/vouchers/${id}`),
+
+  updateStatus: (id: number, data: { status: 'active' | 'inactive' }) =>
+    api.patch<ApiResponse<unknown>>(`/vouchers/${id}/status`, data),
 }

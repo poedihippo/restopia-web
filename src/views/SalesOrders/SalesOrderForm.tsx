@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import salesOrderService from '@/services/sales-order.service'
+import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import customerService from '@/services/customer.service'
+import { customersService as customerService } from '@/services/customers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import bundleService from '@/services/bundle.service'
+import { bundlesService as bundleService } from '@/services/bundles.service'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface LineItem {
@@ -43,6 +43,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       : todayDateTime
   )
   const [status, setStatus] = useState<'pending' | 'final'>(editingOrder?.status ?? 'pending')
+  const [settlementStatus, setSettlementStatus] = useState<
+    'pending' | 'credit' | 'settled' | 'cancelled'
+  >(editingOrder?.settlement_status ?? 'pending')
   const [description, setDescription] = useState(editingOrder?.description ?? '')
   const [discountPrice, setDiscountPrice] = useState<number>(editingOrder?.discount_price ?? 0)
   const [voucherId] = useState<number | null>(editingOrder?.voucher_id ?? null)
@@ -102,7 +105,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         .list({ per_page: 10, 'filter[search]': customerSearchDebounced })
         .then((r) => r.data),
   })
-  const customers = (customerData as any)?.data?.data ?? []
+  const customers = (customerData as any)?.data ?? []
 
   const { data: productData } = useQuery({
     queryKey: ['so-products', productSearchDebounced],
@@ -220,6 +223,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         discount_price: discountPrice,
         total_price: total,
         status,
+        settlement_status: settlementStatus,
         description: description || undefined,
         details: items.map((i) => ({
           product_inventory_id: i.product_inventory_id ?? null,
@@ -239,7 +243,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       qc.invalidateQueries({ queryKey: ['sales-orders'] })
       toast.success(isEdit ? 'Order updated' : 'Order created')
       const id = res?.data?.data?.id ?? editingOrder?.id
-      router.push(id ? `/sales-orders/${id}` : '/sales-orders')
+      router.push(id ? `/sales/sales-orders/${id}/detail` : '/sales/sales-orders')
     },
     onError: (err: any) => toastMutationApiError(err),
   })
@@ -365,6 +369,23 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             >
               <option value="pending">Pending</option>
               <option value="final">Final</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Settlement Status</label>
+            <select
+              value={settlementStatus}
+              onChange={(e) =>
+                setSettlementStatus(
+                  e.target.value as 'pending' | 'credit' | 'settled' | 'cancelled'
+                )
+              }
+              style={fieldStyle}
+            >
+              <option value="pending">Pending</option>
+              <option value="credit">Credit</option>
+              <option value="settled">Settled</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
           <div>

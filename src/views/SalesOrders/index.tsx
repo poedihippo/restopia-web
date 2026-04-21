@@ -4,8 +4,29 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
-import salesOrderService from '@/services/sales-order.service'
+import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
+
+interface SalesOrder {
+  id: number
+  code: string
+  type: string
+  status?: string
+  settlement_status?: 'pending' | 'credit' | 'settled' | 'cancelled'
+  date?: string
+  fulfillment_date?: string
+  total_price?: number
+  customer?: { name?: string }
+  customer_name?: string
+  customer_phone?: string
+}
+
+const SETTLEMENT_META = {
+  pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
+  credit: { label: 'Credit', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  settled: { label: 'Settled', color: 'var(--success)', bg: 'var(--success-bg)' },
+  cancelled: { label: 'Cancelled', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
+}
 
 export default function SalesOrdersView() {
   const router = useRouter()
@@ -14,6 +35,9 @@ export default function SalesOrdersView() {
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [settlementFilter, setSettlementFilter] = useState<
+    '' | 'pending' | 'credit' | 'settled' | 'cancelled'
+  >('')
   const [typeFilter, setTypeFilter] = useState('')
   const [dateGte, setDateGte] = useState('')
   const [dateLte, setDateLte] = useState('')
@@ -25,7 +49,16 @@ export default function SalesOrdersView() {
   }, [search])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['sales-orders', page, searchDebounced, statusFilter, typeFilter, dateGte, dateLte],
+    queryKey: [
+      'sales-orders',
+      page,
+      searchDebounced,
+      statusFilter,
+      settlementFilter,
+      typeFilter,
+      dateGte,
+      dateLte,
+    ],
     queryFn: () =>
       salesOrderService
         .list({
@@ -35,6 +68,7 @@ export default function SalesOrdersView() {
           include: 'branch,customer',
           'filter[search]': searchDebounced || undefined,
           'filter[status]': statusFilter || undefined,
+          'filter[settlement_status]': settlementFilter || undefined,
           'filter[type]': typeFilter || undefined,
           'filter[date_gte]': dateGte || undefined,
           'filter[date_lte]': dateLte || undefined,
@@ -109,7 +143,7 @@ export default function SalesOrdersView() {
         </div>
         <button
           type="button"
-          onClick={() => router.push('/sales-orders/create')}
+          onClick={() => router.push('/sales/sales-orders/create')}
           style={{
             height: 40,
             padding: '0 20px',
@@ -175,6 +209,30 @@ export default function SalesOrdersView() {
           <option value="final">Final</option>
         </select>
         <select
+          value={settlementFilter}
+          onChange={(e) => {
+            setSettlementFilter(
+              e.target.value as '' | 'pending' | 'credit' | 'settled' | 'cancelled'
+            )
+            setPage(1)
+          }}
+          style={{
+            height: 36,
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0 10px',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+          }}
+        >
+          <option value="">All Settlements</option>
+          <option value="pending">Pending</option>
+          <option value="credit">Credit</option>
+          <option value="settled">Settled</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select
           value={typeFilter}
           onChange={(e) => {
             setTypeFilter(e.target.value)
@@ -229,12 +287,13 @@ export default function SalesOrdersView() {
             background: 'var(--surface)',
           }}
         />
-        {(search || statusFilter || typeFilter || dateGte || dateLte) && (
+        {(search || statusFilter || settlementFilter || typeFilter || dateGte || dateLte) && (
           <button
             type="button"
             onClick={() => {
               setSearch('')
               setStatusFilter('')
+              setSettlementFilter('')
               setTypeFilter('')
               setDateGte('')
               setDateLte('')
@@ -275,6 +334,7 @@ export default function SalesOrdersView() {
               <th style={thStyle}>Fulfillment</th>
               <th style={thStyle}>Total</th>
               <th style={thStyle}>Status</th>
+              <th style={{ ...thStyle, width: 120 }}>Settlement</th>
               <th style={{ ...thStyle, width: 120 }}>Actions</th>
             </tr>
           </thead>
@@ -282,7 +342,7 @@ export default function SalesOrdersView() {
             {isLoading &&
               Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 8 }).map((_, j) => (
+                  {Array.from({ length: 9 }).map((_, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -299,7 +359,7 @@ export default function SalesOrdersView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -318,7 +378,7 @@ export default function SalesOrdersView() {
                 <tr
                   key={item.id}
                   style={{ cursor: 'pointer' }}
-                  onClick={() => router.push(`/sales-orders/${item.id}`)}
+                  onClick={() => router.push(`/sales/sales-orders/${item.id}/detail`)}
                 >
                   <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--accent)' }}>
                     {item.code}
@@ -377,11 +437,34 @@ export default function SalesOrdersView() {
                       {item.status}
                     </span>
                   </td>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                    {(() => {
+                      const settlementMeta =
+                        SETTLEMENT_META[
+                          item.settlement_status as keyof typeof SETTLEMENT_META
+                        ] ?? SETTLEMENT_META.pending
+                      return (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            padding: '3px 10px',
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: settlementMeta.bg,
+                            color: settlementMeta.color,
+                          }}
+                        >
+                          {settlementMeta.label}
+                        </span>
+                      )
+                    })()}
+                  </td>
                   <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         type="button"
-                        onClick={() => router.push(`/sales-orders/${item.id}`)}
+                        onClick={() => router.push(`/sales/sales-orders/${item.id}/detail`)}
                         style={{
                           fontSize: 12,
                           padding: '4px 10px',

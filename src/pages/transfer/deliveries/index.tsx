@@ -1,7 +1,5 @@
-import Deliveries from "@/views/Deliveries";
+import DeliveriesView from '@/views/Deliveries'
 
-const DeliveriesPage = () => {
-  return <Deliveries />;
-};
-
-export default DeliveriesPage;
+export default function DeliveriesPage() {
+  return <DeliveriesView />
+}

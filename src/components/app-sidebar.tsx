@@ -25,6 +25,7 @@ import {
   Boxes,
   ChevronDown,
   Wallet,
+  CreditCard,
 } from 'lucide-react';
 
 type NavItem = {
@@ -104,9 +105,10 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Orders', href: '/sales/sales-orders' },
           { label: 'Customers', href: '/sales/customers' },
           { label: 'Vouchers', href: '/sales/vouchers' },
+          { label: 'Payments', href: '/sales/payments' },
         ],
       },
-      { label: 'Bundles', href: '/bundles', icon: Tag },
+      { label: 'Bundles', href: '/sales/bundles', icon: Package },
     ],
   },
   {
@@ -123,7 +125,7 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck },
-      { label: 'Payment Methods', href: '/settings/payment-methods', icon: Wallet },
+      { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard },
     ],
   },
 ];

@@ -1,7 +1,5 @@
-import Voucher from "@/views/Voucher";
+import VouchersView from '@/views/Vouchers'
 
-const VouchersPage = () => {
-  return <Voucher />;
-};
-
-export default VouchersPage;
+export default function VouchersPage() {
+  return <VouchersView />
+}

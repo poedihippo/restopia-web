@@ -1,7 +1,5 @@
-import Companies from "@/views/Companies";
+import CompaniesView from '@/views/Companies'
 
-const CompaniesPage = () => {
-  return <Companies />;
-};
-
-export default CompaniesPage;
+export default function CompaniesPage() {
+  return <CompaniesView />
+}

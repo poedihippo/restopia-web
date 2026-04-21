@@ -1,7 +1,5 @@
-import Receipts from "@/views/Receipts";
+import ReceiptsView from '@/views/Receipts'
 
-const ReceiptsPage = () => {
-  return <Receipts />;
-};
-
-export default ReceiptsPage;
+export default function ReceiptsPage() {
+  return <ReceiptsView />
+}

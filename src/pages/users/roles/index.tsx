@@ -1,7 +1,5 @@
-import Roles from "@/views/Roles";
+import RolesView from '@/views/Roles'
 
-const RolesPage = () => {
-  return <Roles />;
-};
-
-export default RolesPage;
+export default function RolesPage() {
+  return <RolesView />
+}

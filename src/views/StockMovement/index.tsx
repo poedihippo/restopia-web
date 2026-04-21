@@ -68,8 +68,7 @@ export default function StockMovementView() {
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
-          include:
-            'created_by,branch,product_inventory,product_inventory.product_uom,product_inventory.product_uom.product',
+          include: 'branch,product_inventory',
         })
         .then((r) => r.data),
   })
@@ -353,7 +352,8 @@ export default function StockMovementView() {
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_inventory?.product_uom?.product?.name ?? '—'}
+                          {item.product_inventory?.code ??
+                            `INV-${item.product_inventory_id ?? '?'}`}
                         </div>
                         <div
                           style={{
@@ -374,7 +374,7 @@ export default function StockMovementView() {
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.branch_id ?? '—'}
+                      {item.branch?.name ?? item.branch_id ?? '—'}
                     </td>
 
                     {/* Qty */}

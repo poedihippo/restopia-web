@@ -16,4 +16,7 @@ export const salesOrdersService = {
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/sales-orders/${id}`),
+
+  bulkUpdateSettlement: (data: any) =>
+    api.post<ApiResponse<unknown>>('/sales-orders/bulk-update-settlement-status', data),
 }

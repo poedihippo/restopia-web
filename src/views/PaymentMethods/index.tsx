@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import paymentMethodService from '@/services/payment-method.service'
+import { paymentMethodsService as paymentMethodService } from '@/services/payment-methods.service'
 
 export default function PaymentMethodsView() {
   const qc = useQueryClient()

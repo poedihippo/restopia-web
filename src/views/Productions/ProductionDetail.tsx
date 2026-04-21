@@ -3,20 +3,34 @@
 import React from 'react'
 import { useRouter } from 'next/router'
 import { ArrowLeft } from 'lucide-react'
-import useGetProduction from '@/hooks/productions/useGetProduction'
+import { useQuery } from '@tanstack/react-query'
+import { productionsService } from '@/services/productions.service'
 
 interface Props {
   id: number
 }
 
-const INCLUDE =
-  'created_by,updated_by,branch,media,production_details.product_inventory.product_uom.product,production_details.product_inventory.product_uom.uom,production_details.product_detail_materials.product_inventory.product_uom.product,production_details.product_detail_materials.product_inventory.product_uom.uom'
+const INCLUDE = 'branch,created_by,updated_by,production_details'
+
+const DETAIL_STATUS_META: Record<
+  string,
+  { label: string; color: string; bg: string }
+> = {
+  pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  final: { label: 'Final', color: 'var(--success)', bg: 'var(--success-bg)' },
+  process: { label: 'In Progress', color: 'var(--info)', bg: 'var(--info-bg)' },
+  completed: { label: 'Completed', color: 'var(--success)', bg: 'var(--success-bg)' },
+}
 
 export default function ProductionDetail({ id }: Props) {
   const router = useRouter()
-  const { data, isLoading } = useGetProduction(id, {
-    include: INCLUDE,
+  const { data, isLoading } = useQuery({
+    queryKey: ['production-detail', id],
+    enabled: !!id && !isNaN(id),
+    queryFn: () =>
+      productionsService.findById(id, { include: INCLUDE }).then((r) => r.data),
   })
+  const production = (data as any)?.data
 
   const formatDate = (v: string | Date | undefined) => {
     if (!v) return '—'
@@ -88,46 +102,50 @@ export default function ProductionDetail({ id }: Props) {
             <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Code</span>
               <p style={{ margin: '4px 0 0', fontWeight: 600, fontFamily: 'monospace', color: 'var(--accent)' }}>
-                {data?.code ?? '—'}
+                {production?.code ?? '—'}
               </p>
             </div>
             <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Branch</span>
               <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground)' }}>
-                {data?.branch?.name ?? '—'}
+                {production?.branch?.name ?? '—'}
               </p>
             </div>
             <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Status</span>
               <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground)' }}>
-                {data?.status === 'final' ? 'Final' : data?.status === 'pending' ? 'Pending' : '—'}
+                {(() => {
+                  const st = production?.status as string | undefined
+                  const meta = st ? DETAIL_STATUS_META[st] : undefined
+                  return meta?.label ?? st ?? '—'
+                })()}
               </p>
             </div>
             <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Created</span>
               <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground-muted)' }}>
-                {formatDate(data?.created_at)}
+                {formatDate(production?.created_at)}
               </p>
             </div>
             <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Updated</span>
               <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground-muted)' }}>
-                {formatDate(data?.updated_at)}
+                {formatDate(production?.updated_at)}
               </p>
             </div>
           </div>
           <div style={{ marginTop: 16 }}>
             <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Description</span>
             <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground-muted)' }}>
-              {data?.description ?? '—'}
+              {production?.description ?? '—'}
             </p>
           </div>
         </div>
       )}
 
       {!isLoading &&
-        data?.production_details &&
-        data.production_details.length > 0 && (
+        production?.production_details &&
+        production.production_details.length > 0 && (
           <div
             style={{
               background: 'var(--surface)',
@@ -149,9 +167,16 @@ export default function ProductionDetail({ id }: Props) {
               Production items
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {data.production_details.map((detail: any, index: number) => {
+              {production.production_details.map((detail: any, index: number) => {
                 const product = detail.product_inventory?.product_uom?.product
                 const uom = detail.product_inventory?.product_uom?.uom
+                const statusMeta = detail.status
+                  ? DETAIL_STATUS_META[detail.status] ?? {
+                      label: detail.status,
+                      color: 'var(--foreground-muted)',
+                      bg: 'var(--background)',
+                    }
+                  : null
                 return (
                   <div
                     key={detail.id ?? index}
@@ -173,11 +198,13 @@ export default function ProductionDetail({ id }: Props) {
                     >
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Product</span>
-                        <p style={{ margin: '2px 0 0', fontWeight: 600, fontSize: 13 }}>{product?.name ?? '—'}</p>
+                        <p style={{ margin: '2px 0 0', fontWeight: 600, fontSize: 13 }}>
+                          {product?.name ?? detail.product_uom_id ?? `Item ${index + 1}`}
+                        </p>
                       </div>
                       <div>
-                        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>SKU</span>
-                        <p style={{ margin: '2px 0 0', fontSize: 13 }}>{detail.product_inventory?.sku ?? '—'}</p>
+                        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Code</span>
+                        <p style={{ margin: '2px 0 0', fontSize: 13 }}>{detail.product_inventory?.code ?? '—'}</p>
                       </div>
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Qty</span>
@@ -187,7 +214,25 @@ export default function ProductionDetail({ id }: Props) {
                       </div>
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Status</span>
-                        <p style={{ margin: '2px 0 0', fontSize: 13 }}>{detail.status ?? '—'}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: 13 }}>
+                          {statusMeta ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                padding: '2px 10px',
+                                borderRadius: 99,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                background: statusMeta.bg,
+                                color: statusMeta.color,
+                              }}
+                            >
+                              {statusMeta.label}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </p>
                       </div>
                     </div>
                     {detail.product_detail_materials && detail.product_detail_materials.length > 0 ? (
@@ -197,7 +242,7 @@ export default function ProductionDetail({ id }: Props) {
                             <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
                               <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>#</th>
                               <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Material</th>
-                              <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>SKU</th>
+                              <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Code</th>
                               <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Qty</th>
                               <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>UoM</th>
                             </tr>
@@ -210,7 +255,7 @@ export default function ProductionDetail({ id }: Props) {
                                 <tr key={mat.id ?? mi} style={{ borderBottom: '1px solid var(--border)' }}>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mi + 1}</td>
                                   <td style={{ padding: '10px 12px', fontWeight: 500 }}>{mp?.name ?? '—'}</td>
-                                  <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mat.product_inventory?.sku ?? '—'}</td>
+                                  <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mat.product_inventory?.code ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{mat.qty ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mu?.name ?? '—'}</td>
                                 </tr>
@@ -221,7 +266,7 @@ export default function ProductionDetail({ id }: Props) {
                       </div>
                     ) : (
                       <p style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-subtle)', margin: 0 }}>
-                        No materials.
+                        No materials recorded
                       </p>
                     )}
                   </div>
@@ -231,7 +276,7 @@ export default function ProductionDetail({ id }: Props) {
           </div>
         )}
 
-      {!isLoading && data?.media && data.media.length > 0 && (
+      {!isLoading && production?.media && production.media.length > 0 && (
         <div
           style={{
             background: 'var(--surface)',
@@ -253,7 +298,7 @@ export default function ProductionDetail({ id }: Props) {
             Images
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
-            {data.media.map((item: any, idx: number) => (
+            {production.media.map((item: any, idx: number) => (
               <button
                 key={item.id ?? idx}
                 type="button"
