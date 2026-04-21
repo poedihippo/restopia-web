@@ -26,6 +26,7 @@ interface User {
   gender?: 'male' | 'female'
   created_at?: string
   branch?: { id: number; name: string }
+  branches?: Array<{ id: number; name: string }>
   roles?: Array<{ id: number; name: string }>
   branch_ids?: number[]
   role_ids?: number[]
@@ -66,7 +67,7 @@ export default function UsersView() {
         .list({
           page,
           per_page: 15,
-          include: 'branch,roles',
+          include: 'branch,branches,roles',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
@@ -88,9 +89,12 @@ export default function UsersView() {
   })
 
   const openEdit = (item: User) => {
+    const branchIds =
+      (item.branches ?? []).map((b) => b.id).filter((id) => typeof id === 'number')
+    const fallback = item.branch ? [item.branch.id] : []
     setEditData({
       ...item,
-      branch_ids: item.branch ? [item.branch.id] : [],
+      branch_ids: branchIds.length > 0 ? branchIds : fallback,
       role_ids: (item.roles ?? []).map((r) => r.id),
     })
     setSheetOpen(true)
