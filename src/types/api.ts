@@ -343,6 +343,14 @@ export interface SalesOrderBulkSettlementRequest {
   items: SalesOrderSettlementItem[]
 }
 
+export interface PosCartLotOption {
+  product_inventory_id: number
+  stock: number
+  expiry_date?: string | null
+  base_price: number
+  online_price?: number | null
+}
+
 export interface PosCartItem {
   product_inventory_id: number
   name: string
@@ -350,6 +358,8 @@ export interface PosCartItem {
   price: number
   qty: number
   price_editable?: boolean
+  expiry_date?: string | null
+  lot_options?: PosCartLotOption[]
 }
 
 export interface Bundle {

@@ -365,42 +365,192 @@ export default function DashboardView() {
           </div>
           <div style={{ padding: 20 }}>
             {insightsData && Object.keys(insightsData).length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {Object.entries(insightsData)
-                  .slice(0, 6)
-                  .map(([key, value]) => (
-                    <div
-                      key={key}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '8px 0',
-                        borderBottom: '1px solid var(--border)',
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 13,
-                          color: 'var(--foreground-muted)',
-                          textTransform: 'capitalize',
-                        }}
-                      >
-                        {key.replace(/_/g, ' ')}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: 'var(--foreground)',
-                        }}
-                      >
-                        {typeof value === 'number'
-                          ? value.toLocaleString('id-ID')
-                          : String(value ?? '—')}
-                      </span>
-                    </div>
-                  ))}
+                  .slice(0, 8)
+                  .map(([key, value]) => {
+                    const title = key.replace(/_/g, ' ')
+
+                    // Best-effort label + numeric extraction from an
+                    // unknown object shape. Falls back to JSON for
+                    // unrecognized objects so nothing renders as
+                    // "[object Object]".
+                    const labelOf = (o: any): string => {
+                      if (o == null) return '—'
+                      if (typeof o !== 'object') return String(o)
+                      return (
+                        o.name ??
+                        o.code ??
+                        o.title ??
+                        o.label ??
+                        o.product?.name ??
+                        o.product_uom?.product?.name ??
+                        o.sales_order?.code ??
+                        (o.id != null ? `#${o.id}` : JSON.stringify(o))
+                      )
+                    }
+                    const metricOf = (o: any): string | null => {
+                      if (o == null || typeof o !== 'object') return null
+                      if (typeof o.qty === 'number') return o.qty.toLocaleString('id-ID')
+                      if (typeof o.stock === 'number')
+                        return `Stock ${o.stock.toLocaleString('id-ID')}`
+                      if (typeof o.total_sold === 'number')
+                        return `Sold ${o.total_sold.toLocaleString('id-ID')}`
+                      if (typeof o.total_price === 'number')
+                        return `Rp ${o.total_price.toLocaleString('id-ID')}`
+                      if (typeof o.amount === 'number')
+                        return `Rp ${o.amount.toLocaleString('id-ID')}`
+                      if (typeof o.count === 'number')
+                        return o.count.toLocaleString('id-ID')
+                      if (o.expiry_date) return `Exp ${String(o.expiry_date).slice(0, 10)}`
+                      return null
+                    }
+
+                    // Scalar
+                    if (!Array.isArray(value) && typeof value !== 'object') {
+                      return (
+                        <div
+                          key={key}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '8px 0',
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 13,
+                              color: 'var(--foreground-muted)',
+                              textTransform: 'capitalize',
+                            }}
+                          >
+                            {title}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: 'var(--foreground)',
+                            }}
+                          >
+                            {typeof value === 'number'
+                              ? value.toLocaleString('id-ID')
+                              : String(value ?? '—')}
+                          </span>
+                        </div>
+                      )
+                    }
+
+                    // Array of objects (or array of scalars)
+                    const arr = Array.isArray(value)
+                      ? value
+                      : [value]
+                    const visible = arr.slice(0, 5)
+                    const overflow = arr.length - visible.length
+                    return (
+                      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: 'var(--foreground-muted)',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.6,
+                            }}
+                          >
+                            {title}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              padding: '2px 8px',
+                              borderRadius: 99,
+                              background: 'var(--background)',
+                              border: '1px solid var(--border)',
+                              color: 'var(--foreground-muted)',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {arr.length}
+                          </span>
+                        </div>
+                        {arr.length === 0 ? (
+                          <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
+                            None
+                          </span>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            {visible.map((row, i) => {
+                              const metric = metricOf(row)
+                              return (
+                                <div
+                                  key={i}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    gap: 12,
+                                    padding: '6px 0',
+                                    borderBottom:
+                                      i < visible.length - 1
+                                        ? '1px solid var(--border)'
+                                        : 'none',
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: 13,
+                                      color: 'var(--foreground)',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                      minWidth: 0,
+                                      flex: 1,
+                                    }}
+                                    title={labelOf(row)}
+                                  >
+                                    {labelOf(row)}
+                                  </span>
+                                  {metric && (
+                                    <span
+                                      style={{
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: 'var(--accent)',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {metric}
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                            {overflow > 0 && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: 'var(--foreground-subtle)',
+                                  marginTop: 4,
+                                }}
+                              >
+                                +{overflow} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
               </div>
             ) : !isInsightsLoading ? (
               <div

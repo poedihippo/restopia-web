@@ -64,7 +64,8 @@ export default function PosView() {
   const [searchDebounced, setSearchDebounced] = useState('')
   const [bundleSearch, setBundleSearch] = useState('')
   const [bundleSearchDebounced, setBundleSearchDebounced] = useState('')
-  const [hoveredCard, setHoveredCard] = useState<number | null>(null)
+  const [hoveredCard, setHoveredCard] = useState<string | null>(null)
+  const [lotPickerFor, setLotPickerFor] = useState<number | null>(null)
   const [categoryId, setCategoryId] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<string>('code')
   const [productPage, setProductPage] = useState(1)
@@ -226,6 +227,62 @@ export default function PosView() {
     )
   }, [items, categoryId])
 
+  // Sort lots earliest-expiring-first-out: non-expired by expiry ASC, then
+  // undated, then expired last. Undefined/null expiry sorts after all dated
+  // future lots.
+  const fefoCompare = (a: any, b: any) => {
+    const now = Date.now()
+    const ae = a.expiry_date ? new Date(a.expiry_date).getTime() : null
+    const be = b.expiry_date ? new Date(b.expiry_date).getTime() : null
+    const aExpired = ae !== null && ae < now
+    const bExpired = be !== null && be < now
+    if (aExpired !== bExpired) return aExpired ? 1 : -1
+    if (ae === null && be === null) return 0
+    if (ae === null) return 1
+    if (be === null) return -1
+    return ae - be
+  }
+
+  // Group inventory rows by product_uom_id so multiple batches/lots of the
+  // same product collapse into one tile. Each group carries its FEFO-sorted
+  // lot list, summed stock, and a default lot for add-to-cart.
+  const groupedItems = useMemo(() => {
+    type Group = {
+      key: string
+      product_uom_id: number | null
+      representative: any
+      lots: any[]
+      totalStock: number
+      defaultLot: any
+    }
+    const map = new Map<string, Group>()
+    for (const row of filteredItems as any[]) {
+      const puid = row.product_uom_id ?? row.product_uom?.id ?? null
+      const key = puid !== null ? `uom:${puid}` : `id:${row.id}`
+      let g = map.get(key)
+      if (!g) {
+        g = {
+          key,
+          product_uom_id: puid,
+          representative: row,
+          lots: [],
+          totalStock: 0,
+          defaultLot: row,
+        }
+        map.set(key, g)
+      }
+      g.lots.push(row)
+      g.totalStock += Number(row.stock ?? 0)
+    }
+    for (const g of map.values()) {
+      g.lots.sort(fefoCompare)
+      const firstStocked = g.lots.find((l) => Number(l.stock ?? 0) > 0)
+      g.defaultLot = firstStocked ?? g.lots[0]
+      g.representative = g.defaultLot
+    }
+    return Array.from(map.values())
+  }, [filteredItems])
+
   // Product categories query
   const { data: catData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -246,7 +303,7 @@ export default function PosView() {
         .then((r) => r.data),
     enabled: customerSearch.length >= 2,
   })
-  const customers: any[] = (customerData as any)?.data?.data ?? []
+  const customers: any[] = (customerData as any)?.data ?? []
 
   const { data: bundleData, isLoading: isBundleLoading } = useQuery({
     queryKey: ['pos-bundles', bundleSearchDebounced],
@@ -504,6 +561,23 @@ export default function PosView() {
     },
   })
 
+  // Park the current cart as a pending order (no payment, no receipt).
+  // Updates the existing sales order when editingOrderId is set, otherwise
+  // creates a new one.
+  const { mutate: holdMutate, isPending: isHoldPending } = useMutation({
+    mutationFn: (payload: any) =>
+      editingOrderId
+        ? salesOrderService.update(editingOrderId, payload as any)
+        : salesOrderService.create(payload as any),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pos-preorders'] })
+      toast.success(editingOrderId ? 'Order updated (held)' : 'Order held as pending')
+      resetCart()
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Failed to hold order'),
+  })
+
   const resetCart = useCallback(() => {
     setCart([])
     setBundleCart([])
@@ -528,39 +602,110 @@ export default function PosView() {
     setEditingOrderCode(null)
   }, [])
 
-  // Add to cart
-  const addToCart = useCallback(
-    (item: any) => {
-      if ((item.stock ?? 0) <= 0) {
+  // Pick a concrete lot + add it to the cart. Used for both single-row
+  // adds (legacy) and grouped adds (preferred). Carries lot_options when
+  // available so the cart line can offer a "change lot" picker.
+  const addLotToCart = useCallback(
+    (lot: any, lotOptions?: any[]) => {
+      if ((lot.stock ?? 0) <= 0) {
         toast.error('Item is out of stock')
         return
       }
       const linePrice =
         orderType === 'online'
-          ? (item.online_price ?? item.base_price ?? 0)
-          : (item.base_price ?? 0)
+          ? (lot.online_price ?? lot.base_price ?? 0)
+          : (lot.base_price ?? 0)
+      const options = (lotOptions ?? [lot]).map((l: any) => ({
+        product_inventory_id: l.id,
+        stock: Number(l.stock ?? 0),
+        expiry_date: l.expiry_date ?? null,
+        base_price: Number(l.base_price ?? 0),
+        online_price: l.online_price ?? null,
+      }))
       setCart((prev) => {
-        const existing = prev.find((c) => c.product_inventory_id === item.id)
+        const existing = prev.find((c) => c.product_inventory_id === lot.id)
         if (existing) {
           return prev.map((c) =>
-            c.product_inventory_id === item.id ? { ...c, qty: c.qty + 1 } : c
+            c.product_inventory_id === lot.id ? { ...c, qty: c.qty + 1 } : c
           )
         }
         return [
           ...prev,
           {
-            product_inventory_id: item.id,
+            product_inventory_id: lot.id,
             name:
-              item.product_uom?.product?.name ??
-              item.productUom?.product?.name ??
-              item.product?.name ??
-              item.code,
-            code: item.product_uom?.code ?? item.code,
+              lot.product_uom?.product?.name ??
+              lot.productUom?.product?.name ??
+              lot.product?.name ??
+              lot.code,
+            code: lot.product_uom?.code ?? lot.code,
             price: linePrice,
             qty: 1,
-            price_editable: item.price_editable ?? false,
+            price_editable: lot.price_editable ?? false,
+            expiry_date: lot.expiry_date ?? null,
+            lot_options: options,
           },
         ]
+      })
+    },
+    [orderType]
+  )
+
+  // Back-compat wrapper: add a single inventory row (no group context).
+  const addToCart = useCallback(
+    (item: any) => addLotToCart(item),
+    [addLotToCart]
+  )
+
+  // Preferred entry for the product grid: take a group, pick the FEFO lot.
+  const addGroupToCart = useCallback(
+    (group: { defaultLot: any; lots: any[] }) => {
+      if (!group.defaultLot) return
+      addLotToCart(group.defaultLot, group.lots)
+    },
+    [addLotToCart]
+  )
+
+  // Change a cart line's selected lot. If the target lot is already a
+  // separate line, merge quantities and drop the old line.
+  const changeCartLot = useCallback(
+    (currentInventoryId: number, targetLot: any) => {
+      const lot = {
+        product_inventory_id: Number(targetLot.product_inventory_id),
+        expiry_date: targetLot.expiry_date ?? null,
+        base_price: Number(targetLot.base_price ?? 0),
+        online_price: targetLot.online_price ?? null,
+      }
+      const nextPrice =
+        orderType === 'online'
+          ? (lot.online_price ?? lot.base_price)
+          : lot.base_price
+      setCart((prev) => {
+        const source = prev.find((c) => c.product_inventory_id === currentInventoryId)
+        if (!source) return prev
+        if (source.product_inventory_id === lot.product_inventory_id) return prev
+        const merged = prev.find(
+          (c) => c.product_inventory_id === lot.product_inventory_id
+        )
+        if (merged) {
+          return prev
+            .map((c) =>
+              c.product_inventory_id === lot.product_inventory_id
+                ? { ...c, qty: c.qty + source.qty }
+                : c
+            )
+            .filter((c) => c.product_inventory_id !== currentInventoryId)
+        }
+        return prev.map((c) =>
+          c.product_inventory_id === currentInventoryId
+            ? {
+                ...c,
+                product_inventory_id: lot.product_inventory_id,
+                price: c.price_editable ? c.price : nextPrice,
+                expiry_date: lot.expiry_date,
+              }
+            : c
+        )
       })
     },
     [orderType]
@@ -602,6 +747,53 @@ export default function PosView() {
       return
     }
     setShowPayment(true)
+  }
+
+  // Hold — save the current cart as a pending order with no payment.
+  const handleHold = () => {
+    if (cart.length === 0 && bundleCart.length === 0) {
+      toast.error('Cart is empty')
+      return
+    }
+    const cartSubtotal =
+      cart.reduce((s, c) => s + c.price * c.qty, 0) +
+      bundleCart.reduce((s, c) => s + c.price * c.qty, 0)
+    const orderTotal = Math.max(0, cartSubtotal - voucherDiscount)
+    const payload = {
+      code: editingOrderCode ?? `POS-${Date.now()}`,
+      type: orderType,
+      customer_id: selectedCustomerId ?? null,
+      customer_name: selectedCustomerId ? undefined : guestName || undefined,
+      customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
+      date: transactionDate,
+      fulfillment_date: new Date(fulfillmentDate).toISOString(),
+      voucher_id: null,
+      subtotal_price: cartSubtotal,
+      discount_price: voucherDiscount,
+      total_price: orderTotal,
+      status: 'pending' as const,
+      settlement_status: 'pending' as const,
+      description: orderNote || undefined,
+      details: [
+        ...cart.map((c) => ({
+          product_inventory_id: c.product_inventory_id,
+          bundle_id: null,
+          bundle_details: null,
+          qty: c.qty,
+          price: c.price,
+          status: 'pending' as const,
+        })),
+        ...bundleCart.map((c) => ({
+          product_inventory_id: null,
+          bundle_id: c.bundle_id,
+          bundle_details: c.bundle_details,
+          qty: c.qty,
+          price: c.price,
+          status: 'pending' as const,
+        })),
+      ],
+    }
+    holdMutate(payload)
   }
 
   // Confirm payment — submits order after payment modal confirms
@@ -985,28 +1177,49 @@ export default function PosView() {
                 gap: 12,
               }}
             >
-              {filteredItems.map((item: any) => {
-                const isHovered = hoveredCard === item.id
+              {groupedItems.map((group) => {
+                const item = group.defaultLot
+                const isHovered = hoveredCard === group.key
+                const lotCount = group.lots.length
+                const outOfStock = group.totalStock <= 0
                 return (
                   <div
-                    key={item.id}
-                    onClick={() => addToCart(item)}
-                    onMouseEnter={() => setHoveredCard(item.id)}
+                    key={group.key}
+                    onClick={() => addGroupToCart(group)}
+                    onMouseEnter={() => setHoveredCard(group.key)}
                     onMouseLeave={() => setHoveredCard(null)}
                     style={{
                       background: 'var(--surface)',
                       border: `1px solid ${isHovered ? 'var(--accent-light)' : 'var(--border)'}`,
                       borderRadius: 'var(--radius-lg)',
                       padding: 12,
-                      opacity: (item.stock ?? 0) <= 0 ? 0.45 : 1,
-                      cursor: (item.stock ?? 0) <= 0 ? 'not-allowed' : 'pointer',
+                      opacity: outOfStock ? 0.45 : 1,
+                      cursor: outOfStock ? 'not-allowed' : 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 8,
                       boxShadow: isHovered ? 'var(--shadow-sm)' : 'none',
                       transition: 'border-color 120ms ease, box-shadow 120ms ease',
+                      position: 'relative',
                     }}
                   >
+                    {lotCount > 1 && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 10,
+                          right: 10,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: 99,
+                          background: 'var(--accent-light-bg)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {lotCount} lots
+                      </span>
+                    )}
                     <span
                       style={{
                         fontSize: 14,
@@ -1017,6 +1230,7 @@ export default function PosView() {
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
                         lineHeight: '1.35',
+                        paddingRight: lotCount > 1 ? 52 : 0,
                       }}
                     >
                       {item.product_uom?.product?.name ??
@@ -1030,11 +1244,11 @@ export default function PosView() {
                     <span
                       style={{
                         fontSize: 11,
-                        color: item.stock > 0 ? 'var(--success)' : 'var(--destructive)',
+                        color: group.totalStock > 0 ? 'var(--success)' : 'var(--destructive)',
                         fontWeight: 500,
                       }}
                     >
-                      Stock: {item.stock ?? 0}
+                      Stock: {group.totalStock}
                     </span>
                     {item.expiry_date && (
                       <span
@@ -1056,6 +1270,7 @@ export default function PosView() {
                           month: 'short',
                           year: 'numeric',
                         })}
+                        {lotCount > 1 && ' (earliest)'}
                       </span>
                     )}
                     <div style={{ marginTop: 'auto' }}>
@@ -1415,6 +1630,7 @@ export default function PosView() {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 6,
+                  position: 'relative',
                 }}
               >
                 {/* Name + code */}
@@ -1423,7 +1639,171 @@ export default function PosView() {
                     {item.name}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</div>
+                  {(item.expiry_date ||
+                    (item.lot_options && item.lot_options.length > 1)) && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: 4,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {item.expiry_date && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: '1px 6px',
+                            borderRadius: 99,
+                            background: 'var(--background)',
+                            border: '1px solid var(--border)',
+                            color:
+                              new Date(item.expiry_date) < new Date()
+                                ? 'var(--destructive)'
+                                : new Date(item.expiry_date) <
+                                    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                                  ? 'var(--warning)'
+                                  : 'var(--foreground-muted)',
+                          }}
+                        >
+                          Exp{' '}
+                          {new Date(item.expiry_date).toLocaleDateString('id-ID', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      )}
+                      {item.lot_options && item.lot_options.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLotPickerFor(
+                              lotPickerFor === item.product_inventory_id
+                                ? null
+                                : item.product_inventory_id
+                            )
+                          }
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: '1px 8px',
+                            borderRadius: 99,
+                            border: '1px solid var(--border)',
+                            background: 'var(--surface)',
+                            color: 'var(--accent)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Change lot
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {lotPickerFor === item.product_inventory_id &&
+                  item.lot_options &&
+                  item.lot_options.length > 1 && (
+                    <div
+                      style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--surface)',
+                        padding: 6,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.6,
+                          color: 'var(--foreground-muted)',
+                          padding: '2px 6px',
+                        }}
+                      >
+                        Select lot
+                      </div>
+                      {item.lot_options.map((opt) => {
+                        const isCurrent =
+                          opt.product_inventory_id === item.product_inventory_id
+                        const expDate = opt.expiry_date ? new Date(opt.expiry_date) : null
+                        const expired = expDate !== null && expDate < new Date()
+                        const outOfStock = opt.stock <= 0
+                        const optPrice =
+                          orderType === 'online'
+                            ? (opt.online_price ?? opt.base_price)
+                            : opt.base_price
+                        return (
+                          <button
+                            key={opt.product_inventory_id}
+                            type="button"
+                            disabled={isCurrent || outOfStock || expired}
+                            onClick={() => {
+                              changeCartLot(item.product_inventory_id, opt)
+                              setLotPickerFor(null)
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                              padding: '6px 8px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: `1px solid ${
+                                isCurrent ? 'var(--accent)' : 'var(--border)'
+                              }`,
+                              background: isCurrent
+                                ? 'var(--accent-light-bg)'
+                                : 'var(--background)',
+                              cursor:
+                                isCurrent || outOfStock || expired
+                                  ? 'not-allowed'
+                                  : 'pointer',
+                              opacity: outOfStock || expired ? 0.55 : 1,
+                              textAlign: 'left',
+                              fontFamily: 'var(--font-sans)',
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: expired
+                                  ? 'var(--destructive)'
+                                  : 'var(--foreground)',
+                              }}
+                            >
+                              {expDate
+                                ? expDate.toLocaleDateString('id-ID', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  })
+                                : 'No expiry'}
+                              {expired && ' (expired)'}
+                              {outOfStock && !expired && ' (no stock)'}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--foreground-muted)',
+                              }}
+                            >
+                              Stock {opt.stock} · Rp{' '}
+                              {Number(optPrice).toLocaleString('id-ID')}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
 
                 {/* Qty + price row */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1954,45 +2334,64 @@ export default function PosView() {
             </span>
           </div>
 
-          {/* Charge button */}
-          <button
-            type="button"
-            onClick={handleCharge}
-            disabled={
-              isPending ||
-              cart.length === 0 ||
-              (!paymentMethodsLoading && paymentMethods.length === 0)
-            }
-            style={{
-              width: '100%',
-              height: 48,
-              marginTop: 6,
-              background:
-                cart.length === 0 ||
-                (!paymentMethodsLoading && paymentMethods.length === 0)
-                  ? 'var(--border)'
-                  : 'var(--accent)',
-              color:
-                cart.length === 0 ||
-                (!paymentMethodsLoading && paymentMethods.length === 0)
-                  ? 'var(--foreground-muted)'
-                  : 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 16,
-              fontWeight: 600,
-              cursor:
-                isPending ||
-                cart.length === 0 ||
-                (!paymentMethodsLoading && paymentMethods.length === 0)
-                  ? 'not-allowed'
-                  : 'pointer',
-              opacity: isPending ? 0.7 : 1,
-              transition: 'background 150ms ease',
-            }}
-          >
-            {isPending ? 'Processing...' : `Charge Rp ${total.toLocaleString('id-ID')}`}
-          </button>
+          {/* Hold + Charge action row */}
+          {(() => {
+            const cartEmpty = cart.length === 0 && bundleCart.length === 0
+            const noMethods = !paymentMethodsLoading && paymentMethods.length === 0
+            const busy = isPending || isHoldPending
+            const holdDisabled = busy || cartEmpty
+            const chargeDisabled = busy || cartEmpty || noMethods
+            return (
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={handleHold}
+                  disabled={holdDisabled}
+                  style={{
+                    flex: '0 0 auto',
+                    height: 48,
+                    padding: '0 18px',
+                    background: holdDisabled ? 'var(--border)' : 'var(--surface)',
+                    color: holdDisabled
+                      ? 'var(--foreground-muted)'
+                      : 'var(--foreground)',
+                    border: `1px solid ${holdDisabled ? 'var(--border)' : 'var(--border-strong)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: holdDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isHoldPending ? 0.7 : 1,
+                    transition: 'background 150ms ease',
+                  }}
+                  title="Save as pending order"
+                >
+                  {isHoldPending ? 'Holding…' : '🗂 Hold'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCharge}
+                  disabled={chargeDisabled}
+                  style={{
+                    flex: 1,
+                    height: 48,
+                    background: chargeDisabled ? 'var(--border)' : 'var(--accent)',
+                    color: chargeDisabled ? 'var(--foreground-muted)' : 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: chargeDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isPending ? 0.7 : 1,
+                    transition: 'background 150ms ease',
+                  }}
+                >
+                  {isPending
+                    ? 'Processing...'
+                    : `Charge Rp ${total.toLocaleString('id-ID')}`}
+                </button>
+              </div>
+            )
+          })()}
         </div>
       </div>
 
