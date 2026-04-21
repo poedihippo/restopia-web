@@ -19,20 +19,30 @@ export default function PermissionsView() {
     queryFn: () => permissionsService.list().then((r) => r.data),
   })
 
-  const all: Permission[] = Array.isArray(data)
-    ? (data as Permission[])
-    : ((data as any)?.data ?? [])
+  const rawPermissions: unknown = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.data)
+      ? (data as any).data
+      : Array.isArray((data as any)?.data?.data)
+        ? (data as any).data.data
+        : []
+  const all: Permission[] = ((rawPermissions as any[]) ?? [])
+    .filter((p) => p && typeof p.name === 'string')
+    .map((p) => ({ id: p.id, name: p.name, created_at: p.created_at }))
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return all
-    return all.filter((p) => p.name.toLowerCase().includes(q))
+    return all.filter((p) => (p.name ?? '').toLowerCase().includes(q))
   }, [all, search])
 
   const groups = useMemo(() => {
     const map: Record<string, Permission[]> = {}
     for (const p of filtered) {
-      const key = (p.name.split('.')[0] ?? p.name.split('-')[0] ?? 'general').trim() || 'general'
+      const name = p.name ?? ''
+      const key =
+        ((name.includes('.') ? name.split('.')[0] : name.split('-')[0]) || 'general')
+          .trim() || 'general'
       if (!map[key]) map[key] = []
       map[key].push(p)
     }

@@ -53,9 +53,16 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
     queryFn: () => permissionsService.list().then((r) => r.data),
   })
 
-  const allPermissions: Permission[] = Array.isArray(permissionsData)
-    ? (permissionsData as Permission[])
-    : ((permissionsData as any)?.data ?? [])
+  const rawPermissions: unknown = Array.isArray(permissionsData)
+    ? permissionsData
+    : Array.isArray((permissionsData as any)?.data)
+      ? (permissionsData as any).data
+      : Array.isArray((permissionsData as any)?.data?.data)
+        ? (permissionsData as any).data.data
+        : []
+  const allPermissions: Permission[] = ((rawPermissions as any[]) ?? [])
+    .filter((p) => p && typeof p.name === 'string')
+    .map((p) => ({ id: p.id, name: p.name }))
 
   useEffect(() => {
     if (editData) {
@@ -121,7 +128,9 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
 
   const permissionGroups: Record<string, Permission[]> = allPermissions.reduce(
     (acc, p) => {
-      const group = p.name.split('.')[0] ?? p.name.split('-')[0] ?? 'general'
+      const name = p.name ?? ''
+      const group =
+        (name.includes('.') ? name.split('.')[0] : name.split('-')[0]) || 'general'
       if (!acc[group]) acc[group] = []
       acc[group].push(p)
       return acc
@@ -130,7 +139,7 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
   )
 
   const filteredPermissions = allPermissions.filter((p) =>
-    p.name.toLowerCase().includes(permissionSearch.toLowerCase())
+    (p.name ?? '').toLowerCase().includes(permissionSearch.toLowerCase())
   )
 
   if (!open) return null
