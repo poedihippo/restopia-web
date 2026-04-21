@@ -19,35 +19,44 @@ export default function PermissionsView() {
     queryFn: () => permissionsService.list().then((r) => r.data),
   })
 
-  const rawPermissions: unknown = Array.isArray(data)
-    ? data
-    : Array.isArray((data as any)?.data)
-      ? (data as any).data
-      : Array.isArray((data as any)?.data?.data)
-        ? (data as any).data.data
-        : []
-  const all: Permission[] = ((rawPermissions as any[]) ?? [])
-    .filter((p) => p && typeof p.name === 'string')
-    .map((p) => ({ id: p.id, name: p.name, created_at: p.created_at }))
+  const permissionGroupsRaw: Array<{ group: string; data: Permission[] }> = useMemo(() => {
+    const root =
+      (data as any)?.data ?? (Array.isArray(data) ? data : null)
+    if (!Array.isArray(root)) return []
+    return (root as any[])
+      .filter((g) => g && typeof g.group === 'string' && Array.isArray(g.data))
+      .map((g) => ({
+        group: g.group as string,
+        data: (g.data as any[])
+          .filter((p) => p && typeof p.name === 'string')
+          .map((p) => ({
+            id: p.id as number,
+            name: p.name as string,
+            created_at: p.created_at,
+          })),
+      }))
+  }, [data])
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return all
-    return all.filter((p) => (p.name ?? '').toLowerCase().includes(q))
-  }, [all, search])
+  const all: Permission[] = useMemo(
+    () => permissionGroupsRaw.flatMap((g) => g.data),
+    [permissionGroupsRaw],
+  )
 
   const groups = useMemo(() => {
-    const map: Record<string, Permission[]> = {}
-    for (const p of filtered) {
-      const name = p.name ?? ''
-      const key =
-        ((name.includes('.') ? name.split('.')[0] : name.split('-')[0]) || 'general')
-          .trim() || 'general'
-      if (!map[key]) map[key] = []
-      map[key].push(p)
-    }
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b))
-  }, [filtered])
+    const q = search.trim().toLowerCase()
+    const result: Array<[string, Permission[]]> = permissionGroupsRaw
+      .map((g) => [
+        g.group,
+        q ? g.data.filter((p) => (p.name ?? '').toLowerCase().includes(q)) : g.data,
+      ] as [string, Permission[]])
+      .filter(([, perms]) => perms.length > 0)
+    return result
+  }, [permissionGroupsRaw, search])
+
+  const filteredCount = useMemo(
+    () => groups.reduce((n, [, perms]) => n + perms.length, 0),
+    [groups],
+  )
 
   const inputBase: React.CSSProperties = {
     border: '1px solid var(--border)',
@@ -104,7 +113,7 @@ export default function PermissionsView() {
           />
         </div>
         <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-          {filtered.length} of {all.length}
+          {filteredCount} of {all.length}
         </span>
       </div>
 
@@ -143,7 +152,7 @@ export default function PermissionsView() {
           >
             Failed to load permissions.
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredCount === 0 ? (
           <div
             style={{
               padding: 48,

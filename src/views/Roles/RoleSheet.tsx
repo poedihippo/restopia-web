@@ -53,16 +53,21 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
     queryFn: () => permissionsService.list().then((r) => r.data),
   })
 
-  const rawPermissions: unknown = Array.isArray(permissionsData)
-    ? permissionsData
-    : Array.isArray((permissionsData as any)?.data)
-      ? (permissionsData as any).data
-      : Array.isArray((permissionsData as any)?.data?.data)
-        ? (permissionsData as any).data.data
-        : []
-  const allPermissions: Permission[] = ((rawPermissions as any[]) ?? [])
-    .filter((p) => p && typeof p.name === 'string')
-    .map((p) => ({ id: p.id, name: p.name }))
+  const permissionGroupsRaw: Array<{ group: string; data: Permission[] }> = (() => {
+    const root =
+      (permissionsData as any)?.data ??
+      (Array.isArray(permissionsData) ? permissionsData : null)
+    if (!Array.isArray(root)) return []
+    return (root as any[])
+      .filter((g) => g && typeof g.group === 'string' && Array.isArray(g.data))
+      .map((g) => ({
+        group: g.group as string,
+        data: (g.data as any[])
+          .filter((p) => p && typeof p.name === 'string')
+          .map((p) => ({ id: p.id as number, name: p.name as string })),
+      }))
+  })()
+  const allPermissions: Permission[] = permissionGroupsRaw.flatMap((g) => g.data)
 
   useEffect(() => {
     if (editData) {
@@ -126,13 +131,9 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
     setValue('permission_ids', [], { shouldDirty: true })
   }
 
-  const permissionGroups: Record<string, Permission[]> = allPermissions.reduce(
-    (acc, p) => {
-      const name = p.name ?? ''
-      const group =
-        (name.includes('.') ? name.split('.')[0] : name.split('-')[0]) || 'general'
-      if (!acc[group]) acc[group] = []
-      acc[group].push(p)
+  const permissionGroups: Record<string, Permission[]> = permissionGroupsRaw.reduce(
+    (acc, g) => {
+      acc[g.group] = g.data
       return acc
     },
     {} as Record<string, Permission[]>
