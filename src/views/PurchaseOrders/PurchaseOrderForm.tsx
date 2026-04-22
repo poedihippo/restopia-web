@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Save,
 } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
   product_inventory_id: z.coerce.number().min(1, 'Product is required'),
@@ -79,26 +80,42 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     0
   )
 
-  const { data: suppliersData } = useQuery({
+  const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
     queryKey: ['suppliers-all'],
-    queryFn: () => suppliersService.list({ per_page: 200 }).then((r) => r.data),
+    queryFn: () => suppliersService.list({ per_page: 100 }).then((r) => r.data),
   })
   const suppliers = (suppliersData as any)?.data ?? []
 
-  const { data: branchesData } = useQuery({
+  const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all'],
     queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
-  const { data: inventoriesData } = useQuery({
+  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
     queryKey: ['product-inventories-all'],
     queryFn: () =>
       productInventoriesService
-        .list({ per_page: 200, include: 'product_uom.product,product_uom.uom,branch' })
+        .list({ per_page: 50, include: 'product_uom.product,product_uom.uom,branch' })
         .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
+
+  const supplierOptions = suppliers.map((s: any) => ({
+    value: s.id as number,
+    label: (s.name as string) ?? `Supplier #${s.id}`,
+    sublabel: s.code as string | undefined,
+  }))
+  const branchOptions = branches.map((b: any) => ({
+    value: b.id as number,
+    label: (b.name as string) ?? `Branch #${b.id}`,
+    sublabel: b.code as string | undefined,
+  }))
+  const inventoryOptions = inventories.map((inv: any) => ({
+    value: inv.id as number,
+    label: inv.product_uom?.product?.name ?? inv.code ?? `Inv #${inv.id}`,
+    sublabel: inv.code as string | undefined,
+  }))
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -336,24 +353,17 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 name="supplier_id"
                 control={control}
                 render={({ field }) => (
-                  <select
+                  <SearchableSelect
                     value={field.value ?? 0}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    style={{
-                      ...selectStyle,
-                      border: `1px solid ${errors.supplier_id ? 'var(--destructive)' : 'var(--border)'}`,
-                    }}
-                  >
-                    <option value={0} disabled>Select supplier</option>
-                    {suppliers.map((s: any) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                    onChange={field.onChange}
+                    options={supplierOptions}
+                    placeholder="Select supplier..."
+                    searchPlaceholder="Search suppliers..."
+                    loading={suppliersLoading}
+                    error={errors.supplier_id?.message as string | undefined}
+                  />
                 )}
               />
-              {errors.supplier_id && (
-                <span style={errorStyle}>{errors.supplier_id.message}</span>
-              )}
             </div>
 
             {/* Branch */}
@@ -366,24 +376,17 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 name="branch_id"
                 control={control}
                 render={({ field }) => (
-                  <select
+                  <SearchableSelect
                     value={field.value ?? 0}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    style={{
-                      ...selectStyle,
-                      border: `1px solid ${errors.branch_id ? 'var(--destructive)' : 'var(--border)'}`,
-                    }}
-                  >
-                    <option value={0} disabled>Select branch</option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
+                    onChange={field.onChange}
+                    options={branchOptions}
+                    placeholder="Select branch..."
+                    searchPlaceholder="Search branches..."
+                    loading={branchesLoading}
+                    error={errors.branch_id?.message as string | undefined}
+                  />
                 )}
               />
-              {errors.branch_id && (
-                <span style={errorStyle}>{errors.branch_id.message}</span>
-              )}
             </div>
 
             {/* Status */}
@@ -532,39 +535,21 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   name={`details.${index}.product_inventory_id`}
                   control={control}
                   render={({ field: f }) => (
-                    <select
+                    <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={(e) => f.onChange(Number(e.target.value))}
-                      style={{
-                        ...lineInputStyle,
-                        cursor: 'pointer',
-                        border: `1px solid ${
-                          errors.details?.[index]?.product_inventory_id
-                            ? 'var(--destructive)'
-                            : 'var(--border)'
-                        }`,
-                      }}
-                    >
-                      <option value={0} disabled>Select product</option>
-                      {inventories.map((inv: any) => (
-                        <option key={inv.id} value={inv.id}>
-                          {inv.product_uom?.product?.name ?? inv.id}
-                          {' — '}
-                          {inv.product_uom?.uom?.code ?? ''}
-                          {' ('}
-                          {inv.branch?.name ?? 'Unknown'}
-                          {') — Stock: '}
-                          {inv.qty}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={f.onChange}
+                      options={inventoryOptions}
+                      placeholder="Select product..."
+                      searchPlaceholder="Search inventory..."
+                      loading={inventoriesLoading}
+                      error={
+                        errors.details?.[index]?.product_inventory_id?.message as
+                          | string
+                          | undefined
+                      }
+                    />
                   )}
                 />
-                {errors.details?.[index]?.product_inventory_id && (
-                  <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                    {errors.details[index]!.product_inventory_id!.message}
-                  </span>
-                )}
               </div>
 
               {/* Qty */}

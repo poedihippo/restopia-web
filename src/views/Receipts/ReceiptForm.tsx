@@ -12,6 +12,7 @@ import { deliveriesService } from '@/services/deliveries.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
   product_inventory_id: z.coerce.number().min(0, 'Inventory item required'),
@@ -82,23 +83,34 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     0
   )
 
-  const { data: deliveriesData } = useQuery({
+  const { data: deliveriesData, isLoading: deliveriesLoading } = useQuery({
     queryKey: ['deliveries-pending'],
     queryFn: () =>
       deliveriesService
-        .list({ per_page: 100, 'filter[status]': 'pending' } as any)
+        .list({ per_page: 50, 'filter[status]': 'pending' } as any)
         .then((r) => r.data),
   })
   const deliveries = (deliveriesData as any)?.data ?? []
 
-  const { data: inventoriesData } = useQuery({
+  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
     queryKey: ['product-inventories-all'],
     queryFn: () =>
       productInventoriesService
-        .list({ per_page: 200, include: 'branch' } as any)
+        .list({ per_page: 50, include: 'branch' } as any)
         .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
+
+  const deliveryOptions = deliveries.map((d: any) => ({
+    value: d.id as number,
+    label: d.code ?? `DEL-${d.id}`,
+    sublabel: 'Rp ' + (d.total_price ?? 0).toLocaleString('id-ID'),
+  }))
+  const inventoryOptions = inventories.map((inv: any) => ({
+    value: inv.id as number,
+    label: inv.product_uom?.product?.name ?? inv.code ?? `Inv #${inv.id}`,
+    sublabel: inv.code as string | undefined,
+  }))
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -336,30 +348,17 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 name="delivery_id"
                 control={control}
                 render={({ field }) => (
-                  <select
+                  <SearchableSelect
                     value={field.value ?? 0}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    style={{
-                      ...selectStyle,
-                      border: `1px solid ${
-                        errors.delivery_id ? 'var(--destructive)' : 'var(--border)'
-                      }`,
-                    }}
-                  >
-                    <option value={0} disabled>
-                      Select delivery
-                    </option>
-                    {deliveries.map((d: any) => (
-                      <option key={d.id} value={d.id}>
-                        {d.code} — Rp {(d.total_price ?? 0).toLocaleString('id-ID')}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={field.onChange}
+                    options={deliveryOptions}
+                    placeholder="Select delivery..."
+                    searchPlaceholder="Search deliveries..."
+                    loading={deliveriesLoading}
+                    error={errors.delivery_id?.message as string | undefined}
+                  />
                 )}
               />
-              {errors.delivery_id && (
-                <span style={errorStyle}>{errors.delivery_id.message}</span>
-              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -510,36 +509,21 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   name={`details.${index}.product_inventory_id`}
                   control={control}
                   render={({ field: f }) => (
-                    <select
+                    <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={(e) => f.onChange(Number(e.target.value))}
-                      style={{
-                        ...lineInputStyle,
-                        cursor: 'pointer',
-                        border: `1px solid ${
-                          errors.details?.[index]?.product_inventory_id
-                            ? 'var(--destructive)'
-                            : 'var(--border)'
-                        }`,
-                      }}
-                    >
-                      <option value={0} disabled>
-                        Select inventory
-                      </option>
-                      {inventories.map((inv: any) => (
-                        <option key={inv.id} value={inv.id}>
-                          {inv.code ?? 'INV-' + inv.id} ({inv.branch?.name ?? ''}) — Stock:{' '}
-                          {inv.qty ?? 0}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={f.onChange}
+                      options={inventoryOptions}
+                      placeholder="Select inventory..."
+                      searchPlaceholder="Search inventory..."
+                      loading={inventoriesLoading}
+                      error={
+                        errors.details?.[index]?.product_inventory_id?.message as
+                          | string
+                          | undefined
+                      }
+                    />
                   )}
                 />
-                {errors.details?.[index]?.product_inventory_id && (
-                  <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                    {errors.details[index]!.product_inventory_id!.message}
-                  </span>
-                )}
               </div>
 
               <input

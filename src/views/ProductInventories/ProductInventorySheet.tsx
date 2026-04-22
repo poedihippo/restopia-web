@@ -10,6 +10,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { toastMutationApiError } from '@/utils/apiError'
 import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2 } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 const createSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Product UOM is required'),
@@ -104,15 +105,21 @@ export default function ProductInventorySheet({
     },
   })
 
-  const { data: productUomsData } = useQuery({
+  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 200, include: 'product,uom' })
+        .list({ per_page: 50, include: 'product,uom' })
         .then((r) => r.data),
     enabled: !isEditMode,
   })
   const productUoms = (productUomsData as any)?.data ?? []
+
+  const productUomOptions = productUoms.map((pu: any) => ({
+    value: pu.id as number,
+    label: pu.product?.name ?? `Product UOM #${pu.id}`,
+    sublabel: pu.code ?? pu.uom?.name ?? undefined,
+  }))
 
   useEffect(() => {
     if (editData) {
@@ -293,34 +300,17 @@ export default function ProductInventorySheet({
                 name="product_uom_id"
                 control={control}
                 render={({ field }) => (
-                  <select
+                  <SearchableSelect
                     value={field.value ?? 0}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    style={{
-                      ...inputStyle,
-                      cursor: 'pointer',
-                      border: `1px solid ${errors.product_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
-                    }}
-                  >
-                    <option value={0} disabled>
-                      Select product UOM
-                    </option>
-                    {productUoms.map((pu: any) => (
-                      <option key={pu.id} value={pu.id}>
-                        {pu.product?.name ?? pu.id}
-                        {' — '}
-                        {pu.uom?.name ?? ''}
-                        {pu.code ? ` (${pu.code})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={field.onChange}
+                    options={productUomOptions}
+                    placeholder="Select product UOM..."
+                    searchPlaceholder="Search products..."
+                    loading={productUomsLoading}
+                    error={errors.product_uom_id?.message as string | undefined}
+                  />
                 )}
               />
-              {errors.product_uom_id && (
-                <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4 }}>
-                  {errors.product_uom_id.message}
-                </span>
-              )}
             </div>
           )}
 

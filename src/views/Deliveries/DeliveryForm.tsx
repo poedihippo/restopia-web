@@ -13,6 +13,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
   product_inventory_id: z.coerce.number().min(0, 'Product required'),
@@ -83,29 +84,48 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     0
   )
 
-  const { data: branchesData } = useQuery({
+  const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all'],
     queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
-  const { data: inventoriesData } = useQuery({
+  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
     queryKey: ['product-inventories-all'],
     queryFn: () =>
       productInventoriesService
-        .list({ per_page: 200, include: 'branch' })
+        .list({ per_page: 50, include: 'branch' })
         .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
 
-  const { data: purchaseOrdersData } = useQuery({
+  const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-pending'],
     queryFn: () =>
       purchaseOrdersService
-        .list({ per_page: 100, 'filter[status]': 'pending' } as any)
+        .list({ per_page: 50, 'filter[status]': 'pending' } as any)
         .then((r) => r.data),
   })
   const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
+
+  const branchOptions = branches.map((b: any) => ({
+    value: b.id as number,
+    label: (b.name as string) ?? `Branch #${b.id}`,
+    sublabel: b.code as string | undefined,
+  }))
+  const inventoryOptions = inventories.map((inv: any) => ({
+    value: inv.id as number,
+    label: inv.product_uom?.product?.name ?? inv.code ?? `Inv #${inv.id}`,
+    sublabel: inv.code as string | undefined,
+  }))
+  const purchaseOrderOptions = [
+    { value: 0, label: 'No linked PO' },
+    ...purchaseOrders.map((po: any) => ({
+      value: po.id as number,
+      label: po.code ?? `PO-${po.id}`,
+      sublabel: undefined,
+    })),
+  ]
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -346,30 +366,17 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 name="target_branch_id"
                 control={control}
                 render={({ field }) => (
-                  <select
+                  <SearchableSelect
                     value={field.value ?? 0}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    style={{
-                      ...selectStyle,
-                      border: `1px solid ${
-                        errors.target_branch_id ? 'var(--destructive)' : 'var(--border)'
-                      }`,
-                    }}
-                  >
-                    <option value={0} disabled>
-                      Select target branch
-                    </option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={field.onChange}
+                    options={branchOptions}
+                    placeholder="Select target branch..."
+                    searchPlaceholder="Search branches..."
+                    loading={branchesLoading}
+                    error={errors.target_branch_id?.message as string | undefined}
+                  />
                 )}
               />
-              {errors.target_branch_id && (
-                <span style={errorStyle}>{errors.target_branch_id.message}</span>
-              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -378,21 +385,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 name="purchase_order_id"
                 control={control}
                 render={({ field }) => (
-                  <select
+                  <SearchableSelect
                     value={field.value ?? 0}
-                    onChange={(e) => {
-                      const n = Number(e.target.value)
-                      field.onChange(n > 0 ? n : undefined)
-                    }}
-                    style={selectStyle}
-                  >
-                    <option value={0}>No linked PO</option>
-                    {purchaseOrders.map((po: any) => (
-                      <option key={po.id} value={po.id}>
-                        {po.code}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => field.onChange(v > 0 ? v : undefined)}
+                    options={purchaseOrderOptions}
+                    placeholder="No linked PO"
+                    searchPlaceholder="Search POs..."
+                    loading={purchaseOrdersLoading}
+                  />
                 )}
               />
             </div>
@@ -544,36 +544,21 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   name={`details.${index}.product_inventory_id`}
                   control={control}
                   render={({ field: f }) => (
-                    <select
+                    <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={(e) => f.onChange(Number(e.target.value))}
-                      style={{
-                        ...lineInputStyle,
-                        cursor: 'pointer',
-                        border: `1px solid ${
-                          errors.details?.[index]?.product_inventory_id
-                            ? 'var(--destructive)'
-                            : 'var(--border)'
-                        }`,
-                      }}
-                    >
-                      <option value={0} disabled>
-                        Select product
-                      </option>
-                      {inventories.map((inv: any) => (
-                        <option key={inv.id} value={inv.id}>
-                          {inv.code ?? 'INV-' + inv.id} ({inv.branch?.name ?? ''}) — Stock:{' '}
-                          {inv.qty ?? 0}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={f.onChange}
+                      options={inventoryOptions}
+                      placeholder="Select product..."
+                      searchPlaceholder="Search inventory..."
+                      loading={inventoriesLoading}
+                      error={
+                        errors.details?.[index]?.product_inventory_id?.message as
+                          | string
+                          | undefined
+                      }
+                    />
                   )}
                 />
-                {errors.details?.[index]?.product_inventory_id && (
-                  <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                    {errors.details[index]!.product_inventory_id!.message}
-                  </span>
-                )}
               </div>
 
               <input

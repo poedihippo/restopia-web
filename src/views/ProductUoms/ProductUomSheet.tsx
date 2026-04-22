@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,7 +10,8 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
-import { X, Loader2, ChevronDown } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 const schema = z.object({
   product_id: z.coerce.number().min(1, 'Product is required'),
@@ -36,25 +37,18 @@ interface ProductUomSheetProps {
     price_editable?: boolean
     is_default?: boolean
     product?: { id?: number; name?: string; code?: string }
+    uom?: { id?: number; name?: string; code?: string }
   } | null
 }
 
 export default function ProductUomSheet({ open, onClose, editData }: ProductUomSheetProps) {
   const queryClient = useQueryClient()
 
-  const [productSearch, setProductSearch] = useState('')
-  const [productDropdownOpen, setProductDropdownOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<
-    { id: number; name: string; code?: string } | null
-  >(null)
-
   const {
     register,
     handleSubmit,
     reset,
     control,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -69,27 +63,59 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     },
   })
 
-  const watchedProductId = watch('product_id')
-
   const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['products-search', productSearch],
-    queryFn: () =>
-      productsService
-        .list({
-          per_page: 30,
-          'filter[search]': productSearch || undefined,
-        } as any)
-        .then((r) => r.data),
-    enabled: productDropdownOpen,
+    queryKey: ['products-all'],
+    queryFn: () => productsService.list({ per_page: 50 }).then((r) => r.data),
   })
   const products = (productsData as any)?.data ?? []
 
-  const { data: uomsData } = useQuery({
+  const { data: uomsData, isLoading: uomsLoading } = useQuery({
     queryKey: ['uoms-all'],
-    queryFn: () =>
-      uomsService.list({ per_page: 100 }).then((r) => r.data),
+    queryFn: () => uomsService.list({ per_page: 100 }).then((r) => r.data),
   })
   const uoms = (uomsData as any)?.data ?? []
+
+  // When editing, ensure the currently-selected product/uom is present in
+  // the options list even if it lies beyond the first page.
+  const productOptions = React.useMemo(() => {
+    const base = products.map((p: any) => ({
+      value: p.id as number,
+      label: (p.name as string) ?? '',
+      sublabel: p.code as string | undefined,
+    }))
+    if (
+      editData?.product_id &&
+      editData.product &&
+      !base.find((o: any) => o.value === editData.product_id)
+    ) {
+      base.unshift({
+        value: editData.product_id,
+        label: editData.product.name ?? 'Product',
+        sublabel: editData.product.code,
+      })
+    }
+    return base
+  }, [products, editData])
+
+  const uomOptions = React.useMemo(() => {
+    const base = uoms.map((u: any) => ({
+      value: u.id as number,
+      label: (u.name as string) ?? '',
+      sublabel: u.code as string | undefined,
+    }))
+    if (
+      editData?.uom_id &&
+      editData.uom &&
+      !base.find((o: any) => o.value === editData.uom_id)
+    ) {
+      base.unshift({
+        value: editData.uom_id,
+        label: editData.uom.name ?? 'UOM',
+        sublabel: editData.uom.code,
+      })
+    }
+    return base
+  }, [uoms, editData])
 
   useEffect(() => {
     if (editData) {
@@ -102,15 +128,6 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         price_editable: editData.price_editable ?? false,
         is_default: editData.is_default ?? false,
       })
-      if (editData.product_id) {
-        setSelectedProduct({
-          id: editData.product_id,
-          name: editData.product?.name ?? 'Product',
-          code: editData.product?.code,
-        })
-      } else {
-        setSelectedProduct(null)
-      }
     } else {
       reset({
         product_id: 0,
@@ -121,23 +138,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         price_editable: false,
         is_default: false,
       })
-      setSelectedProduct(null)
     }
-    setProductSearch('')
-    setProductDropdownOpen(false)
   }, [editData, reset])
-
-  useEffect(() => {
-    if (!productDropdownOpen) return
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest('[data-product-dropdown]')) {
-        setProductDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [productDropdownOpen])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => productUomsService.create(data as any),
@@ -170,20 +172,6 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
-
-  const selectStyle = {
-    width: '100%',
-    padding: '9px 12px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 14,
-    color: 'var(--foreground)',
-    background: 'var(--surface)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-    boxSizing: 'border-box' as const,
-    cursor: 'pointer',
-  }
 
   const inputStyle = {
     width: '100%',
@@ -287,130 +275,21 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               Product
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
-            <div style={{ position: 'relative' }} data-product-dropdown>
-              <button
-                type="button"
-                onClick={() => setProductDropdownOpen((v) => !v)}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  border: `1px solid ${errors.product_id ? 'var(--destructive)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--surface)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  color: selectedProduct ? 'var(--foreground)' : 'var(--foreground-subtle)',
-                  fontFamily: 'var(--font-sans)',
-                  textAlign: 'left',
-                }}
-              >
-                <span>
-                  {selectedProduct
-                    ? `${selectedProduct.name}${selectedProduct.code ? ` (${selectedProduct.code})` : ''}`
-                    : 'Search and select product...'}
-                </span>
-                <ChevronDown size={14} color="var(--foreground-muted)" />
-              </button>
-
-              {productDropdownOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 4px)',
-                    left: 0,
-                    right: 0,
-                    zIndex: 200,
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    boxShadow: 'var(--shadow-lg)',
-                    overflow: 'hidden',
-                  }}
-                >
-                  <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
-                    <input
-                      autoFocus
-                      type="text"
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      placeholder="Type to search products..."
-                      style={{
-                        width: '100%',
-                        padding: '7px 10px',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: 12,
-                        outline: 'none',
-                        background: 'var(--background)',
-                        fontFamily: 'var(--font-sans)',
-                        color: 'var(--foreground)',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </div>
-
-                  <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-                    {productsLoading ? (
-                      <div style={{ padding: 12, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                        Loading...
-                      </div>
-                    ) : products.length === 0 ? (
-                      <div style={{ padding: 12, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                        No products found
-                      </div>
-                    ) : (
-                      products.map((product: any) => {
-                        const isSel = product.id === watchedProductId
-                        return (
-                          <button
-                            type="button"
-                            key={product.id}
-                            onClick={() => {
-                              setValue('product_id', product.id, { shouldValidate: true })
-                              setSelectedProduct({
-                                id: product.id,
-                                name: product.name,
-                                code: product.code,
-                              })
-                              setProductDropdownOpen(false)
-                              setProductSearch('')
-                            }}
-                            style={{
-                              width: '100%',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              alignItems: 'flex-start',
-                              padding: '9px 12px',
-                              background: isSel ? 'var(--accent-light-bg)' : 'transparent',
-                              border: 'none',
-                              cursor: 'pointer',
-                              borderBottom: '1px solid var(--border)',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                              {product.name}
-                            </span>
-                            <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--foreground-muted)' }}>
-                              {product.code ?? ''}
-                            </span>
-                          </button>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
+            <Controller
+              control={control}
+              name="product_id"
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ?? 0}
+                  onChange={field.onChange}
+                  options={productOptions}
+                  placeholder="Select product..."
+                  searchPlaceholder="Search products..."
+                  loading={productsLoading}
+                  error={errors.product_id?.message as string | undefined}
+                />
               )}
-            </div>
-            <input type="hidden" {...register('product_id', { valueAsNumber: true })} />
-            {errors.product_id && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.product_id.message}
-              </span>
-            )}
+            />
           </div>
 
           {/* UOM */}
@@ -419,25 +298,21 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               Unit of Measure
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
-            <select
-              {...register('uom_id', { valueAsNumber: true })}
-              style={{
-                ...selectStyle,
-                border: `1px solid ${errors.uom_id ? 'var(--destructive)' : 'var(--border)'}`,
-              }}
-            >
-              <option value={0}>Select UOM</option>
-              {uoms.map((u: any) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.code})
-                </option>
-              ))}
-            </select>
-            {errors.uom_id && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.uom_id.message}
-              </span>
-            )}
+            <Controller
+              control={control}
+              name="uom_id"
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ?? 0}
+                  onChange={field.onChange}
+                  options={uomOptions}
+                  placeholder="Select UOM..."
+                  searchPlaceholder="Search UOMs..."
+                  loading={uomsLoading}
+                  error={errors.uom_id?.message as string | undefined}
+                />
+              )}
+            />
           </div>
 
           {/* Code */}

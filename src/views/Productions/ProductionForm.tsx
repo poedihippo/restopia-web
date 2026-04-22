@@ -23,6 +23,7 @@ import {
   ChevronUp,
   BookOpen,
 } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -533,12 +534,18 @@ export default function ProductionForm({
   }, [sharedShowUomPicker, sharedShowMaterialUomPicker])
 
   // Queries
-  const { data: productUomsData } = useQuery({
+  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService.list({ per_page: 200, include: 'product,uom' }).then((r) => r.data),
   })
   const productUoms = (productUomsData as any)?.data ?? []
+
+  const productUomOptions = productUoms.map((pu: any) => ({
+    value: pu.id as number,
+    label: pu.product?.name ?? `Product UOM #${pu.id}`,
+    sublabel: pu.code ?? pu.uom?.name ?? undefined,
+  }))
 
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all'],
@@ -1058,162 +1065,25 @@ export default function ProductionForm({
                       )}
                     </div>
 
-                    {/* Finished product two-step search */}
+                    {/* Finished product picker */}
                     <div
-                      style={{ flex: 1, position: 'relative' }}
+                      style={{ flex: 1 }}
                       onClick={(e) => e.stopPropagation()}
-                      data-prod-item-search
                     >
-                      <input
-                        type="text"
-                        value={activeDetailIndex === detailIndex ? sharedProductSearch : (detailLabels[detailIndex] || '')}
-                        onChange={(e) => {
-                          setActiveDetailIndex(detailIndex)
-                          setSharedProductSearch(e.target.value)
-                          setSharedShowUomPicker(false)
-                          setSharedSelectedProductId(null)
-                        }}
-                        onFocus={() => {
-                          setActiveDetailIndex(detailIndex)
-                          setSharedShowUomPicker(false)
-                        }}
-                        placeholder="Search finished product..."
-                        style={{
-                          width: '100%',
-                          height: 34,
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-md)',
-                          padding: '0 10px',
-                          fontSize: 13,
-                          color: 'var(--foreground)',
-                          background: 'var(--surface)',
-                          boxSizing: 'border-box',
-                          fontFamily: 'var(--font-sans)',
-                          outline: 'none',
-                        }}
+                      <Controller
+                        name={`details.${detailIndex}.product_uom_id` as any}
+                        control={control}
+                        render={({ field }) => (
+                          <SearchableSelect
+                            value={(field.value as number) ?? 0}
+                            onChange={field.onChange}
+                            options={productUomOptions}
+                            placeholder="Search finished product..."
+                            searchPlaceholder="Search products..."
+                            loading={productUomsLoading}
+                          />
+                        )}
                       />
-
-                      {activeDetailIndex === detailIndex && sharedProductSearch.length >= 2 && !sharedShowUomPicker && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: 0,
-                            right: 0,
-                            zIndex: 50,
-                            background: 'var(--surface)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-md)',
-                            boxShadow: 'var(--shadow-lg)',
-                            maxHeight: 220,
-                            overflowY: 'auto',
-                          }}
-                        >
-                          {prodItemProducts.length === 0 && (
-                            <p style={{ padding: '12px 14px', fontSize: 13, color: 'var(--foreground-muted)', margin: 0 }}>
-                              No products found
-                            </p>
-                          )}
-                          {prodItemProducts.map((p: any) => (
-                            <div
-                              key={p.id}
-                              onClick={() => {
-                                setSharedSelectedProductId(p.id)
-                                setSharedSelectedProductName(p.name)
-                                setSharedShowUomPicker(true)
-                                setSharedProductSearch('')
-                              }}
-                              style={{
-                                padding: '10px 14px',
-                                cursor: 'pointer',
-                                borderBottom: '1px solid var(--border)',
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface)')}
-                            >
-                              <div style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</div>
-                              <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{p.code} · {p.type}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {activeDetailIndex === detailIndex && sharedShowUomPicker && sharedSelectedProductId && (
-                        <div
-                          style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: 0,
-                            right: 0,
-                            zIndex: 50,
-                            background: 'var(--surface)',
-                            border: '1px solid var(--accent-light)',
-                            borderRadius: 'var(--radius-md)',
-                            boxShadow: 'var(--shadow-lg)',
-                            padding: 12,
-                          }}
-                        >
-                          <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 8 }}>
-                            Select UOM for <strong>{sharedSelectedProductName}</strong>:
-                          </div>
-                          {prodItemUoms.length === 0 && (
-                            <p style={{ fontSize: 13, color: 'var(--destructive)', margin: 0 }}>
-                              No UOM variants found. Add one in Product UOMs first.
-                            </p>
-                          )}
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {prodItemUoms.map((pu: any) => (
-                              <button
-                                key={pu.id}
-                                type="button"
-                                onClick={() => {
-                                  setValue(`details.${detailIndex}.product_uom_id` as any, pu.id)
-                                  const label = `${sharedSelectedProductName} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`
-                                  setDetailLabels((prev) => ({ ...prev, [detailIndex]: label }))
-                                  setSharedShowUomPicker(false)
-                                  setSharedSelectedProductId(null)
-                                  setSharedSelectedProductName('')
-                                  setActiveDetailIndex(null)
-                                }}
-                                style={{
-                                  padding: '6px 12px',
-                                  border: '1px solid var(--accent)',
-                                  borderRadius: 'var(--radius-sm)',
-                                  background: 'var(--surface)',
-                                  color: 'var(--accent)',
-                                  fontSize: 12,
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {pu.uom?.name ?? '?'} ({pu.uom?.code ?? '?'})
-                                <span style={{ fontSize: 10, color: 'var(--foreground-muted)', marginLeft: 4 }}>
-                                  {pu.code}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSharedShowUomPicker(false)
-                              setSharedSelectedProductId(null)
-                              setSharedSelectedProductName('')
-                            }}
-                            style={{
-                              marginTop: 8,
-                              fontSize: 12,
-                              color: 'var(--foreground-muted)',
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              textDecoration: 'underline',
-                            }}
-                          >
-                            ← Back
-                          </button>
-                        </div>
-                      )}
                     </div>
 
                     {/* Qty */}

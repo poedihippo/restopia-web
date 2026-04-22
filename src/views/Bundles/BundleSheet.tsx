@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { bundlesService } from '@/services/bundles.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2, Plus, Trash2 } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Product required'),
@@ -81,15 +82,21 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
 
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
 
-  const { data: productUomsData } = useQuery({
+  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 200, include: 'product,uom' } as any)
+        .list({ per_page: 50, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
 
   const productUoms: ProductUomOption[] = (productUomsData as any)?.data ?? []
+
+  const productUomOptions = productUoms.map((pu) => ({
+    value: pu.id,
+    label: pu.product?.name ?? `Product UOM #${pu.id}`,
+    sublabel: pu.uom?.name ?? undefined,
+  }))
 
   useEffect(() => {
     if (editData) {
@@ -434,29 +441,17 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                         control={control}
                         name={`details.${index}.product_uom_id` as const}
                         render={({ field: selectField }) => (
-                          <select
+                          <SearchableSelect
                             value={selectField.value ?? 0}
-                            onChange={(e) => selectField.onChange(Number(e.target.value))}
-                            style={smallInputStyle}
-                          >
-                            <option value={0} disabled>
-                              Select product
-                            </option>
-                            {productUoms.map((pu) => (
-                              <option key={pu.id} value={pu.id}>
-                                {pu.product?.name ?? pu.id}
-                                {pu.uom?.name ? ` — ${pu.uom.name}` : ''}
-                                {pu.code ? ` (${pu.code})` : ''}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={selectField.onChange}
+                            options={productUomOptions}
+                            placeholder="Select product..."
+                            searchPlaceholder="Search..."
+                            loading={productUomsLoading}
+                            error={detailError?.product_uom_id?.message as string | undefined}
+                          />
                         )}
                       />
-                      {detailError?.product_uom_id && (
-                        <span style={{ fontSize: 10, color: 'var(--destructive)' }}>
-                          {detailError.product_uom_id.message}
-                        </span>
-                      )}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

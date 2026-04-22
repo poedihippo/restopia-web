@@ -11,6 +11,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, ArrowRight } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 
 const schema = z.object({
   product_id: z.coerce.number()
@@ -60,21 +61,32 @@ export default function ProductConversionSheet({
     },
   })
 
-  const { data: productsData } = useQuery({
-    queryKey: ['products-all'],
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ['products-all', 'active'],
     queryFn: () =>
       productsService
-        .list({ per_page: 200, 'filter[status]': 'active' })
+        .list({ per_page: 50, 'filter[status]': 'active' })
         .then((r) => r.data),
   })
   const products = (productsData as any)?.data ?? []
 
-  const { data: uomsData } = useQuery({
+  const { data: uomsData, isLoading: uomsLoading } = useQuery({
     queryKey: ['uoms-all'],
     queryFn: () =>
       uomsService.list({ per_page: 100 }).then((r) => r.data),
   })
   const uoms = (uomsData as any)?.data ?? []
+
+  const productOptions = products.map((p: any) => ({
+    value: p.id as number,
+    label: (p.name as string) ?? '',
+    sublabel: p.code as string | undefined,
+  }))
+  const uomOptions = uoms.map((u: any) => ({
+    value: u.id as number,
+    label: (u.name as string) ?? '',
+    sublabel: u.code as string | undefined,
+  }))
 
   useEffect(() => {
     if (editData) {
@@ -269,30 +281,17 @@ export default function ProductConversionSheet({
               name="product_id"
               control={control}
               render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                  style={{
-                    ...selectStyle,
-                    border: `1px solid ${errors.product_id ? 'var(--destructive)' : 'var(--border)'}`,
-                  }}
-                >
-                  <option value="" disabled>
-                    Select product
-                  </option>
-                  {products.map((p: any) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={field.value ?? 0}
+                  onChange={field.onChange}
+                  options={productOptions}
+                  placeholder="Select product..."
+                  searchPlaceholder="Search products..."
+                  loading={productsLoading}
+                  error={errors.product_id?.message as string | undefined}
+                />
               )}
             />
-            {errors.product_id && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.product_id.message}
-              </span>
-            )}
           </div>
 
           {/* Conversion row */}
@@ -323,23 +322,15 @@ export default function ProductConversionSheet({
                 name="uom_id"
                 control={control}
                 render={({ field }) => (
-                  <select
-                    value={field.value ?? ''}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    style={{
-                      ...selectStyle,
-                      border: `1px solid ${errors.uom_id ? 'var(--destructive)' : 'var(--border)'}`,
-                    }}
-                  >
-                    <option value="" disabled>
-                      From UOM
-                    </option>
-                    {uoms.map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.code})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={field.value ?? 0}
+                    onChange={field.onChange}
+                    options={uomOptions}
+                    placeholder="From UOM"
+                    searchPlaceholder="Search UOMs..."
+                    loading={uomsLoading}
+                    error={errors.uom_id?.message as string | undefined}
+                  />
                 )}
               />
 
@@ -359,31 +350,18 @@ export default function ProductConversionSheet({
                 name="target_uom_id"
                 control={control}
                 render={({ field }) => (
-                  <select
-                    value={field.value ?? ''}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
-                    style={{
-                      ...selectStyle,
-                      border: `1px solid ${errors.target_uom_id ? 'var(--destructive)' : 'var(--border)'}`,
-                    }}
-                  >
-                    <option value="" disabled>
-                      To UOM
-                    </option>
-                    {uoms.map((u: any) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.code})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={field.value ?? 0}
+                    onChange={field.onChange}
+                    options={uomOptions}
+                    placeholder="To UOM"
+                    searchPlaceholder="Search UOMs..."
+                    loading={uomsLoading}
+                    error={errors.target_uom_id?.message as string | undefined}
+                  />
                 )}
               />
             </div>
-            {(errors.uom_id || errors.target_uom_id) && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.uom_id?.message || errors.target_uom_id?.message}
-              </span>
-            )}
           </div>
 
           {/* Amount */}
