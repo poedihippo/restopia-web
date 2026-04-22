@@ -267,7 +267,7 @@ export function MaterialsFieldArray({
                     left: 0,
                     right: 0,
                     width: '100%',
-                    zIndex: 100,
+                    zIndex: 200,
                     background: 'var(--surface)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
@@ -316,7 +316,7 @@ export function MaterialsFieldArray({
                     left: 0,
                     right: 0,
                     width: '100%',
-                    zIndex: 100,
+                    zIndex: 200,
                     background: 'var(--surface)',
                     border: '1px solid var(--accent-light)',
                     borderRadius: 'var(--radius-md)',
@@ -971,7 +971,6 @@ export default function ProductionForm({
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-lg)',
-            overflow: 'hidden',
             boxShadow: 'var(--shadow-sm)',
           }}
         >
@@ -980,6 +979,7 @@ export default function ProductionForm({
               padding: '14px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
+              borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
@@ -1018,7 +1018,7 @@ export default function ProductionForm({
             </button>
           </div>
 
-          <div style={{ padding: 0 }}>
+          <div style={{ padding: 0, borderRadius: '0 0 var(--radius-lg) var(--radius-lg)' }}>
             {detailFields.map((field, detailIndex) => {
               const isExpanded = expandedDetails.includes(detailIndex)
               return (
