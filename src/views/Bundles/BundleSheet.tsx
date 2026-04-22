@@ -12,17 +12,19 @@ import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
-  product_uom_id: z.coerce.number().min(1, 'Product required'),
-  qty: z.coerce.number().min(0.001, 'Qty required'),
+  product_uom_id: z.coerce.number().min(1, 'Please select a product'),
+  qty: z.coerce.number().min(0.001, 'Quantity must be greater than 0'),
 })
 
 const schema = z.object({
-  code: z.string().min(1, 'Code is required'),
-  name: z.string().min(1, 'Name is required'),
-  price: z.coerce.number().min(0, 'Price required'),
-  status: z.enum(['active', 'inactive']),
+  code: z.string().min(1, 'Bundle code is required'),
+  name: z.string().min(1, 'Bundle name is required'),
+  price: z.coerce
+    .number({ message: 'Bundle price is required' })
+    .min(0, 'Price cannot be negative'),
+  status: z.enum(['active', 'inactive'], { message: 'Status is required' }),
   description: z.string().optional(),
-  details: z.array(detailSchema).min(1, 'At least one item required'),
+  details: z.array(detailSchema).min(1, 'Please add at least one bundle item'),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -86,7 +88,7 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 50, include: 'product,uom' } as any)
+        .list({ per_page: 200, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
 
@@ -95,7 +97,7 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
   const productUomOptions = productUoms.map((pu) => ({
     value: pu.id,
     label: pu.product?.name ?? `Product UOM #${pu.id}`,
-    sublabel: pu.uom?.name ?? undefined,
+    sublabel: pu.uom?.name ?? pu.code ?? undefined,
   }))
 
   useEffect(() => {
@@ -126,29 +128,64 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
     }
   }, [editData, open, reset])
 
+  const buildPayload = (data: FormValues) => {
+    const cleanDetails = (data.details ?? [])
+      .filter((d) => Number(d.product_uom_id) > 0 && Number(d.qty) > 0)
+      .map((d) => ({
+        product_uom_id: Number(d.product_uom_id),
+        qty: Number(d.qty),
+      }))
+    return {
+      code: data.code,
+      name: data.name,
+      price: Number(data.price),
+      status: data.status,
+      description: data.description || undefined,
+      details: cleanDetails,
+    }
+  }
+
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => bundlesService.create(data as any),
+    mutationFn: (data: FormValues) =>
+      bundlesService.create(buildPayload(data) as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bundles'] })
       toast.success('Bundle created')
       onClose()
     },
-    onError: () => toast.error('Failed to create bundle'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? 'Failed to create bundle'
+      toast.error(msg)
+    },
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) => bundlesService.update(editData!.id, data as any),
+    mutationFn: (data: FormValues) =>
+      bundlesService.update(editData!.id, buildPayload(data) as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bundles'] })
       toast.success('Bundle updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update bundle'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? 'Failed to update bundle'
+      toast.error(msg)
+    },
   })
 
   const onSubmit = (data: FormValues) => {
+    const payload = buildPayload(data)
+    if (payload.details.length === 0) {
+      toast.error('Please add at least one bundle item with a selected product and qty > 0')
+      return
+    }
     if (editData) updateMutation.mutate(data)
     else createMutation.mutate(data)
+  }
+
+  const onInvalid = (errs: any) => {
+    const first = Object.values(errs)[0] as { message?: string } | undefined
+    toast.error(first?.message ?? 'Please fill in all required fields')
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -277,7 +314,7 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
 
         {/* Form */}
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(onSubmit, onInvalid)}
           style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
           <div
