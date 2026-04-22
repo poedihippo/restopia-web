@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (reason === "expired") {
       toast.error("Sesi Berakhir", {
         description:
-          "Sesi Anda telah berakhir setelah 1 jam. Silakan login kembali.",
+          "Sesi Anda telah berakhir setelah 12 jam. Silakan login kembali.",
       });
     } else {
       toast.success("Logout Berhasil", {
@@ -92,7 +92,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [api, logout]);
 
   useEffect(() => {
-    const SESSION_MAX_MS = 60 * 60 * 1000;
+    const SESSION_MAX_MS = 12 * 60 * 60 * 1000;
 
     const interval = setInterval(() => {
       const token = cookies.get("token");

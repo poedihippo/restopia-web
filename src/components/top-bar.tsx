@@ -14,6 +14,7 @@ import {
   Building2,
   Check,
   X,
+  RefreshCw,
 } from 'lucide-react';
 
 function getBreadcrumbs(pathname: string): Array<{ label: string; href: string }> {
@@ -45,10 +46,11 @@ const BRANCH_LABEL_MAP: Record<string, string> = {};
 
 export default function TopBar() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const branchRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +71,6 @@ export default function TopBar() {
   const branchName = user?.branch?.name ?? '—';
   const userInitial = user?.name?.charAt(0)?.toUpperCase() ?? 'U';
   const availableBranches = user?.branches ?? [];
-  const canSwitchBranch = availableBranches.length > 1;
 
   const onSelectBranch = async (branchId: number) => {
     try {
@@ -77,6 +78,15 @@ export default function TopBar() {
       window.location.reload();
     } catch {
       setBranchMenuOpen(false);
+    }
+  };
+
+  const onRefreshBranches = async () => {
+    setRefreshing(true);
+    try {
+      await refreshUser();
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -148,8 +158,7 @@ export default function TopBar() {
         <div style={{ position: 'relative' }} ref={branchRef}>
           <button
             type="button"
-            onClick={() => canSwitchBranch && setBranchMenuOpen((v) => !v)}
-            disabled={!canSwitchBranch}
+            onClick={() => setBranchMenuOpen((v) => !v)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -158,7 +167,7 @@ export default function TopBar() {
               background: branchMenuOpen ? 'var(--accent-light-bg)' : 'var(--surface)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              cursor: canSwitchBranch ? 'pointer' : 'default',
+              cursor: 'pointer',
               fontSize: 12,
               color: 'var(--foreground-muted)',
               fontWeight: 500,
@@ -166,18 +175,16 @@ export default function TopBar() {
           >
             <Building2 size={13} style={{ color: 'var(--accent-light)', flexShrink: 0 }} />
             <span>{branchName}</span>
-            {canSwitchBranch && (
-              <ChevronsUpDown size={11} style={{ color: 'var(--foreground-muted)', flexShrink: 0 }} />
-            )}
+            <ChevronsUpDown size={11} style={{ color: 'var(--foreground-muted)', flexShrink: 0 }} />
           </button>
 
-          {branchMenuOpen && canSwitchBranch && (
+          {branchMenuOpen && (
             <div
               style={{
                 position: 'absolute',
                 top: 'calc(100% + 6px)',
                 right: 0,
-                width: 220,
+                width: 240,
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-lg)',
@@ -190,15 +197,57 @@ export default function TopBar() {
                 style={{
                   padding: '10px 14px',
                   borderBottom: '1px solid var(--border)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
                 }}
               >
-                Switch Branch
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.6px',
+                  }}
+                >
+                  Switch Branch
+                </span>
+                <button
+                  type="button"
+                  onClick={onRefreshBranches}
+                  disabled={refreshing}
+                  title="Refresh branches"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: refreshing ? 'not-allowed' : 'pointer',
+                    padding: 2,
+                    display: 'flex',
+                    color: 'var(--foreground-muted)',
+                  }}
+                >
+                  <RefreshCw
+                    size={12}
+                    style={{
+                      animation: refreshing ? 'spin 1s linear infinite' : undefined,
+                    }}
+                  />
+                </button>
               </div>
+              {availableBranches.length === 0 && (
+                <div
+                  style={{
+                    padding: '14px',
+                    fontSize: 12,
+                    color: 'var(--foreground-muted)',
+                    textAlign: 'center',
+                  }}
+                >
+                  No branches assigned
+                </div>
+              )}
               {availableBranches.map((branch) => {
                 const isActive = branch.id === user?.branch?.id;
                 return (
@@ -551,6 +600,12 @@ export default function TopBar() {
           )}
         </div>
       </div>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </header>
   );
 }
