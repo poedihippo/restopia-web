@@ -27,31 +27,39 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
 
   const delivery = (data as any)?.data
 
+  const rawDetails =
+    delivery?.delivery_details ?? delivery?.details ?? []
+
   const initialData = delivery
     ? {
         code: delivery.code,
-        target_branch_id: delivery.target_branch?.id ?? 0,
-        purchase_order_id: delivery.purchase_order?.id ?? undefined,
+        target_branch_id: delivery.target_branch?.id ?? delivery.target_branch_id ?? 0,
+        purchase_order_id:
+          delivery.purchase_order?.id ?? delivery.purchase_order_id ?? undefined,
         date: delivery.date,
         status: delivery.status,
         description: delivery.description ?? '',
-        details: delivery.delivery_details?.map((d: any) => ({
-          product_inventory_id: d.product_inventory?.id ?? 0,
-          purchase_order_detail_id: d.purchase_order_detail_id ?? undefined,
-          qty: d.qty,
-          price: d.price,
-          status: d.status,
-          description: d.description ?? '',
-        })) ?? [
-          {
-            product_inventory_id: 0,
-            purchase_order_detail_id: undefined,
-            qty: 1,
-            price: 0,
-            status: 'pending',
-            description: '',
-          },
-        ],
+        details: rawDetails.length
+          ? rawDetails.map((d: any) => ({
+              product_inventory_id:
+                d.product_inventory?.id ?? d.product_inventory_id ?? 0,
+              purchase_order_detail_id:
+                d.purchase_order_detail?.id ?? d.purchase_order_detail_id ?? undefined,
+              qty: d.qty,
+              price: d.price,
+              status: d.status,
+              description: d.description ?? '',
+            }))
+          : [
+              {
+                product_inventory_id: 0,
+                purchase_order_detail_id: undefined,
+                qty: 1,
+                price: 0,
+                status: 'pending',
+                description: '',
+              },
+            ],
       }
     : undefined
 

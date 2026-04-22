@@ -246,6 +246,10 @@ export default function ProductConversionSheet({
             gap: 20,
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           {/* Product field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label
@@ -253,9 +257,13 @@ export default function ProductConversionSheet({
                 fontSize: 13,
                 fontWeight: 500,
                 color: 'var(--foreground)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
               }}
             >
               Product
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <Controller
               name="product_id"
@@ -294,9 +302,13 @@ export default function ProductConversionSheet({
                 fontSize: 13,
                 fontWeight: 500,
                 color: 'var(--foreground)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
               }}
             >
               Conversion
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <div
               style={{
@@ -381,9 +393,13 @@ export default function ProductConversionSheet({
                 fontSize: 13,
                 fontWeight: 500,
                 color: 'var(--foreground)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
               }}
             >
               Amount
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
               {...register('amount', { valueAsNumber: true })}

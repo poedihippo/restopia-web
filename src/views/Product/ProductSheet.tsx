@@ -123,9 +123,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
   if (!open) return null
 
-  const fieldLabel = (text: string) => (
-    <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+  const fieldLabel = (text: string, required = false) => (
+    <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
       {text}
+      {required && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
     </label>
   )
 
@@ -233,9 +234,13 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
             gap: 20,
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           {/* Name */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {fieldLabel('Product Name')}
+            {fieldLabel('Product Name', true)}
             <input
               {...register('name')}
               placeholder="e.g. Chocolate Truffle Cake"
@@ -256,7 +261,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
           {/* Category */}
           <div>
-            <label style={labelStyle}>Category *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Category
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <select
               {...register('product_category_id', { valueAsNumber: true })}
               style={{
@@ -294,7 +302,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
           {/* Type */}
           <div>
-            <label style={labelStyle}>Type *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Type
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <select
               {...register('type')}
               style={{
@@ -330,7 +341,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
           {/* Status */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {fieldLabel('Status')}
+            {fieldLabel('Status', true)}
             <Controller
               name="status"
               control={control}

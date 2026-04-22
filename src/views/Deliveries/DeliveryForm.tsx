@@ -15,7 +15,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 
 const detailSchema = z.object({
-  product_inventory_id: z.coerce.number().min(1, 'Product required'),
+  product_inventory_id: z.coerce.number().min(0, 'Product required'),
   purchase_order_detail_id: z.coerce.number().optional(),
   qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
@@ -25,7 +25,7 @@ const detailSchema = z.object({
 
 const schema = z.object({
   code: z.string().min(1, 'Code required'),
-  target_branch_id: z.coerce.number().min(1, 'Target branch required'),
+  target_branch_id: z.coerce.number().min(0, 'Target branch required'),
   purchase_order_id: z.coerce.number().optional(),
   date: z.string().min(1, 'Date required'),
   status: z.enum(['pending', 'final']),
@@ -121,7 +121,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       toast.success('Delivery created')
       router.push('/transfer/deliveries')
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to create delivery'),
+    onError: (err: any) => {
+      console.log('createMutation error', err)
+      toastMutationApiError(err, 'Failed to create delivery')
+    },
   })
 
   const updateMutation = useMutation({
@@ -133,15 +136,23 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       toast.success('Delivery updated')
       router.push(`/transfer/deliveries/${deliveryId}/detail`)
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to update delivery'),
+    onError: (err: any) => {
+      console.log('updateMutation error', err)
+      toastMutationApiError(err, 'Failed to update delivery')
+    },
   })
 
   const onSubmit = (values: FormValues) => {
+    console.log('DeliveryForm onSubmit called', { ...values, total_price: totalPrice })
     if (mode === 'edit' && deliveryId) {
       updateMutation.mutate(values)
     } else {
       createMutation.mutate(values)
     }
+  }
+
+  const onInvalid = (errs: any) => {
+    console.log('DeliveryForm validation errors:', errs)
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -280,9 +291,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       </div>
 
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+          <span style={{ color: 'var(--destructive)' }}>*</span>
+          <span>Required fields</span>
+        </div>
         {/* Section 1 — Delivery Info */}
         <div style={cardStyle}>
           <div style={sectionHeaderStyle}>
@@ -297,7 +312,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Delivery Code</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Delivery Code
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 {...register('code')}
                 placeholder="e.g. DLV-2026-001"
@@ -307,7 +325,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Delivery Date</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Delivery Date
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 type="date"
                 {...register('date')}
@@ -317,7 +338,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Target Branch (Receiving)</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Target Branch (Receiving)
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="target_branch_id"
                 control={control}
@@ -374,7 +398,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Status</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Status
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="status"
                 control={control}

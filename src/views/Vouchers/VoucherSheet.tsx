@@ -281,10 +281,17 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
               gap: 20,
             }}
           >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+              <span style={{ color: 'var(--destructive)' }}>*</span>
+              <span>Required fields</span>
+            </div>
             {/* Row 1 — code + name */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Voucher Code</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Voucher Code
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   {...register('code')}
                   placeholder="e.g. PROMO2026"
@@ -293,7 +300,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
                 {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Voucher Name</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Voucher Name
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   {...register('name')}
                   placeholder="e.g. New Year Promotion"
@@ -306,7 +316,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
             {/* Row 2 — discount_type + scope */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Discount Type</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Discount Type
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <Controller
                   name="discount_type"
                   control={control}
@@ -342,7 +355,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Scope</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Scope
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <Controller
                   name="scope"
                   control={control}
@@ -381,8 +397,9 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
             {/* Row 3 — discount_value + quota */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                   {watchDiscountType === 'percent' ? 'Discount (%)' : 'Discount Amount (Rp)'}
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
                 </label>
                 <input
                   type="number"
@@ -441,7 +458,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
             {/* Row 5 — valid_from + valid_until */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Valid From</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Valid From
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   type="date"
                   {...register('valid_from')}
@@ -453,7 +473,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={labelStyle}>Valid Until</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Valid Until
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   type="date"
                   {...register('valid_until')}
@@ -467,7 +490,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
 
             {/* Status */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Status</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Status
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="status"
                 control={control}

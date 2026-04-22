@@ -55,7 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Production',
         icon: Factory,
         children: [
-          { label: 'Factory', href: '/production' },
+          { label: 'Production', href: '/production' },
           { label: 'Recipes', href: '/production/recipes' },
         ],
       },

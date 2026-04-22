@@ -4,11 +4,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { customersService as customerService } from '@/services/customers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { bundlesService as bundleService } from '@/services/bundles.service'
+import api from '@/hooks/useApi'
+
+const generateKey = () =>
+  Math.random().toString(36).substring(2) + Date.now().toString(36)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface LineItem {
@@ -235,9 +238,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           description: i.description || undefined,
         })),
       }
+      const headers = { 'Idempotency-Key': generateKey() }
       return isEdit
-        ? salesOrderService.update(editingOrder.id, payload as any)
-        : salesOrderService.create(payload as any)
+        ? api.patch(`/sales-orders/${editingOrder.id}`, payload, { headers })
+        : api.post('/sales-orders', payload, { headers })
     },
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['sales-orders'] })
@@ -326,6 +330,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
       {/* ── Section 1: Order Info ── */}
       <div style={sectionStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+          <span style={{ color: 'var(--destructive)' }}>*</span>
+          <span>Required fields</span>
+        </div>
         <h2
           style={{
             fontFamily: 'var(--font-display)',
@@ -346,11 +354,17 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           }}
         >
           <div>
-            <label style={labelStyle}>Order Code *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Order Code
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <input value={code} onChange={(e) => setCode(e.target.value)} style={fieldStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Type *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Type
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value as 'offline' | 'online')}
@@ -361,7 +375,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Status *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Status
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as 'pending' | 'final')}
@@ -389,7 +406,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Order Date *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Order Date
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <input
               type="date"
               value={date}
@@ -398,7 +418,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             />
           </div>
           <div>
-            <label style={labelStyle}>Fulfillment Date *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Fulfillment Date
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <input
               type="datetime-local"
               value={fulfillmentDate}

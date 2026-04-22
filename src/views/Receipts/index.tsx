@@ -15,6 +15,8 @@ import {
   Pencil,
   Trash2,
   ReceiptText,
+  CheckCircle,
+  RotateCcw,
 } from 'lucide-react'
 
 interface Receipt {
@@ -91,6 +93,20 @@ export default function ReceiptsView() {
       setDeleteConfirmId(null)
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
+  })
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: 'pending' | 'final' }) =>
+      receiptsService.update(id, { status } as any),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['receipts'] })
+      toast.success('Status updated')
+    },
+    onError: (error: any) => {
+      const msg =
+        error?.response?.data?.message ?? 'Failed to update status'
+      toast.error(msg)
+    },
   })
 
   const hasFilters = !!(statusFilter || dateFrom || dateTo)
@@ -442,6 +458,31 @@ export default function ReceiptsView() {
                           justifyContent: 'flex-end',
                         }}
                       >
+                        {item.status === 'pending' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleStatusMutation.mutate({ id: item.id, status: 'final' })
+                            }
+                            disabled={toggleStatusMutation.isPending}
+                            title="Finalize"
+                            style={{ ...actionBtnStyle, color: 'var(--success)' }}
+                          >
+                            <CheckCircle size={14} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
+                            }
+                            disabled={toggleStatusMutation.isPending}
+                            title="Revert to Pending"
+                            style={{ ...actionBtnStyle, color: 'var(--warning)' }}
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => router.push(`/transfer/receipts/${item.id}/detail`)}
                           style={actionBtnStyle}

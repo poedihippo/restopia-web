@@ -281,6 +281,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         onSubmit={handleSubmit(onSubmit)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+          <span style={{ color: 'var(--destructive)' }}>*</span>
+          <span>Required fields</span>
+        </div>
         {/* Section 1 — Order Details */}
         <div style={cardStyle}>
           <div style={sectionHeaderStyle}>
@@ -296,7 +300,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           >
             {/* Code */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Order Code</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Order Code
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 {...register('code')}
                 placeholder="e.g. PO-2026-001"
@@ -307,7 +314,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
             {/* Date */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Order Date</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Order Date
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 type="date"
                 {...register('date')}
@@ -318,7 +328,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
             {/* Supplier */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Supplier</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Supplier
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="supplier_id"
                 control={control}
@@ -345,7 +358,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
             {/* Branch */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Branch</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Branch
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="branch_id"
                 control={control}
@@ -372,7 +388,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
             {/* Status */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Status</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Status
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="status"
                 control={control}

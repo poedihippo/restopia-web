@@ -13,6 +13,8 @@ import {
   Pencil,
   Trash2,
   ShieldCheck,
+  Eye,
+  X,
 } from 'lucide-react'
 
 interface Role {
@@ -31,6 +33,7 @@ export default function RolesView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Role | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [selectedItem, setSelectedItem] = useState<Role | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -360,6 +363,13 @@ export default function RolesView() {
                         }}
                       >
                         <button
+                          onClick={() => setSelectedItem(item)}
+                          style={actionBtnStyle}
+                          title="View"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
                           onClick={() => {
                             setEditData(item)
                             setSheetOpen(true)
@@ -512,6 +522,178 @@ export default function RolesView() {
               >
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail panel */}
+      {selectedItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <div
+            onClick={() => setSelectedItem(null)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.18)',
+            }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 50,
+              width: 420,
+              height: '100%',
+              background: 'var(--surface)',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-lg)',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 18,
+                  fontWeight: 500,
+                  margin: 0,
+                  color: 'var(--foreground)',
+                }}
+              >
+                Role Detail
+              </h2>
+              <button
+                onClick={() => setSelectedItem(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                }}
+              >
+                <X size={18} color="var(--foreground-muted)" />
+              </button>
+            </div>
+            <div
+              style={{
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.6px',
+                  }}
+                >
+                  ID
+                </span>
+                <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                  {selectedItem.id}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.6px',
+                  }}
+                >
+                  Name
+                </span>
+                <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                  {selectedItem.name}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.6px',
+                  }}
+                >
+                  Permissions
+                </span>
+                {(selectedItem.permissions ?? []).length === 0 ? (
+                  <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
+                    —
+                  </span>
+                ) : (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 4,
+                    }}
+                  >
+                    {(selectedItem.permissions ?? []).map((p) => (
+                      <span
+                        key={p.id}
+                        style={{
+                          padding: '2px 10px',
+                          background: 'var(--accent-light-bg)',
+                          color: 'var(--accent)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {p.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.6px',
+                  }}
+                >
+                  Created At
+                </span>
+                <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                  {selectedItem.created_at
+                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    : '—'}
+                </span>
+              </div>
             </div>
           </div>
         </div>

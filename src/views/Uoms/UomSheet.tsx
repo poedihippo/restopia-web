@@ -158,12 +158,17 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
             gap: 20,
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           {/* Name field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label
-              style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}
+              style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}
             >
               Name
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
               {...register('name')}
@@ -191,9 +196,10 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
           {/* Code field */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label
-              style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}
+              style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}
             >
               Code
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
               {...register('code')}

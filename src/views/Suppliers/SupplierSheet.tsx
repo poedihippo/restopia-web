@@ -198,10 +198,15 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
             gap: 20,
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           {/* Code */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
               Supplier Code
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
               {...register('code')}
@@ -217,8 +222,9 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
 
           {/* Name */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
               Supplier Name
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
               {...register('name')}

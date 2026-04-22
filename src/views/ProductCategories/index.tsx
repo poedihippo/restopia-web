@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
+  Eye,
+  X,
 } from 'lucide-react'
 
 interface Category {
@@ -32,6 +34,7 @@ export default function ProductCategoriesView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Category | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [selectedItem, setSelectedItem] = useState<Category | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
   // Debounce search
@@ -327,6 +330,20 @@ export default function ProductCategoriesView() {
                       }}
                     >
                       <button
+                        onClick={() => setSelectedItem(item)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
                         onClick={() => {
                           setEditData(item)
                           setSheetOpen(true)
@@ -525,6 +542,116 @@ export default function ProductCategoriesView() {
               >
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail panel */}
+      {selectedItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <div
+            onClick={() => setSelectedItem(null)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.18)',
+            }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 50,
+              width: 420,
+              height: '100%',
+              background: 'var(--surface)',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-lg)',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 18,
+                  fontWeight: 500,
+                  margin: 0,
+                  color: 'var(--foreground)',
+                }}
+              >
+                Category Detail
+              </h2>
+              <button
+                onClick={() => setSelectedItem(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                }}
+              >
+                <X size={18} color="var(--foreground-muted)" />
+              </button>
+            </div>
+            <div
+              style={{
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              {[
+                { label: 'ID', value: selectedItem.id },
+                { label: 'Name', value: selectedItem.name },
+                { label: 'Description', value: selectedItem.description },
+                {
+                  label: 'Created At',
+                  value: selectedItem.created_at
+                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    : '—',
+                },
+              ].map((f) => (
+                <div
+                  key={f.label}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                    }}
+                  >
+                    {f.label}
+                  </span>
+                  <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                    {f.value ?? '—'}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

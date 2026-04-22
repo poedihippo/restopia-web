@@ -14,7 +14,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 
 const detailSchema = z.object({
-  product_inventory_id: z.coerce.number().min(1, 'Inventory item required'),
+  product_inventory_id: z.coerce.number().min(0, 'Inventory item required'),
   delivery_detail_id: z.coerce.number().optional(),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   price: z.coerce.number().min(0, 'Price required'),
@@ -25,7 +25,7 @@ const detailSchema = z.object({
 
 const schema = z.object({
   code: z.string().min(1, 'Code required'),
-  delivery_id: z.coerce.number().min(1, 'Delivery is required'),
+  delivery_id: z.coerce.number().min(0, 'Delivery is required'),
   date: z.string().min(1, 'Date required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
@@ -114,7 +114,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       toast.success('Receipt created')
       router.push('/transfer/receipts')
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to create receipt'),
+    onError: (err: any) => {
+      console.log('createMutation error', err)
+      toastMutationApiError(err, 'Failed to create receipt')
+    },
   })
 
   const updateMutation = useMutation({
@@ -126,15 +129,23 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       toast.success('Receipt updated')
       router.push(`/transfer/receipts/${receiptId}/detail`)
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to update receipt'),
+    onError: (err: any) => {
+      console.log('updateMutation error', err)
+      toastMutationApiError(err, 'Failed to update receipt')
+    },
   })
 
   const onSubmit = (values: FormValues) => {
+    console.log('ReceiptForm onSubmit called', { ...values, total_price: totalPrice })
     if (mode === 'edit' && receiptId) {
       updateMutation.mutate(values)
     } else {
       createMutation.mutate(values)
     }
+  }
+
+  const onInvalid = (errs: any) => {
+    console.log('ReceiptForm validation errors:', errs)
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -270,9 +281,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       </div>
 
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+          <span style={{ color: 'var(--destructive)' }}>*</span>
+          <span>Required fields</span>
+        </div>
         {/* Section 1 — Receipt Info */}
         <div style={cardStyle}>
           <div style={sectionHeaderStyle}>
@@ -287,7 +302,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Receipt Code</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Receipt Code
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 {...register('code')}
                 placeholder="e.g. RCP-2026-001"
@@ -297,7 +315,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Receipt Date</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Receipt Date
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 type="date"
                 {...register('date')}
@@ -307,7 +328,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
-              <label style={labelStyle}>Linked Delivery</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Linked Delivery
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="delivery_id"
                 control={control}
@@ -339,7 +363,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Status</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Status
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="status"
                 control={control}

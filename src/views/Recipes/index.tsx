@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { recipesService } from '@/services/recipes.service'
@@ -8,7 +8,6 @@ import { toastMutationApiError } from '@/utils/apiError'
 import RecipeSheet from './RecipeSheet'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -45,32 +44,20 @@ interface Recipe {
 export default function RecipesView() {
   const queryClient = useQueryClient()
 
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Recipe | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400)
-    return () => clearTimeout(t)
-  }, [search])
-
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch])
-
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['recipes', page, debouncedSearch],
+    queryKey: ['recipes', page],
     queryFn: () =>
       recipesService
         .list({
           page,
           per_page: 10,
           include: 'product_uom,recipe_materials',
-          'filter[search]': debouncedSearch || undefined,
         })
         .then((r) => r.data),
   })
@@ -139,40 +126,6 @@ export default function RecipesView() {
           <Plus size={15} />
           New Recipe
         </button>
-      </div>
-
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search recipes..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
       </div>
 
       {/* Recipe cards */}

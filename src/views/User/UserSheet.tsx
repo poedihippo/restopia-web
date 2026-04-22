@@ -134,7 +134,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) => usersService.update(editData!.id, data as any),
+    mutationFn: (data: any) => usersService.update(editData!.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] })
       toast.success('User updated')
@@ -144,12 +144,27 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
   })
 
   const onSubmit = (values: FormValues) => {
-    const payload: Partial<FormValues> = { ...values }
-    if (editData && (!payload.password || payload.password === '')) {
-      delete payload.password
+    if (isEditMode) {
+      const payload: any = {
+        name: values.name,
+        email: values.email,
+        nik: values.nik || undefined,
+        type: values.type,
+        phone: values.phone || undefined,
+        birth: values.birth || undefined,
+        gender: values.gender || undefined,
+        branch_ids: values.branch_ids?.length
+          ? values.branch_ids : undefined,
+        role_ids: values.role_ids?.length
+          ? values.role_ids : undefined,
+      }
+      if (values.password && values.password.length > 0) {
+        payload.password = values.password
+      }
+      updateMutation.mutate(payload)
+    } else {
+      createMutation.mutate(values)
     }
-    if (editData) updateMutation.mutate(payload as FormValues)
-    else createMutation.mutate(payload as FormValues)
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -291,10 +306,17 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
               gap: 20,
             }}
           >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+              <span style={{ color: 'var(--destructive)' }}>*</span>
+              <span>Required fields</span>
+            </div>
             {/* Row 1: name + email */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Full Name</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Full Name
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   {...register('name')}
                   placeholder="e.g. Budi Santoso"
@@ -303,7 +325,10 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                 {errors.name && <div style={errorStyle}>{errors.name.message}</div>}
               </div>
               <div>
-                <label style={labelStyle}>Email</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Email
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   type="email"
                   {...register('email')}
@@ -316,8 +341,9 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
 
             {/* Password */}
             <div>
-              <label style={labelStyle}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                 {isEditMode ? 'New Password (leave blank to keep current)' : 'Password'}
+                {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
               </label>
               <input
                 type="password"
@@ -353,7 +379,10 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
             {/* Row 3: type + gender */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>User Type</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  User Type
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <Controller
                   control={control}
                   name="type"

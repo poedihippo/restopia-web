@@ -15,6 +15,8 @@ import {
   ChevronRight,
   Boxes,
   AlertTriangle,
+  Eye,
+  X,
 } from 'lucide-react'
 
 interface ProductInventory {
@@ -49,6 +51,7 @@ export default function ProductInventoriesView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
   useEffect(() => {
@@ -494,6 +497,20 @@ export default function ProductInventoriesView() {
                         }}
                       >
                         <button
+                          onClick={() => setSelectedItem(item)}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--foreground-muted)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
                           onClick={() => {
                             setEditData(item)
                             setSheetOpen(true)
@@ -693,6 +710,167 @@ export default function ProductInventoriesView() {
               >
                 Delete
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail panel */}
+      {selectedItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <div
+            onClick={() => setSelectedItem(null)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.18)',
+            }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 50,
+              width: 420,
+              height: '100%',
+              background: 'var(--surface)',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-lg)',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 18,
+                  fontWeight: 500,
+                  margin: 0,
+                  color: 'var(--foreground)',
+                }}
+              >
+                Inventory Detail
+              </h2>
+              <button
+                onClick={() => setSelectedItem(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                }}
+              >
+                <X size={18} color="var(--foreground-muted)" />
+              </button>
+            </div>
+            <div
+              style={{
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              {[
+                { label: 'ID', value: selectedItem.id },
+                { label: 'SKU Code', value: selectedItem.code },
+                { label: 'Product', value: selectedItem.product_uom?.product?.name },
+                { label: 'Product UOM', value: selectedItem.product_uom?.code },
+                {
+                  label: 'UOM',
+                  value: selectedItem.product_uom?.uom
+                    ? `${selectedItem.product_uom.uom.name} (${selectedItem.product_uom.uom.code})`
+                    : undefined,
+                },
+                { label: 'Branch', value: selectedItem.branch?.name },
+                {
+                  label: 'Current Stock',
+                  value: (selectedItem.qty ?? 0).toLocaleString('id-ID'),
+                },
+                {
+                  label: 'Base Price',
+                  value:
+                    selectedItem.base_price != null
+                      ? `Rp ${selectedItem.base_price.toLocaleString('id-ID')}`
+                      : undefined,
+                },
+                {
+                  label: 'Online Price',
+                  value:
+                    selectedItem.online_price != null
+                      ? `Rp ${selectedItem.online_price.toLocaleString('id-ID')}`
+                      : undefined,
+                },
+                { label: 'Status', value: selectedItem.status },
+                { label: 'Expiry Date', value: selectedItem.expiry_date },
+                {
+                  label: 'Created At',
+                  value: selectedItem.created_at
+                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    : '—',
+                },
+              ].map((f) => (
+                <div
+                  key={f.label}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                    }}
+                  >
+                    {f.label}
+                  </span>
+                  {f.label === 'Status' && selectedItem.status ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignSelf: 'flex-start',
+                        padding: '2px 10px',
+                        borderRadius: 99,
+                        fontSize: 11,
+                        fontWeight: 500,
+                        background:
+                          selectedItem.status === 'active'
+                            ? 'var(--success-bg)'
+                            : 'var(--destructive-bg)',
+                        color:
+                          selectedItem.status === 'active'
+                            ? 'var(--success)'
+                            : 'var(--destructive)',
+                      }}
+                    >
+                      {selectedItem.status}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                      {f.value ?? '—'}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

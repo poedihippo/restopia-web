@@ -194,10 +194,17 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
               gap: 20,
             }}
           >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+              <span style={{ color: 'var(--destructive)' }}>*</span>
+              <span>Required fields</span>
+            </div>
             {/* Code + Name */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Branch Code</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Branch Code
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   {...register('code')}
                   placeholder="e.g. CGK-001"
@@ -207,7 +214,10 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
                 <div style={hintStyle}>Short identifier used across the system</div>
               </div>
               <div>
-                <label style={labelStyle}>Branch Name</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Branch Name
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   {...register('name')}
                   placeholder="e.g. Alam Sutera"

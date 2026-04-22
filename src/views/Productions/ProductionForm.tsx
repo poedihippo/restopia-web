@@ -27,12 +27,12 @@ import {
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
 const materialSchema = z.object({
-  product_inventory_id: z.coerce.number().min(1),
+  product_inventory_id: z.coerce.number().min(0),
   qty: z.coerce.number().min(0.001),
 })
 
 const detailSchema = z.object({
-  product_uom_id: z.coerce.number().min(1, 'Product required'),
+  product_uom_id: z.coerce.number().min(0, 'Product required'),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   status: z.enum(['pending', 'final']),
   expiry_date: z.string().optional(),
@@ -708,20 +708,43 @@ export default function ProductionForm({
     [setValue],
   )
 
+  const buildPayload = (values: FormValues) => ({
+    code: values.code,
+    date: values.date,
+    status: values.status,
+    description: values.description || undefined,
+    details: (values.details ?? [])
+      .map((d) => ({
+        product_uom_id: d.product_uom_id,
+        qty: d.qty,
+        status: d.status,
+        expiry_date: d.expiry_date || undefined,
+        description: d.description || undefined,
+        materials: (d.materials ?? [])
+          .map((m) => ({
+            product_inventory_id: m.product_inventory_id,
+            qty: m.qty,
+          }))
+          .filter((m) => m.product_inventory_id > 0),
+      }))
+      .filter((d) => d.product_uom_id > 0),
+  })
+
   const createMutation = useMutation({
-    mutationFn: (values: FormValues) => productionsService.create(values as any),
+    mutationFn: (values: FormValues) =>
+      productionsService.create(buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productions'] })
       toast.success('Production created')
       router.push('/production')
     },
-    onError: (err: any) =>
-      toastMutationApiError(err, 'Failed to create production'),
+    onError: (error: any) =>
+      toastMutationApiError(error, 'Failed to create production'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      productionsService.update(productionId!, values as any),
+      productionsService.update(productionId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productions'] })
       queryClient.invalidateQueries({ queryKey: ['production', productionId] })
@@ -739,6 +762,8 @@ export default function ProductionForm({
       createMutation.mutate(values)
     }
   }
+
+  const onInvalid = (_errors: any) => {}
 
   const isPending = createMutation.isPending || updateMutation.isPending
 
@@ -796,9 +821,13 @@ export default function ProductionForm({
 
       {/* Form */}
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+          <span style={{ color: 'var(--destructive)' }}>*</span>
+          <span>Required fields</span>
+        </div>
         {/* Section 1 — Production Details */}
         <div
           style={{
@@ -829,7 +858,10 @@ export default function ProductionForm({
           >
             {/* Code */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Production Code</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Production Code
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 {...register('code')}
                 placeholder="e.g. PN-2026-001"
@@ -847,7 +879,10 @@ export default function ProductionForm({
 
             {/* Date */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Production Date</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Production Date
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 type="date"
                 {...register('date')}
@@ -865,7 +900,10 @@ export default function ProductionForm({
 
             {/* Status */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Status</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Status
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="status"
                 control={control}

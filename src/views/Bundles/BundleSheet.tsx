@@ -283,10 +283,17 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
               gap: 20,
             }}
           >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+              <span style={{ color: 'var(--destructive)' }}>*</span>
+              <span>Required fields</span>
+            </div>
             {/* Row 1: code + name */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Bundle Code</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Bundle Code
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   {...register('code')}
                   placeholder="e.g. PARCEL0001"
@@ -295,7 +302,10 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                 {errors.code && <div style={errorStyle}>{errors.code.message}</div>}
               </div>
               <div>
-                <label style={labelStyle}>Bundle Name</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Bundle Name
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   {...register('name')}
                   placeholder="e.g. Parsel Lebaran 2026"
@@ -308,7 +318,10 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
             {/* Row 2: price + status */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Bundle Price (Rp)</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Bundle Price (Rp)
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <input
                   type="number"
                   min={0}
@@ -319,7 +332,10 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                 {errors.price && <div style={errorStyle}>{errors.price.message}</div>}
               </div>
               <div>
-                <label style={labelStyle}>Status</label>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Status
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <Controller
                   control={control}
                   name="status"
@@ -375,8 +391,9 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                   justifyContent: 'space-between',
                 }}
               >
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
                   Bundle Items
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
                 </label>
                 <button
                   type="button"

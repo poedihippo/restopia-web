@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { Eye, X, Search } from 'lucide-react'
 import { paymentMethodsService as paymentMethodService } from '@/services/payment-methods.service'
 
 export default function PaymentMethodsView() {
@@ -11,11 +12,29 @@ export default function PaymentMethodsView() {
   const [editing, setEditing] = useState<any>(null)
   const [name, setName] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
+  const [selectedItem, setSelectedItem] = useState<{
+    id: number
+    name: string
+    created_at?: string
+  } | null>(null)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['payment-methods'],
+    queryKey: ['payment-methods', debouncedSearch],
     queryFn: () =>
-      paymentMethodService.list({ per_page: 50, sort: 'id' }).then((r) => r.data),
+      paymentMethodService
+        .list({
+          per_page: 50,
+          sort: 'id',
+          'filter[search]': debouncedSearch || undefined,
+        } as any)
+        .then((r) => r.data),
   })
   const items = (data as any)?.data ?? []
 
@@ -119,6 +138,37 @@ export default function PaymentMethodsView() {
         </button>
       </div>
 
+      <div style={{ marginBottom: 16, position: 'relative', maxWidth: 280 }}>
+        <Search
+          size={15}
+          style={{
+            position: 'absolute',
+            left: 10,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'var(--foreground-muted)',
+            pointerEvents: 'none',
+          }}
+        />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search payment methods..."
+          style={{
+            width: '100%',
+            padding: '8px 12px 8px 32px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+            outline: 'none',
+            fontFamily: 'var(--font-sans)',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+
       <div
         style={{
           background: 'var(--surface)',
@@ -178,7 +228,23 @@ export default function PaymentMethodsView() {
                     : '—'}
                 </td>
                 <td style={tdStyle}>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedItem(item)}
+                      title="View"
+                      style={{
+                        padding: 6,
+                        background: 'none',
+                        border: 'none',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        color: 'var(--foreground-muted)',
+                        display: 'flex',
+                      }}
+                    >
+                      <Eye size={14} />
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -360,6 +426,115 @@ export default function PaymentMethodsView() {
               >
                 {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <div
+            onClick={() => setSelectedItem(null)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0,0,0,0.18)',
+            }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 50,
+              width: 420,
+              height: '100%',
+              background: 'var(--surface)',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-lg)',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 18,
+                  fontWeight: 500,
+                  margin: 0,
+                  color: 'var(--foreground)',
+                }}
+              >
+                Payment Method Detail
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSelectedItem(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                }}
+              >
+                <X size={18} color="var(--foreground-muted)" />
+              </button>
+            </div>
+            <div
+              style={{
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              {[
+                { label: 'ID', value: selectedItem.id },
+                { label: 'Name', value: selectedItem.name },
+                {
+                  label: 'Created At',
+                  value: selectedItem.created_at
+                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    : '—',
+                },
+              ].map((f) => (
+                <div
+                  key={f.label}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                    }}
+                  >
+                    {f.label}
+                  </span>
+                  <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                    {f.value ?? '—'}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

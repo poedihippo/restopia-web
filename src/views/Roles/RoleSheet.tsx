@@ -308,9 +308,16 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
               gap: 20,
             }}
           >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+              <span style={{ color: 'var(--destructive)' }}>*</span>
+              <span>Required fields</span>
+            </div>
             {/* Name */}
             <div>
-              <label style={labelStyle}>Role Name</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Role Name
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 {...register('name')}
                 placeholder="e.g. Cashier, Warehouse Manager"

@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
-import { toastMutationApiError } from '@/utils/apiError'
 import {
   Plus,
   Search,
@@ -15,6 +14,8 @@ import {
   Pencil,
   Trash2,
   Truck,
+  CheckCircle,
+  RotateCcw,
 } from 'lucide-react'
 
 interface Delivery {
@@ -91,7 +92,25 @@ export default function DeliveriesView() {
       toast.success('Delivery deleted')
       setDeleteConfirmId(null)
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
+    onError: (error: any) => {
+      const msg =
+        error?.response?.data?.message ?? 'Failed to delete delivery'
+      toast.error(msg)
+    },
+  })
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: 'pending' | 'final' }) =>
+      deliveriesService.update(id, { status } as any),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+      toast.success('Status updated')
+    },
+    onError: (error: any) => {
+      const msg =
+        error?.response?.data?.message ?? 'Failed to update status'
+      toast.error(msg)
+    },
   })
 
   const hasFilters = !!(statusFilter || dateFrom || dateTo)
@@ -442,6 +461,31 @@ export default function DeliveriesView() {
                           justifyContent: 'flex-end',
                         }}
                       >
+                        {item.status === 'pending' ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleStatusMutation.mutate({ id: item.id, status: 'final' })
+                            }
+                            disabled={toggleStatusMutation.isPending}
+                            title="Finalize"
+                            style={{ ...actionBtnStyle, color: 'var(--success)' }}
+                          >
+                            <CheckCircle size={14} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
+                            }
+                            disabled={toggleStatusMutation.isPending}
+                            title="Revert to Pending"
+                            style={{ ...actionBtnStyle, color: 'var(--warning)' }}
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => router.push(`/transfer/deliveries/${item.id}/detail`)}
                           style={actionBtnStyle}

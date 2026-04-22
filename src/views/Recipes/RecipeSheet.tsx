@@ -416,9 +416,16 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
             gap: 20,
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           {/* Finished product */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label style={labelStyle}>Finished Product (Output)</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Finished Product (Output)
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <div data-finished-search style={{ position: 'relative' }}>
               <input
                 type="text"
@@ -669,7 +676,10 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
           >
             {/* Yield qty */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Yield Qty</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Yield Qty
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <input
                 type="number"
                 min={0.001}
@@ -733,7 +743,10 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
           {/* Materials section */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* Materials header */}
-            <label style={labelStyle}>Raw Materials (Ingredients)</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Raw Materials (Ingredients)
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
 
             {/* Type filter pills */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>

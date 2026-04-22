@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Eye, X } from 'lucide-react';
 import { customersService as customerService } from '@/services/customers.service';
 import { toastMutationApiError } from '@/utils/apiError';
 import CustomerSheet from './CustomerSheet';
@@ -14,6 +15,7 @@ export default function CustomersView() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search), 400);
@@ -104,6 +106,11 @@ export default function CustomersView() {
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
+                      onClick={() => setSelectedItem(item)}
+                      style={{ padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }}
+                      title="View"
+                    ><Eye size={14} /></button>
+                    <button
                       onClick={() => { setEditing(item); setSheetOpen(true); }}
                       style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--foreground)' }}
                     >Edit</button>
@@ -137,6 +144,111 @@ export default function CustomersView() {
             <div style={{ display: 'flex', gap: 12 }}>
               <button onClick={() => setDeleteTarget(null)} style={{ flex: 1, height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
               <button onClick={() => doDelete(deleteTarget.id)} disabled={deleting} style={{ flex: 1, height: 40, border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--destructive)', color: 'white', cursor: deleting ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 }}>{deleting ? 'Deleting...' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <div
+            onClick={() => setSelectedItem(null)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 50,
+              width: 420,
+              height: '100%',
+              background: 'var(--surface)',
+              borderLeft: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: 'var(--shadow-lg)',
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 18,
+                  fontWeight: 500,
+                  margin: 0,
+                  color: 'var(--foreground)',
+                }}
+              >
+                Customer Detail
+              </h2>
+              <button
+                onClick={() => setSelectedItem(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 4,
+                  display: 'flex',
+                }}
+              >
+                <X size={18} color="var(--foreground-muted)" />
+              </button>
+            </div>
+            <div
+              style={{
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              {[
+                { label: 'ID', value: selectedItem.id },
+                { label: 'Name', value: selectedItem.name },
+                { label: 'Phone', value: selectedItem.phone },
+                {
+                  label: 'Created At',
+                  value: selectedItem.created_at
+                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    : '—',
+                },
+              ].map((f) => (
+                <div
+                  key={f.label}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+                >
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.6px',
+                    }}
+                  >
+                    {f.label}
+                  </span>
+                  <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                    {f.value ?? '—'}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

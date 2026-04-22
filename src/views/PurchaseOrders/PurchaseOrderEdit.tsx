@@ -31,20 +31,26 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
 
   const order = (data as any)?.data
 
+  const rawDetails =
+    order?.purchase_order_details ?? order?.details ?? []
+
   const initialData = order
     ? {
         code: order.code,
-        supplier_id: order.supplier?.id ?? 0,
-        branch_id: order.branch?.id ?? 0,
+        supplier_id: order.supplier?.id ?? order.supplier_id ?? 0,
+        branch_id: order.branch?.id ?? order.branch_id ?? 0,
         date: order.date,
         status: order.status,
         description: order.description ?? '',
-        details: order.purchase_order_details?.map((d: any) => ({
-          product_inventory_id: d.product_inventory?.id ?? 0,
-          qty: d.qty,
-          price: d.price,
-          description: d.description ?? '',
-        })) ?? [{ product_inventory_id: 0, qty: 1, price: 0, description: '' }],
+        details: rawDetails.length
+          ? rawDetails.map((d: any) => ({
+              product_inventory_id:
+                d.product_inventory?.id ?? d.product_inventory_id ?? 0,
+              qty: d.qty ?? 1,
+              price: d.price ?? 0,
+              description: d.description ?? '',
+            }))
+          : [{ product_inventory_id: 0, qty: 1, price: 0, description: '' }],
       }
     : undefined
 

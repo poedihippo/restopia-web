@@ -221,6 +221,10 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
             gap: 20,
           }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           {/* Movement Type — card selector */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label
@@ -228,9 +232,13 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                 fontSize: 13,
                 fontWeight: 500,
                 color: 'var(--foreground)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
               }}
             >
               Movement Type
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <Controller
               name="direction"
@@ -304,9 +312,13 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                 fontSize: 13,
                 fontWeight: 500,
                 color: 'var(--foreground)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
               }}
             >
               Inventory Item
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <Controller
               name="product_inventory_id"
@@ -351,9 +363,13 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                 fontSize: 13,
                 fontWeight: 500,
                 color: 'var(--foreground)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
               }}
             >
               {getQtyLabel()}
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
               {...register('qty', { valueAsNumber: true })}

@@ -72,13 +72,23 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           <div>
-            <label style={labelStyle}>Name *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Name
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <input {...register('name')} style={fieldStyle} placeholder="Customer full name" />
             {errors.name && <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4, display: 'block' }}>{errors.name.message}</span>}
           </div>
           <div>
-            <label style={labelStyle}>Phone *</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Phone
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
             <input {...register('phone')} style={fieldStyle} placeholder="e.g. 08123456789" />
             {errors.phone && <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4, display: 'block' }}>{errors.phone.message}</span>}
           </div>

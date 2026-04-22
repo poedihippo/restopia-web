@@ -276,10 +276,17 @@ export default function ProductInventorySheet({
               gap: 20,
             }}
           >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+            <span style={{ color: 'var(--destructive)' }}>*</span>
+            <span>Required fields</span>
+          </div>
           {/* Create: Product UOM */}
           {!isEditMode && (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Product UOM</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Product UOM
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
               <Controller
                 name="product_uom_id"
                 control={control}
@@ -317,7 +324,10 @@ export default function ProductInventorySheet({
 
           {/* SKU Code */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label style={labelStyle}>SKU Code</label>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              SKU Code
+              {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
+            </label>
             <input
               {...register('code')}
               placeholder="e.g. SK000000001"
@@ -345,7 +355,10 @@ export default function ProductInventorySheet({
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Base Price (Rp)</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Base Price (Rp)
+                {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
+              </label>
               <input
                 type="number"
                 min={0}
@@ -363,7 +376,10 @@ export default function ProductInventorySheet({
               )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Online Price (Rp)</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Online Price (Rp)
+                {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
+              </label>
               <input
                 type="number"
                 min={0}
@@ -400,7 +416,10 @@ export default function ProductInventorySheet({
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Status</label>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Status
+                {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
+              </label>
               <Controller
                 name="status"
                 control={control}

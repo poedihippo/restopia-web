@@ -25,33 +25,39 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
 
   const receipt = (data as any)?.data
 
+  const rawDetails =
+    receipt?.receipt_details ?? receipt?.details ?? []
+
   const initialData = receipt
     ? {
         code: receipt.code,
-        delivery_id: receipt.delivery?.id ?? 0,
+        delivery_id: receipt.delivery?.id ?? receipt.delivery_id ?? 0,
         date: receipt.date,
         status: receipt.status,
         description: receipt.description ?? '',
-        details: receipt.receipt_details?.map((d: any) => ({
-          product_inventory_id:
-            d.product_inventory?.id ?? d.product_inventory_id ?? 0,
-          delivery_detail_id: d.delivery_detail_id ?? undefined,
-          qty: d.qty,
-          price: d.price,
-          status: d.status,
-          description: d.description ?? '',
-          client_ref: d.client_ref ?? '',
-        })) ?? [
-          {
-            product_inventory_id: 0,
-            delivery_detail_id: undefined,
-            qty: 1,
-            price: 0,
-            status: 'pending',
-            description: '',
-            client_ref: '',
-          },
-        ],
+        details: rawDetails.length
+          ? rawDetails.map((d: any) => ({
+              product_inventory_id:
+                d.product_inventory?.id ?? d.product_inventory_id ?? 0,
+              delivery_detail_id:
+                d.delivery_detail?.id ?? d.delivery_detail_id ?? undefined,
+              qty: d.qty,
+              price: d.price,
+              status: d.status,
+              description: d.description ?? '',
+              client_ref: d.client_ref ?? '',
+            }))
+          : [
+              {
+                product_inventory_id: 0,
+                delivery_detail_id: undefined,
+                qty: 1,
+                price: 0,
+                status: 'pending',
+                description: '',
+                client_ref: '',
+              },
+            ],
       }
     : undefined
 
