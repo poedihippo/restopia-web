@@ -228,7 +228,7 @@ export function MaterialsFieldArray({
             }}
           >
             {/* Material search input + pickers */}
-            <div style={{ position: 'relative' }} data-material-row>
+            <div style={{ position: 'relative', zIndex: 10 }} data-material-row>
               <input
                 type="text"
                 value={isActive ? sharedMaterialSearch : existingLabel}
@@ -266,7 +266,8 @@ export function MaterialsFieldArray({
                     top: '100%',
                     left: 0,
                     right: 0,
-                    zIndex: 50,
+                    width: '100%',
+                    zIndex: 100,
                     background: 'var(--surface)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
@@ -314,7 +315,8 @@ export function MaterialsFieldArray({
                     top: '100%',
                     left: 0,
                     right: 0,
-                    zIndex: 50,
+                    width: '100%',
+                    zIndex: 100,
                     background: 'var(--surface)',
                     border: '1px solid var(--accent-light)',
                     borderRadius: 'var(--radius-md)',
@@ -406,23 +408,25 @@ export function MaterialsFieldArray({
               }}
             />
 
-            <button
-              type="button"
-              onClick={() => remove(matIndex)}
-              disabled={fields.length === 1}
-              style={{
-                padding: 5,
-                background: 'none',
-                border: 'none',
-                cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                display: 'flex',
-                alignItems: 'center',
-                marginTop: 2,
-              }}
-            >
-              <Trash2 size={13} />
-            </button>
+            <div style={{ position: 'relative', zIndex: 20, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => remove(matIndex)}
+                disabled={fields.length === 1}
+                style={{
+                  padding: 5,
+                  background: 'none',
+                  border: 'none',
+                  cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
+                  color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginTop: 2,
+                }}
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
           </div>
         )
       })}
