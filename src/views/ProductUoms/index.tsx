@@ -87,7 +87,7 @@ export default function ProductUomsView() {
       productUomsService
         .list({
           page,
-          per_page: 15,
+          per_page: 50,
           sort: '-id',
           include: 'product,uom',
           'filter[search]': debouncedSearch || undefined,
