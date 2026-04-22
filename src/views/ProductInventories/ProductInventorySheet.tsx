@@ -122,7 +122,9 @@ export default function ProductInventorySheet({
         base_price: editData.base_price ?? 0,
         online_price: editData.online_price ?? 0,
         price_editable: editData.price_editable ?? false,
-        expiry_date: editData.expiry_date ?? '',
+        expiry_date: editData.expiry_date
+          ? editData.expiry_date.split('T')[0]
+          : '',
         status: editData.status ?? 'active',
       })
     } else {
