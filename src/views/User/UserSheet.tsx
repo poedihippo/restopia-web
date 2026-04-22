@@ -100,7 +100,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         email: editData.email,
         password: '',
         nik: editData.nik ?? '',
-        type: editData.type ?? 'user',
+        type: 'user',
         phone: editData.phone ?? '',
         birth: editData.birth ?? '',
         gender: editData.gender ?? undefined,
@@ -376,46 +376,8 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
               </div>
             </div>
 
-            {/* Row 3: type + gender */}
+            {/* Row 3: gender */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  User Type
-                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-                </label>
-                <Controller
-                  control={control}
-                  name="type"
-                  render={({ field }) => (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => field.onChange('user')}
-                        style={pillButton(
-                          field.value === 'user',
-                          'var(--accent-light-bg)',
-                          'var(--accent)',
-                          'var(--accent)'
-                        )}
-                      >
-                        User
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => field.onChange('superadmin')}
-                        style={pillButton(
-                          field.value === 'superadmin',
-                          'var(--warning-bg)',
-                          'var(--warning)',
-                          'var(--warning)'
-                        )}
-                      >
-                        Superadmin
-                      </button>
-                    </div>
-                  )}
-                />
-              </div>
               <div>
                 <label style={labelStyle}>Gender</label>
                 <Controller
