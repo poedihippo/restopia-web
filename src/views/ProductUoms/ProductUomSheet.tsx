@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -10,7 +10,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, ChevronDown } from 'lucide-react'
 
 const schema = z.object({
   product_id: z.coerce.number().min(1, 'Product is required'),
@@ -35,17 +35,26 @@ interface ProductUomSheetProps {
     online_price?: number
     price_editable?: boolean
     is_default?: boolean
+    product?: { id?: number; name?: string; code?: string }
   } | null
 }
 
 export default function ProductUomSheet({ open, onClose, editData }: ProductUomSheetProps) {
   const queryClient = useQueryClient()
 
+  const [productSearch, setProductSearch] = useState('')
+  const [productDropdownOpen, setProductDropdownOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<
+    { id: number; name: string; code?: string } | null
+  >(null)
+
   const {
     register,
     handleSubmit,
     reset,
     control,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -60,12 +69,18 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     },
   })
 
-  const { data: productsData } = useQuery({
-    queryKey: ['products-all'],
+  const watchedProductId = watch('product_id')
+
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ['products-search', productSearch],
     queryFn: () =>
       productsService
-        .list({ per_page: 200 })
+        .list({
+          per_page: 30,
+          'filter[search]': productSearch || undefined,
+        } as any)
         .then((r) => r.data),
+    enabled: productDropdownOpen,
   })
   const products = (productsData as any)?.data ?? []
 
@@ -87,6 +102,15 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         price_editable: editData.price_editable ?? false,
         is_default: editData.is_default ?? false,
       })
+      if (editData.product_id) {
+        setSelectedProduct({
+          id: editData.product_id,
+          name: editData.product?.name ?? 'Product',
+          code: editData.product?.code,
+        })
+      } else {
+        setSelectedProduct(null)
+      }
     } else {
       reset({
         product_id: 0,
@@ -97,8 +121,23 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         price_editable: false,
         is_default: false,
       })
+      setSelectedProduct(null)
     }
+    setProductSearch('')
+    setProductDropdownOpen(false)
   }, [editData, reset])
+
+  useEffect(() => {
+    if (!productDropdownOpen) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-product-dropdown]')) {
+        setProductDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [productDropdownOpen])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => productUomsService.create(data as any),
@@ -248,20 +287,125 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               Product
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
-            <select
-              {...register('product_id', { valueAsNumber: true })}
-              style={{
-                ...selectStyle,
-                border: `1px solid ${errors.product_id ? 'var(--destructive)' : 'var(--border)'}`,
-              }}
-            >
-              <option value={0}>Select product</option>
-              {products.map((p: any) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            <div style={{ position: 'relative' }} data-product-dropdown>
+              <button
+                type="button"
+                onClick={() => setProductDropdownOpen((v) => !v)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  border: `1px solid ${errors.product_id ? 'var(--destructive)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface)',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  color: selectedProduct ? 'var(--foreground)' : 'var(--foreground-subtle)',
+                  fontFamily: 'var(--font-sans)',
+                  textAlign: 'left',
+                }}
+              >
+                <span>
+                  {selectedProduct
+                    ? `${selectedProduct.name}${selectedProduct.code ? ` (${selectedProduct.code})` : ''}`
+                    : 'Search and select product...'}
+                </span>
+                <ChevronDown size={14} color="var(--foreground-muted)" />
+              </button>
+
+              {productDropdownOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    right: 0,
+                    zIndex: 200,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-lg)',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Type to search products..."
+                      style={{
+                        width: '100%',
+                        padding: '7px 10px',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 12,
+                        outline: 'none',
+                        background: 'var(--background)',
+                        fontFamily: 'var(--font-sans)',
+                        color: 'var(--foreground)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                    {productsLoading ? (
+                      <div style={{ padding: 12, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                        Loading...
+                      </div>
+                    ) : products.length === 0 ? (
+                      <div style={{ padding: 12, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                        No products found
+                      </div>
+                    ) : (
+                      products.map((product: any) => {
+                        const isSel = product.id === watchedProductId
+                        return (
+                          <button
+                            type="button"
+                            key={product.id}
+                            onClick={() => {
+                              setValue('product_id', product.id, { shouldValidate: true })
+                              setSelectedProduct({
+                                id: product.id,
+                                name: product.name,
+                                code: product.code,
+                              })
+                              setProductDropdownOpen(false)
+                              setProductSearch('')
+                            }}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              padding: '9px 12px',
+                              background: isSel ? 'var(--accent-light-bg)' : 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid var(--border)',
+                              textAlign: 'left',
+                            }}
+                          >
+                            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                              {product.name}
+                            </span>
+                            <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--foreground-muted)' }}>
+                              {product.code ?? ''}
+                            </span>
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <input type="hidden" {...register('product_id', { valueAsNumber: true })} />
             {errors.product_id && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
                 {errors.product_id.message}
