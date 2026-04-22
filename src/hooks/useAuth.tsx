@@ -18,6 +18,8 @@ type AuthContextType = {
   refreshUser: () => void;
   isLoggedIn: boolean;
   isLoading: boolean;
+  hasPermission: (permission: string) => boolean;
+  isSuperadmin: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +29,8 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: () => { },
   isLoggedIn: false,
   isLoading: true,
+  hasPermission: () => false,
+  isSuperadmin: false,
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -162,6 +166,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [api]);
 
 
+  const isSuperadmin = user?.type === "superadmin";
+
+  const hasPermission = useCallback(
+    (permission: string): boolean => {
+      if (!user) return false;
+      if (user.type === "superadmin") return true;
+      return user.permissions?.some((p) => p.name === permission) ?? false;
+    },
+    [user],
+  );
+
   const value = {
     user,
     login,
@@ -169,6 +184,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     refreshUser,
     isLoggedIn,
     isLoading,
+    hasPermission,
+    isSuperadmin,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

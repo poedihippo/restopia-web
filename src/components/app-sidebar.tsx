@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -28,11 +29,18 @@ import {
   CreditCard,
 } from 'lucide-react';
 
+type NavChild = {
+  label: string;
+  href: string;
+  permission?: string;
+};
+
 type NavItem = {
   label: string;
   href?: string;
   icon: React.ElementType;
-  children?: { label: string; href: string }[];
+  permission?: string;
+  children?: NavChild[];
 };
 
 type NavGroup = {
@@ -54,22 +62,24 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Production',
         icon: Factory,
+        permission: 'production.read',
         children: [
-          { label: 'Production', href: '/production' },
-          { label: 'Recipes', href: '/production/recipes' },
+          { label: 'Production', href: '/production', permission: 'production.read' },
+          { label: 'Recipes', href: '/production/recipes', permission: 'recipe.read' },
         ],
       },
       {
         label: 'Inventory',
         icon: Boxes,
+        permission: 'product.read',
         children: [
-          { label: 'Products', href: '/products' },
-          { label: 'Categories', href: '/products/product-categories' },
-          { label: 'UOM', href: '/products/uom' },
-          { label: 'Product UOMs', href: '/products/product-uoms' },
-          { label: 'Conversions', href: '/products/product-conversions' },
-          { label: 'Stock', href: '/products/product-inventory' },
-          { label: 'Movements', href: '/products/product-inventory/stock-movements' },
+          { label: 'Products', href: '/products', permission: 'product.read' },
+          { label: 'Categories', href: '/products/product-categories', permission: 'product-category.read' },
+          { label: 'UOM', href: '/products/uom', permission: 'uom.read' },
+          { label: 'Product UOMs', href: '/products/product-uoms', permission: 'product-uom.read' },
+          { label: 'Conversions', href: '/products/product-conversions', permission: 'product-conversion.read' },
+          { label: 'Stock', href: '/products/product-inventory', permission: 'product-inventory.read' },
+          { label: 'Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.read' },
         ],
       },
     ],
@@ -80,17 +90,19 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Purchase Orders',
         icon: PackageSearch,
+        permission: 'purchase-order.read',
         children: [
-          { label: 'Orders', href: '/purchase/purchase-orders' },
-          { label: 'Suppliers', href: '/purchase/suppliers' },
+          { label: 'Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.read' },
+          { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.read' },
         ],
       },
       {
         label: 'Transfer',
         icon: ArrowLeftRight,
+        permission: 'delivery.read',
         children: [
-          { label: 'Deliveries', href: '/transfer/deliveries' },
-          { label: 'Receipts', href: '/transfer/receipts' },
+          { label: 'Deliveries', href: '/transfer/deliveries', permission: 'delivery.read' },
+          { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.read' },
         ],
       },
     ],
@@ -101,14 +113,15 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Sales Orders',
         icon: ReceiptText,
+        permission: 'sales-order.read',
         children: [
-          { label: 'Orders', href: '/sales/sales-orders' },
-          { label: 'Customers', href: '/sales/customers' },
-          { label: 'Vouchers', href: '/sales/vouchers' },
+          { label: 'Orders', href: '/sales/sales-orders', permission: 'sales-order.read' },
+          { label: 'Customers', href: '/sales/customers', permission: 'customer.read' },
+          { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.read' },
           { label: 'Payments', href: '/sales/payments' },
         ],
       },
-      { label: 'Bundles', href: '/sales/bundles', icon: Package },
+      { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.read' },
     ],
   },
   {
@@ -117,14 +130,15 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Users',
         icon: Users,
+        permission: 'user.read',
         children: [
-          { label: 'All Users', href: '/users' },
-          { label: 'Roles', href: '/users/roles' },
-          { label: 'Branches', href: '/users/branches' },
-          { label: 'Companies', href: '/users/companies' },
+          { label: 'All Users', href: '/users', permission: 'user.read' },
+          { label: 'Roles', href: '/users/roles', permission: 'role.read' },
+          { label: 'Branches', href: '/users/branches', permission: 'branch.read' },
+          { label: 'Companies', href: '/users/companies', permission: 'company.read' },
         ],
       },
-      { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck },
+      { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.read' },
       { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard },
     ],
   },
@@ -132,8 +146,20 @@ const NAV_GROUPS: NavGroup[] = [
 
 export default function AppSidebar() {
   const router = useRouter();
+  const { hasPermission, isSuperadmin } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  const isItemVisible = (item: NavItem): boolean => {
+    if (isSuperadmin) return true;
+    if (!item.permission) return true;
+    return hasPermission(item.permission);
+  };
+
+  const visibleChildren = (item: NavItem): NavChild[] =>
+    (item.children ?? []).filter(
+      (child) => isSuperadmin || !child.permission || hasPermission(child.permission),
+    );
 
   useEffect(() => {
     const initial: Record<string, boolean> = {};
@@ -261,7 +287,7 @@ export default function AppSidebar() {
               </div>
             )}
 
-            {group.items.map((item) => {
+            {group.items.filter(isItemVisible).map((item) => {
               const Icon = item.icon;
 
               if (!item.children) {
@@ -294,8 +320,11 @@ export default function AppSidebar() {
                 );
               }
 
+              const children = visibleChildren(item);
+              if (children.length === 0) return null;
+
               const isOpen = !!openGroups[item.label];
-              const anyChildActive = item.children.some((c) => isActive(c.href));
+              const anyChildActive = children.some((c) => isActive(c.href));
 
               return (
                 <div key={item.label}>
@@ -337,7 +366,7 @@ export default function AppSidebar() {
 
                   {isOpen && !collapsed && (
                     <div>
-                      {item.children.map((child) => {
+                      {children.map((child) => {
                         const childActive = isActive(child.href);
                         return (
                           <Link
