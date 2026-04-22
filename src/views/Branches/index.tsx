@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { branchesService } from '@/services/branches.service'
+import { useAuth } from '@/hooks/useAuth'
 import BranchSheet from './BranchSheet'
 import {
   Plus,
@@ -28,6 +29,10 @@ interface Branch {
 
 export default function BranchesView() {
   const qc = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('branch.create')
+  const canEdit = hasPermission('branch.update')
+  const canDelete = hasPermission('branch.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -138,28 +143,30 @@ export default function BranchesView() {
             Manage company branches and locations
           </p>
         </div>
-        <button
-          onClick={() => {
-            setEditData(null)
-            setSheetOpen(true)
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Branch
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              setEditData(null)
+              setSheetOpen(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Branch
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -351,37 +358,41 @@ export default function BranchesView() {
                       >
                         <Eye size={14} />
                       </button>
-                      <button
-                        onClick={() => {
-                          setEditData(item)
-                          setSheetOpen(true)
-                        }}
-                        style={actionBtnStyle}
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() =>
-                          !item.is_default && setDeleteConfirmId(item.id)
-                        }
-                        disabled={item.is_default}
-                        style={{
-                          ...actionBtnStyle,
-                          color: item.is_default
-                            ? 'var(--foreground-subtle)'
-                            : 'var(--destructive)',
-                          cursor: item.is_default ? 'not-allowed' : 'pointer',
-                          opacity: item.is_default ? 0.5 : 1,
-                        }}
-                        title={
-                          item.is_default
-                            ? 'Cannot delete the default branch'
-                            : 'Delete'
-                        }
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => {
+                            setEditData(item)
+                            setSheetOpen(true)
+                          }}
+                          style={actionBtnStyle}
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() =>
+                            !item.is_default && setDeleteConfirmId(item.id)
+                          }
+                          disabled={item.is_default}
+                          style={{
+                            ...actionBtnStyle,
+                            color: item.is_default
+                              ? 'var(--foreground-subtle)'
+                              : 'var(--destructive)',
+                            cursor: item.is_default ? 'not-allowed' : 'pointer',
+                            opacity: item.is_default ? 0.5 : 1,
+                          }}
+                          title={
+                            item.is_default
+                              ? 'Cannot delete the default branch'
+                              : 'Delete'
+                          }
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

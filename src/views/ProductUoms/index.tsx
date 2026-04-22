@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import api from '@/hooks/useApi'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import ProductUomSheet from './ProductUomSheet'
 import {
   Plus,
@@ -37,6 +38,10 @@ const formatIDR = (n?: number) =>
 
 export default function ProductUomsView() {
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('product-uom.create')
+  const canEdit = hasPermission('product-uom.update')
+  const canDelete = hasPermission('product-uom.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -150,25 +155,27 @@ export default function ProductUomsView() {
           </p>
         </div>
 
-        <button
-          onClick={() => { setEditData(null); setSheetOpen(true) }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Product UOM
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => { setEditData(null); setSheetOpen(true) }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Product UOM
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -486,34 +493,38 @@ export default function ProductUomsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      <button
-                        onClick={() => { setEditData(item); setSheetOpen(true) }}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--foreground-muted)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--destructive)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => { setEditData(item); setSheetOpen(true) }}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--foreground-muted)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--destructive)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

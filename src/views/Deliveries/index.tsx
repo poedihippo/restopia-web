@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Plus,
   Search,
@@ -47,6 +48,10 @@ const STATUS_META = {
 export default function DeliveriesView() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('delivery.create')
+  const canEdit = hasPermission('delivery.update')
+  const canDelete = hasPermission('delivery.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -179,25 +184,27 @@ export default function DeliveriesView() {
             Track outgoing shipments to other branches
           </p>
         </div>
-        <button
-          onClick={() => router.push('/transfer/deliveries/create')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Delivery
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => router.push('/transfer/deliveries/create')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Delivery
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -461,7 +468,7 @@ export default function DeliveriesView() {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        {item.status === 'pending' ? (
+                        {canEdit && (item.status === 'pending' ? (
                           <button
                             type="button"
                             onClick={() =>
@@ -485,7 +492,7 @@ export default function DeliveriesView() {
                           >
                             <RotateCcw size={14} />
                           </button>
-                        )}
+                        ))}
                         <button
                           onClick={() => router.push(`/transfer/deliveries/${item.id}/detail`)}
                           style={actionBtnStyle}
@@ -493,20 +500,24 @@ export default function DeliveriesView() {
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          onClick={() => router.push(`/transfer/deliveries/${item.id}/edit`)}
-                          style={actionBtnStyle}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => router.push(`/transfer/deliveries/${item.id}/edit`)}
+                            style={actionBtnStyle}
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeleteConfirmId(item.id)}
+                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

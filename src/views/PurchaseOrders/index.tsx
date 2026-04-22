@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Plus,
   Search,
@@ -46,6 +47,10 @@ const STATUS_META = {
 export default function PurchaseOrdersView() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('purchase-order.create')
+  const canEdit = hasPermission('purchase-order.update')
+  const canDelete = hasPermission('purchase-order.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -160,25 +165,27 @@ export default function PurchaseOrdersView() {
             Manage procurement orders to suppliers
           </p>
         </div>
-        <button
-          onClick={() => router.push('/purchase/purchase-orders/create')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Order
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => router.push('/purchase/purchase-orders/create')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Order
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -470,22 +477,26 @@ export default function PurchaseOrdersView() {
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          onClick={() =>
-                            router.push(`/purchase/purchase-orders/${item.id}/edit`)
-                          }
-                          style={actionBtnStyle}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() =>
+                              router.push(`/purchase/purchase-orders/${item.id}/edit`)
+                            }
+                            style={actionBtnStyle}
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeleteConfirmId(item.id)}
+                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -5,10 +5,15 @@ import { toast } from 'sonner';
 import { Eye, X } from 'lucide-react';
 import { customersService as customerService } from '@/services/customers.service';
 import { toastMutationApiError } from '@/utils/apiError';
+import { useAuth } from '@/hooks/useAuth';
 import CustomerSheet from './CustomerSheet';
 
 export default function CustomersView() {
   const qc = useQueryClient();
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission('customer.create');
+  const canEdit = hasPermission('customer.update');
+  const canDelete = hasPermission('customer.delete');
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
@@ -62,10 +67,12 @@ export default function CustomersView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Customers</h1>
           <p style={{ color: 'var(--foreground-muted)', fontSize: 14, marginTop: 4 }}>Manage your customer records</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setSheetOpen(true); }}
-          style={{ height: 40, padding: '0 20px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
-        >+ New Customer</button>
+        {canCreate && (
+          <button
+            onClick={() => { setEditing(null); setSheetOpen(true); }}
+            style={{ height: 40, padding: '0 20px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+          >+ New Customer</button>
+        )}
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -110,14 +117,18 @@ export default function CustomersView() {
                       style={{ padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }}
                       title="View"
                     ><Eye size={14} /></button>
-                    <button
-                      onClick={() => { setEditing(item); setSheetOpen(true); }}
-                      style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--foreground)' }}
-                    >Edit</button>
-                    <button
-                      onClick={() => setDeleteTarget(item)}
-                      style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--destructive)', borderRadius: 'var(--radius-sm)', background: 'transparent', cursor: 'pointer', color: 'var(--destructive)' }}
-                    >Delete</button>
+                    {canEdit && (
+                      <button
+                        onClick={() => { setEditing(item); setSheetOpen(true); }}
+                        style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--foreground)' }}
+                      >Edit</button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => setDeleteTarget(item)}
+                        style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--destructive)', borderRadius: 'var(--radius-sm)', background: 'transparent', cursor: 'pointer', color: 'var(--destructive)' }}
+                      >Delete</button>
+                    )}
                   </div>
                 </td>
               </tr>

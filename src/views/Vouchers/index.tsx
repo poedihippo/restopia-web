@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { vouchersService } from '@/services/vouchers.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import VoucherSheet from './VoucherSheet'
 import {
   Plus,
@@ -40,6 +41,10 @@ interface Voucher {
 export default function VouchersView() {
   const router = useRouter()
   const qc = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('voucher.create')
+  const canEdit = hasPermission('voucher.update')
+  const canDelete = hasPermission('voucher.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -172,6 +177,7 @@ export default function VouchersView() {
             Manage discount vouchers
           </p>
         </div>
+        {canCreate && (
         <button
           onClick={() => {
             setEditData(null)
@@ -194,6 +200,7 @@ export default function VouchersView() {
           <Plus size={15} />
           New Voucher
         </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -420,27 +427,29 @@ export default function VouchersView() {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        <button
-                          onClick={() =>
-                            toggleStatusMutation.mutate({
-                              id: item.id,
-                              status: isActive ? 'inactive' : 'active',
-                            })
-                          }
-                          disabled={toggleStatusMutation.isPending}
-                          title={isActive ? 'Deactivate' : 'Activate'}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: isActive ? 'var(--success)' : 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          {isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() =>
+                              toggleStatusMutation.mutate({
+                                id: item.id,
+                                status: isActive ? 'inactive' : 'active',
+                              })
+                            }
+                            disabled={toggleStatusMutation.isPending}
+                            title={isActive ? 'Deactivate' : 'Activate'}
+                            style={{
+                              padding: 6,
+                              background: 'none',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              color: isActive ? 'var(--success)' : 'var(--foreground-muted)',
+                              display: 'flex',
+                            }}
+                          >
+                            {isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                          </button>
+                        )}
                         <button
                           onClick={() => router.push(`/sales/vouchers/${item.id}/detail`)}
                           style={actionBtnStyle}
@@ -448,23 +457,27 @@ export default function VouchersView() {
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          onClick={() => {
-                            setEditData(item)
-                            setSheetOpen(true)
-                          }}
-                          style={actionBtnStyle}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => {
+                              setEditData(item)
+                              setSheetOpen(true)
+                            }}
+                            style={actionBtnStyle}
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeleteConfirmId(item.id)}
+                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

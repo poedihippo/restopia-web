@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 
 interface SalesOrder {
   id: number
@@ -31,6 +32,10 @@ const SETTLEMENT_META = {
 export default function SalesOrdersView() {
   const router = useRouter()
   const qc = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('sales-order.create')
+  const canEdit = hasPermission('sales-order.update')
+  const canDelete = hasPermission('sales-order.delete')
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
@@ -141,23 +146,25 @@ export default function SalesOrdersView() {
             All offline and online orders
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => router.push('/sales/sales-orders/create')}
-          style={{
-            height: 40,
-            padding: '0 20px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: 'pointer',
-          }}
-        >
-          + New Order
-        </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={() => router.push('/sales/sales-orders/create')}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+            }}
+          >
+            + New Order
+          </button>
+        )}
       </div>
 
       {/* Filters toolbar */}
@@ -477,21 +484,23 @@ export default function SalesOrdersView() {
                       >
                         View
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(item)}
-                        style={{
-                          fontSize: 12,
-                          padding: '4px 10px',
-                          border: '1px solid var(--destructive)',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'transparent',
-                          cursor: 'pointer',
-                          color: 'var(--destructive)',
-                        }}
-                      >
-                        Delete
-                      </button>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(item)}
+                          style={{
+                            fontSize: 12,
+                            padding: '4px 10px',
+                            border: '1px solid var(--destructive)',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            color: 'var(--destructive)',
+                          }}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

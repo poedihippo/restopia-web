@@ -25,6 +25,8 @@ interface Payment {
 
 export default function PaymentsView() {
   const qc = useQueryClient()
+  // No specific payment permission in API — default to true.
+  const canDelete = true
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -326,13 +328,15 @@ export default function PaymentsView() {
                         justifyContent: 'flex-end',
                       }}
                     >
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

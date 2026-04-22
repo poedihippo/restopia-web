@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
+import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
 import {
   Plus,
@@ -40,6 +41,8 @@ const TYPE_META = {
 }
 
 export default function StockMovementView() {
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -112,25 +115,27 @@ export default function StockMovementView() {
           </p>
         </div>
 
-        <button
-          onClick={() => setSheetOpen(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          Record Movement
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => setSheetOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            Record Movement
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}

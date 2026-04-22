@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Plus,
   Search,
@@ -44,6 +45,10 @@ const STATUS_META = {
 export default function ProductionsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('production.create')
+  const canEdit = hasPermission('production.update')
+  const canDelete = hasPermission('production.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -131,25 +136,27 @@ export default function ProductionsView() {
             Manage factory production orders
           </p>
         </div>
-        <button
-          onClick={() => router.push('/production/create')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Production
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => router.push('/production/create')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Production
+          </button>
+        )}
       </div>
 
       {/* TOOLBAR */}
@@ -468,34 +475,38 @@ export default function ProductionsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      <button
-                        onClick={() => router.push(`/production/${item.id}/edit`)}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--foreground-muted)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--destructive)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => router.push(`/production/${item.id}/edit`)}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--foreground-muted)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--destructive)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { bundlesService } from '@/services/bundles.service'
+import { useAuth } from '@/hooks/useAuth'
 import BundleSheet from './BundleSheet'
 import {
   Plus,
@@ -54,6 +55,10 @@ const STATUS_META: Record<
 
 export default function BundlesView() {
   const qc = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('bundle.create')
+  const canEdit = hasPermission('bundle.update')
+  const canDelete = hasPermission('bundle.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -160,28 +165,30 @@ export default function BundlesView() {
             Manage product bundles and packages
           </p>
         </div>
-        <button
-          onClick={() => {
-            setEditData(null)
-            setSheetOpen(true)
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Bundle
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              setEditData(null)
+              setSheetOpen(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Bundle
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -370,23 +377,27 @@ export default function BundlesView() {
                     style={{ display: 'flex', gap: 4 }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <button
-                      onClick={() => {
-                        setEditData(item)
-                        setSheetOpen(true)
-                      }}
-                      style={actionBtnStyle}
-                      title="Edit"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmId(item.id)}
-                      style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                      title="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => {
+                          setEditData(item)
+                          setSheetOpen(true)
+                        }}
+                        style={actionBtnStyle}
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
 
                   {isExpanded ? (

@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Plus,
   Search,
@@ -47,6 +48,10 @@ const STATUS_META = {
 export default function ReceiptsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('receipt.create')
+  const canEdit = hasPermission('receipt.update')
+  const canDelete = hasPermission('receipt.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -186,25 +191,27 @@ export default function ReceiptsView() {
             Record goods received from deliveries
           </p>
         </div>
-        <button
-          onClick={() => router.push('/transfer/receipts/create')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Receipt
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => router.push('/transfer/receipts/create')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Receipt
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -458,7 +465,7 @@ export default function ReceiptsView() {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        {item.status === 'pending' ? (
+                        {canEdit && (item.status === 'pending' ? (
                           <button
                             type="button"
                             onClick={() =>
@@ -482,7 +489,7 @@ export default function ReceiptsView() {
                           >
                             <RotateCcw size={14} />
                           </button>
-                        )}
+                        ))}
                         <button
                           onClick={() => router.push(`/transfer/receipts/${item.id}/detail`)}
                           style={actionBtnStyle}
@@ -490,20 +497,24 @@ export default function ReceiptsView() {
                         >
                           <Eye size={14} />
                         </button>
-                        <button
-                          onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
-                          style={actionBtnStyle}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
+                            style={actionBtnStyle}
+                            title="Edit"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => setDeleteConfirmId(item.id)}
+                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

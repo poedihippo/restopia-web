@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { uomsService } from '@/services/uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import UomSheet from './UomSheet'
 import {
   Plus,
@@ -27,6 +28,10 @@ interface Uom {
 
 export default function UomsView() {
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('uom.create')
+  const canEdit = hasPermission('uom.update')
+  const canDelete = hasPermission('uom.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -102,25 +107,27 @@ export default function UomsView() {
           </p>
         </div>
 
-        <button
-          onClick={() => { setEditData(null); setSheetOpen(true) }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New UOM
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => { setEditData(null); setSheetOpen(true) }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New UOM
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -309,34 +316,38 @@ export default function UomsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      <button
-                        onClick={() => { setEditData(item); setSheetOpen(true) }}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--foreground-muted)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--destructive)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => { setEditData(item); setSheetOpen(true) }}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--foreground-muted)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--destructive)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { companiesService } from '@/services/companies.service'
+import { useAuth } from '@/hooks/useAuth'
 import CompanySheet from './CompanySheet'
 import {
   Plus,
@@ -25,6 +26,10 @@ interface Company {
 
 export default function CompaniesView() {
   const qc = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('company.create')
+  const canEdit = hasPermission('company.update')
+  const canDelete = hasPermission('company.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -135,28 +140,30 @@ export default function CompaniesView() {
             Manage companies in the system
           </p>
         </div>
-        <button
-          onClick={() => {
-            setEditData(null)
-            setSheetOpen(true)
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Company
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              setEditData(null)
+              setSheetOpen(true)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            New Company
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -323,23 +330,27 @@ export default function CompaniesView() {
                       >
                         <Eye size={14} />
                       </button>
-                      <button
-                        onClick={() => {
-                          setEditData(item)
-                          setSheetOpen(true)
-                        }}
-                        style={actionBtnStyle}
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {canEdit && (
+                        <button
+                          onClick={() => {
+                            setEditData(item)
+                            setSheetOpen(true)
+                          }}
+                          style={actionBtnStyle}
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

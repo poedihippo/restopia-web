@@ -8,6 +8,10 @@ import { paymentMethodsService as paymentMethodService } from '@/services/paymen
 
 export default function PaymentMethodsView() {
   const qc = useQueryClient()
+  // No specific payment-method permission in API — default to true.
+  const canCreate = true
+  const canEdit = true
+  const canDelete = true
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [name, setName] = useState('')
@@ -115,27 +119,29 @@ export default function PaymentMethodsView() {
             Manage accepted payment methods for POS checkout
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setEditing(null)
-            setName('')
-            setShowForm(true)
-          }}
-          style={{
-            height: 40,
-            padding: '0 20px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: 'pointer',
-          }}
-        >
-          + Add Method
-        </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null)
+              setName('')
+              setShowForm(true)
+            }}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+            }}
+          >
+            + Add Method
+          </button>
+        )}
       </div>
 
       <div style={{ marginBottom: 16, position: 'relative', maxWidth: 280 }}>
@@ -245,39 +251,43 @@ export default function PaymentMethodsView() {
                     >
                       <Eye size={14} />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditing(item)
-                        setName(item.name)
-                        setShowForm(true)
-                      }}
-                      style={{
-                        fontSize: 12,
-                        padding: '4px 10px',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--surface)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(item)}
-                      style={{
-                        fontSize: 12,
-                        padding: '4px 10px',
-                        border: '1px solid var(--destructive)',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        color: 'var(--destructive)',
-                      }}
-                    >
-                      Delete
-                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditing(item)
+                          setName(item.name)
+                          setShowForm(true)
+                        }}
+                        style={{
+                          fontSize: 12,
+                          padding: '4px 10px',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--surface)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(item)}
+                        style={{
+                          fontSize: 12,
+                          padding: '4px 10px',
+                          border: '1px solid var(--destructive)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                        }}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
