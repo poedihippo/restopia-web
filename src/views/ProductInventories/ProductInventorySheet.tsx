@@ -13,13 +13,17 @@ import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
 const createSchema = z.object({
-  product_uom_id: z.coerce.number().min(1, 'Product UOM is required'),
+  product_uom_id: z.coerce.number().min(1, 'Please select a product'),
   code: z.string().min(1, 'SKU Code is required'),
-  base_price: z.coerce.number().min(0),
-  online_price: z.coerce.number().min(0),
+  base_price: z.coerce
+    .number({ message: 'Base price is required' })
+    .min(0, 'Base price cannot be negative'),
+  online_price: z.coerce
+    .number({ message: 'Online price is required' })
+    .min(0, 'Online price cannot be negative'),
   price_editable: z.boolean().default(false),
   expiry_date: z.string().optional(),
-  status: z.enum(['active', 'inactive']),
+  status: z.enum(['active', 'inactive'], { message: 'Status is required' }),
 })
 
 const editSchema = z.object({
@@ -194,6 +198,16 @@ export default function ProductInventorySheet({
     }
   }
 
+  const onInvalid = (errs: any) => {
+    const first = Object.values(errs)[0] as { message?: string } | undefined
+    toast.error(first?.message ?? 'Please fill in all required fields')
+    if (typeof document !== 'undefined') {
+      document
+        .querySelector('[data-sheet-body]')
+        ?.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
+
   const isPending = createMutation.isPending || updateMutation.isPending
 
   if (!open) return null
@@ -267,7 +281,7 @@ export default function ProductInventorySheet({
         </div>
 
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(onSubmit, onInvalid)}
           style={{
             flex: 1,
             display: 'flex',
@@ -276,6 +290,7 @@ export default function ProductInventorySheet({
           }}
         >
           <div
+            data-sheet-body
             style={{
               flex: 1,
               overflowY: 'auto',
@@ -451,6 +466,11 @@ export default function ProductInventorySheet({
                   </div>
                 )}
               />
+              {errors.status && (
+                <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4 }}>
+                  {errors.status.message as string}
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
