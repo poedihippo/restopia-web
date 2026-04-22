@@ -59,7 +59,7 @@ export default function SuppliersView() {
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
         })
-        .then((r) => r.data.data),
+        .then((r) => r.data),
   })
 
   const items: Supplier[] = (data as any)?.data ?? []
