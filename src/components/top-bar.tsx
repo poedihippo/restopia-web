@@ -262,7 +262,7 @@ export default function TopBar() {
                   No branches assigned
                 </div>
               )}
-              {availableBranches.map((branch) => {
+              {availableBranches.map((branch: { id?: number; name?: string }) => {
                 const isActive = branch.id === user?.branch?.id;
                 return (
                   <button
