@@ -60,7 +60,7 @@ export default function TopBar() {
     queryKey: ['branches-all'],
     queryFn: () =>
       branchesService
-        .list({ per_page: 100, sort: 'name' } as any)
+        .list({ per_page: 100, sort: 'name', include: 'company' } as any)
         .then((r) => r.data),
     enabled: isSuperadmin,
   });
@@ -188,7 +188,24 @@ export default function TopBar() {
             }}
           >
             <Building2 size={13} style={{ color: 'var(--accent-light)', flexShrink: 0 }} />
-            <span>{branchName}</span>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 0,
+                lineHeight: 1.1,
+              }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 600 }}>
+                {user?.branch?.name ?? 'No Branch'}
+              </span>
+              {user?.branch?.company?.name && (
+                <span style={{ fontSize: 10, color: 'var(--foreground-muted)' }}>
+                  {user.branch.company.name}
+                </span>
+              )}
+            </div>
             <ChevronsUpDown size={11} style={{ color: 'var(--foreground-muted)', flexShrink: 0 }} />
           </button>
 
@@ -262,7 +279,11 @@ export default function TopBar() {
                   No branches assigned
                 </div>
               )}
-              {availableBranches.map((branch: { id?: number; name?: string }) => {
+              {availableBranches.map((branch: {
+                id?: number
+                name?: string
+                company?: { name?: string }
+              }) => {
                 const isActive = branch.id === user?.branch?.id;
                 return (
                   <button
@@ -297,7 +318,30 @@ export default function TopBar() {
                     ) : (
                       <div style={{ width: 6, height: 6, flexShrink: 0 }} />
                     )}
-                    <span style={{ flex: 1 }}>{branch.name}</span>
+                    <div
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: isActive ? 'var(--accent)' : 'var(--foreground)',
+                        }}
+                      >
+                        {branch.name}
+                      </span>
+                      {branch.company?.name && (
+                        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                          {branch.company.name}
+                        </span>
+                      )}
+                    </div>
                     {isActive && (
                       <span style={{ fontSize: 10, color: 'var(--accent)', marginLeft: 'auto' }}>
                         Active
