@@ -270,7 +270,16 @@ export default function AppSidebar() {
 
       {/* Nav scroll area */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS.map((group) => {
+          const visibleItems = group.items.filter((item) => {
+            if (!isItemVisible(item)) return false;
+            if (item.children) {
+              return visibleChildren(item).length > 0;
+            }
+            return true;
+          });
+          if (visibleItems.length === 0) return null;
+          return (
           <div key={group.title}>
             {!collapsed && (
               <div
@@ -287,7 +296,7 @@ export default function AppSidebar() {
               </div>
             )}
 
-            {group.items.filter(isItemVisible).map((item) => {
+            {visibleItems.map((item) => {
               const Icon = item.icon;
 
               if (!item.children) {
@@ -405,7 +414,8 @@ export default function AppSidebar() {
               );
             })}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Collapse toggle */}
