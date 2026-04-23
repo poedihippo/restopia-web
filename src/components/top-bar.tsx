@@ -3,8 +3,10 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { authService } from '@/services/auth.service';
+import { branchesService } from '@/services/branches.service';
 import { cn } from '@/lib/utils';
 import {
   ChevronRight,
@@ -46,13 +48,23 @@ const BRANCH_LABEL_MAP: Record<string, string> = {};
 
 export default function TopBar() {
   const router = useRouter();
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, isSuperadmin } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const branchRef = useRef<HTMLDivElement>(null);
+
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all'],
+    queryFn: () =>
+      branchesService
+        .list({ per_page: 100, sort: 'name' } as any)
+        .then((r) => r.data),
+    enabled: isSuperadmin,
+  });
+  const allBranches = (branchesData as any)?.data ?? [];
 
   useEffect(() => {
     function handleMouseDown(e: MouseEvent) {
@@ -70,7 +82,9 @@ export default function TopBar() {
   const breadcrumbs = getBreadcrumbs(router.pathname);
   const branchName = user?.branch?.name ?? '—';
   const userInitial = user?.name?.charAt(0)?.toUpperCase() ?? 'U';
-  const availableBranches = user?.branches ?? [];
+  const availableBranches = isSuperadmin
+    ? allBranches
+    : user?.branches ?? [];
 
   const onSelectBranch = async (branchId: number) => {
     try {
