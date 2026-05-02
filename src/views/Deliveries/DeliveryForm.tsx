@@ -9,25 +9,34 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
-import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { salesOrdersService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
-  product_inventory_id: z.coerce.number().min(0, 'Product required'),
+  product_uom_id: z.coerce.number().min(0, 'Product required'),
   purchase_order_detail_id: z.coerce.number().optional(),
+  sales_order_detail_id: z.coerce.number().optional(),
   qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
-  status: z.enum(['pending', 'final']),
+  status: z.enum(['pending', 'packaging', 'packed']),
   description: z.string().optional(),
 })
 
 const schema = z.object({
   code: z.string().min(1, 'Code required'),
+  source_type: z.enum([
+    'po_from_supplier',
+    'po_from_branch',
+    'transfer_to_branch',
+    'so_to_branch',
+  ]),
   target_branch_id: z.coerce.number().min(0, 'Target branch required'),
   purchase_order_id: z.coerce.number().optional(),
+  sales_order_id: z.coerce.number().optional(),
   date: z.string().min(1, 'Date required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
@@ -58,15 +67,18 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     resolver: zodResolver(schema) as any,
     defaultValues: {
       code: '',
+      source_type: 'po_from_supplier',
       target_branch_id: 0,
       purchase_order_id: undefined,
+      sales_order_id: undefined,
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
       details: [
         {
-          product_inventory_id: 0,
+          product_uom_id: 0,
           purchase_order_detail_id: undefined,
+          sales_order_detail_id: undefined,
           qty: 1,
           price: 0,
           status: 'pending',
@@ -90,14 +102,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const branches = (branchesData as any)?.data ?? []
 
-  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
-    queryKey: ['product-inventories-all'],
+  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+    queryKey: ['product-uoms-all'],
     queryFn: () =>
-      productInventoriesService
-        .list({ per_page: 50, include: 'branch' })
+      productUomsService
+        .list({ per_page: 200, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
-  const inventories = (inventoriesData as any)?.data ?? []
+  const productUoms = (productUomsData as any)?.data ?? []
 
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-pending'],
@@ -108,15 +120,24 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
 
+  const { data: salesOrdersData, isLoading: salesOrdersLoading } = useQuery({
+    queryKey: ['sales-orders-pending'],
+    queryFn: () =>
+      salesOrdersService
+        .list({ per_page: 50, 'filter[status]': 'pending' } as any)
+        .then((r) => r.data),
+  })
+  const salesOrders = (salesOrdersData as any)?.data ?? []
+
   const branchOptions = branches.map((b: any) => ({
     value: b.id as number,
     label: (b.name as string) ?? `Branch #${b.id}`,
     sublabel: b.code as string | undefined,
   }))
-  const inventoryOptions = inventories.map((inv: any) => ({
-    value: inv.id as number,
-    label: inv.product_uom?.product?.name ?? inv.code ?? `Inv #${inv.id}`,
-    sublabel: inv.code as string | undefined,
+  const productUomOptions = productUoms.map((pu: any) => ({
+    value: pu.id as number,
+    label: (pu.product?.name as string) ?? '',
+    sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
   }))
   const purchaseOrderOptions = [
     { value: 0, label: 'No linked PO' },
@@ -126,6 +147,20 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       sublabel: undefined,
     })),
   ]
+  const salesOrderOptions = [
+    { value: 0, label: 'No linked SO' },
+    ...salesOrders.map((so: any) => ({
+      value: so.id as number,
+      label: so.code ?? `SO-${so.id}`,
+      sublabel: undefined,
+    })),
+  ]
+  const sourceTypeOptions = [
+    { value: 'po_from_supplier', label: 'PO from Supplier' },
+    { value: 'po_from_branch', label: 'PO from Branch' },
+    { value: 'transfer_to_branch', label: 'Transfer to Branch' },
+    { value: 'so_to_branch', label: 'SO to Branch' },
+  ] as const
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -133,9 +168,27 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     }
   }, [initialData, mode])
 
+  const buildPayload = (values: FormValues) => ({
+    ...values,
+    total_price: totalPrice,
+    purchase_order_id: values.purchase_order_id || undefined,
+    sales_order_id: values.sales_order_id || undefined,
+    details: values.details
+      .filter((d) => Number(d.product_uom_id) > 0)
+      .map((d) => ({
+        product_uom_id: d.product_uom_id,
+        purchase_order_detail_id: d.purchase_order_detail_id || undefined,
+        sales_order_detail_id: d.sales_order_detail_id || undefined,
+        qty: d.qty,
+        price: d.price,
+        status: d.status,
+        description: d.description || undefined,
+      })),
+  })
+
   const createMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      deliveriesService.create({ ...values, total_price: totalPrice } as any),
+      deliveriesService.create(buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       toast.success('Delivery created')
@@ -149,7 +202,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const updateMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      deliveriesService.update(deliveryId!, { ...values, total_price: totalPrice } as any),
+      deliveriesService.update(deliveryId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
       queryClient.invalidateQueries({ queryKey: ['delivery-detail', deliveryId] })
@@ -359,6 +412,30 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Source Type
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
+              <Controller
+                name="source_type"
+                control={control}
+                render={({ field }) => (
+                  <select
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    style={{ ...selectStyle }}
+                  >
+                    {sourceTypeOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                 Target Branch (Receiving)
                 <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
               </label>
@@ -392,6 +469,24 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     placeholder="No linked PO"
                     searchPlaceholder="Search POs..."
                     loading={purchaseOrdersLoading}
+                  />
+                )}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Linked Sales Order (Optional)</label>
+              <Controller
+                name="sales_order_id"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? 0}
+                    onChange={(v) => field.onChange(v > 0 ? v : undefined)}
+                    options={salesOrderOptions}
+                    placeholder="No linked SO"
+                    searchPlaceholder="Search SOs..."
+                    loading={salesOrdersLoading}
                   />
                 )}
               />
@@ -474,8 +569,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               type="button"
               onClick={() =>
                 append({
-                  product_inventory_id: 0,
+                  product_uom_id: 0,
                   purchase_order_detail_id: undefined,
+                  sales_order_detail_id: undefined,
                   qty: 1,
                   price: 0,
                   status: 'pending',
@@ -541,18 +637,18 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <Controller
-                  name={`details.${index}.product_inventory_id`}
+                  name={`details.${index}.product_uom_id`}
                   control={control}
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
                       onChange={f.onChange}
-                      options={inventoryOptions}
+                      options={productUomOptions}
                       placeholder="Select product..."
-                      searchPlaceholder="Search inventory..."
-                      loading={inventoriesLoading}
+                      searchPlaceholder="Search products..."
+                      loading={productUomsLoading}
                       error={
-                        errors.details?.[index]?.product_inventory_id?.message as
+                        errors.details?.[index]?.product_uom_id?.message as
                           | string
                           | undefined
                       }
@@ -587,7 +683,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     style={{ ...lineInputStyle, cursor: 'pointer' }}
                   >
                     <option value="pending">Pending</option>
-                    <option value="final">Final</option>
+                    <option value="packaging">Packaging</option>
+                    <option value="packed">Packed</option>
                   </select>
                 )}
               />

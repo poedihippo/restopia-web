@@ -50,7 +50,8 @@ export default function SalesOrderDetail() {
     queryFn: () =>
       salesOrderService
         .findById(id, {
-          include: 'branch,customer,created_by,sales_order_details',
+          include:
+            'branch,customer,created_by,purchase_order,buyer_branch,sales_order_details',
         })
         .then((r) => r.data),
   });
@@ -188,6 +189,62 @@ export default function SalesOrderDetail() {
           Delete
         </button>
       </div>
+
+      {(order?.purchase_order_id || order?.buyer_branch_id) && (
+        <div
+          style={{
+            ...sectionStyle,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 24,
+            flexWrap: 'wrap',
+          }}
+        >
+          {order?.purchase_order_id && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.6,
+                }}
+              >
+                Linked PO
+              </span>
+              <span
+                style={{
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                }}
+              >
+                {order.purchase_order?.code ?? `PO-${order.purchase_order_id}`}
+              </span>
+            </div>
+          )}
+          {order?.buyer_branch_id && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.6,
+                }}
+              >
+                Buyer Branch
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                {order.buyer_branch?.name ?? `Branch #${order.buyer_branch_id}`}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {order?.settlement_status && (
         <div

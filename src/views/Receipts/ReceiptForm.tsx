@@ -9,17 +9,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
 import { deliveriesService } from '@/services/deliveries.service'
-import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
-  product_inventory_id: z.coerce.number().min(0, 'Inventory item required'),
   delivery_detail_id: z.coerce.number().optional(),
+  product_uom_id: z.coerce.number().min(0, 'Product required'),
+  planned_expiry_date: z.string().optional(),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   price: z.coerce.number().min(0, 'Price required'),
-  status: z.enum(['pending', 'final']),
+  status: z.enum(['pending', 'success', 'failed']),
   description: z.string().optional(),
   client_ref: z.string().optional(),
 })
@@ -63,8 +64,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       description: '',
       details: [
         {
-          product_inventory_id: 0,
           delivery_detail_id: undefined,
+          product_uom_id: 0,
+          planned_expiry_date: '',
           qty: 1,
           price: 0,
           status: 'pending',
@@ -92,24 +94,24 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   })
   const deliveries = (deliveriesData as any)?.data ?? []
 
-  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
-    queryKey: ['product-inventories-all'],
+  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+    queryKey: ['product-uoms-all'],
     queryFn: () =>
-      productInventoriesService
-        .list({ per_page: 50, include: 'branch' } as any)
+      productUomsService
+        .list({ per_page: 200, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
-  const inventories = (inventoriesData as any)?.data ?? []
+  const productUoms = (productUomsData as any)?.data ?? []
 
   const deliveryOptions = deliveries.map((d: any) => ({
     value: d.id as number,
     label: d.code ?? `DEL-${d.id}`,
     sublabel: 'Rp ' + (d.total_price ?? 0).toLocaleString('id-ID'),
   }))
-  const inventoryOptions = inventories.map((inv: any) => ({
-    value: inv.id as number,
-    label: inv.product_uom?.product?.name ?? inv.code ?? `Inv #${inv.id}`,
-    sublabel: inv.code as string | undefined,
+  const productUomOptions = productUoms.map((pu: any) => ({
+    value: pu.id as number,
+    label: (pu.product?.name as string) ?? '',
+    sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
   }))
 
   useEffect(() => {
@@ -118,9 +120,26 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     }
   }, [initialData, mode])
 
+  const buildPayload = (values: FormValues) => ({
+    ...values,
+    total_price: totalPrice,
+    details: values.details
+      .filter((d) => Number(d.product_uom_id) > 0)
+      .map((d) => ({
+        delivery_detail_id: d.delivery_detail_id || undefined,
+        product_uom_id: d.product_uom_id,
+        planned_expiry_date: d.planned_expiry_date || undefined,
+        qty: d.qty,
+        price: d.price,
+        status: d.status,
+        description: d.description || undefined,
+        client_ref: d.client_ref || undefined,
+      })),
+  })
+
   const createMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      receiptsService.create({ ...values, total_price: totalPrice } as any),
+      receiptsService.create(buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
       toast.success('Receipt created')
@@ -134,7 +153,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const updateMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      receiptsService.update(receiptId!, { ...values, total_price: totalPrice } as any),
+      receiptsService.update(receiptId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
       queryClient.invalidateQueries({ queryKey: ['receipt-detail', receiptId] })
@@ -438,8 +457,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               type="button"
               onClick={() =>
                 append({
-                  product_inventory_id: 0,
                   delivery_detail_id: undefined,
+                  product_uom_id: 0,
+                  planned_expiry_date: '',
                   qty: 1,
                   price: 0,
                   status: 'pending',
@@ -469,14 +489,14 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 90px 120px 100px 120px 1fr 40px',
+              gridTemplateColumns: '2fr 100px 120px 110px 120px 100px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
           >
-            {['Inventory', 'Qty', 'Price', 'Status', 'Client Ref', 'Notes', ''].map((h, i) => (
+            {['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Client Ref', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -497,7 +517,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 90px 120px 100px 120px 1fr 40px',
+                gridTemplateColumns: '2fr 100px 120px 110px 120px 100px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -506,18 +526,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <Controller
-                  name={`details.${index}.product_inventory_id`}
+                  name={`details.${index}.product_uom_id`}
                   control={control}
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
                       onChange={f.onChange}
-                      options={inventoryOptions}
-                      placeholder="Select inventory..."
-                      searchPlaceholder="Search inventory..."
-                      loading={inventoriesLoading}
+                      options={productUomOptions}
+                      placeholder="Select product..."
+                      searchPlaceholder="Search products..."
+                      loading={productUomsLoading}
                       error={
-                        errors.details?.[index]?.product_inventory_id?.message as
+                        errors.details?.[index]?.product_uom_id?.message as
                           | string
                           | undefined
                       }
@@ -552,9 +572,16 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     style={{ ...lineInputStyle, cursor: 'pointer' }}
                   >
                     <option value="pending">Pending</option>
-                    <option value="final">Final</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
                   </select>
                 )}
+              />
+
+              <input
+                type="date"
+                {...register(`details.${index}.planned_expiry_date`)}
+                style={lineInputStyle}
               />
 
               <input

@@ -19,7 +19,8 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
     queryFn: () =>
       deliveriesService
         .findById(id, {
-          include: 'branch,target_branch,purchase_order,delivery_details',
+          include:
+            'branch,target_branch,purchase_order,sales_order,delivery_details.product_uom',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -33,27 +34,33 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
   const initialData = delivery
     ? {
         code: delivery.code,
+        source_type: delivery.source_type ?? 'po_from_supplier',
         target_branch_id: delivery.target_branch?.id ?? delivery.target_branch_id ?? 0,
         purchase_order_id:
           delivery.purchase_order?.id ?? delivery.purchase_order_id ?? undefined,
+        sales_order_id:
+          delivery.sales_order?.id ?? delivery.sales_order_id ?? undefined,
         date: delivery.date,
         status: delivery.status,
         description: delivery.description ?? '',
         details: rawDetails.length
           ? rawDetails.map((d: any) => ({
-              product_inventory_id:
-                d.product_inventory?.id ?? d.product_inventory_id ?? 0,
+              product_uom_id:
+                d.product_uom_id ?? d.product_uom?.id ?? 0,
               purchase_order_detail_id:
-                d.purchase_order_detail?.id ?? d.purchase_order_detail_id ?? undefined,
-              qty: d.qty,
-              price: d.price,
-              status: d.status,
+                d.purchase_order_detail_id ?? undefined,
+              sales_order_detail_id:
+                d.sales_order_detail_id ?? undefined,
+              qty: d.qty ?? 1,
+              price: d.price ?? 0,
+              status: d.status ?? 'pending',
               description: d.description ?? '',
             }))
           : [
               {
-                product_inventory_id: 0,
+                product_uom_id: 0,
                 purchase_order_detail_id: undefined,
+                sales_order_detail_id: undefined,
                 qty: 1,
                 price: 0,
                 status: 'pending',

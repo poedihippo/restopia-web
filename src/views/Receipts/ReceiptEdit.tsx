@@ -18,7 +18,9 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
     queryKey: ['receipt-detail', id],
     queryFn: () =>
       receiptsService
-        .findById(id, { include: 'branch,delivery,receipt_details' })
+        .findById(id, {
+          include: 'branch,delivery,receipt_details.product_uom',
+        })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
   })
@@ -37,20 +39,23 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
         description: receipt.description ?? '',
         details: rawDetails.length
           ? rawDetails.map((d: any) => ({
-              product_inventory_id:
-                d.product_inventory?.id ?? d.product_inventory_id ?? 0,
-              delivery_detail_id:
-                d.delivery_detail?.id ?? d.delivery_detail_id ?? undefined,
-              qty: d.qty,
-              price: d.price,
-              status: d.status,
+              delivery_detail_id: d.delivery_detail_id ?? undefined,
+              product_uom_id:
+                d.product_uom_id ?? d.product_uom?.id ?? 0,
+              planned_expiry_date: d.planned_expiry_date
+                ? d.planned_expiry_date.split('T')[0]
+                : '',
+              qty: d.qty ?? 1,
+              price: d.price ?? 0,
+              status: d.status ?? 'pending',
               description: d.description ?? '',
               client_ref: d.client_ref ?? '',
             }))
           : [
               {
-                product_inventory_id: 0,
                 delivery_detail_id: undefined,
+                product_uom_id: 0,
+                planned_expiry_date: '',
                 qty: 1,
                 price: 0,
                 status: 'pending',

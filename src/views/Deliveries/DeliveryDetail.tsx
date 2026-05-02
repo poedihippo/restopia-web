@@ -37,10 +37,16 @@ interface DeliveryFull {
     id: number
     qty: number
     price: number
-    status: 'pending' | 'final'
+    status: 'pending' | 'packaging' | 'packed'
     description?: string
-    product_inventory?: { id: number; code?: string }
+    product_uom?: {
+      id: number
+      code?: string
+      product?: { id: number; name: string }
+      uom?: { id: number; name: string; code: string }
+    }
     purchase_order_detail_id?: number
+    sales_order_detail_id?: number
   }>
 }
 
@@ -52,6 +58,16 @@ const STATUS_META = {
   },
   final: {
     label: 'Final',
+    color: 'var(--success)',
+    bg: 'var(--success-bg)',
+  },
+  packaging: {
+    label: 'Packaging',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  packed: {
+    label: 'Packed',
     color: 'var(--success)',
     bg: 'var(--success-bg)',
   },
@@ -68,7 +84,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,purchase_order,created_by,delivery_details',
+            'branch,target_branch,purchase_order,sales_order,created_by,' +
+            'delivery_details.product_uom.product,delivery_details.product_uom.uom',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -476,7 +493,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           <thead>
             <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
               <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>Inventory Code</th>
+              <th style={thStyle}>Product</th>
+              <th style={{ ...thStyle, width: 100 }}>UOM</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
               <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
               <th style={{ ...thStyle, width: 140 }}>Subtotal</th>
@@ -493,9 +511,12 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {index + 1}
                   </td>
+                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                    {detail.product_uom?.product?.name ?? '—'}
+                  </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={pillStyle}>
-                      {detail.product_inventory?.code ?? 'INV-' + (detail.product_inventory?.id ?? '')}
+                      {detail.product_uom?.uom?.name ?? detail.product_uom?.code ?? '—'}
                     </span>
                   </td>
                   <td
@@ -546,7 +567,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
 
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
               <td
-                colSpan={4}
+                colSpan={5}
                 style={{
                   padding: '14px 16px',
                   textAlign: 'right',

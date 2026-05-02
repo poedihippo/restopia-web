@@ -36,11 +36,17 @@ interface ReceiptFull {
     id: number
     qty: number
     price: number
-    status: 'pending' | 'final'
+    status: 'pending' | 'success' | 'failed'
     description?: string
     client_ref?: string
-    product_inventory?: { id: number; code?: string }
-    product_inventory_id?: number
+    planned_expiry_date?: string
+    product_uom?: {
+      id: number
+      code?: string
+      product?: { id: number; name: string }
+      uom?: { id: number; name: string; code: string }
+    }
+    product_uom_id?: number
     delivery_detail_id?: number
   }>
 }
@@ -56,6 +62,16 @@ const STATUS_META = {
     color: 'var(--success)',
     bg: 'var(--success-bg)',
   },
+  success: {
+    label: 'Success',
+    color: 'var(--success)',
+    bg: 'var(--success-bg)',
+  },
+  failed: {
+    label: 'Failed',
+    color: 'var(--destructive)',
+    bg: 'var(--destructive-bg)',
+  },
 }
 
 export default function ReceiptDetail({ id }: ReceiptDetailProps) {
@@ -68,7 +84,9 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
     queryFn: () =>
       receiptsService
         .findById(id, {
-          include: 'branch,delivery,created_by,receipt_details',
+          include:
+            'branch,delivery,created_by,' +
+            'receipt_details.product_uom.product,receipt_details.product_uom.uom',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -463,7 +481,8 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
           <thead>
             <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
               <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>Inventory Code</th>
+              <th style={thStyle}>Product</th>
+              <th style={{ ...thStyle, width: 130 }}>Planned Expiry</th>
               <th style={{ ...thStyle, width: 130 }}>Client Ref</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
               <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
@@ -481,11 +500,23 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {index + 1}
                   </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={pillStyle}>
-                      {detail.product_inventory?.code ??
-                        `INV-${detail.product_inventory?.id ?? detail.product_inventory_id ?? '?'}`}
-                    </span>
+                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                    {detail.product_uom?.product?.name ?? '—'}
+                  </td>
+                  <td
+                    style={{
+                      padding: '12px 16px',
+                      fontSize: 12,
+                      color: 'var(--foreground-muted)',
+                    }}
+                  >
+                    {detail.planned_expiry_date
+                      ? new Date(detail.planned_expiry_date).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : '—'}
                   </td>
                   <td
                     style={{
@@ -545,7 +576,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
 
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
               <td
-                colSpan={5}
+                colSpan={6}
                 style={{
                   padding: '14px 16px',
                   textAlign: 'right',

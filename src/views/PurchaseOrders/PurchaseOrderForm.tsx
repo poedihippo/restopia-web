@@ -11,7 +11,7 @@ import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
-import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import {
   Plus,
   Trash2,
@@ -23,7 +23,7 @@ import {
 import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
-  product_inventory_id: z.coerce.number().min(1, 'Product is required'),
+  product_uom_id: z.coerce.number().min(0, 'Product required'),
   qty: z.coerce.number().min(0.01, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
   description: z.string().optional(),
@@ -68,7 +68,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
-      details: [{ product_inventory_id: 0, qty: 1, price: 0, description: '' }],
+      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
     },
   })
 
@@ -92,14 +92,14 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
   const branches = (branchesData as any)?.data ?? []
 
-  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
-    queryKey: ['product-inventories-all'],
+  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+    queryKey: ['product-uoms-all'],
     queryFn: () =>
-      productInventoriesService
-        .list({ per_page: 50, include: 'product_uom.product,product_uom.uom,branch' })
+      productUomsService
+        .list({ per_page: 200, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
-  const inventories = (inventoriesData as any)?.data ?? []
+  const productUoms = (productUomsData as any)?.data ?? []
 
   const supplierOptions = suppliers.map((s: any) => ({
     value: s.id as number,
@@ -111,10 +111,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     label: (b.name as string) ?? `Branch #${b.id}`,
     sublabel: b.code as string | undefined,
   }))
-  const inventoryOptions = inventories.map((inv: any) => ({
-    value: inv.id as number,
-    label: inv.product_uom?.product?.name ?? inv.code ?? `Inv #${inv.id}`,
-    sublabel: inv.code as string | undefined,
+  const productUomOptions = productUoms.map((pu: any) => ({
+    value: pu.id as number,
+    label: (pu.product?.name as string) ?? '',
+    sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
   }))
 
   useEffect(() => {
@@ -123,9 +123,22 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     }
   }, [initialData, mode])
 
+  const buildPayload = (values: FormValues) => ({
+    ...values,
+    total_price: totalPrice,
+    details: values.details
+      .filter((d) => Number(d.product_uom_id) > 0)
+      .map((d) => ({
+        product_uom_id: d.product_uom_id,
+        qty: d.qty,
+        price: d.price,
+        description: d.description || undefined,
+      })),
+  })
+
   const createMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      purchaseOrdersService.create({ ...values, total_price: totalPrice } as any),
+      purchaseOrdersService.create(buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success('Purchase order created')
@@ -137,7 +150,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   const updateMutation = useMutation({
     mutationFn: (values: FormValues) =>
-      purchaseOrdersService.update(orderId!, { ...values, total_price: totalPrice } as any),
+      purchaseOrdersService.update(orderId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-order-detail', orderId] })
@@ -468,7 +481,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             <button
               type="button"
               onClick={() =>
-                append({ product_inventory_id: 0, qty: 1, price: 0, description: '' })
+                append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
               }
               style={{
                 display: 'flex',
@@ -529,21 +542,21 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 alignItems: 'start',
               }}
             >
-              {/* Product Inventory */}
+              {/* Product UOM */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <Controller
-                  name={`details.${index}.product_inventory_id`}
+                  name={`details.${index}.product_uom_id`}
                   control={control}
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
                       onChange={f.onChange}
-                      options={inventoryOptions}
+                      options={productUomOptions}
                       placeholder="Select product..."
-                      searchPlaceholder="Search inventory..."
-                      loading={inventoriesLoading}
+                      searchPlaceholder="Search products..."
+                      loading={productUomsLoading}
                       error={
-                        errors.details?.[index]?.product_inventory_id?.message as
+                        errors.details?.[index]?.product_uom_id?.message as
                           | string
                           | undefined
                       }

@@ -14,6 +14,7 @@ interface SalesOrder {
   type: string
   status?: string
   settlement_status?: 'pending' | 'credit' | 'settled' | 'cancelled'
+  payment_status?: string
   date?: string
   fulfillment_date?: string
   total_price?: number

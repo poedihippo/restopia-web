@@ -8,6 +8,8 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { customersService as customerService } from '@/services/customers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { bundlesService as bundleService } from '@/services/bundles.service'
+import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { branchesService } from '@/services/branches.service'
 import api from '@/hooks/useApi'
 
 const generateKey = () =>
@@ -59,6 +61,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const [showCustomerDrop, setShowCustomerDrop] = useState(false)
   const [customerName, setCustomerName] = useState(editingOrder?.customer_name ?? '')
   const [customerPhone, setCustomerPhone] = useState(editingOrder?.customer_phone ?? '')
+
+  // ── Inter-branch / PO reference state ──────────────────────────────────────
+  const [purchaseOrderId, setPurchaseOrderId] = useState<number | undefined>(
+    editingOrder?.purchase_order_id ?? undefined,
+  )
+  const [buyerBranchId, setBuyerBranchId] = useState<number | undefined>(
+    editingOrder?.buyer_branch_id ?? undefined,
+  )
 
   // ── Line items state ───────────────────────────────────────────────────────
   const [items, setItems] = useState<LineItem[]>(() => {
@@ -125,6 +135,19 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         .then((r) => r.data),
   })
   const products = (productData as any)?.data ?? []
+
+  const { data: purchaseOrdersData } = useQuery({
+    queryKey: ['so-purchase-orders'],
+    queryFn: () =>
+      purchaseOrdersService.list({ per_page: 50, sort: '-created_at' } as any).then((r) => r.data),
+  })
+  const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
+
+  const { data: branchesData } = useQuery({
+    queryKey: ['so-branches'],
+    queryFn: () => branchesService.list({ per_page: 100 } as any).then((r) => r.data),
+  })
+  const branches = (branchesData as any)?.data ?? []
 
   const { data: bundleData } = useQuery({
     queryKey: ['so-bundles', productSearchDebounced],
@@ -222,6 +245,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         customer_name: customerId ? undefined : customerName || undefined,
         customer_phone: customerId ? undefined : customerPhone || undefined,
         voucher_id: voucherId,
+        purchase_order_id: purchaseOrderId || undefined,
+        buyer_branch_id: buyerBranchId || undefined,
         subtotal_price: subtotal,
         discount_price: discountPrice,
         total_price: total,
@@ -565,6 +590,60 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Section 2b: Inter-branch / PO Reference ── */}
+      <div style={sectionStyle}>
+        <h2
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 16,
+            fontWeight: 700,
+            marginBottom: 20,
+            color: 'var(--foreground)',
+          }}
+        >
+          Inter-branch / PO Reference (Optional)
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div>
+            <label style={labelStyle}>Linked Purchase Order</label>
+            <select
+              value={purchaseOrderId ?? 0}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setPurchaseOrderId(v > 0 ? v : undefined)
+              }}
+              style={fieldStyle}
+            >
+              <option value={0}>No linked PO</option>
+              {purchaseOrders.map((po: any) => (
+                <option key={po.id} value={po.id}>
+                  {po.code ?? `PO-${po.id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Buyer Branch (if inter-branch)</label>
+            <select
+              value={buyerBranchId ?? 0}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setBuyerBranchId(v > 0 ? v : undefined)
+              }}
+              style={fieldStyle}
+            >
+              <option value={0}>No buyer branch</option>
+              {branches.map((b: any) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                  {b.code ? ` (${b.code})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* ── Section 3: Line Items ── */}

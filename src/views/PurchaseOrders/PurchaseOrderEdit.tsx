@@ -21,9 +21,8 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
         .findById(id, {
           include:
             'branch,supplier,created_by,updated_by,' +
-            'purchase_order_details.product_inventory.product_uom.product,' +
-            'purchase_order_details.product_inventory.product_uom.uom,' +
-            'purchase_order_details.product_inventory.branch',
+            'purchase_order_details.product_uom.product,' +
+            'purchase_order_details.product_uom.uom',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -44,13 +43,13 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
         description: order.description ?? '',
         details: rawDetails.length
           ? rawDetails.map((d: any) => ({
-              product_inventory_id:
-                d.product_inventory?.id ?? d.product_inventory_id ?? 0,
+              product_uom_id:
+                d.product_uom_id ?? d.product_uom?.id ?? 0,
               qty: d.qty ?? 1,
               price: d.price ?? 0,
               description: d.description ?? '',
             }))
-          : [{ product_inventory_id: 0, qty: 1, price: 0, description: '' }],
+          : [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
       }
     : undefined
 
