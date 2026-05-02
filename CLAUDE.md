@@ -17,6 +17,7 @@ Last updated: May 2026
 - Deliveries (create/edit/detail + status toggle)
 - Receipts (create/edit/detail + status toggle)
 - Stock Transfer (inter-branch: Transfer Out + Transfer In)
+- Requested Orders (incoming POs filtered by supplier_branch_id, with Fulfill flow → po_from_branch delivery)
 - Customers, Sales Orders (create/edit/detail + payments)
 - Vouchers (create/edit/detail + status toggle)
 - Bundles, Payments
@@ -25,22 +26,16 @@ Last updated: May 2026
 - Permission-based menu + CRUD button gating
 
 ### In Progress (being built now)
-1. [FRONTEND] Requested PO view
-   - Branch B sees incoming POs where supplier_branch_id = my branch
-   - Filter: GET /v1/purchase-orders?filter[supplier_branch_id]={my_branch_id}
-   - Actions: view detail, create delivery (po_from_branch) from PO
-   - Location: /purchase/requested-orders
-
-2. [FRONTEND] Excel export buttons
+1. [FRONTEND] Excel export buttons
    - Sales Orders: GET /v1/sales-orders/exports/excel/all
    - Product Inventories: GET /v1/product-inventories/exports/excel/all
    - Add export button to list pages
 
-3. [FRONTEND] Voucher preview on SO create
+2. [FRONTEND] Voucher preview on SO create
    - POST /v1/sales-orders/apply-voucher
    - Show calculated discount before saving
 
-4. [FRONTEND] Audit logs page
+3. [FRONTEND] Audit logs page
    - GET /v1/audit-logs
    - Admin-only view of all system changes
 

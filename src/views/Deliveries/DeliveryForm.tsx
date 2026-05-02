@@ -49,10 +49,20 @@ interface DeliveryFormProps {
   mode: 'create' | 'edit'
   initialData?: any
   deliveryId?: number
+  prefill?: {
+    source_type?:
+      | 'po_from_supplier'
+      | 'po_from_branch'
+      | 'transfer_to_branch'
+      | 'so_to_branch'
+    purchase_order_id?: number
+    sales_order_id?: number
+    target_branch_id?: number
+  }
 }
 
 export default function DeliveryForm(props: DeliveryFormProps) {
-  const { mode, initialData, deliveryId } = props
+  const { mode, initialData, deliveryId, prefill } = props
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -67,10 +77,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     resolver: zodResolver(schema) as any,
     defaultValues: {
       code: '',
-      source_type: 'po_from_supplier',
-      target_branch_id: 0,
-      purchase_order_id: undefined,
-      sales_order_id: undefined,
+      source_type: prefill?.source_type ?? 'po_from_supplier',
+      target_branch_id: prefill?.target_branch_id ?? 0,
+      purchase_order_id: prefill?.purchase_order_id ?? undefined,
+      sales_order_id: prefill?.sales_order_id ?? undefined,
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
