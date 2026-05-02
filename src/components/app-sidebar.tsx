@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Wallet,
   CreditCard,
+  UserCheck,
 } from 'lucide-react';
 
 type NavChild = {
@@ -141,6 +142,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.read' },
       { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard },
+      { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.read' },
     ],
   },
 ];
