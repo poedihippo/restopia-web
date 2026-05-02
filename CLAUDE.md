@@ -4,6 +4,106 @@
 Multi-branch bakery management platform. Covers POS, production,
 inventory, procurement, sales, and transfers.
 
+## Current Build Status
+Last updated: May 2026
+
+### Completed Modules (New UI — fully rebuilt)
+- Dashboard (real data from /v1/dashboard/metrics + /v1/dashboard/insights)
+- POS (full transaction flow with payment)
+- Products, Product Categories, UOMs, Product UOMs
+- Product Conversions, Product Inventories, Stock Movements
+- Recipes, Productions (create/edit/detail with materials)
+- Suppliers, Purchase Orders (create/edit/detail)
+- Deliveries (create/edit/detail + status toggle)
+- Receipts (create/edit/detail + status toggle)
+- Stock Transfer (inter-branch: Transfer Out + Transfer In)
+- Customers, Sales Orders (create/edit/detail + payments)
+- Vouchers (create/edit/detail + status toggle)
+- Bundles, Payments
+- Users, Roles, Branches, Companies
+- Payment Methods, Employees
+- Permission-based menu + CRUD button gating
+
+### In Progress (being built now)
+1. [FRONTEND] Requested PO view
+   - Branch B sees incoming POs where supplier_branch_id = my branch
+   - Filter: GET /v1/purchase-orders?filter[supplier_branch_id]={my_branch_id}
+   - Actions: view detail, create delivery (po_from_branch) from PO
+   - Location: /purchase/requested-orders
+
+2. [FRONTEND] Excel export buttons
+   - Sales Orders: GET /v1/sales-orders/exports/excel/all
+   - Product Inventories: GET /v1/product-inventories/exports/excel/all
+   - Add export button to list pages
+
+3. [FRONTEND] Voucher preview on SO create
+   - POST /v1/sales-orders/apply-voucher
+   - Show calculated discount before saving
+
+4. [FRONTEND] Audit logs page
+   - GET /v1/audit-logs
+   - Admin-only view of all system changes
+
+### Pending Backend Work
+- [BACKEND] Inter-branch PO accept/reject endpoints
+- [BACKEND] Add buyer_branch_id to SalesOrderAllowedFilters
+- [BACKEND] Credit ledger/transaction history table
+- [BACKEND] Move payment_method_id=1 (Credit) from hard-coded to config
+- [BACKEND] XOR validation on PO supplier_id vs supplier_branch_id
+
+### Known Issues / Tech Debt
+- Legacy old UI files still exist in MIXED folders
+  (Product, ProductCategories, etc.) — unused but not deleted
+- Production detail include string may cause 500 on deep nesting
+- No filter[search] on /v1/recipes (removed from UI)
+- payment_method_id = 1 is hard-coded as "Credit" in backend
+
+### API Notes (from backend audit)
+- fulfillment_date is REQUIRED on SalesOrder (not optional)
+- client_ref is REQUIRED on ReceiptDetail rows
+- filter[source_type] and filter[target_branch_id] work on deliveries
+- filter[supplier_branch_id] works on purchase-orders
+- POST /v1/product-inventories does NOT exist (inventories created by receipts)
+- POST /v1/sales-orders requires Idempotency-Key header
+- payment_method_id = 1 is hard-coded as "Credit" payment method
+- POST /v1/sales-orders/apply-voucher exists (undocumented) for voucher preview
+- GET /v1/audit-logs exists (undocumented)
+- GET /v1/sales-orders/exports/excel/all exists
+- GET /v1/product-inventories/exports/excel/all exists
+
+## Services
+All API services live in `src/services/`, one file per resource.
+Current files:
+
+- auth.service.ts
+- branches.service.ts
+- bundles.service.ts
+- companies.service.ts
+- customers.service.ts
+- dashboard.service.ts
+- deliveries.service.ts
+- enums.service.ts
+- media.service.ts
+- payment-methods.service.ts
+- payments.service.ts
+- permissions.service.ts
+- product-categories.service.ts
+- product-conversions.service.ts
+- product-inventories.service.ts
+- product-uoms.service.ts
+- productions.service.ts
+- products.service.ts
+- purchase-orders.service.ts
+- receipts.service.ts
+- recipes.service.ts
+- roles.service.ts
+- sales-orders.service.ts
+- stock-movements.service.ts
+- suppliers.service.ts
+- uoms.service.ts
+- users.service.ts
+- vouchers.service.ts
+
 ## Stack
 - Next.js 16 (Pages Router) + React 19 + TypeScript 5
 - Tailwind CSS v4 + inline CSS variables (NO Tailwind utility
