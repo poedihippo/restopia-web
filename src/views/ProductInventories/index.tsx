@@ -18,6 +18,8 @@ import {
   AlertTriangle,
   Eye,
   X,
+  Download,
+  Loader2,
 } from 'lucide-react'
 
 interface ProductInventory {
@@ -58,6 +60,7 @@ export default function ProductInventoriesView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -65,6 +68,34 @@ export default function ProductInventoriesView() {
     }, 400)
     return () => clearTimeout(timer)
   }, [search])
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true)
+      const response = await productInventoriesService.exportExcel({
+        'filter[search]': debouncedSearch || undefined,
+      })
+
+      const blob = new Blob([response.data], {
+        type:
+          'application/vnd.openxmlformats-' +
+          'officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `product-inventories-${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      toast.success('Export downloaded successfully')
+    } catch (err) {
+      toast.error('Failed to export')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   useEffect(() => {
     setPage(1)
@@ -149,30 +180,61 @@ export default function ProductInventoriesView() {
           </p>
         </div>
 
-        {canCreate && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
+            type="button"
+            onClick={handleExport}
+            disabled={isExporting}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
+              padding: '7px 14px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: 'pointer',
+              color: 'var(--foreground)',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.7 : 1,
             }}
           >
-            <Plus size={15} />
-            New Item
+            {isExporting ? (
+              <Loader2
+                size={14}
+                style={{ animation: 'spin 1s linear infinite' }}
+              />
+            ) : (
+              <Download size={14} />
+            )}
+            <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
           </button>
-        )}
+          {canCreate && (
+            <button
+              onClick={() => {
+                setEditData(null)
+                setSheetOpen(true)
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={15} />
+              New Item
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -901,6 +963,10 @@ export default function ProductInventoriesView() {
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

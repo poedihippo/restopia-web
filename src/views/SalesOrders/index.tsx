@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
+import { Download, Loader2 } from 'lucide-react'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
@@ -57,11 +58,44 @@ export default function SalesOrdersView() {
   const [dateGte, setDateGte] = useState('')
   const [dateLte, setDateLte] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search), 400)
     return () => clearTimeout(t)
   }, [search])
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true)
+      const response = await salesOrderService.exportExcel({
+        'filter[search]': searchDebounced || undefined,
+        'filter[status]': statusFilter || undefined,
+        'filter[type]': typeFilter || undefined,
+        'filter[settlement_status]': settlementFilter || undefined,
+        'filter[payment_status]': paymentStatusFilter || undefined,
+      })
+
+      const blob = new Blob([response.data], {
+        type:
+          'application/vnd.openxmlformats-' +
+          'officedocument.spreadsheetml.sheet',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `sales-orders-${new Date().toISOString().split('T')[0]}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      toast.success('Export downloaded successfully')
+    } catch (err) {
+      toast.error('Failed to export')
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: [
@@ -158,25 +192,56 @@ export default function SalesOrdersView() {
             All offline and online orders
           </p>
         </div>
-        {canCreate && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             type="button"
-            onClick={() => router.push('/sales/sales-orders/create')}
+            onClick={handleExport}
+            disabled={isExporting}
             style={{
-              height: 40,
-              padding: '0 20px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 14px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--foreground)',
+              cursor: isExporting ? 'not-allowed' : 'pointer',
+              opacity: isExporting ? 0.7 : 1,
             }}
           >
-            + New Order
+            {isExporting ? (
+              <Loader2
+                size={14}
+                style={{ animation: 'spin 1s linear infinite' }}
+              />
+            ) : (
+              <Download size={14} />
+            )}
+            <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
           </button>
-        )}
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => router.push('/sales/sales-orders/create')}
+              style={{
+                height: 40,
+                padding: '0 20px',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              + New Order
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters toolbar */}
@@ -706,6 +771,13 @@ export default function SalesOrdersView() {
           </div>
         </div>
       )}
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }

@@ -16,4 +16,13 @@ export const productInventoriesService = {
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/product-inventories/${id}`),
+
+  exportExcel: (params?: {
+    'filter[search]'?: string
+    'filter[branch_id]'?: number
+  }) =>
+    api.get('/product-inventories/exports/excel/all', {
+      params,
+      responseType: 'blob',
+    }),
 }

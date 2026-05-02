@@ -19,4 +19,16 @@ export const salesOrdersService = {
 
   bulkUpdateSettlement: (data: any) =>
     api.post<ApiResponse<unknown>>('/sales-orders/bulk-update-settlement-status', data),
+
+  exportExcel: (params?: {
+    'filter[search]'?: string
+    'filter[status]'?: string
+    'filter[type]'?: string
+    'filter[settlement_status]'?: string
+    'filter[payment_status]'?: string
+  }) =>
+    api.get('/sales-orders/exports/excel/all', {
+      params,
+      responseType: 'blob',
+    }),
 }
