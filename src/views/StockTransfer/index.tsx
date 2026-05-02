@@ -40,7 +40,7 @@ export default function StockTransferView() {
 
   // ── Outgoing transfers ──────────────────────────────────────────────────
   const { data: outData, isLoading: outLoading } = useQuery({
-    queryKey: ['deliveries-transfer-out', page],
+    queryKey: ['deliveries-transfer-out', page, myBranchId],
     enabled: activeTab === 'out',
     queryFn: () =>
       deliveriesService
@@ -50,6 +50,7 @@ export default function StockTransferView() {
           include: 'target_branch,delivery_details',
           sort: '-created_at',
           'filter[source_type]': 'transfer_to_branch',
+          'filter[branch_id]': myBranchId || undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -68,14 +69,11 @@ export default function StockTransferView() {
           include: 'branch,delivery_details',
           sort: '-created_at',
           'filter[source_type]': 'transfer_to_branch',
+          'filter[target_branch_id]': myBranchId || undefined,
         } as any)
         .then((r) => r.data),
   })
-  const inItemsAll: any[] = (inData as any)?.data ?? []
-  const inItems = inItemsAll.filter(
-    (d: any) =>
-      d.target_branch_id === myBranchId || d.target_branch?.id === myBranchId,
-  )
+  const inItems: any[] = (inData as any)?.data ?? []
   const inMeta = (inData as any)?.meta
 
   // ── Shared styles ───────────────────────────────────────────────────────

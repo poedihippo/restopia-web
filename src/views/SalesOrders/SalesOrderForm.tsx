@@ -495,6 +495,16 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 placeholder="Search user..."
                 searchPlaceholder="Search users..."
               />
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--warning)',
+                  display: 'block',
+                  marginTop: 4,
+                }}
+              >
+                ⚠ To apply credit, also record a payment using the &apos;Credit&apos; payment method after saving.
+              </span>
             </div>
           )}
           <div>

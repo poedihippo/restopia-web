@@ -21,7 +21,7 @@ const detailSchema = z.object({
   planned_expiry_date: z.string().optional(),
   status: z.enum(['pending', 'success', 'failed']),
   description: z.string().optional(),
-  client_ref: z.string().optional(),
+  client_ref: z.string().min(1, 'Client ref required'),
 })
 
 const schema = z.object({
@@ -107,7 +107,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
 
   useEffect(() => {
     if (!delivery) return
-    const lines = (delivery.delivery_details ?? []).map((d: any) => ({
+    const lines = (delivery.delivery_details ?? []).map((d: any, index: number) => ({
       delivery_detail_id: d.id,
       product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
       qty: d.qty ?? 1,
@@ -115,7 +115,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
       planned_expiry_date: '',
       status: 'success' as const,
       description: '',
-      client_ref: '',
+      client_ref: `${delivery.code ?? `DEL-${id}`}-${index + 1}`,
     }))
     reset({
       code: `RCP-${delivery.code ?? id}`,
@@ -611,7 +611,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
               style={{
                 display: 'grid',
                 gridTemplateColumns:
-                  '2fr 70px 110px 120px 100px 1fr 32px',
+                  '2fr 70px 110px 120px 100px 130px 1fr 32px',
                 gap: 8,
                 padding: '10px 16px',
                 borderBottom: '1px solid var(--border)',
@@ -627,6 +627,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
               <span>Price</span>
               <span>Planned Expiry</span>
               <span>Status</span>
+              <span>Client Ref *</span>
               <span>Notes</span>
               <span />
             </div>
@@ -650,7 +651,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                 style={{
                   display: 'grid',
                   gridTemplateColumns:
-                    '2fr 70px 110px 120px 100px 1fr 32px',
+                    '2fr 70px 110px 120px 100px 130px 1fr 32px',
                   gap: 8,
                   padding: '10px 16px',
                   borderBottom: '1px solid var(--border)',
@@ -710,6 +711,22 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                     </select>
                   )}
                 />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <input
+                    {...register(`details.${index}.client_ref`)}
+                    placeholder="e.g. DEL-001-1"
+                    style={
+                      errors.details?.[index]?.client_ref
+                        ? { ...inputStyle, border: '1px solid var(--destructive)' }
+                        : inputStyle
+                    }
+                  />
+                  {errors.details?.[index]?.client_ref && (
+                    <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
+                      {errors.details[index]!.client_ref!.message}
+                    </span>
+                  )}
+                </div>
                 <input
                   {...register(`details.${index}.description`)}
                   placeholder="Note"

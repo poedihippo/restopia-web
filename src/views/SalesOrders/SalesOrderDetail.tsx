@@ -482,6 +482,27 @@ export default function SalesOrderDetail() {
           </div>
         </div>
 
+        {order?.settlement_status === 'credit' && order?.credit_by_id && (
+          <div
+            style={{
+              background: 'var(--warning-bg)',
+              border: '1px solid var(--warning)',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 14px',
+              marginBottom: 12,
+              fontSize: 12,
+              color: 'var(--warning)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span>
+              ⚠ This order uses credit for {order.credit_by?.name ?? 'a user'}. To deduct from their credit balance, record a payment using the &apos;Credit&apos; method.
+            </span>
+          </div>
+        )}
+
         {showPaymentForm && (
           <div
             style={{

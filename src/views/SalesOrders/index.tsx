@@ -30,6 +30,12 @@ const SETTLEMENT_META = {
   cancelled: { label: 'Cancelled', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
 }
 
+const PAYMENT_STATUS_META = {
+  pending: { label: 'Unpaid', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  partial: { label: 'Partial', color: 'var(--info)', bg: 'var(--info-bg)' },
+  paid: { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' },
+}
+
 export default function SalesOrdersView() {
   const router = useRouter()
   const qc = useQueryClient()
@@ -43,6 +49,9 @@ export default function SalesOrdersView() {
   const [statusFilter, setStatusFilter] = useState('')
   const [settlementFilter, setSettlementFilter] = useState<
     '' | 'pending' | 'credit' | 'settled' | 'cancelled'
+  >('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<
+    '' | 'pending' | 'partial' | 'paid'
   >('')
   const [typeFilter, setTypeFilter] = useState('')
   const [dateGte, setDateGte] = useState('')
@@ -61,6 +70,7 @@ export default function SalesOrdersView() {
       searchDebounced,
       statusFilter,
       settlementFilter,
+      paymentStatusFilter,
       typeFilter,
       dateGte,
       dateLte,
@@ -75,6 +85,7 @@ export default function SalesOrdersView() {
           'filter[search]': searchDebounced || undefined,
           'filter[status]': statusFilter || undefined,
           'filter[settlement_status]': settlementFilter || undefined,
+          'filter[payment_status]': paymentStatusFilter || undefined,
           'filter[type]': typeFilter || undefined,
           'filter[date_gte]': dateGte || undefined,
           'filter[date_lte]': dateLte || undefined,
@@ -241,6 +252,29 @@ export default function SalesOrdersView() {
           <option value="cancelled">Cancelled</option>
         </select>
         <select
+          value={paymentStatusFilter}
+          onChange={(e) => {
+            setPaymentStatusFilter(
+              e.target.value as '' | 'pending' | 'partial' | 'paid'
+            )
+            setPage(1)
+          }}
+          style={{
+            height: 36,
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0 10px',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+          }}
+        >
+          <option value="">All Payments</option>
+          <option value="pending">Unpaid</option>
+          <option value="partial">Partial</option>
+          <option value="paid">Paid</option>
+        </select>
+        <select
           value={typeFilter}
           onChange={(e) => {
             setTypeFilter(e.target.value)
@@ -295,13 +329,14 @@ export default function SalesOrdersView() {
             background: 'var(--surface)',
           }}
         />
-        {(search || statusFilter || settlementFilter || typeFilter || dateGte || dateLte) && (
+        {(search || statusFilter || settlementFilter || paymentStatusFilter || typeFilter || dateGte || dateLte) && (
           <button
             type="button"
             onClick={() => {
               setSearch('')
               setStatusFilter('')
               setSettlementFilter('')
+              setPaymentStatusFilter('')
               setTypeFilter('')
               setDateGte('')
               setDateLte('')
@@ -342,6 +377,7 @@ export default function SalesOrdersView() {
               <th style={thStyle}>Fulfillment</th>
               <th style={thStyle}>Total</th>
               <th style={thStyle}>Status</th>
+              <th style={{ ...thStyle, width: 90 }}>Payment</th>
               <th style={{ ...thStyle, width: 120 }}>Settlement</th>
               <th style={{ ...thStyle, width: 120 }}>Actions</th>
             </tr>
@@ -350,7 +386,7 @@ export default function SalesOrdersView() {
             {isLoading &&
               Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 9 }).map((_, j) => (
+                  {Array.from({ length: 10 }).map((_, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -367,7 +403,7 @@ export default function SalesOrdersView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -444,6 +480,29 @@ export default function SalesOrdersView() {
                     >
                       {item.status}
                     </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                    {(() => {
+                      const paymentMeta =
+                        PAYMENT_STATUS_META[
+                          item.payment_status as keyof typeof PAYMENT_STATUS_META
+                        ] ?? PAYMENT_STATUS_META.pending
+                      return (
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            padding: '3px 10px',
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: paymentMeta.bg,
+                            color: paymentMeta.color,
+                          }}
+                        >
+                          {paymentMeta.label}
+                        </span>
+                      )
+                    })()}
                   </td>
                   <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
                     {(() => {

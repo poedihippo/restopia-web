@@ -22,7 +22,7 @@ const detailSchema = z.object({
   price: z.coerce.number().min(0, 'Price required'),
   status: z.enum(['pending', 'success', 'failed']),
   description: z.string().optional(),
-  client_ref: z.string().optional(),
+  client_ref: z.string().min(1, 'Client ref is required'),
 })
 
 const schema = z.object({
@@ -496,7 +496,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               background: 'var(--background)',
             }}
           >
-            {['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Client Ref', 'Notes', ''].map((h, i) => (
+            {['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Client Ref *', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -584,11 +584,22 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 style={lineInputStyle}
               />
 
-              <input
-                {...register(`details.${index}.client_ref`)}
-                placeholder="Ref code"
-                style={lineInputStyle}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <input
+                  {...register(`details.${index}.client_ref`)}
+                  placeholder="e.g. RCP-LINE-001"
+                  style={
+                    errors.details?.[index]?.client_ref
+                      ? { ...lineInputStyle, border: '1px solid var(--destructive)' }
+                      : lineInputStyle
+                  }
+                />
+                {errors.details?.[index]?.client_ref && (
+                  <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
+                    {errors.details[index]!.client_ref!.message}
+                  </span>
+                )}
+              </div>
 
               <input
                 {...register(`details.${index}.description`)}
