@@ -27,6 +27,7 @@ interface User {
   phone?: string
   birth?: string
   gender?: 'male' | 'female'
+  credit?: number
   created_at?: string
   branch?: { id: number; name: string }
   branches?: Array<{ id: number; name: string }>
@@ -102,6 +103,7 @@ export default function UsersView() {
     const fallback = item.branch ? [item.branch.id] : []
     setEditData({
       ...item,
+      credit: item.credit ?? 0,
       branch_ids: branchIds.length > 0 ? branchIds : fallback,
       role_ids: (item.roles ?? []).map((r) => r.id),
     })
@@ -276,6 +278,7 @@ export default function UsersView() {
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 200 }}>Roles</th>
               <th style={{ ...thStyle, width: 140 }}>Phone</th>
+              <th style={{ ...thStyle, width: 120 }}>Credit</th>
               <th style={{ ...thStyle, width: 80 }} />
             </tr>
           </thead>
@@ -283,14 +286,14 @@ export default function UsersView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 6 ? 60 : '75%',
+                          width: j === 7 ? 60 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -300,7 +303,7 @@ export default function UsersView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load users.
                   </span>
@@ -308,7 +311,7 @@ export default function UsersView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -429,6 +432,22 @@ export default function UsersView() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.phone ?? '—'}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color:
+                            item.credit && item.credit > 0
+                              ? 'var(--success)'
+                              : 'var(--foreground-muted)',
+                        }}
+                      >
+                        {item.credit
+                          ? 'Rp ' + item.credit.toLocaleString('id-ID')
+                          : '—'}
                       </span>
                     </td>
                     <td style={tdStyle}>

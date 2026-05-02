@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react'
 import { useRouter } from 'next/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Trash2, Check, User } from 'lucide-react';
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service';
 import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
@@ -51,7 +51,7 @@ export default function SalesOrderDetail() {
       salesOrderService
         .findById(id, {
           include:
-            'branch,customer,created_by,purchase_order,buyer_branch,sales_order_details',
+            'branch,customer,created_by,purchase_order,buyer_branch,credit_by,sales_order_details',
         })
         .then((r) => r.data),
   });
@@ -82,6 +82,8 @@ export default function SalesOrderDetail() {
     () => payments.reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0),
     [payments],
   )
+  const remaining = Number(order?.total_price ?? 0) - totalPaid
+  const isFullyPaid = remaining <= 0 && Number(order?.total_price ?? 0) > 0
 
   const { data: paymentMethodsData } = useQuery({
     queryKey: ['payment-methods-all'],
@@ -110,12 +112,21 @@ export default function SalesOrderDetail() {
       queryClient.invalidateQueries({ queryKey: ['sales-order-payments', id] })
       queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
       toast.success('Payment recorded')
-      setShowPaymentForm(false)
       setPaymentMethodId(0)
       setPaymentAmount(0)
       setPaymentDescription('')
     },
     onError: () => toast.error('Failed to record payment'),
+  })
+
+  const deletePaymentMutation = useMutation({
+    mutationFn: (paymentId: number) => paymentsService.delete(paymentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-order-payments', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
+      toast.success('Payment deleted')
+    },
+    onError: () => toast.error('Failed to delete payment'),
   })
 
   const { mutate: doDelete, isPending: deleting } = useMutation({
@@ -190,7 +201,7 @@ export default function SalesOrderDetail() {
         </button>
       </div>
 
-      {(order?.purchase_order_id || order?.buyer_branch_id) && (
+      {(order?.purchase_order_id || order?.buyer_branch_id || order?.credit_by_id) && (
         <div
           style={{
             ...sectionStyle,
@@ -243,6 +254,55 @@ export default function SalesOrderDetail() {
               </span>
             </div>
           )}
+          {order?.credit_by_id && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 99,
+                  background: 'var(--accent-light-bg)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <User size={14} color="var(--accent-light)" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.6,
+                  }}
+                >
+                  Credit By
+                </span>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  {order.credit_by?.name ?? `User #${order.credit_by_id}`}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--foreground-muted)',
+                  }}
+                >
+                  Limit: Rp{' '}
+                  {Number(order.credit_by?.credit ?? 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -251,42 +311,55 @@ export default function SalesOrderDetail() {
           style={{
             ...sectionStyle,
             display: 'flex',
-            alignItems: 'center',
-            gap: 16,
+            flexDirection: 'column',
+            gap: 6,
           }}
         >
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--foreground-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: 0.6,
-            }}
-          >
-            Settlement
-          </span>
-          {(() => {
-            const settlementMeta =
-              SETTLEMENT_META[order.settlement_status as string] ??
-              SETTLEMENT_META.pending
-            return (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '4px 12px',
-                  borderRadius: 99,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  background: settlementMeta.bg,
-                  color: settlementMeta.color,
-                }}
-              >
-                {settlementMeta.label}
-              </span>
-            )
-          })()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--foreground-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.6,
+              }}
+            >
+              Settlement
+            </span>
+            {(() => {
+              const settlementMeta =
+                SETTLEMENT_META[order.settlement_status as string] ??
+                SETTLEMENT_META.pending
+              return (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '4px 12px',
+                    borderRadius: 99,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: settlementMeta.bg,
+                    color: settlementMeta.color,
+                  }}
+                >
+                  {settlementMeta.label}
+                </span>
+              )
+            })()}
+          </div>
+          {order.settlement_status === 'credit' && (
+            <span
+              style={{
+                fontSize: 11,
+                color: 'var(--warning)',
+                marginTop: 2,
+              }}
+            >
+              ⚠ Paid via credit — awaiting settlement
+            </span>
+          )}
         </div>
       )}
 
@@ -296,43 +369,116 @@ export default function SalesOrderDetail() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: 12,
+            gap: 16,
+            flexWrap: 'wrap',
+            marginBottom: 16,
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-            Payments
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--accent)',
-                fontFamily: 'var(--font-display)',
-              }}
+              style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}
             >
-              Rp {totalPaid.toLocaleString('id-ID')}
+              Payments
             </span>
-            <button
-              type="button"
-              onClick={() => setShowPaymentForm(!showPaymentForm)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '6px 12px',
-                background: 'var(--accent-light-bg)',
-                color: 'var(--accent)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={13} />
-              {showPaymentForm ? 'Cancel' : 'Record Payment'}
-            </button>
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              {payments.length} payment(s) recorded
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 20,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                Order Total
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--foreground)',
+                }}
+              >
+                Rp {Number(order?.total_price ?? 0).toLocaleString('id-ID')}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                Paid
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--success)',
+                }}
+              >
+                Rp {totalPaid.toLocaleString('id-ID')}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                Remaining
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color:
+                    remaining > 0 ? 'var(--destructive)' : 'var(--success)',
+                }}
+              >
+                Rp {Math.max(0, remaining).toLocaleString('id-ID')}
+              </span>
+            </div>
+
+            {isFullyPaid ? (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  background: 'var(--success-bg)',
+                  color: 'var(--success)',
+                  border: '1px solid var(--success)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                <Check size={13} />
+                Fully Paid
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowPaymentForm(!showPaymentForm)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  background: 'var(--accent-light-bg)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                {!showPaymentForm && <Plus size={13} />}
+                {showPaymentForm ? 'Cancel' : 'Add Payment'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -455,7 +601,7 @@ export default function SalesOrderDetail() {
               </span>
               <button
                 type="button"
-                onClick={() => setPaymentAmount(order?.total_price ?? 0)}
+                onClick={() => setPaymentAmount(Math.max(0, remaining))}
                 style={{
                   padding: '4px 10px',
                   background: 'var(--surface)',
@@ -466,7 +612,7 @@ export default function SalesOrderDetail() {
                   color: 'var(--foreground-muted)',
                 }}
               >
-                Full amount (Rp {(order?.total_price ?? 0).toLocaleString('id-ID')})
+                Remaining (Rp {Math.max(0, remaining).toLocaleString('id-ID')})
               </button>
             </div>
 
@@ -528,6 +674,157 @@ export default function SalesOrderDetail() {
             </div>
           </div>
         )}
+
+        {payments.length > 0 ? (
+          <div
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              overflow: 'hidden',
+            }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--background)' }}>
+                  {[
+                    { label: 'Date', width: 170 },
+                    { label: 'Method', width: 160 },
+                    { label: 'Amount', width: 160 },
+                    { label: 'Description', width: undefined },
+                    { label: '', width: 48 },
+                  ].map((col, i) => (
+                    <th
+                      key={i}
+                      style={{
+                        padding: '10px 14px',
+                        textAlign:
+                          col.label === 'Amount' ? 'right' : 'left',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: 'var(--foreground-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        borderBottom: '1px solid var(--border)',
+                        whiteSpace: 'nowrap',
+                        ...(col.width ? { width: col.width } : {}),
+                      }}
+                    >
+                      {col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p: any) => {
+                  const dateSrc = p.created_at ?? p.date
+                  const dateStr = dateSrc
+                    ? new Date(dateSrc).toLocaleString('id-ID', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '—'
+                  const isDeleting =
+                    deletePaymentMutation.isPending &&
+                    (deletePaymentMutation.variables as any) === p.id
+                  return (
+                    <tr
+                      key={p.id}
+                      style={{ borderTop: '1px solid var(--border)' }}
+                    >
+                      <td
+                        style={{
+                          padding: '10px 14px',
+                          fontSize: 13,
+                          color: 'var(--foreground-muted)',
+                        }}
+                      >
+                        {dateStr}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 14px',
+                          fontSize: 13,
+                          color: 'var(--foreground)',
+                        }}
+                      >
+                        {p.payment_method?.name ?? '—'}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 14px',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--foreground)',
+                          textAlign: 'right',
+                          fontFamily: 'var(--font-display)',
+                        }}
+                      >
+                        Rp {Number(p.amount ?? 0).toLocaleString('id-ID')}
+                      </td>
+                      <td
+                        style={{
+                          padding: '10px 14px',
+                          fontSize: 12,
+                          color: 'var(--foreground-muted)',
+                        }}
+                      >
+                        {p.description || '—'}
+                      </td>
+                      <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => deletePaymentMutation.mutate(p.id)}
+                          disabled={isDeleting}
+                          title="Delete payment"
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: isDeleting ? 'not-allowed' : 'pointer',
+                            color: 'var(--destructive)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            opacity: isDeleting ? 0.5 : 1,
+                          }}
+                        >
+                          {isDeleting ? (
+                            <Loader2
+                              size={14}
+                              style={{ animation: 'spin 1s linear infinite' }}
+                            />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: 24,
+              textAlign: 'center',
+              border: '1px dashed var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              fontSize: 13,
+              color: 'var(--foreground-muted)',
+            }}
+          >
+            No payments recorded yet
+          </div>
+        )}
+
+        <style>{`
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        `}</style>
       </div>
 
       <SalesOrdersDetail

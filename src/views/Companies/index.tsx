@@ -21,6 +21,8 @@ import {
 interface Company {
   id: number
   name: string
+  credit_reset_cron?: string
+  credit_reset_amount?: number
   created_at?: string
 }
 
@@ -216,6 +218,7 @@ export default function CompaniesView() {
           <thead>
             <tr>
               <th style={thStyle}>Company Name</th>
+              <th style={{ ...thStyle, width: 160 }}>Credit/Reset</th>
               <th style={{ ...thStyle, width: 140 }}>Created</th>
               <th style={{ ...thStyle, width: 80 }} />
             </tr>
@@ -224,14 +227,14 @@ export default function CompaniesView() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 3 }).map((__, j) => (
+                  {Array.from({ length: 4 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 2 ? 60 : '75%',
+                          width: j === 3 ? 60 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -241,7 +244,7 @@ export default function CompaniesView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={3} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load companies.
                   </span>
@@ -249,7 +252,7 @@ export default function CompaniesView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={3} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -301,6 +304,33 @@ export default function CompaniesView() {
                       >
                         {item.name}
                       </span>
+                    </div>
+                  </td>
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: 'var(--foreground)',
+                        }}
+                      >
+                        {item.credit_reset_amount
+                          ? 'Rp ' +
+                            Number(item.credit_reset_amount).toLocaleString('id-ID')
+                          : '—'}
+                      </span>
+                      {item.credit_reset_cron && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                            color: 'var(--foreground-muted)',
+                          }}
+                        >
+                          {item.credit_reset_cron}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td style={tdStyle}>

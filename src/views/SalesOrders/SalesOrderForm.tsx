@@ -10,6 +10,8 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { bundlesService as bundleService } from '@/services/bundles.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
+import { usersService } from '@/services/users.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import api from '@/hooks/useApi'
 
 const generateKey = () =>
@@ -68,6 +70,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   )
   const [buyerBranchId, setBuyerBranchId] = useState<number | undefined>(
     editingOrder?.buyer_branch_id ?? undefined,
+  )
+
+  // ── Credit (settlement_status === 'credit') ────────────────────────────────
+  const [creditById, setCreditById] = useState<number | undefined>(
+    editingOrder?.credit_by_id ?? editingOrder?.credit_by?.id ?? undefined,
   )
 
   // ── Line items state ───────────────────────────────────────────────────────
@@ -148,6 +155,16 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     queryFn: () => branchesService.list({ per_page: 100 } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
+
+  const { data: creditUsersData } = useQuery({
+    queryKey: ['users-credit'],
+    enabled: settlementStatus === 'credit',
+    queryFn: () =>
+      usersService
+        .list({ per_page: 100, 'filter[type]': 'user' } as any)
+        .then((r) => r.data),
+  })
+  const creditUsers: any[] = (creditUsersData as any)?.data ?? []
 
   const { data: bundleData } = useQuery({
     queryKey: ['so-bundles', productSearchDebounced],
@@ -247,6 +264,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         voucher_id: voucherId,
         purchase_order_id: purchaseOrderId || undefined,
         buyer_branch_id: buyerBranchId || undefined,
+        credit_by_id:
+          settlementStatus === 'credit' ? creditById || undefined : undefined,
         subtotal_price: subtotal,
         discount_price: discountPrice,
         total_price: total,
@@ -430,6 +449,54 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
+          {settlementStatus === 'credit' && (
+            <div
+              style={{
+                gridColumn: 'span 3',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
+              <label
+                style={{
+                  ...labelStyle,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                Credit User
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--foreground-subtle)',
+                  marginBottom: 2,
+                }}
+              >
+                Select the user whose credit will be used
+              </span>
+              <SearchableSelect
+                value={creditById ?? 0}
+                onChange={(v) => setCreditById(v > 0 ? v : undefined)}
+                options={[
+                  { value: 0, label: 'Select user...' },
+                  ...creditUsers.map((u: any) => ({
+                    value: u.id as number,
+                    label: (u.name as string) ?? '',
+                    sublabel: u.credit
+                      ? 'Credit: Rp ' +
+                        Number(u.credit ?? 0).toLocaleString('id-ID')
+                      : 'No credit set',
+                  })),
+                ]}
+                placeholder="Search user..."
+                searchPlaceholder="Search users..."
+              />
+            </div>
+          )}
           <div>
             <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
               Order Date

@@ -20,6 +20,7 @@ const schema = z.object({
   phone: z.string().optional(),
   birth: z.string().optional(),
   gender: z.enum(['male', 'female']).optional(),
+  credit: z.coerce.number().min(0).optional(),
   branch_ids: z.array(z.number()).optional(),
   role_ids: z.array(z.number()).optional(),
 })
@@ -37,6 +38,7 @@ interface UserSheetProps {
     phone?: string
     birth?: string
     gender?: 'male' | 'female'
+    credit?: number
     branch_ids?: number[]
     role_ids?: number[]
   } | null
@@ -76,6 +78,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
       phone: '',
       birth: '',
       gender: undefined,
+      credit: 0,
       branch_ids: [],
       role_ids: [],
     },
@@ -104,6 +107,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         phone: editData.phone ?? '',
         birth: editData.birth ?? '',
         gender: editData.gender ?? undefined,
+        credit: editData.credit ?? 0,
         branch_ids: editData.branch_ids ?? [],
         role_ids: editData.role_ids ?? [],
       })
@@ -117,6 +121,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         phone: '',
         birth: '',
         gender: undefined,
+        credit: 0,
         branch_ids: [],
         role_ids: [],
       })
@@ -153,6 +158,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         phone: values.phone || undefined,
         birth: values.birth || undefined,
         gender: values.gender || undefined,
+        credit: values.credit ?? 0,
         branch_ids: values.branch_ids?.length
           ? values.branch_ids : undefined,
         role_ids: values.role_ids?.length
@@ -374,6 +380,21 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                   style={inputStyle}
                 />
               </div>
+            </div>
+
+            {/* Credit limit */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={labelStyle}>Credit Limit (Rp)</label>
+              <input
+                type="number"
+                min={0}
+                {...register('credit', { valueAsNumber: true })}
+                placeholder="e.g. 200000"
+                style={inputStyle}
+              />
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                Maximum credit (hutang) this user can use
+              </span>
             </div>
 
             {/* Row 3: gender */}

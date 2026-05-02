@@ -11,14 +11,27 @@ import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
   name: z.string().min(1, 'Company name is required'),
+  credit_reset_cron: z.string().optional(),
+  credit_reset_amount: z.coerce.number().min(0).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
 interface CompanySheetProps {
   open: boolean
   onClose: () => void
-  editData?: { id: number; name: string } | null
+  editData?: {
+    id: number
+    name: string
+    credit_reset_cron?: string
+    credit_reset_amount?: number
+  } | null
 }
+
+const CRON_PRESETS: { label: string; value: string }[] = [
+  { label: 'Monthly (1st)', value: '0 0 1 * *' },
+  { label: 'Weekly (Mon)', value: '0 0 * * 1' },
+  { label: 'Daily', value: '0 0 * * *' },
+]
 
 export default function CompanySheet({ open, onClose, editData }: CompanySheetProps) {
   const qc = useQueryClient()
@@ -27,17 +40,33 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { name: '' },
+    defaultValues: {
+      name: '',
+      credit_reset_cron: '',
+      credit_reset_amount: 0,
+    },
   })
+
+  const watchedCron = watch('credit_reset_cron') ?? ''
 
   useEffect(() => {
     if (editData) {
-      reset({ name: editData.name })
+      reset({
+        name: editData.name,
+        credit_reset_cron: editData.credit_reset_cron ?? '',
+        credit_reset_amount: editData.credit_reset_amount ?? 0,
+      })
     } else {
-      reset({ name: '' })
+      reset({
+        name: '',
+        credit_reset_cron: '',
+        credit_reset_amount: 0,
+      })
     }
   }, [editData, open, reset])
 
@@ -192,6 +221,104 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
                 style={errors.name ? inputErrorStyle : inputStyle}
               />
               {errors.name && <div style={errorStyle}>{errors.name.message}</div>}
+            </div>
+
+            <div style={{ marginTop: 4 }}>
+              <label
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.6px',
+                  display: 'block',
+                  marginBottom: 10,
+                }}
+              >
+                Credit Settings
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                    Monthly Credit Limit (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    {...register('credit_reset_amount', { valueAsNumber: true })}
+                    placeholder="e.g. 150000"
+                    style={inputStyle}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                    Credit given to each user per reset cycle
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                    Reset Schedule (Cron)
+                  </label>
+                  <input
+                    type="text"
+                    {...register('credit_reset_cron')}
+                    placeholder="e.g. 0 0 1 * * (monthly)"
+                    style={inputStyle}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                    When to reset user credits automatically
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 6,
+                  flexWrap: 'wrap',
+                  marginTop: 8,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--foreground-muted)',
+                    display: 'block',
+                    width: '100%',
+                  }}
+                >
+                  Quick presets:
+                </span>
+                {CRON_PRESETS.map((preset) => {
+                  const active = watchedCron === preset.value
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={() =>
+                        setValue('credit_reset_cron', preset.value, {
+                          shouldDirty: true,
+                        })
+                      }
+                      style={{
+                        padding: '3px 8px',
+                        background: active
+                          ? 'var(--accent-light-bg)'
+                          : 'var(--background)',
+                        border: active
+                          ? '1px solid var(--accent)'
+                          : '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 11,
+                        color: active ? 'var(--accent)' : 'var(--foreground-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           </div>
 
