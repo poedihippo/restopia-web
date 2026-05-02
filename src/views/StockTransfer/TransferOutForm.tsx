@@ -1,0 +1,486 @@
+'use client'
+
+import React from 'react'
+import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { deliveriesService } from '@/services/deliveries.service'
+import { branchesService } from '@/services/branches.service'
+import { productUomsService } from '@/services/product-uoms.service'
+import SearchableSelect from '@/components/SearchableSelect'
+import { Plus, Trash2, Loader2, X } from 'lucide-react'
+
+const detailSchema = z.object({
+  product_uom_id: z.coerce.number().min(1, 'Select a product'),
+  qty: z.coerce.number().min(0.001, 'Qty required'),
+  price: z.coerce.number().min(0),
+  description: z.string().optional(),
+})
+
+const schema = z.object({
+  code: z.string().min(1, 'Code required'),
+  target_branch_id: z.coerce.number().min(1, 'Select target branch'),
+  date: z.string().min(1, 'Date required'),
+  description: z.string().optional(),
+  details: z.array(detailSchema).min(1, 'Add at least one item'),
+})
+
+type FormValues = z.infer<typeof schema>
+
+interface TransferOutFormProps {
+  onClose: () => void
+  onSuccess: () => void
+}
+
+export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormProps) {
+  const today = new Date().toISOString().split('T')[0]
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema) as any,
+    defaultValues: {
+      code: '',
+      target_branch_id: 0,
+      date: today,
+      description: '',
+      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+    },
+  })
+
+  const { fields, append, remove } = useFieldArray({ control, name: 'details' })
+
+  const watchDetails = watch('details')
+  const totalPrice = watchDetails.reduce(
+    (s, d) => s + Number(d.qty ?? 0) * Number(d.price ?? 0),
+    0,
+  )
+
+  const { data: branchesData, isLoading: branchesLoading } = useQuery({
+    queryKey: ['branches-all', 'company'],
+    queryFn: () =>
+      branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
+  })
+  const branches = (branchesData as any)?.data ?? []
+
+  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
+    queryKey: ['product-uoms-all'],
+    queryFn: () =>
+      productUomsService
+        .list({ per_page: 200, include: 'product,uom' } as any)
+        .then((r) => r.data),
+  })
+  const productUoms = (productUomsData as any)?.data ?? []
+
+  const branchOptions = branches.map((b: any) => ({
+    value: b.id as number,
+    label: (b.name as string) ?? '',
+    sublabel: (b.company?.name as string) ?? '',
+  }))
+
+  const productUomOptions = productUoms.map((pu: any) => ({
+    value: pu.id as number,
+    label: (pu.product?.name as string) ?? '',
+    sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
+  }))
+
+  const createMutation = useMutation({
+    mutationFn: (values: FormValues) => {
+      const payload = {
+        code: values.code,
+        source_type: 'transfer_to_branch',
+        target_branch_id: values.target_branch_id,
+        date: values.date,
+        total_price: totalPrice,
+        status: 'pending',
+        description: values.description || undefined,
+        details: values.details
+          .filter((d) => Number(d.product_uom_id) > 0)
+          .map((d) => ({
+            product_uom_id: d.product_uom_id,
+            qty: d.qty,
+            price: d.price,
+            status: 'pending',
+            description: d.description || undefined,
+          })),
+      }
+      return deliveriesService.create(payload as any)
+    },
+    onSuccess: () => {
+      toast.success('Transfer created')
+      onSuccess()
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Failed to create transfer'),
+  })
+
+  const onSubmit = (values: FormValues) => createMutation.mutate(values)
+
+  const onInvalid = (errs: any) => {
+    const first = Object.values(errs)[0] as any
+    toast.error(first?.message ?? 'Please fill required fields')
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 10px',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface)',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+    boxSizing: 'border-box',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--foreground)',
+    marginBottom: 4,
+    display: 'block',
+  }
+
+  const errorStyle: React.CSSProperties = {
+    fontSize: 11,
+    color: 'var(--destructive)',
+    marginTop: 4,
+  }
+
+  return (
+    <div
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: 24,
+        marginBottom: 20,
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+        }}
+      >
+        <h3
+          style={{
+            fontSize: 16,
+            fontWeight: 600,
+            margin: 0,
+            color: 'var(--foreground)',
+            fontFamily: 'var(--font-display)',
+          }}
+        >
+          New Stock Transfer
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--foreground-muted)',
+            padding: 4,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <form
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>
+              Transfer Code <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <input
+              {...register('code')}
+              placeholder="e.g. TRF-2026-001"
+              style={{
+                ...inputStyle,
+                ...(errors.code ? { border: '1px solid var(--destructive)' } : {}),
+              }}
+            />
+            {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
+          </div>
+          <div>
+            <label style={labelStyle}>
+              Date <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <input
+              type="date"
+              {...register('date')}
+              style={{
+                ...inputStyle,
+                ...(errors.date ? { border: '1px solid var(--destructive)' } : {}),
+              }}
+            />
+            {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>
+            Destination Branch <span style={{ color: 'var(--destructive)' }}>*</span>
+          </label>
+          <Controller
+            name="target_branch_id"
+            control={control}
+            render={({ field }) => (
+              <SearchableSelect
+                value={field.value ?? 0}
+                onChange={field.onChange}
+                options={branchOptions}
+                placeholder="Select destination branch..."
+                searchPlaceholder="Search branches..."
+                loading={branchesLoading}
+                error={errors.target_branch_id?.message as string | undefined}
+              />
+            )}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Notes</label>
+          <textarea
+            {...register('description')}
+            rows={2}
+            placeholder="Optional notes"
+            style={{ ...inputStyle, resize: 'vertical', minHeight: 56 }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>Items</span>
+            <button
+              type="button"
+              onClick={() =>
+                append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+              }
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '5px 10px',
+                background: 'var(--accent-light-bg)',
+                color: 'var(--accent)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus size={12} />
+              Add Item
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '2fr 90px 110px 90px 130px',
+              gap: 8,
+              padding: '6px 0',
+              borderBottom: '1px solid var(--border)',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--foreground-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
+            <span>Product / UOM</span>
+            <span>Qty</span>
+            <span>Unit Price</span>
+            <span>Subtotal</span>
+            <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Notes</span>
+            </span>
+          </div>
+
+          {fields.map((field, index) => {
+            const qty = Number(watchDetails?.[index]?.qty ?? 0)
+            const price = Number(watchDetails?.[index]?.price ?? 0)
+            const subtotal = qty * price
+            return (
+              <div
+                key={field.id}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 90px 110px 90px 1fr 32px',
+                  gap: 8,
+                  alignItems: 'start',
+                  padding: '8px 0',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <Controller
+                  name={`details.${index}.product_uom_id`}
+                  control={control}
+                  render={({ field: f }) => (
+                    <SearchableSelect
+                      value={f.value ?? 0}
+                      onChange={f.onChange}
+                      options={productUomOptions}
+                      placeholder="Select product..."
+                      searchPlaceholder="Search products..."
+                      loading={productUomsLoading}
+                      error={
+                        errors.details?.[index]?.product_uom_id?.message as
+                          | string
+                          | undefined
+                      }
+                    />
+                  )}
+                />
+                <input
+                  type="number"
+                  min={0.001}
+                  step={0.001}
+                  {...register(`details.${index}.qty`, { valueAsNumber: true })}
+                  style={inputStyle}
+                />
+                <input
+                  type="number"
+                  min={0}
+                  step={100}
+                  {...register(`details.${index}.price`, { valueAsNumber: true })}
+                  style={inputStyle}
+                />
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    paddingTop: 8,
+                  }}
+                >
+                  Rp {subtotal.toLocaleString('id-ID')}
+                </span>
+                <input
+                  {...register(`details.${index}.description`)}
+                  placeholder="Note"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  disabled={fields.length === 1}
+                  style={{
+                    padding: 6,
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
+                    color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            )
+          })}
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 0 0',
+            }}
+          >
+            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total:</span>
+            <span
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: 'var(--accent)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              Rp {totalPrice.toLocaleString('id-ID')}
+            </span>
+          </div>
+
+          {errors.details && typeof (errors.details as any).message === 'string' && (
+            <span style={errorStyle}>{(errors.details as any).message}</span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '8px 16px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--foreground)',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={createMutation.isPending}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 16px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: createMutation.isPending ? 0.7 : 1,
+            }}
+          >
+            {createMutation.isPending && (
+              <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+            )}
+            Create Transfer
+          </button>
+        </div>
+      </form>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  )
+}
