@@ -5,13 +5,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Eye, X, Search } from 'lucide-react'
 import { paymentMethodsService as paymentMethodService } from '@/services/payment-methods.service'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function PaymentMethodsView() {
   const qc = useQueryClient()
-  // No specific payment-method permission in API — default to true.
-  const canCreate = true
-  const canEdit = true
-  const canDelete = true
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('payment-method.create')
+  const canEdit = hasPermission('payment-method.update')
+  const canDelete = hasPermission('payment-method.delete')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [name, setName] = useState('')

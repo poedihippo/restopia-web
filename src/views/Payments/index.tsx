@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Search,
   ChevronLeft,
@@ -25,8 +26,14 @@ interface Payment {
 
 export default function PaymentsView() {
   const qc = useQueryClient()
-  // No specific payment permission in API — default to true.
-  const canDelete = true
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission('payment.create')
+  const canEdit = hasPermission('payment.update')
+  const canDelete = hasPermission('payment.delete')
+
+  // Suppress unused-var warnings for capabilities not yet rendered.
+  void canCreate
+  void canEdit
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')

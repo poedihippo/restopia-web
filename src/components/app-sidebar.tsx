@@ -53,8 +53,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: 'OPERATIONS',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { label: 'Point of Sale', href: '/pos', icon: ShoppingCart },
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.read' },
+      { label: 'Point of Sale', href: '/pos', icon: ShoppingCart, permission: 'sales-order.create' },
     ],
   },
   {
@@ -121,7 +121,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Sales Orders', href: '/sales/sales-orders', permission: 'sales-order.read' },
           { label: 'Customers', href: '/sales/customers', permission: 'customer.read' },
           { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.read' },
-          { label: 'Payments', href: '/sales/payments' },
+          { label: 'Payments', href: '/sales/payments', permission: 'payment.read' },
         ],
       },
       { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.read' },
@@ -142,7 +142,7 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.read' },
-      { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard },
+      { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard, permission: 'payment-method.read' },
       { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.read' },
     ],
   },

@@ -13,6 +13,7 @@ import {
   ArrowDownRight,
   Boxes,
   CreditCard,
+  ShieldOff,
 } from 'lucide-react'
 
 const firstOfMonth = () => {
@@ -46,7 +47,12 @@ export default function DashboardView() {
   const [dateFrom, setDateFrom] = useState<string>(firstOfMonth())
   const [dateTo, setDateTo] = useState<string>(todayStr())
 
-  const { data: metricsQueryData, isLoading: isMetricsLoading } = useQuery({
+  const {
+    data: metricsQueryData,
+    isLoading: isMetricsLoading,
+    isError: isMetricsError,
+    error: metricsError,
+  } = useQuery({
     queryKey: ['dashboard-metrics', dateFrom, dateTo],
     queryFn: () =>
       dashboardService
@@ -55,12 +61,23 @@ export default function DashboardView() {
           'filter[created_at_lte]': dateTo,
         } as any)
         .then((r) => r.data),
+    retry: false,
   })
 
-  const { data: insightsQueryData, isLoading: isInsightsLoading } = useQuery({
+  const {
+    data: insightsQueryData,
+    isLoading: isInsightsLoading,
+    isError: isInsightsError,
+    error: insightsError,
+  } = useQuery({
     queryKey: ['dashboard-insights'],
     queryFn: () => dashboardService.insights({} as any).then((r) => r.data),
+    retry: false,
   })
+
+  const is403 = (err: any) => err?.response?.status === 403
+  const metricsForbidden = isMetricsError && is403(metricsError)
+  const insightsForbidden = isInsightsError && is403(insightsError)
 
   const metricsData: any = (metricsQueryData as any)?.data ?? {}
   const insightsData: any = (insightsQueryData as any)?.data ?? {}
@@ -233,7 +250,41 @@ export default function DashboardView() {
         </div>
       </div>
 
-      {/* Metrics cards */}
+      {/* Metrics cards (or 403 access-denied state) */}
+      {metricsForbidden ? (
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 48,
+            textAlign: 'center',
+          }}
+        >
+          <ShieldOff size={32} color="var(--border)" />
+          <span
+            style={{
+              display: 'block',
+              marginTop: 12,
+              fontSize: 15,
+              fontWeight: 500,
+              color: 'var(--foreground-muted)',
+            }}
+          >
+            Access Restricted
+          </span>
+          <span
+            style={{
+              display: 'block',
+              marginTop: 4,
+              fontSize: 13,
+              color: 'var(--foreground-subtle)',
+            }}
+          >
+            You don&apos;t have permission to view dashboard metrics. Contact your admin to grant dashboard.read permission.
+          </span>
+        </div>
+      ) : (
       <div
         style={{
           display: 'grid',
@@ -334,6 +385,7 @@ export default function DashboardView() {
           )
         })}
       </div>
+      )}
 
       {/* Insights + Quick actions */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
@@ -364,7 +416,32 @@ export default function DashboardView() {
             </span>
           </div>
           <div style={{ padding: 20 }}>
-            {insightsData && Object.keys(insightsData).length > 0 ? (
+            {insightsForbidden ? (
+              <div style={{ padding: '24px 0', textAlign: 'center' }}>
+                <ShieldOff size={28} color="var(--border)" />
+                <span
+                  style={{
+                    display: 'block',
+                    marginTop: 10,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: 'var(--foreground-muted)',
+                  }}
+                >
+                  Access Restricted
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: 'var(--foreground-subtle)',
+                  }}
+                >
+                  You don&apos;t have permission to view dashboard insights.
+                </span>
+              </div>
+            ) : insightsData && Object.keys(insightsData).length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {Object.entries(insightsData)
                   .slice(0, 8)
