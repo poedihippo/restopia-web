@@ -111,8 +111,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     queryFn: () =>
       deliveriesService
         .findById(watchDeliveryId as number, {
-          include:
-            'delivery_details.product_uom.product,delivery_details.product_uom.uom',
+          include: 'delivery_details',
         })
         .then((r) => r.data),
     enabled: !!watchDeliveryId && (watchDeliveryId as number) > 0,
@@ -120,11 +119,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const deliveryDetail = (deliveryData as any)?.data
 
   useEffect(() => {
+    console.log('deliveryDetail:', deliveryDetail)
+    console.log('delivery_details:', deliveryDetail?.delivery_details)
     if (!deliveryDetail?.delivery_details?.length) return
 
     const newDetails = deliveryDetail.delivery_details.map((d: any, index: number) => ({
       delivery_detail_id: d.id,
-      product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
+      product_uom_id: d.product_uom_id ?? 0,
       planned_expiry_date: '',
       qty: d.qty ?? 1,
       price: d.price ?? 0,
