@@ -59,7 +59,7 @@ export default function SearchableSelect({
     : options
 
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+    <div ref={ref} style={{ position: 'relative', width: '100%', zIndex: 9999 }}>
       <button
         type="button"
         onClick={() => {
@@ -131,7 +131,8 @@ export default function SearchableSelect({
             top: 'calc(100% + 4px)',
             left: 0,
             right: 0,
-            zIndex: 300,
+            zIndex: 9999,
+            pointerEvents: 'all',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
