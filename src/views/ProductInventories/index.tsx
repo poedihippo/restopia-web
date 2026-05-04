@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductInventorySheet from './ProductInventorySheet'
@@ -109,7 +110,7 @@ export default function ProductInventoriesView() {
           page,
           per_page: 15,
           sort: '-id',
-          include: 'branch,product_uom,product_uom.product,product_uom.uom',
+          include: 'branch,product_uom',
           'filter[search]': debouncedSearch || undefined,
         })
         .then((r) => r.data),
@@ -117,6 +118,17 @@ export default function ProductInventoriesView() {
 
   const items: ProductInventory[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const { data: puData } = useQuery({
+    queryKey: ['product-uoms-all'],
+    queryFn: () =>
+      productUomsService
+        .list({ per_page: 200, include: 'product,uom' } as any)
+        .then((r) => r.data),
+  })
+  const productUomsAll = (puData as any)?.data ?? []
+  const getProductUom = (id: number) =>
+    productUomsAll.find((pu: any) => pu.id === id)
 
   const filteredItems = lowStockOnly
     ? items.filter(
@@ -441,6 +453,7 @@ export default function ProductInventoriesView() {
                   item.min_qty !== undefined &&
                   item.min_qty !== null &&
                   (item.qty ?? 0) <= (item.min_qty ?? 0)
+                const puFallback = getProductUom(item.product_uom_id)
 
                 return (
                   <tr
@@ -467,7 +480,11 @@ export default function ProductInventoriesView() {
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_uom?.product?.name ?? '—'}
+                          {item.product_uom?.product?.name
+                            ?? puFallback?.product?.name
+                            ?? item.product_uom?.code
+                            ?? puFallback?.code
+                            ?? `Item #${item.id}`}
                         </div>
                         <div
                           style={{
@@ -492,7 +509,10 @@ export default function ProductInventoriesView() {
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.product_uom?.uom?.code ?? '—'}
+                        {item.product_uom?.uom?.code
+                          ?? puFallback?.uom?.code
+                          ?? puFallback?.uom?.name
+                          ?? '—'}
                       </span>
                     </td>
 
@@ -862,17 +882,21 @@ export default function ProductInventoriesView() {
                 gap: 16,
               }}
             >
-              {[
-                { label: 'ID', value: selectedItem.id },
-                { label: 'SKU Code', value: selectedItem.code },
-                { label: 'Product', value: selectedItem.product_uom?.product?.name },
-                { label: 'Product UOM', value: selectedItem.product_uom?.code },
-                {
-                  label: 'UOM',
-                  value: selectedItem.product_uom?.uom
-                    ? `${selectedItem.product_uom.uom.name} (${selectedItem.product_uom.uom.code})`
-                    : undefined,
-                },
+              {(() => {
+                const detailPu = getProductUom(selectedItem.product_uom_id)
+                const productName =
+                  selectedItem.product_uom?.product?.name ?? detailPu?.product?.name
+                const puCode = selectedItem.product_uom?.code ?? detailPu?.code
+                const uom = selectedItem.product_uom?.uom ?? detailPu?.uom
+                return [
+                  { label: 'ID', value: selectedItem.id },
+                  { label: 'SKU Code', value: selectedItem.code },
+                  { label: 'Product', value: productName },
+                  { label: 'Product UOM', value: puCode },
+                  {
+                    label: 'UOM',
+                    value: uom ? `${uom.name} (${uom.code})` : undefined,
+                  },
                 { label: 'Branch', value: selectedItem.branch?.name },
                 {
                   label: 'Current Stock',
@@ -943,7 +967,8 @@ export default function ProductInventoriesView() {
                     </span>
                   )}
                 </div>
-              ))}
+              ))
+              })()}
             </div>
           </div>
         </div>
