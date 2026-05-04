@@ -72,6 +72,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     reset,
     watch,
     control,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -98,7 +99,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     },
   })
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'details' })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'details' })
 
   const watchDetails = watch('details')
   const totalPrice = watchDetails.reduce(
@@ -138,6 +139,44 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         .then((r) => r.data),
   })
   const salesOrders = (salesOrdersData as any)?.data ?? []
+
+  const watchPurchaseOrderId = watch('purchase_order_id')
+  const watchSourceType = watch('source_type')
+
+  const { data: poData } = useQuery({
+    queryKey: ['po-detail-for-delivery', watchPurchaseOrderId],
+    queryFn: () =>
+      purchaseOrdersService
+        .findById(watchPurchaseOrderId as number, {
+          include:
+            'purchase_order_details.product_uom.product,purchase_order_details.product_uom.uom',
+        })
+        .then((r) => r.data),
+    enabled: !!watchPurchaseOrderId && (watchPurchaseOrderId as number) > 0,
+  })
+  const poDetail = (poData as any)?.data
+
+  useEffect(() => {
+    if (!poDetail?.purchase_order_details?.length) return
+
+    const newDetails = poDetail.purchase_order_details.map((d: any) => ({
+      product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
+      purchase_order_detail_id: d.id,
+      sales_order_detail_id: undefined,
+      qty: d.qty ?? 1,
+      price: d.price ?? 0,
+      status: 'pending' as const,
+      description: d.description ?? '',
+    }))
+
+    replace(newDetails)
+
+    if (watchSourceType === 'po_from_branch' && poDetail?.branch_id) {
+      setValue('target_branch_id', poDetail.branch_id)
+    }
+
+    toast.info('Line items loaded from Purchase Order')
+  }, [poDetail?.id])
 
   const branchOptions = branches.map((b: any) => ({
     value: b.id as number,
@@ -483,6 +522,18 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   />
                 )}
               />
+              {!!watchPurchaseOrderId && watchPurchaseOrderId > 0 && poDetail && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--success)',
+                    marginTop: 4,
+                    display: 'block',
+                  }}
+                >
+                  ✓ {poDetail.purchase_order_details?.length ?? 0} item(s) loaded from PO
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
