@@ -125,7 +125,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryKey: ['purchase-orders-pending'],
     queryFn: () =>
       purchaseOrdersService
-        .list({ per_page: 50, 'filter[status]': 'pending' } as any)
+        .list({ per_page: 50, 'filter[status]': 'final' } as any)
         .then((r) => r.data),
   })
   const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
@@ -134,7 +134,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryKey: ['sales-orders-pending'],
     queryFn: () =>
       salesOrdersService
-        .list({ per_page: 50, 'filter[status]': 'pending' } as any)
+        .list({ per_page: 50, 'filter[status]': 'final' } as any)
         .then((r) => r.data),
   })
   const salesOrders = (salesOrdersData as any)?.data ?? []
