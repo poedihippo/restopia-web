@@ -41,7 +41,7 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
         sales_order_id:
           delivery.sales_order?.id ?? delivery.sales_order_id ?? undefined,
         date: delivery.date,
-        status: delivery.status,
+        status: 'final',
         description: delivery.description ?? '',
         details: rawDetails.length
           ? rawDetails.map((d: any) => ({

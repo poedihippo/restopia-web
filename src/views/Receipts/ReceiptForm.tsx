@@ -29,7 +29,7 @@ const schema = z.object({
   code: z.string().min(1, 'Code required'),
   delivery_id: z.coerce.number().min(0, 'Delivery is required'),
   date: z.string().min(1, 'Date required'),
-  status: z.enum(['pending', 'final']),
+  status: z.literal('final'),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
 })
@@ -60,7 +60,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       code: '',
       delivery_id: 0,
       date: new Date().toISOString().split('T')[0],
-      status: 'pending',
+      status: 'final',
       description: '',
       details: [
         {
@@ -122,6 +122,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const buildPayload = (values: FormValues) => ({
     ...values,
+    status: 'final',
     total_price: totalPrice,
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
@@ -376,56 +377,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     loading={deliveriesLoading}
                     error={errors.delivery_id?.message as string | undefined}
                   />
-                )}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Status
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field }) => (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {(['pending', 'final'] as const).map((s) => {
-                      const isSelected = field.value === s
-                      const isPendingOpt = s === 'pending'
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => field.onChange(s)}
-                          style={{
-                            padding: '6px 16px',
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 13,
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            background: isSelected
-                              ? isPendingOpt
-                                ? 'var(--warning-bg)'
-                                : 'var(--success-bg)'
-                              : 'var(--background)',
-                            color: isSelected
-                              ? isPendingOpt
-                                ? 'var(--warning)'
-                                : 'var(--success)'
-                              : 'var(--foreground-muted)',
-                            border: isSelected
-                              ? isPendingOpt
-                                ? '1px solid var(--warning)'
-                                : '1px solid var(--success)'
-                              : '1px solid var(--border)',
-                          }}
-                        >
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </button>
-                      )
-                    })}
-                  </div>
                 )}
               />
             </div>

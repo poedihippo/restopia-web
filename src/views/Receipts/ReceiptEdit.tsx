@@ -35,7 +35,7 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
         code: receipt.code,
         delivery_id: receipt.delivery?.id ?? receipt.delivery_id ?? 0,
         date: receipt.date,
-        status: receipt.status,
+        status: 'final',
         description: receipt.description ?? '',
         details: rawDetails.length
           ? rawDetails.map((d: any) => ({

@@ -38,7 +38,7 @@ const schema = z.object({
   purchase_order_id: z.coerce.number().optional(),
   sales_order_id: z.coerce.number().optional(),
   date: z.string().min(1, 'Date required'),
-  status: z.enum(['pending', 'final']),
+  status: z.literal('final'),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
 })
@@ -82,7 +82,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       purchase_order_id: prefill?.purchase_order_id ?? undefined,
       sales_order_id: prefill?.sales_order_id ?? undefined,
       date: new Date().toISOString().split('T')[0],
-      status: 'pending',
+      status: 'final',
       description: '',
       details: [
         {
@@ -180,6 +180,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const buildPayload = (values: FormValues) => ({
     ...values,
+    status: 'final',
     total_price: totalPrice,
     purchase_order_id: values.purchase_order_id || undefined,
     sales_order_id: values.sales_order_id || undefined,
@@ -498,56 +499,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     searchPlaceholder="Search SOs..."
                     loading={salesOrdersLoading}
                   />
-                )}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Status
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field }) => (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {(['pending', 'final'] as const).map((s) => {
-                      const isSelected = field.value === s
-                      const isPendingOpt = s === 'pending'
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => field.onChange(s)}
-                          style={{
-                            padding: '6px 16px',
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 13,
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            background: isSelected
-                              ? isPendingOpt
-                                ? 'var(--warning-bg)'
-                                : 'var(--success-bg)'
-                              : 'var(--background)',
-                            color: isSelected
-                              ? isPendingOpt
-                                ? 'var(--warning)'
-                                : 'var(--success)'
-                              : 'var(--foreground-muted)',
-                            border: isSelected
-                              ? isPendingOpt
-                                ? '1px solid var(--warning)'
-                                : '1px solid var(--success)'
-                              : '1px solid var(--border)',
-                          }}
-                        >
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </button>
-                      )
-                    })}
-                  </div>
                 )}
               />
             </div>
