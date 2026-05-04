@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { customersService as customerService } from '@/services/customers.service'
@@ -206,7 +207,7 @@ export default function PosView() {
         per_page: 20,
         'filter[product_type]': 'final',
         'filter[status]': 'active',
-        include: 'product_uom,product_uom.product,product_uom.product.product_category',
+        include: 'branch,product_uom',
       }
       if (searchDebounced) params['filter[search]'] = searchDebounced
       if (inStockOnly) params['filter[stock_gte]'] = 1
@@ -220,12 +221,32 @@ export default function PosView() {
   const items: any[] = (data as any)?.data ?? []
   const productMeta = (data as any)?.meta
 
+  // Product UOMs lookup so we can resolve product/category/uom names without
+  // relying on deep includes on the inventory list.
+  const { data: puData } = useQuery({
+    queryKey: ['product-uoms-pos'],
+    queryFn: () =>
+      productUomsService
+        .list({
+          per_page: 200,
+          include: 'product,uom',
+          'filter[status]': 'active',
+        } as any)
+        .then((r) => r.data),
+  })
+  const productUomsList: any[] = (puData as any)?.data ?? []
+  const getProductUom = (id: number | null | undefined) =>
+    id != null ? productUomsList.find((pu: any) => pu.id === id) : undefined
+
   const filteredItems = useMemo(() => {
     if (categoryId === null) return items
-    return items.filter(
-      (item: any) => item.product_uom?.product?.product_category_id === categoryId
-    )
-  }, [items, categoryId])
+    return items.filter((item: any) => {
+      const pu = item.product_uom ?? getProductUom(item.product_uom_id)
+      const catId =
+        pu?.product?.product_category_id ?? pu?.product?.product_category?.id
+      return catId === categoryId
+    })
+  }, [items, categoryId, productUomsList])
 
   // Sort lots earliest-expiring-first-out: non-expired by expiry ASC, then
   // undated, then expired last. Undefined/null expiry sorts after all dated
@@ -1234,6 +1255,7 @@ export default function PosView() {
                       }}
                     >
                       {item.product_uom?.product?.name ??
+                        getProductUom(item.product_uom_id)?.product?.name ??
                         item.productUom?.product?.name ??
                         item.product?.name ??
                         item.code}
