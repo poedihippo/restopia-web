@@ -53,6 +53,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     reset,
     watch,
     control,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -77,7 +78,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     },
   })
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'details' })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'details' })
 
   const watchDetails = watch('details')
   const totalPrice = watchDetails.reduce(
@@ -89,7 +90,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     queryKey: ['deliveries-pending'],
     queryFn: () =>
       deliveriesService
-        .list({ per_page: 50, 'filter[status]': 'pending' } as any)
+        .list({ per_page: 50, 'filter[status]': 'final' } as any)
         .then((r) => r.data),
   })
   const deliveries = (deliveriesData as any)?.data ?? []
@@ -102,6 +103,39 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         .then((r) => r.data),
   })
   const productUoms = (productUomsData as any)?.data ?? []
+
+  const watchDeliveryId = watch('delivery_id')
+
+  const { data: deliveryData } = useQuery({
+    queryKey: ['delivery-detail-for-receipt', watchDeliveryId],
+    queryFn: () =>
+      deliveriesService
+        .findById(watchDeliveryId as number, {
+          include:
+            'delivery_details.product_uom.product,delivery_details.product_uom.uom',
+        })
+        .then((r) => r.data),
+    enabled: !!watchDeliveryId && (watchDeliveryId as number) > 0,
+  })
+  const deliveryDetail = (deliveryData as any)?.data
+
+  useEffect(() => {
+    if (!deliveryDetail?.delivery_details?.length) return
+
+    const newDetails = deliveryDetail.delivery_details.map((d: any, index: number) => ({
+      delivery_detail_id: d.id,
+      product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
+      planned_expiry_date: '',
+      qty: d.qty ?? 1,
+      price: d.price ?? 0,
+      status: 'success' as const,
+      description: d.description ?? '',
+      client_ref: `${deliveryDetail.code}-${index + 1}`,
+    }))
+
+    replace(newDetails)
+    toast.info('Items loaded from Delivery')
+  }, [deliveryDetail?.id])
 
   const deliveryOptions = deliveries.map((d: any) => ({
     value: d.id as number,
@@ -379,6 +413,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   />
                 )}
               />
+              {!!watchDeliveryId && watchDeliveryId > 0 && deliveryDetail && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--success)',
+                    marginTop: 4,
+                    display: 'block',
+                  }}
+                >
+                  ✓ {deliveryDetail.delivery_details?.length ?? 0} item(s) loaded from delivery
+                </span>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
