@@ -56,7 +56,7 @@ export default function DeliveriesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('final')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -118,7 +118,12 @@ export default function DeliveriesView() {
     },
   })
 
-  const hasFilters = !!(statusFilter || dateFrom || dateTo)
+  const hasFilters = !!(
+    (statusFilter && statusFilter !== 'final') ||
+    dateFrom ||
+    dateTo ||
+    debouncedSearch
+  )
 
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
@@ -294,7 +299,7 @@ export default function DeliveriesView() {
         {hasFilters && (
           <button
             onClick={() => {
-              setStatusFilter('')
+              setStatusFilter('final')
               setDateFrom('')
               setDateTo('')
               setPage(1)
