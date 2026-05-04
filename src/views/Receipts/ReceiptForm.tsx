@@ -119,8 +119,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const deliveryDetail = (deliveryData as any)?.data
 
   useEffect(() => {
-    console.log('deliveryDetail:', deliveryDetail)
-    console.log('delivery_details:', deliveryDetail?.delivery_details)
     if (!deliveryDetail?.delivery_details?.length) return
 
     const newDetails = deliveryDetail.delivery_details.map((d: any, index: number) => ({

@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import {
   ArrowLeft,
@@ -39,12 +40,7 @@ interface DeliveryFull {
     price: number
     status: 'pending' | 'packaging' | 'packed'
     description?: string
-    product_uom?: {
-      id: number
-      code?: string
-      product?: { id: number; name: string }
-      uom?: { id: number; name: string; code: string }
-    }
+    product_uom_id?: number
     purchase_order_detail_id?: number
     sales_order_detail_id?: number
   }>
@@ -84,14 +80,24 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,purchase_order,sales_order,created_by,' +
-            'delivery_details.product_uom.product,delivery_details.product_uom.uom',
+            'branch,target_branch,purchase_order,sales_order,created_by,delivery_details',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
   })
 
   const delivery = (data as any)?.data as DeliveryFull | undefined
+
+  const { data: puData } = useQuery({
+    queryKey: ['product-uoms-all'],
+    queryFn: () =>
+      productUomsService
+        .list({ per_page: 200, include: 'product,uom' } as any)
+        .then((r) => r.data),
+  })
+  const productUoms = (puData as any)?.data ?? []
+  const getProductUom = (id: number) =>
+    productUoms.find((pu: any) => pu.id === id)
 
   const deleteMutation = useMutation({
     mutationFn: () => deliveriesService.delete(id),
@@ -506,17 +512,18 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
             {details.map((detail, index) => {
               const detailStatus =
                 STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+              const pu = getProductUom(detail.product_uom_id ?? 0)
               return (
                 <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {index + 1}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {detail.product_uom?.product?.name ?? '—'}
+                    {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={pillStyle}>
-                      {detail.product_uom?.uom?.name ?? detail.product_uom?.code ?? '—'}
+                      {pu?.uom?.name ?? pu?.uom?.code ?? '—'}
                     </span>
                   </td>
                   <td
