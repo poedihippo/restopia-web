@@ -13,6 +13,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
@@ -65,6 +66,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const { mode, initialData, deliveryId, prefill } = props
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const myBranchId = (user as any)?.branch?.id ?? (user as any)?.branch_id
 
   const {
     register,
@@ -141,7 +144,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const salesOrders = (salesOrdersData as any)?.data ?? []
 
   const watchPurchaseOrderId = watch('purchase_order_id')
+  const watchSalesOrderId = watch('sales_order_id')
   const watchSourceType = watch('source_type')
+
+  const showLinkedPO =
+    watchSourceType === 'po_from_supplier' || watchSourceType === 'po_from_branch'
+  const showLinkedSO = watchSourceType === 'so_to_branch'
+  const targetBranchReadonly =
+    watchSourceType === 'po_from_supplier' ||
+    watchSourceType === 'po_from_branch' ||
+    watchSourceType === 'so_to_branch'
 
   const { data: poData } = useQuery({
     queryKey: ['po-detail-for-delivery', watchPurchaseOrderId],
@@ -155,6 +167,18 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     enabled: !!watchPurchaseOrderId && (watchPurchaseOrderId as number) > 0,
   })
   const poDetail = (poData as any)?.data
+
+  const { data: soData } = useQuery({
+    queryKey: ['so-detail-for-delivery', watchSalesOrderId],
+    queryFn: () =>
+      salesOrdersService
+        .findById(watchSalesOrderId as number, {
+          include: 'buyer_branch,sales_order_details',
+        })
+        .then((r) => r.data),
+    enabled: !!watchSalesOrderId && (watchSalesOrderId as number) > 0,
+  })
+  const soDetail = (soData as any)?.data
 
   useEffect(() => {
     if (!poDetail?.purchase_order_details?.length) return
@@ -171,12 +195,50 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
     replace(newDetails)
 
-    if (watchSourceType === 'po_from_branch' && poDetail?.branch_id) {
+    if (
+      (watchSourceType === 'po_from_supplier' ||
+        watchSourceType === 'po_from_branch') &&
+      poDetail?.branch_id
+    ) {
       setValue('target_branch_id', poDetail.branch_id)
     }
 
     toast.info('Line items loaded from Purchase Order')
   }, [poDetail?.id])
+
+  useEffect(() => {
+    if (!soDetail) return
+
+    if (soDetail.buyer_branch_id) {
+      setValue('target_branch_id', soDetail.buyer_branch_id)
+    }
+
+    if (soDetail.sales_order_details?.length) {
+      const newDetails = soDetail.sales_order_details.map((d: any) => ({
+        product_uom_id: d.product_uom_id ?? 0,
+        purchase_order_detail_id: undefined,
+        sales_order_detail_id: d.id,
+        qty: d.qty ?? 1,
+        price: d.price ?? 0,
+        status: 'pending' as const,
+        description: d.description ?? '',
+      }))
+      replace(newDetails)
+      toast.info('Items loaded from Sales Order')
+    }
+  }, [soDetail?.id])
+
+  useEffect(() => {
+    if (!showLinkedPO) {
+      setValue('purchase_order_id', undefined)
+    }
+  }, [showLinkedPO])
+
+  useEffect(() => {
+    if (!showLinkedSO) {
+      setValue('sales_order_id', undefined)
+    }
+  }, [showLinkedSO])
 
   const branchOptions = branches.map((b: any) => ({
     value: b.id as number,
@@ -489,70 +551,106 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 Target Branch (Receiving)
                 <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
               </label>
-              <Controller
-                name="target_branch_id"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? 0}
-                    onChange={field.onChange}
-                    options={branchOptions}
-                    placeholder="Select target branch..."
-                    searchPlaceholder="Search branches..."
-                    loading={branchesLoading}
-                    error={errors.target_branch_id?.message as string | undefined}
-                  />
-                )}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Linked Purchase Order (Optional)</label>
-              <Controller
-                name="purchase_order_id"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? 0}
-                    onChange={(v) => field.onChange(v > 0 ? v : undefined)}
-                    options={purchaseOrderOptions}
-                    placeholder="No linked PO"
-                    searchPlaceholder="Search POs..."
-                    loading={purchaseOrdersLoading}
-                  />
-                )}
-              />
-              {!!watchPurchaseOrderId && watchPurchaseOrderId > 0 && poDetail && (
-                <span
+              {targetBranchReadonly ? (
+                <div
                   style={{
-                    fontSize: 11,
-                    color: 'var(--success)',
-                    marginTop: 4,
-                    display: 'block',
+                    width: '100%',
+                    padding: '9px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--background)',
+                    fontSize: 13,
+                    color: 'var(--foreground-muted)',
+                    fontFamily: 'var(--font-sans)',
                   }}
                 >
-                  ✓ {poDetail.purchase_order_details?.length ?? 0} item(s) loaded from PO
-                </span>
+                  {branches.find((b: any) => b.id === watch('target_branch_id'))?.name
+                    ?? 'Auto-filled from selection'}
+                </div>
+              ) : (
+                <Controller
+                  name="target_branch_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 0}
+                      onChange={field.onChange}
+                      options={branchOptions.filter(
+                        (o: any) => !myBranchId || o.value !== myBranchId,
+                      )}
+                      placeholder="Select target branch..."
+                      searchPlaceholder="Search branches..."
+                      loading={branchesLoading}
+                      error={errors.target_branch_id?.message as string | undefined}
+                    />
+                  )}
+                />
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Linked Sales Order (Optional)</label>
-              <Controller
-                name="sales_order_id"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? 0}
-                    onChange={(v) => field.onChange(v > 0 ? v : undefined)}
-                    options={salesOrderOptions}
-                    placeholder="No linked SO"
-                    searchPlaceholder="Search SOs..."
-                    loading={salesOrdersLoading}
-                  />
+            {showLinkedPO && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Linked Purchase Order (Optional)</label>
+                <Controller
+                  name="purchase_order_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 0}
+                      onChange={(v) => field.onChange(v > 0 ? v : undefined)}
+                      options={purchaseOrderOptions}
+                      placeholder="No linked PO"
+                      searchPlaceholder="Search POs..."
+                      loading={purchaseOrdersLoading}
+                    />
+                  )}
+                />
+                {!!watchPurchaseOrderId && watchPurchaseOrderId > 0 && poDetail && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--success)',
+                      marginTop: 4,
+                      display: 'block',
+                    }}
+                  >
+                    ✓ {poDetail.purchase_order_details?.length ?? 0} item(s) loaded from PO
+                  </span>
                 )}
-              />
-            </div>
+              </div>
+            )}
+
+            {showLinkedSO && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Linked Sales Order (Optional)</label>
+                <Controller
+                  name="sales_order_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 0}
+                      onChange={(v) => field.onChange(v > 0 ? v : undefined)}
+                      options={salesOrderOptions}
+                      placeholder="No linked SO"
+                      searchPlaceholder="Search SOs..."
+                      loading={salesOrdersLoading}
+                    />
+                  )}
+                />
+                {!!watchSalesOrderId && watchSalesOrderId > 0 && soDetail && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--success)',
+                      marginTop: 4,
+                      display: 'block',
+                    }}
+                  >
+                    ✓ {soDetail.sales_order_details?.length ?? 0} item(s) loaded from SO
+                  </span>
+                )}
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
               <label style={labelStyle}>Notes</label>
