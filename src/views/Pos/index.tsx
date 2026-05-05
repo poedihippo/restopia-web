@@ -1002,18 +1002,21 @@ export default function PosView() {
         )
         return
       }
-      let discount = 0
+      let discountAmount = 0
       if (voucher.discount_type === 'percent') {
-        discount = Math.min(
-          (subtotal * Number(voucher.discount_value ?? 0)) / 100,
-          voucher.max_discount_price ?? Infinity,
-        )
+        const rawDiscount =
+          (subtotal * Number(voucher.discount_value ?? 0)) / 100
+        const maxCap =
+          Number(voucher.max_discount_price ?? 0) > 0
+            ? Number(voucher.max_discount_price)
+            : Infinity
+        discountAmount = Math.min(rawDiscount, maxCap)
       } else {
-        discount = Number(voucher.discount_value ?? 0)
+        discountAmount = Number(voucher.discount_value ?? 0)
       }
       setAppliedVoucher({
         code: voucherCode,
-        discount_amount: discount,
+        discount_amount: discountAmount,
         voucher_id: voucher.id,
       })
       toast.success('Voucher applied')
@@ -2616,10 +2619,10 @@ export default function PosView() {
                 justifyContent: 'space-between',
                 fontSize: 13,
                 color: 'var(--destructive)',
-                padding: '4px 0',
+                padding: '2px 0',
               }}
             >
-              <span>Discount ({appliedVoucher.code})</span>
+              <span>Diskon ({appliedVoucher.code})</span>
               <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
             </div>
           )}
