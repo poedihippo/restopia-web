@@ -193,8 +193,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryFn: () =>
       purchaseOrdersService
         .findById(watchPurchaseOrderId as number, {
-          include:
-            'purchase_order_details.product_uom.product,purchase_order_details.product_uom.uom',
+          include: 'purchase_order_details',
         })
         .then((r) => r.data),
     enabled: !!watchPurchaseOrderId && (watchPurchaseOrderId as number) > 0,
@@ -214,10 +213,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const soDetail = (soData as any)?.data
 
   useEffect(() => {
+    console.log('PO detail:', poDetail)
+    console.log('PO details array:', poDetail?.purchase_order_details)
     if (!poDetail?.purchase_order_details?.length) return
 
     const newDetails = poDetail.purchase_order_details.map((d: any) => ({
-      product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
+      product_uom_id: d.product_uom_id ?? 0,
       product_uom_batch_id: undefined,
       purchase_order_detail_id: d.id,
       sales_order_detail_id: undefined,
