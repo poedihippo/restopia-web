@@ -3361,11 +3361,46 @@ export default function PosView() {
                         >×</button>
                       </div>
                     ))}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
-                        Est. Total: Rp {poSubtotal.toLocaleString('id-ID')}
-                      </span>
-                    </div>
+                  </div>
+                )}
+
+                {poItems.length > 0 && (
+                  <div
+                    style={{
+                      borderTop: '1px solid var(--border)',
+                      marginTop: 12,
+                      paddingTop: 12,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--foreground)',
+                      }}
+                    >
+                      Total
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: 'var(--accent)',
+                        fontFamily: 'var(--font-display)',
+                      }}
+                    >
+                      Rp{' '}
+                      {(
+                        poSubtotal ??
+                        poItems.reduce(
+                          (s, item) => s + item.qty * item.price,
+                          0,
+                        )
+                      ).toLocaleString('id-ID')}
+                    </span>
                   </div>
                 )}
               </div>
