@@ -41,6 +41,7 @@ interface PurchaseOrderFull {
     qty: number
     price: number
     description?: string
+    product_uom_id?: number
     product_uom?: {
       id: number
       code?: string
@@ -73,10 +74,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
     queryFn: () =>
       purchaseOrdersService
         .findById(id, {
-          include:
-            'branch,supplier,created_by,updated_by,' +
-            'purchase_order_details.product_uom.product,' +
-            'purchase_order_details.product_uom.uom',
+          include: 'branch,supplier,created_by,updated_by,purchase_order_details',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -555,11 +553,11 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                   {index + 1}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                  {detail.product_uom?.product?.name ?? '—'}
+                  {detail.product_uom?.product?.name ?? `Item #${detail.product_uom_id ?? detail.id}`}
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={pillStyle}>
-                    {detail.product_uom?.uom?.name ?? detail.product_uom?.code ?? '—'}
+                    {detail.product_uom?.uom?.name ?? detail.product_uom?.uom?.code ?? '—'}
                   </span>
                 </td>
                 <td
