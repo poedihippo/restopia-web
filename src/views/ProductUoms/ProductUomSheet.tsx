@@ -146,6 +146,15 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
       toast.success('Product UOM created')
+      reset({
+        product_id: 0,
+        uom_id: 0,
+        code: '',
+        base_price: 0,
+        online_price: 0,
+        price_editable: false,
+        is_default: false,
+      })
       onClose()
     },
     onError: (err: any) =>
