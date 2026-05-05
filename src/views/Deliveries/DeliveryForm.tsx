@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
+import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -19,6 +20,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
+  product_uom_batch_id: z.coerce.number().optional(),
   purchase_order_detail_id: z.coerce.number().optional(),
   sales_order_detail_id: z.coerce.number().optional(),
   qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
@@ -27,22 +29,36 @@ const detailSchema = z.object({
   description: z.string().optional(),
 })
 
-const schema = z.object({
-  code: z.string().min(1, 'Code required'),
-  source_type: z.enum([
-    'po_from_supplier',
-    'po_from_branch',
-    'transfer_to_branch',
-    'so_to_branch',
-  ]),
-  target_branch_id: z.coerce.number().min(0, 'Target branch required'),
-  purchase_order_id: z.coerce.number().optional(),
-  sales_order_id: z.coerce.number().optional(),
-  date: z.string().min(1, 'Date required'),
-  status: z.literal('final'),
-  description: z.string().optional(),
-  details: z.array(detailSchema).min(1, 'At least one item required'),
-})
+const schema = z
+  .object({
+    code: z.string().min(1, 'Code required'),
+    source_type: z.enum([
+      'po_from_supplier',
+      'po_from_branch',
+      'transfer_to_branch',
+      'so_to_branch',
+    ]),
+    target_branch_id: z.coerce.number().min(0, 'Target branch required'),
+    purchase_order_id: z.coerce.number().optional(),
+    sales_order_id: z.coerce.number().optional(),
+    date: z.string().min(1, 'Date required'),
+    status: z.literal('final'),
+    description: z.string().optional(),
+    details: z.array(detailSchema).min(1, 'At least one item required'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.source_type !== 'po_from_supplier') {
+      data.details.forEach((d, i) => {
+        if (!d.product_uom_batch_id) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['details', i, 'product_uom_batch_id'],
+            message: 'Batch is required',
+          })
+        }
+      })
+    }
+  })
 
 type FormValues = z.infer<typeof schema>
 
@@ -91,6 +107,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       details: [
         {
           product_uom_id: 0,
+          product_uom_batch_id: undefined,
           purchase_order_detail_id: undefined,
           sales_order_detail_id: undefined,
           qty: 1,
@@ -125,6 +142,21 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
+  const { data: batchesData } = useQuery({
+    queryKey: ['product-uom-batches-all'],
+    queryFn: () =>
+      productUomBatchesService
+        .list({ per_page: 200, include: 'product_uom' } as any)
+        .then((r) => r.data),
+  })
+  const allBatches = (batchesData as any)?.data ?? []
+
+  const getBatchesForUom = (productUomId: number) =>
+    allBatches.filter(
+      (b: any) =>
+        b.product_uom_id === productUomId || b.product_uom?.id === productUomId,
+    )
+
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-pending'],
     queryFn: () =>
@@ -154,6 +186,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     watchSourceType === 'po_from_supplier' ||
     watchSourceType === 'po_from_branch' ||
     watchSourceType === 'so_to_branch'
+  const requiresBatch = watchSourceType !== 'po_from_supplier'
 
   const { data: poData } = useQuery({
     queryKey: ['po-detail-for-delivery', watchPurchaseOrderId],
@@ -185,6 +218,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
     const newDetails = poDetail.purchase_order_details.map((d: any) => ({
       product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
+      product_uom_batch_id: undefined,
       purchase_order_detail_id: d.id,
       sales_order_detail_id: undefined,
       qty: d.qty ?? 1,
@@ -216,6 +250,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     if (soDetail.sales_order_details?.length) {
       const newDetails = soDetail.sales_order_details.map((d: any) => ({
         product_uom_id: d.product_uom_id ?? 0,
+        product_uom_batch_id: undefined,
         purchase_order_detail_id: undefined,
         sales_order_detail_id: d.id,
         qty: d.qty ?? 1,
@@ -289,6 +324,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
         product_uom_id: d.product_uom_id,
+        product_uom_batch_id:
+          watchSourceType !== 'po_from_supplier'
+            ? d.product_uom_batch_id || undefined
+            : undefined,
         purchase_order_detail_id: d.purchase_order_detail_id || undefined,
         sales_order_detail_id: d.sales_order_detail_id || undefined,
         qty: d.qty,
@@ -680,6 +719,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               onClick={() =>
                 append({
                   product_uom_id: 0,
+                  product_uom_batch_id: undefined,
                   purchase_order_detail_id: undefined,
                   sales_order_detail_id: undefined,
                   qty: 1,
@@ -710,14 +750,19 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 90px 130px 110px 1fr 40px',
+              gridTemplateColumns: requiresBatch
+                ? '2fr 1fr 90px 120px 110px 1fr 40px'
+                : '2fr 90px 130px 110px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
           >
-            {['Product', 'Qty', 'Unit Price', 'Status', 'Notes', ''].map((h, i) => (
+            {(requiresBatch
+              ? ['Product', 'Batch', 'Qty', 'Unit Price', 'Status', 'Notes', '']
+              : ['Product', 'Qty', 'Unit Price', 'Status', 'Notes', '']
+            ).map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -738,7 +783,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 90px 130px 110px 1fr 40px',
+                gridTemplateColumns: requiresBatch
+                  ? '2fr 1fr 90px 120px 110px 1fr 40px'
+                  : '2fr 90px 130px 110px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -752,7 +799,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={f.onChange}
+                      onChange={(v) => {
+                        f.onChange(v)
+                        setValue(
+                          `details.${index}.product_uom_batch_id`,
+                          undefined,
+                        )
+                      }}
                       options={productUomOptions}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
@@ -766,6 +819,67 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   )}
                 />
               </div>
+
+              {requiresBatch && (
+                <Controller
+                  control={control}
+                  name={`details.${index}.product_uom_batch_id`}
+                  render={({ field: f }) => {
+                    const batches = getBatchesForUom(
+                      watchDetails[index]?.product_uom_id ?? 0,
+                    )
+                    const batchError = errors.details?.[index]?.product_uom_batch_id
+                      ?.message as string | undefined
+                    return (
+                      <div
+                        style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
+                      >
+                        <select
+                          value={f.value ?? 0}
+                          onChange={(e) =>
+                            f.onChange(Number(e.target.value) || undefined)
+                          }
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            border: `1px solid ${
+                              batchError ? 'var(--destructive)' : 'var(--border)'
+                            }`,
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: 12,
+                            background: 'var(--surface)',
+                            outline: 'none',
+                            fontFamily: 'var(--font-sans)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value={0}>
+                            {batches.length === 0
+                              ? 'No batches available'
+                              : 'Select batch...'}
+                          </option>
+                          {batches.map((b: any) => (
+                            <option key={b.id} value={b.id}>
+                              {b.code ?? `Batch #${b.id}`}
+                              {b.expiry_date
+                                ? ` (exp: ${String(b.expiry_date).split('T')[0]})`
+                                : ''}
+                              {` — Stock: ${b.stock ?? 0}`}
+                            </option>
+                          ))}
+                        </select>
+                        {batchError && (
+                          <span
+                            style={{ fontSize: 10, color: 'var(--destructive)' }}
+                          >
+                            {batchError}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  }}
+                />
+              )}
 
               <input
                 type="number"
