@@ -42,20 +42,23 @@ export default function SearchableSelect({
 
   const selectedOption = options.find((o) => o.value === value)
 
-  const recalcPosition = () => {
+  const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect()
-    if (rect) {
-      setDropdownPos({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      })
-    }
+    if (!rect) return
+    const dropdownHeight = 260
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const showAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow
+    setDropdownPos({
+      top: showAbove ? rect.top - dropdownHeight - 4 : rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    })
   }
 
   useEffect(() => {
     if (!open) return
-    recalcPosition()
+    updatePosition()
     const handler = (e: MouseEvent) => {
       const target = e.target as Node
       if (
@@ -65,14 +68,13 @@ export default function SearchableSelect({
         setOpen(false)
       }
     }
-    const close = () => setOpen(false)
     document.addEventListener('mousedown', handler)
-    window.addEventListener('scroll', close, true)
-    window.addEventListener('resize', close)
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
     return () => {
       document.removeEventListener('mousedown', handler)
-      window.removeEventListener('scroll', close, true)
-      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
     }
   }, [open])
 
@@ -94,16 +96,7 @@ export default function SearchableSelect({
           if (disabled) return
           setOpen((v) => {
             const next = !v
-            if (next) {
-              const rect = triggerRef.current?.getBoundingClientRect()
-              if (rect) {
-                setDropdownPos({
-                  top: rect.bottom + window.scrollY + 4,
-                  left: rect.left + window.scrollX,
-                  width: rect.width,
-                })
-              }
-            }
+            if (next) updatePosition()
             return next
           })
         }}
@@ -180,9 +173,6 @@ export default function SearchableSelect({
             borderRadius: 'var(--radius-md)',
             boxShadow: 'var(--shadow-lg)',
             overflow: 'hidden',
-            maxHeight: 260,
-            display: 'flex',
-            flexDirection: 'column',
           }}
         >
           <div
@@ -216,7 +206,7 @@ export default function SearchableSelect({
             />
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 220, overflowY: 'auto', overflowX: 'hidden' }}>
             {loading ? (
               <div
                 style={{
