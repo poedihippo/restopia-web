@@ -229,7 +229,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     background: 'var(--surface)',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-lg)',
-    overflow: 'hidden',
+    overflow: 'visible',
     boxShadow: 'var(--shadow-sm)',
   }
 

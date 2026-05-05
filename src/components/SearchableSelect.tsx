@@ -34,19 +34,46 @@ export default function SearchableSelect({
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const [dropdownPos, setDropdownPos] = useState<
+    { top: number; left: number; width: number } | null
+  >(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const selectedOption = options.find((o) => o.value === value)
 
+  const recalcPosition = () => {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (rect) {
+      setDropdownPos({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      })
+    }
+  }
+
   useEffect(() => {
     if (!open) return
+    recalcPosition()
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (
+        !triggerRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
+      ) {
         setOpen(false)
       }
     }
+    const close = () => setOpen(false)
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
   }, [open])
 
   const needle = search.toLowerCase()
@@ -59,11 +86,26 @@ export default function SearchableSelect({
     : options
 
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%', zIndex: 9999 }}>
+    <div style={{ width: '100%' }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => {
-          if (!disabled) setOpen((v) => !v)
+          if (disabled) return
+          setOpen((v) => {
+            const next = !v
+            if (next) {
+              const rect = triggerRef.current?.getBoundingClientRect()
+              if (rect) {
+                setDropdownPos({
+                  top: rect.bottom + window.scrollY + 4,
+                  left: rect.left + window.scrollX,
+                  width: rect.width,
+                })
+              }
+            }
+            return next
+          })
         }}
         disabled={disabled}
         style={{
@@ -124,20 +166,23 @@ export default function SearchableSelect({
         />
       </button>
 
-      {open && (
+      {open && dropdownPos && (
         <div
+          ref={dropdownRef}
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            left: 0,
-            right: 0,
+            position: 'fixed',
+            top: dropdownPos.top,
+            left: dropdownPos.left,
+            width: dropdownPos.width,
             zIndex: 9999,
-            pointerEvents: 'all',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
             boxShadow: 'var(--shadow-lg)',
             overflow: 'hidden',
+            maxHeight: 260,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           <div
@@ -171,7 +216,7 @@ export default function SearchableSelect({
             />
           </div>
 
-          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading ? (
               <div
                 style={{
