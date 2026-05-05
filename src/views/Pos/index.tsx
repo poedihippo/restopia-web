@@ -11,8 +11,12 @@ import { customersService as customerService } from '@/services/customers.servic
 import { bundlesService as bundleService } from '@/services/bundles.service'
 import { paymentMethodsService as paymentMethodService } from '@/services/payment-methods.service'
 import { paymentsService as paymentService } from '@/services/payments.service'
+import api from '@/hooks/useApi'
 import { toast } from 'sonner'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
+
+const generateKey = () =>
+  Math.random().toString(36).substring(2) + Date.now().toString(36)
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -484,7 +488,9 @@ export default function PosView() {
           status: 'pending' as const,
         })),
       }
-      return salesOrderService.create(payload as any)
+      return api.post('/sales-orders', payload, {
+        headers: { 'Idempotency-Key': generateKey() },
+      })
     },
     onSuccess: () => {
       toast.success('Pre-order created')
@@ -557,7 +563,9 @@ export default function PosView() {
     mutationFn: (payload: any) =>
       editingOrderId
         ? salesOrderService.update(editingOrderId, payload as any)
-        : salesOrderService.create(payload as any),
+        : api.post('/sales-orders', payload, {
+            headers: { 'Idempotency-Key': generateKey() },
+          }),
     onSuccess: async (res: any, variables: any) => {
       const salesOrderId = res?.data?.data?.id ?? editingOrderId ?? null
       if (salesOrderId && paymentMethodId) {
@@ -596,7 +604,9 @@ export default function PosView() {
     mutationFn: (payload: any) =>
       editingOrderId
         ? salesOrderService.update(editingOrderId, payload as any)
-        : salesOrderService.create(payload as any),
+        : api.post('/sales-orders', payload, {
+            headers: { 'Idempotency-Key': generateKey() },
+          }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       toast.success(editingOrderId ? 'Order updated (held)' : 'Order held as pending')
