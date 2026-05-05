@@ -483,6 +483,7 @@ export default function PosView() {
         discount_price: 0,
         total_price: subtotal,
         status: 'pending' as const,
+        settlement_status: 'pending' as const,
         description: poNote || undefined,
         details: poItems.map((i) => ({
           product_inventory_id: i.product_inventory_id,
@@ -1049,6 +1050,7 @@ export default function PosView() {
       discount_price: voucherDiscount,
       total_price: orderTotal,
       status: 'final' as const,
+      settlement_status: 'pending' as const,
       description: orderNote || undefined,
       details: [
         ...cart.map((c) => ({
