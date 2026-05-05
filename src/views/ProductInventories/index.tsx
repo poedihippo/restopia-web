@@ -26,6 +26,7 @@ import {
 interface ProductInventory {
   id: number
   qty: number
+  stock?: number
   min_qty?: number
   code?: string
   base_price?: number
@@ -42,7 +43,22 @@ interface ProductInventory {
     product?: { id: number; name: string }
     uom?: { id: number; name: string; code: string }
   }
-  branch?: { id: number; name: string }
+  product_uom_batch?: {
+    id: number
+    code?: string
+    expiry_date?: string
+    product_uom?: {
+      id: number
+      code?: string
+      product?: {
+        id: number
+        name: string
+        product_category?: { id: number; name: string }
+      }
+      uom?: { id: number; name: string; code: string }
+    }
+  }
+  branch?: { id: number; name: string; code?: string }
 }
 
 export default function ProductInventoriesView() {

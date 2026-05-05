@@ -142,6 +142,39 @@ export interface ProductInventoryUpdateRequest {
   status?: 'active' | 'inactive'
 }
 
+export interface ProductInventory {
+  id: number
+  product_uom_id: number
+  branch_id: number
+  code?: string
+  stock?: number
+  qty?: number
+  min_qty?: number
+  base_price?: number
+  online_price?: number
+  price_editable?: boolean
+  expiry_date?: string
+  status?: 'active' | 'inactive'
+  created_at?: string
+  branch?: { id: number; name: string; code?: string }
+  product_uom_batch?: {
+    id: number
+    code?: string
+    expiry_date?: string
+    product_uom?: {
+      id: number
+      code?: string
+      product?: {
+        id: number
+        name: string
+        type?: string
+        product_category?: { id: number; name: string }
+      }
+      uom?: { id: number; name: string; code: string }
+    }
+  }
+}
+
 // Stock Movements
 export interface StockMovementRequest {
   product_inventory_id: number
