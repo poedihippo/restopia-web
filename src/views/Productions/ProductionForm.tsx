@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -550,7 +550,9 @@ export default function ProductionForm({
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all'],
     queryFn: () =>
-      productInventoriesService.list({ per_page: 200, include: 'branch' }).then((r) => r.data),
+      productInventoriesService
+        .list({ per_page: 200, include: 'branch,product_uom_batch' } as any)
+        .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
 
@@ -705,6 +707,39 @@ export default function ProductionForm({
       }
     },
     [watchDetails, inventories, setValue],
+  )
+
+  // Derive material labels from inventories so edit mode shows readable names
+  // instead of "Material #1". Manual labels (set via picker) take precedence.
+  const derivedMaterialLabels = useMemo(() => {
+    const labels: Record<string, string> = {}
+    ;(watchDetails ?? []).forEach((d: any, di: number) => {
+      ;(d?.materials ?? []).forEach((m: any, mi: number) => {
+        const id = m?.product_inventory_id
+        if (!id) return
+        const inv = inventories.find((i: any) => i.id === id)
+        if (!inv) return
+        const name =
+          inv?.product_uom_batch?.product_uom?.product?.name ??
+          inv?.product_uom?.product?.name ??
+          inv?.code ??
+          `Material #${id}`
+        const uomCode =
+          inv?.product_uom_batch?.product_uom?.uom?.code ??
+          inv?.product_uom?.uom?.code ??
+          ''
+        const sku = inv?.code ?? ''
+        labels[`${di}-${mi}`] = [name, uomCode, sku ? `SKU: ${sku}` : '']
+          .filter(Boolean)
+          .join(' · ')
+      })
+    })
+    return labels
+  }, [watchDetails, inventories])
+
+  const mergedMaterialLabels = useMemo(
+    () => ({ ...derivedMaterialLabels, ...materialLabels }),
+    [derivedMaterialLabels, materialLabels],
   )
 
   const handleSelectMaterialInventory = useCallback(
@@ -1239,7 +1274,7 @@ export default function ProductionForm({
                         setSharedMaterialProductName={setSharedMaterialProductName}
                         setSharedShowMaterialUomPicker={setSharedShowMaterialUomPicker}
                         onSelectMaterialInventory={handleSelectMaterialInventory}
-                        materialLabels={materialLabels}
+                        materialLabels={mergedMaterialLabels}
                       />
                     </div>
                   )}

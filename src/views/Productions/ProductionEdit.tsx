@@ -9,34 +9,32 @@ interface Props {
   id: number
 }
 
-const INCLUDE =
-  'branch,production_details.product_inventory.product_uom,production_details.product_detail_materials'
+const INCLUDE = 'branch,created_by,production_details'
 
-function mapApiToForm(data: any) {
-  if (!data) return undefined
+function mapApiToForm(production: any) {
+  if (!production) return undefined
   const dateStr =
-    data.date != null
-      ? typeof data.date === 'string'
-        ? data.date.slice(0, 10)
-        : new Date(data.date).toISOString().split('T')[0]
+    production.date != null
+      ? typeof production.date === 'string'
+        ? production.date.slice(0, 10)
+        : new Date(production.date).toISOString().split('T')[0]
       : ''
 
-  const detailsRows =
-    data.production_details?.map((d: any) => {
-      const mats =
-        d.product_detail_materials?.map((m: any) => ({
-          product_inventory_id: m.product_inventory_id ?? 0,
-          qty: m.qty ?? 1,
-        })) ?? []
-      return {
-        product_uom_id: d.product_inventory?.product_uom_id ?? d.product_uom_id ?? 0,
-        qty: d.qty ?? 1,
-        status: d.status === 'final' ? 'final' : 'pending',
-        expiry_date: d.expiry_date ? String(d.expiry_date).slice(0, 10) : '',
-        description: d.description ?? '',
-        materials: mats.length > 0 ? mats : [{ product_inventory_id: 0, qty: 1 }],
-      }
-    }) ?? []
+  const detailsRows = (production.production_details ?? []).map((d: any) => {
+    const mats =
+      (d.production_detail_materials ?? d.materials ?? []).map((m: any) => ({
+        product_inventory_id: m.product_inventory_id ?? 0,
+        qty: m.qty ?? 1,
+      }))
+    return {
+      product_uom_id: d.product_uom_id ?? 0,
+      qty: d.qty ?? 1,
+      status: d.status ?? 'pending',
+      expiry_date: d.expiry_date ? String(d.expiry_date).split('T')[0] : '',
+      description: d.description ?? '',
+      materials: mats.length > 0 ? mats : [{ product_inventory_id: 0, qty: 1 }],
+    }
+  })
 
   const details =
     detailsRows.length > 0
@@ -53,10 +51,10 @@ function mapApiToForm(data: any) {
         ]
 
   return {
-    code: data.code ?? '',
+    code: production.code ?? '',
     date: dateStr,
-    status: data.status === 'final' ? 'final' : 'pending',
-    description: data.description ?? '',
+    status: production.status ?? 'pending',
+    description: production.description ?? '',
     details,
   }
 }
