@@ -22,7 +22,7 @@ const detailSchema = z.object({
   price: z.coerce.number().min(0, 'Price required'),
   status: z.enum(['pending', 'success', 'failed']),
   description: z.string().optional(),
-  client_ref: z.string().min(1, 'Client ref is required'),
+  client_ref: z.string(),
 })
 
 const schema = z.object({
@@ -72,7 +72,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           price: 0,
           status: 'pending',
           description: '',
-          client_ref: '',
+          client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
         },
       ],
     },
@@ -129,7 +129,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       price: d.price ?? 0,
       status: 'success' as const,
       description: d.description ?? '',
-      client_ref: `${deliveryDetail.code}-${index + 1}`,
+      client_ref: `${deliveryDetail.code ?? 'RCP'}-${index + 1}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
     }))
 
     replace(newDetails)
@@ -460,7 +460,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   price: 0,
                   status: 'pending',
                   description: '',
-                  client_ref: '',
+                  client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
                 })
               }
               style={{
@@ -485,14 +485,14 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 100px 120px 110px 120px 100px 1fr 40px',
+              gridTemplateColumns: '2fr 100px 120px 110px 120px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
           >
-            {['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Client Ref *', 'Notes', ''].map((h, i) => (
+            {['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -513,7 +513,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 100px 120px 110px 120px 100px 1fr 40px',
+                gridTemplateColumns: '2fr 100px 120px 110px 120px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -580,42 +580,29 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 style={lineInputStyle}
               />
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <input
-                  {...register(`details.${index}.client_ref`)}
-                  placeholder="e.g. RCP-LINE-001"
-                  style={
-                    errors.details?.[index]?.client_ref
-                      ? { ...lineInputStyle, border: '1px solid var(--destructive)' }
-                      : lineInputStyle
-                  }
-                />
-                {errors.details?.[index]?.client_ref && (
-                  <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                    {errors.details[index]!.client_ref!.message}
-                  </span>
-                )}
-              </div>
-
               <input
                 {...register(`details.${index}.description`)}
                 placeholder="Note"
                 style={lineInputStyle}
               />
 
+              <input type="hidden" {...register(`details.${index}.client_ref`)} />
+
               <button
                 type="button"
                 onClick={() => remove(index)}
                 disabled={fields.length === 1}
                 style={{
-                  padding: 6,
-                  background: 'none',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
+                  padding: '6px 8px',
+                  background: 'var(--destructive-bg)',
+                  border: '1px solid var(--destructive)',
+                  borderRadius: 'var(--radius-md)',
                   cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                  color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                  color: 'var(--destructive)',
                   display: 'flex',
                   alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: fields.length === 1 ? 0.3 : 1,
                 }}
               >
                 <Trash2 size={14} />
