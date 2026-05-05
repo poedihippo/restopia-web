@@ -86,6 +86,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       bundle_id: d.bundle_id ?? null,
       bundle_details: d.bundle_details ?? null,
       name:
+        d.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
         d.product_inventory?.product_uom?.product?.name ??
         d.bundle?.name ??
         d.description ??
@@ -137,7 +138,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           'filter[search]': productSearchDebounced || undefined,
           'filter[product_type]': 'final',
           'filter[status]': 'active',
-          include: 'product_uom,product_uom.product',
+          include: 'branch,product_uom_batch',
         })
         .then((r) => r.data),
   })
@@ -201,7 +202,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             product_inventory_id: p.id,
             bundle_id: null,
             bundle_details: null,
-            name: p.product_uom?.product?.name ?? p.code,
+            name:
+              p.product_uom_batch?.product_uom?.product?.name
+              ?? p.product_uom?.product?.name
+              ?? p.code,
             code: p.code,
             qty: 1,
             price,
@@ -835,7 +839,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                       >
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600 }}>
-                            {p.product_uom?.product?.name ?? p.code}
+                            {p.product_uom_batch?.product_uom?.product?.name
+                              ?? p.product_uom?.product?.name
+                              ?? p.code}
                           </div>
                           <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
                             {p.code} · Stock: {p.stock ?? 0}

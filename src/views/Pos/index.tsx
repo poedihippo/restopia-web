@@ -207,7 +207,7 @@ export default function PosView() {
         per_page: 20,
         'filter[product_type]': 'final',
         'filter[status]': 'active',
-        include: 'branch,product_uom',
+        include: 'branch,product_uom_batch',
       }
       if (searchDebounced) params['filter[search]'] = searchDebounced
       if (inStockOnly) params['filter[stock_gte]'] = 1
@@ -241,7 +241,10 @@ export default function PosView() {
   const filteredItems = useMemo(() => {
     if (categoryId === null) return items
     return items.filter((item: any) => {
-      const pu = item.product_uom ?? getProductUom(item.product_uom_id)
+      const pu =
+        item.product_uom_batch?.product_uom
+        ?? item.product_uom
+        ?? getProductUom(item.product_uom_id)
       const catId =
         pu?.product?.product_category_id ?? pu?.product?.product_category?.id
       return catId === categoryId
@@ -278,7 +281,11 @@ export default function PosView() {
     }
     const map = new Map<string, Group>()
     for (const row of filteredItems as any[]) {
-      const puid = row.product_uom_id ?? row.product_uom?.id ?? null
+      const puid =
+        row.product_uom_id
+        ?? row.product_uom_batch?.product_uom?.id
+        ?? row.product_uom?.id
+        ?? null
       const key = puid !== null ? `uom:${puid}` : `id:${row.id}`
       let g = map.get(key)
       if (!g) {
@@ -363,7 +370,7 @@ export default function PosView() {
         per_page: 15,
         'filter[product_type]': 'final',
         'filter[status]': 'active',
-        include: 'product_uom,product_uom.product',
+        include: 'branch,product_uom_batch',
       }
       if (poProductSearchDebounced) params['filter[search]'] = poProductSearchDebounced
       return productInventoriesService.list(params).then((r) => r.data)
@@ -1254,14 +1261,18 @@ export default function PosView() {
                         paddingRight: lotCount > 1 ? 52 : 0,
                       }}
                     >
-                      {item.product_uom?.product?.name ??
+                      {item.product_uom_batch?.product_uom?.product?.name ??
+                        item.product_uom?.product?.name ??
                         getProductUom(item.product_uom_id)?.product?.name ??
                         item.productUom?.product?.name ??
                         item.product?.name ??
-                        item.code}
+                        item.code ??
+                        `#${item.id}`}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {item.product_uom?.code ?? item.code}
+                      {item.product_uom_batch?.product_uom?.code
+                        ?? item.product_uom?.code
+                        ?? item.code}
                     </span>
                     <span
                       style={{
@@ -3068,7 +3079,11 @@ export default function PosView() {
                                   if (exists >= 0) return prev.map((i, idx) => idx === exists ? { ...i, qty: i.qty + 1 } : i)
                                   return [...prev, {
                                     product_inventory_id: p.id,
-                                    name: p.product_uom?.product?.name ?? p.code,
+                                    name:
+                                      p.product_uom_batch?.product_uom?.product?.name
+                                      ?? p.product_uom?.product?.name
+                                      ?? p.code
+                                      ?? `INV-${p.id}`,
                                     code: p.code,
                                     price: p.base_price ?? 0,
                                     qty: 1,
@@ -3085,7 +3100,7 @@ export default function PosView() {
                               onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
                             >
                               <div>
-                                <div style={{ fontSize: 13, fontWeight: 500 }}>{p.product_uom?.product?.name ?? p.code}</div>
+                                <div style={{ fontSize: 13, fontWeight: 500 }}>{p.product_uom_batch?.product_uom?.product?.name ?? p.product_uom?.product?.name ?? p.code}</div>
                                 <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{p.code}</div>
                               </div>
                               <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>

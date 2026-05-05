@@ -75,7 +75,7 @@ export default function StockPositionReport() {
       productInventoriesService
         .list({
           per_page: 500,
-          include: 'branch,product_uom',
+          include: 'branch,product_uom_batch',
           'filter[branch_id]': branchFilter || undefined,
           'filter[product_type]': productTypeFilter || undefined,
           sort: 'code',
@@ -90,7 +90,10 @@ export default function StockPositionReport() {
     if (!searchText) return items
     const s = searchText.toLowerCase()
     return items.filter((item: any) => {
-      const name = item.product_uom?.product?.name ?? ''
+      const name =
+        item.product_uom_batch?.product_uom?.product?.name
+        ?? item.product_uom?.product?.name
+        ?? ''
       const code = item.code ?? ''
       return name.toLowerCase().includes(s) || code.toLowerCase().includes(s)
     })
@@ -480,10 +483,16 @@ export default function StockPositionReport() {
                     {item.code}
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>
-                    {item.product_uom?.product?.name ?? '—'}
+                    {item.product_uom_batch?.product_uom?.product?.name
+                      ?? item.product_uom?.product?.name
+                      ?? '—'}
                   </td>
                   <td style={{ ...tdStyle, fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.product_uom?.uom?.name ?? item.product_uom?.uom?.code ?? '—'}
+                    {item.product_uom_batch?.product_uom?.uom?.name
+                      ?? item.product_uom_batch?.product_uom?.uom?.code
+                      ?? item.product_uom?.uom?.name
+                      ?? item.product_uom?.uom?.code
+                      ?? '—'}
                   </td>
                   <td style={tdStyle}>{item.branch?.name ?? '—'}</td>
                   <td

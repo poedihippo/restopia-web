@@ -110,7 +110,7 @@ export default function ProductInventoriesView() {
           page,
           per_page: 15,
           sort: '-id',
-          include: 'branch,product_uom',
+          include: 'branch,product_uom_batch',
           'filter[search]': debouncedSearch || undefined,
         })
         .then((r) => r.data),
@@ -480,8 +480,10 @@ export default function ProductInventoriesView() {
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_uom?.product?.name
+                          {item.product_uom_batch?.product_uom?.product?.name
+                            ?? item.product_uom?.product?.name
                             ?? puFallback?.product?.name
+                            ?? item.product_uom_batch?.product_uom?.code
                             ?? item.product_uom?.code
                             ?? puFallback?.code
                             ?? `Item #${item.id}`}
@@ -509,7 +511,9 @@ export default function ProductInventoriesView() {
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.product_uom?.uom?.code
+                        {item.product_uom_batch?.product_uom?.uom?.code
+                          ?? item.product_uom_batch?.product_uom?.uom?.name
+                          ?? item.product_uom?.uom?.code
                           ?? puFallback?.uom?.code
                           ?? puFallback?.uom?.name
                           ?? '—'}
@@ -884,10 +888,14 @@ export default function ProductInventoriesView() {
             >
               {(() => {
                 const detailPu = getProductUom(selectedItem.product_uom_id)
+                const batchPu = (selectedItem as any).product_uom_batch?.product_uom
                 const productName =
-                  selectedItem.product_uom?.product?.name ?? detailPu?.product?.name
-                const puCode = selectedItem.product_uom?.code ?? detailPu?.code
-                const uom = selectedItem.product_uom?.uom ?? detailPu?.uom
+                  batchPu?.product?.name
+                  ?? selectedItem.product_uom?.product?.name
+                  ?? detailPu?.product?.name
+                const puCode =
+                  batchPu?.code ?? selectedItem.product_uom?.code ?? detailPu?.code
+                const uom = batchPu?.uom ?? selectedItem.product_uom?.uom ?? detailPu?.uom
                 return [
                   { label: 'ID', value: selectedItem.id },
                   { label: 'SKU Code', value: selectedItem.code },

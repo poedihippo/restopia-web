@@ -73,7 +73,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
       productInventoriesService
         .list({
           per_page: 200,
-          include: 'product_uom.product,product_uom.uom,branch',
+          include: 'branch,product_uom_batch',
         })
         .then((r) => r.data),
   })
@@ -337,9 +337,15 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                   </option>
                   {inventoryItems.map((inv: any) => (
                     <option key={inv.id} value={inv.id}>
-                      {inv.product_uom?.product?.name ?? inv.id}
+                      {inv.product_uom_batch?.product_uom?.product?.name
+                        ?? inv.product_uom?.product?.name
+                        ?? inv.code
+                        ?? `INV-${inv.id}`}
                       {' — '}
-                      {inv.product_uom?.uom?.code ?? ''}
+                      {inv.product_uom_batch?.product_uom?.uom?.code
+                        ?? inv.product_uom_batch?.product_uom?.uom?.name
+                        ?? inv.product_uom?.uom?.code
+                        ?? ''}
                       {' ('}
                       {inv.branch?.name ?? 'Unknown Branch'}
                       {') — Qty: '}
