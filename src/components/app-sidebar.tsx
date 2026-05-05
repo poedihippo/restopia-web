@@ -28,6 +28,7 @@ import {
   Wallet,
   CreditCard,
   UserCheck,
+  BarChart3,
 } from 'lucide-react';
 
 type NavChild = {
@@ -125,6 +126,22 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.read' },
+    ],
+  },
+  {
+    title: 'REPORTS',
+    items: [
+      {
+        label: 'Reports',
+        icon: BarChart3,
+        permission: 'sales-order.read',
+        children: [
+          { label: 'Transaction History', href: '/reports/transaction-history', permission: 'sales-order.read' },
+          { label: 'Credit (Aging)', href: '/reports/credit', permission: 'sales-order.read' },
+          { label: 'Discount & Voucher', href: '/reports/discount-voucher', permission: 'sales-order.read' },
+          { label: 'Stock Position', href: '/reports/stock-position', permission: 'product-inventory.read' },
+        ],
+      },
     ],
   },
   {
