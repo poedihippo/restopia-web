@@ -11,6 +11,11 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
+const formatNumber = (n: number | undefined): string => {
+  if (n === undefined || n === null || Number.isNaN(n)) return ''
+  return Number(n).toLocaleString('id-ID')
+}
+
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Please select a product'),
   qty: z.coerce.number().min(0.001, 'Quantity must be greater than 0'),
@@ -68,6 +73,8 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     control,
     formState: { errors },
   } = useForm<FormValues>({
@@ -367,9 +374,13 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                   <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
                 </label>
                 <input
-                  type="number"
-                  min={0}
-                  {...register('price', { valueAsNumber: true })}
+                  type="text"
+                  inputMode="numeric"
+                  value={formatNumber(watch('price'))}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d]/g, '')
+                    setValue('price', raw === '' ? 0 : parseInt(raw, 10) || 0)
+                  }}
                   placeholder="0"
                   style={errors.price ? inputErrorStyle : inputStyle}
                 />

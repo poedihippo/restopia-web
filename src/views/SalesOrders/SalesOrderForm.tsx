@@ -17,6 +17,11 @@ import api from '@/hooks/useApi'
 const generateKey = () =>
   Math.random().toString(36).substring(2) + Date.now().toString(36)
 
+const formatNumber = (n: number | undefined): string => {
+  if (n === undefined || n === null || Number.isNaN(n)) return ''
+  return Number(n).toLocaleString('id-ID')
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface LineItem {
   type: 'product' | 'bundle'
@@ -538,10 +543,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           <div>
             <label style={labelStyle}>Discount (Rp)</label>
             <input
-              type="number"
-              min={0}
-              value={discountPrice}
-              onChange={(e) => setDiscountPrice(Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              value={formatNumber(discountPrice)}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^\d]/g, '')
+                setDiscountPrice(raw === '' ? 0 : parseInt(raw, 10) || 0)
+              }}
               style={fieldStyle}
             />
           </div>
@@ -1001,10 +1009,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                   </td>
                   <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
                     <input
-                      type="number"
-                      min={0}
-                      value={item.price}
-                      onChange={(e) => updateItem(idx, 'price', Number(e.target.value))}
+                      type="text"
+                      inputMode="numeric"
+                      value={formatNumber(item.price)}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^\d]/g, '')
+                        updateItem(idx, 'price', raw === '' ? 0 : parseInt(raw, 10) || 0)
+                      }}
                       style={{
                         width: 110,
                         height: 32,

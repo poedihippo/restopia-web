@@ -13,6 +13,11 @@ import { uomsService } from '@/services/uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
+const formatNumber = (n: number | undefined): string => {
+  if (n === undefined || n === null || Number.isNaN(n)) return ''
+  return Number(n).toLocaleString('id-ID')
+}
+
 const schema = z.object({
   product_id: z.coerce.number().min(1, 'Product is required'),
   uom_id: z.coerce.number().min(1, 'UOM is required'),
@@ -48,6 +53,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     control,
     formState: { errors },
   } = useForm<FormValues>({
@@ -343,9 +350,13 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                 Base Price
               </label>
               <input
-                {...register('base_price', { valueAsNumber: true })}
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
+                value={formatNumber(watch('base_price'))}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '')
+                  setValue('base_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
+                }}
                 placeholder="0"
                 style={inputStyle}
               />
@@ -355,9 +366,13 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                 Online Price
               </label>
               <input
-                {...register('online_price', { valueAsNumber: true })}
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
+                value={formatNumber(watch('online_price'))}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '')
+                  setValue('online_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
+                }}
                 placeholder="0"
                 style={inputStyle}
               />

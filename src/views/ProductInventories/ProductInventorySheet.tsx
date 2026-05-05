@@ -12,6 +12,11 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
+const formatNumber = (n: number | undefined): string => {
+  if (n === undefined || n === null || Number.isNaN(n)) return ''
+  return Number(n).toLocaleString('id-ID')
+}
+
 const createSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Please select a product'),
   code: z.string().min(1, 'SKU Code is required'),
@@ -94,6 +99,8 @@ export default function ProductInventorySheet({
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     control,
     formState: { errors },
   } = useForm<FormValues>({
@@ -367,9 +374,13 @@ export default function ProductInventorySheet({
                 {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
               </label>
               <input
-                type="number"
-                min={0}
-                {...register('base_price', { valueAsNumber: true })}
+                type="text"
+                inputMode="numeric"
+                value={formatNumber(watch('base_price'))}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '')
+                  setValue('base_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
+                }}
                 placeholder="0"
                 style={{
                   ...inputStyle,
@@ -388,9 +399,13 @@ export default function ProductInventorySheet({
                 {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
               </label>
               <input
-                type="number"
-                min={0}
-                {...register('online_price', { valueAsNumber: true })}
+                type="text"
+                inputMode="numeric"
+                value={formatNumber(watch('online_price'))}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '')
+                  setValue('online_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
+                }}
                 placeholder="0"
                 style={{
                   ...inputStyle,

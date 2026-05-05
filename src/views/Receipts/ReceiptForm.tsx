@@ -14,6 +14,11 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
+const formatNumber = (n: number | undefined): string => {
+  if (n === undefined || n === null || Number.isNaN(n)) return ''
+  return Number(n).toLocaleString('id-ID')
+}
+
 const detailSchema = z.object({
   delivery_detail_id: z.coerce.number().optional(),
   product_uom_id: z.coerce.number().min(0, 'Product required'),
@@ -551,10 +556,16 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               />
 
               <input
-                type="number"
-                min={0}
-                step={100}
-                {...register(`details.${index}.price`, { valueAsNumber: true })}
+                type="text"
+                inputMode="numeric"
+                value={formatNumber(watch(`details.${index}.price`))}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '')
+                  setValue(
+                    `details.${index}.price`,
+                    raw === '' ? 0 : parseInt(raw, 10) || 0,
+                  )
+                }}
                 style={lineInputStyle}
               />
 
