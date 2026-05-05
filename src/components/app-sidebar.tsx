@@ -136,8 +136,10 @@ const NAV_GROUPS: NavGroup[] = [
         icon: BarChart3,
         permission: 'sales-order.read',
         children: [
+          { label: 'Sales by Product', href: '/reports/sales-by-product', permission: 'sales-order.read' },
+          { label: 'Sales by Invoice', href: '/reports/sales-by-invoice', permission: 'sales-order.read' },
           { label: 'Transaction History', href: '/reports/transaction-history', permission: 'sales-order.read' },
-          { label: 'Credit (Aging)', href: '/reports/credit', permission: 'sales-order.read' },
+          { label: 'Credit Report', href: '/reports/credit-report', permission: 'sales-order.read' },
           { label: 'Discount & Voucher', href: '/reports/discount-voucher', permission: 'sales-order.read' },
           { label: 'Stock Position', href: '/reports/stock-position', permission: 'product-inventory.read' },
         ],
