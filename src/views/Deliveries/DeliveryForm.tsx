@@ -860,11 +860,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                           </option>
                           {batches.map((b: any) => (
                             <option key={b.id} value={b.id}>
-                              {b.code ?? `Batch #${b.id}`}
-                              {b.expiry_date
-                                ? ` (exp: ${String(b.expiry_date).split('T')[0]})`
-                                : ''}
-                              {` — Stock: ${b.stock ?? 0}`}
+                              {`${b.code ?? `Batch #${b.id}`} | Exp: ${b.expiry_date ? String(b.expiry_date).split('T')[0] : 'No expiry'} | Stock: ${b.stock ?? 0}`}
                             </option>
                           ))}
                         </select>
