@@ -936,21 +936,42 @@ export default function SalesOrderDetail() {
                   const snap = d.product_inventory_snapshot
                   const name =
                     snap?.product_uom?.product?.name ??
+                    snap?.name ??
+                    d.product_inventory?.product_uom?.product?.name ??
+                    d.product_uom_batch?.product_uom?.product?.name ??
+                    d.bundle?.name ??
+                    (isBundle ? 'Bundle' : `Item ${d.id ?? idx + 1}`)
+                  const code =
                     snap?.code ??
-                    (isBundle ? 'Bundle' : `Item ${idx + 1}`)
-                  const code = snap?.code ?? d.bundle?.code ?? '—'
-                  const detailStatus: Record<
+                    d.product_inventory?.code ??
+                    d.product_uom_batch?.product_uom?.code ??
+                    d.bundle?.code ??
+                    '—'
+                  const DETAIL_STATUS_META: Record<
                     string,
-                    { bg: string; color: string }
+                    { label: string; color: string; bg: string }
                   > = {
-                    pending: { bg: 'var(--warning-bg)', color: 'var(--warning)' },
-                    process: { bg: 'var(--info-bg)', color: 'var(--info)' },
-                    completed: { bg: 'var(--success-bg)', color: 'var(--success)' },
+                    pending: {
+                      label: 'Pending',
+                      color: 'var(--warning)',
+                      bg: 'var(--warning-bg)',
+                    },
+                    process: {
+                      label: 'In Progress',
+                      color: 'var(--info)',
+                      bg: 'var(--info-bg)',
+                    },
+                    completed: {
+                      label: 'Completed',
+                      color: 'var(--success)',
+                      bg: 'var(--success-bg)',
+                    },
                   }
-                  const ds =
-                    detailStatus[d.status] ?? {
-                      bg: 'var(--border)',
+                  const statusMeta =
+                    DETAIL_STATUS_META[d.status] ?? {
+                      label: d.status ?? '—',
                       color: 'var(--foreground-muted)',
+                      bg: 'var(--background)',
                     }
                   return (
                     <tr key={d.id ?? idx}>
@@ -1034,12 +1055,11 @@ export default function SalesOrderDetail() {
                             fontWeight: 600,
                             padding: '2px 8px',
                             borderRadius: 'var(--radius-xl)',
-                            background: ds.bg,
-                            color: ds.color,
-                            textTransform: 'capitalize',
+                            background: statusMeta.bg,
+                            color: statusMeta.color,
                           }}
                         >
-                          {d.status}
+                          {statusMeta.label}
                         </span>
                       </td>
                       <td
