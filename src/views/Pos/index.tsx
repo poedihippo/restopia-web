@@ -96,7 +96,7 @@ export default function PosView() {
     voucher_id: number | null
   } | null>(null)
   const [voucherLoading, setVoucherLoading] = useState(false)
-  const voucherDiscount = appliedVoucher?.discount_amount ?? 0
+  const discountAmount = appliedVoucher?.discount_amount ?? 0
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
   const [orderNote, setOrderNote] = useState('')
   const [transactionDate, setTransactionDate] = useState<string>(
@@ -451,7 +451,7 @@ export default function PosView() {
   const subtotal =
     cart.reduce((s, c) => s + c.price * c.qty, 0) +
     bundleCart.reduce((s, c) => s + c.price * c.qty, 0)
-  const total = Math.max(0, subtotal - voucherDiscount)
+  const total = Math.max(0, subtotal - discountAmount)
 
   const selectedMethod = paymentMethods.find((pm: any) => pm.id === paymentMethodId)
   const isCashMethod = selectedMethod?.name?.toLowerCase().includes('cash') ?? false
@@ -976,66 +976,49 @@ export default function PosView() {
     }, 1000)
   }
 
-  // Voucher apply — try the apply-voucher endpoint first, fall back to a
-  // direct voucher lookup + local discount calculation if it isn't available.
+  // Voucher apply — looks the voucher up directly and computes the discount
+  // locally. The /sales-orders/apply-voucher endpoint isn't used because it
+  // requires a fully-formed order body and its response shape isn't reliable.
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) return
     setVoucherLoading(true)
     try {
-      const response = await api.post('/sales-orders/apply-voucher', {
-        voucher_code: voucherCode,
-        subtotal_price: subtotal,
-      })
-      const result = (response.data as any)?.data
-      if (result) {
-        setAppliedVoucher({
-          code: voucherCode,
-          discount_amount: result.discount_price ?? result.discount_amount ?? 0,
-          voucher_id: result.voucher_id ?? result.id ?? null,
-        })
-        toast.success('Voucher applied')
+      const voucherRes = await vouchersService.list({
+        'filter[code]': voucherCode,
+        'filter[status]': 'active',
+        per_page: 1,
+      } as any)
+      const voucher = (voucherRes.data as any)?.data?.[0]
+      if (!voucher) {
+        toast.error('Voucher not found or inactive')
         return
       }
-      throw new Error('empty-response')
-    } catch {
-      try {
-        const voucherRes = await vouchersService.list({
-          'filter[code]': voucherCode,
-          'filter[status]': 'active',
-          per_page: 1,
-        } as any)
-        const voucher = (voucherRes.data as any)?.data?.[0]
-        if (!voucher) {
-          toast.error('Voucher not found or inactive')
-          return
-        }
-        if (
-          voucher.min_subtotal_price &&
-          subtotal < voucher.min_subtotal_price
-        ) {
-          toast.error(
-            `Minimum purchase Rp ${Number(voucher.min_subtotal_price).toLocaleString('id-ID')} required`,
-          )
-          return
-        }
-        let discountAmount = 0
-        if (voucher.discount_type === 'percent') {
-          discountAmount = Math.min(
-            (subtotal * Number(voucher.discount_value ?? 0)) / 100,
-            voucher.max_discount_price ?? Infinity,
-          )
-        } else {
-          discountAmount = Number(voucher.discount_value ?? 0)
-        }
-        setAppliedVoucher({
-          code: voucherCode,
-          discount_amount: discountAmount,
-          voucher_id: voucher.id,
-        })
-        toast.success('Voucher applied')
-      } catch {
-        toast.error('Failed to apply voucher')
+      if (
+        voucher.min_subtotal_price &&
+        subtotal < voucher.min_subtotal_price
+      ) {
+        toast.error(
+          `Minimum purchase Rp ${Number(voucher.min_subtotal_price).toLocaleString('id-ID')} required`,
+        )
+        return
       }
+      let discount = 0
+      if (voucher.discount_type === 'percent') {
+        discount = Math.min(
+          (subtotal * Number(voucher.discount_value ?? 0)) / 100,
+          voucher.max_discount_price ?? Infinity,
+        )
+      } else {
+        discount = Number(voucher.discount_value ?? 0)
+      }
+      setAppliedVoucher({
+        code: voucherCode,
+        discount_amount: discount,
+        voucher_id: voucher.id,
+      })
+      toast.success('Voucher applied')
+    } catch {
+      toast.error('Failed to apply voucher')
     } finally {
       setVoucherLoading(false)
     }
@@ -1063,7 +1046,7 @@ export default function PosView() {
     const cartSubtotal =
       cart.reduce((s, c) => s + c.price * c.qty, 0) +
       bundleCart.reduce((s, c) => s + c.price * c.qty, 0)
-    const orderTotal = Math.max(0, cartSubtotal - voucherDiscount)
+    const orderTotal = Math.max(0, cartSubtotal - discountAmount)
     const payload = {
       code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
@@ -1072,9 +1055,9 @@ export default function PosView() {
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: new Date(fulfillmentDate).toISOString(),
-      voucher_id: appliedVoucher?.voucher_id ?? null,
+      voucher_id: appliedVoucher?.voucher_id ?? undefined,
       subtotal_price: cartSubtotal,
-      discount_price: voucherDiscount,
+      discount_price: discountAmount,
       total_price: orderTotal,
       status: 'pending' as const,
       settlement_status: 'pending' as const,
@@ -1106,7 +1089,7 @@ export default function PosView() {
     const cartSubtotal =
       cart.reduce((s, c) => s + c.price * c.qty, 0) +
       bundleCart.reduce((s, c) => s + c.price * c.qty, 0)
-    const orderTotal = Math.max(0, cartSubtotal - voucherDiscount)
+    const orderTotal = Math.max(0, cartSubtotal - discountAmount)
     const tendered =
       isCashMethod ? Number(cashTendered.replace(/\D/g, '')) : orderTotal
     const orderChange = isCashMethod ? Math.max(0, tendered - orderTotal) : 0
@@ -1118,9 +1101,9 @@ export default function PosView() {
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: new Date(fulfillmentDate).toISOString(),
-      voucher_id: appliedVoucher?.voucher_id ?? null,
+      voucher_id: appliedVoucher?.voucher_id ?? undefined,
       subtotal_price: cartSubtotal,
-      discount_price: voucherDiscount,
+      discount_price: discountAmount,
       total_price: orderTotal,
       status: 'final' as const,
       settlement_status: 'pending' as const,
@@ -1147,7 +1130,7 @@ export default function PosView() {
     setReceiptData({
       cart: [...cart],
       subtotal: cartSubtotal,
-      discount: voucherDiscount,
+      discount: discountAmount,
       total: orderTotal,
       customerName: selectedCustomerId ? customerSearch : guestName || 'Walk-in',
       code: payload.code,
@@ -2626,10 +2609,18 @@ export default function PosView() {
           </div>
 
           {/* Discount (only when applied) */}
-          {voucherDiscount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--success)' }}>
-              <span>Discount</span>
-              <span>- Rp {voucherDiscount.toLocaleString('id-ID')}</span>
+          {appliedVoucher && discountAmount > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 13,
+                color: 'var(--destructive)',
+                padding: '4px 0',
+              }}
+            >
+              <span>Discount ({appliedVoucher.code})</span>
+              <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
             </div>
           )}
 
