@@ -12,8 +12,10 @@ import { bundlesService as bundleService } from '@/services/bundles.service'
 import { paymentMethodsService as paymentMethodService } from '@/services/payment-methods.service'
 import { paymentsService as paymentService } from '@/services/payments.service'
 import api from '@/hooks/useApi'
+import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
+import type { ReceiptData } from '@/components/PosReceipt'
 
 const generateKey = () =>
   Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -55,6 +57,8 @@ const qtyBtnStyle: React.CSSProperties = {
 }
 
 export default function PosView() {
+  const { user } = useAuth()
+
   const todayISO = () => {
     const now = new Date()
     const offset = now.getTimezoneOffset() * 60000
@@ -142,6 +146,7 @@ export default function PosView() {
     cashTendered: number
     change: number
   } | null>(null)
+  const [printReceipt, setPrintReceipt] = useState<ReceiptData | null>(null)
 
   const customerDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -568,14 +573,17 @@ export default function PosView() {
           }),
     onSuccess: async (res: any, variables: any) => {
       const salesOrderId = res?.data?.data?.id ?? editingOrderId ?? null
+      const salesOrderCode =
+        res?.data?.data?.code ?? variables?.code ?? editingOrderCode ?? ''
+      const paidAmount = isCashMethod
+        ? Number(cashTendered.replace(/\D/g, ''))
+        : variables.total_price
       if (salesOrderId && paymentMethodId) {
         try {
           await paymentService.create({
             sales_order_id: salesOrderId,
             payment_method_id: paymentMethodId,
-            amount: isCashMethod
-              ? Number(cashTendered.replace(/\D/g, ''))
-              : variables.total_price,
+            amount: paidAmount,
             description: orderNote || undefined,
           })
         } catch (err: any) {
@@ -585,6 +593,59 @@ export default function PosView() {
           )
         }
       }
+
+      // Build the thermal receipt before the cart is cleared.
+      const now = new Date()
+      const receipt: ReceiptData = {
+        companyName: 'Dapur Cokelat Indonesia',
+        branchName: (user as any)?.branch?.name ?? 'Dapur Cokelat',
+        branchAddress: (user as any)?.branch?.address ?? '',
+        branchPhone: (user as any)?.branch?.phone ?? '',
+        invoiceNo: salesOrderCode,
+        date: now
+          .toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          })
+          .replace(/\//g, '-'),
+        time: now.toLocaleTimeString('id-ID'),
+        cashierName: (user as any)?.name ?? 'Kasir',
+        customerName: selectedCustomerId
+          ? customerSearch || undefined
+          : guestName || undefined,
+        orderType: orderType,
+        items: [
+          ...cart.map((c) => ({
+            name: c.name ?? '',
+            qty: c.qty,
+            price: c.price,
+            subtotal: c.qty * c.price,
+          })),
+          ...bundleCart.map((c) => ({
+            name: c.name ?? '',
+            qty: c.qty,
+            price: c.price,
+            subtotal: c.qty * c.price,
+          })),
+        ],
+        grossAmount: variables.subtotal_price ?? 0,
+        discountAmount: variables.discount_price ?? 0,
+        totalAmount: variables.total_price ?? 0,
+        payments: [
+          {
+            method: selectedMethod?.name ?? 'Cash',
+            amount: paidAmount,
+          },
+        ],
+        changeAmount: isCashMethod
+          ? Math.max(0, paidAmount - (variables.total_price ?? 0))
+          : 0,
+        isPrinted: false,
+      }
+      setPrintReceipt(receipt)
+      triggerPrint(receipt)
+
       setShowReceipt(true)
       toast.success('Order placed!')
       if (editingOrderId) {
@@ -636,6 +697,7 @@ export default function PosView() {
     setCashTendered('')
     setShowReceipt(false)
     setReceiptData(null)
+    setPrintReceipt(null)
     setEditingOrderId(null)
     setEditingOrderCode(null)
   }, [])
@@ -773,6 +835,137 @@ export default function PosView() {
       ]
     })
   }, [])
+
+  // Build a printable HTML string mirroring PosReceipt's layout. Used by the
+  // hidden-iframe printer below.
+  const buildReceiptHtml = (r: ReceiptData): string => {
+    const divider = '----------------------------------------'
+    const thin = '- - - - - - - - - - - - - - - - - - - -'
+    const fmt = (n: number) => n.toLocaleString('id-ID')
+    const row = (left: string, right: string) =>
+      `<div style="display:flex;justify-content:space-between;"><span>${left}</span><span>${right}</span></div>`
+    const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
+
+    return `
+      <div style="text-align:center;margin-bottom:6px;font-size:11px;">
+        PT. Sumber Cemerlang Mandiri<br>
+        Ruko Golden Boulevard, J, 9, Lengkong Karya, Serpong Utara, Kota Tangerang Selatan, Banten, 15331<br>
+        NPWP: 71.008.539.0-411.000
+      </div>
+      <div style="text-align:center;margin-bottom:6px;">
+        <strong style="font-size:14px;">DAPUR COKELAT</strong><br>
+        <strong>${r.branchName.toUpperCase()}</strong><br>
+        ${r.branchAddress ? `<span style="font-size:11px;">${r.branchAddress}</span><br>` : ''}
+        ${r.branchPhone ?? ''}
+      </div>
+      <div>${divider}</div>
+      <div style="margin:4px 0;">
+        ${r.date} ${r.time}<br>
+        ${r.invoiceNo}<br>
+        ${r.cashierName}
+        ${r.customerName ? `<br>${r.customerName}` : ''}
+      </div>
+      <div>${divider}</div>
+      ${
+        r.isPrinted && r.reprintBy
+          ? `<div style="margin:4px 0;">Reprint by ${r.reprintBy} on<br>${r.reprintAt ?? ''}</div><div>${divider}</div>`
+          : ''
+      }
+      <div style="margin:4px 0;">
+        ${r.items
+          .map(
+            (item) => `
+              <div>${item.name}</div>
+              <div style="display:flex;justify-content:space-between;">
+                <span>${item.qty} x ${fmt(item.price)}</span>
+                <span>${fmt(item.subtotal)}</span>
+              </div>`,
+          )
+          .join('')}
+      </div>
+      <div>${thin}</div>
+      <div style="margin:4px 0;">
+        ${row('GROSS', fmt(r.grossAmount))}
+        ${r.discountAmount > 0 ? row('DISCOUNT', fmt(r.discountAmount)) : ''}
+      </div>
+      <div>${thin}</div>
+      <div style="margin:4px 0;">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+          <span>TOTAL</span><span>${fmt(r.totalAmount)}</span>
+        </div>
+        ${r.payments.map((p) => row(p.method.toUpperCase(), fmt(p.amount))).join('')}
+        ${r.changeAmount && r.changeAmount > 0 ? row('KEMBALI', fmt(r.changeAmount)) : ''}
+      </div>
+      <div>${thin}</div>
+      <div style="display:flex;justify-content:space-between;font-weight:bold;margin:4px 0;">
+        <span>PAYMENT</span><span>${fmt(paymentTotal)}</span>
+      </div>
+      <div style="margin:4px 0;">${r.branchName.toUpperCase()} – ${r.orderType.toUpperCase()}</div>
+      <div>${divider}</div>
+      <div style="text-align:center;font-size:11px;margin:6px 0;">
+        ChocoCall : 0811-1920-9900<br>
+        ALL ABOUT CHOCOLATES &amp; CAKES
+      </div>
+      <div>${divider}</div>
+      <div style="text-align:center;font-size:11px;margin:4px 0;">Harga sudah termasuk pajak</div>
+      <div>${divider}</div>
+      <div style="text-align:center;font-size:11px;margin:4px 0;">
+        Keluhan mengenai produk dapat diterima maksimal 1x24 jam sejak tanggal pembelian
+      </div>
+    `
+  }
+
+  // Open the system print dialog with the receipt rendered into a hidden
+  // iframe sized for an 80mm thermal roll. Does not affect the POS UI.
+  const triggerPrint = (receipt: ReceiptData) => {
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const iframeDoc = iframe.contentWindow?.document
+    if (!iframeDoc) {
+      document.body.removeChild(iframe)
+      return
+    }
+
+    const receiptHtml = buildReceiptHtml(receipt)
+
+    iframeDoc.open()
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          @page { size: 80mm auto; margin: 0; }
+          body {
+            margin: 0;
+            padding: 4mm;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 72mm;
+          }
+          * { box-sizing: border-box; }
+        </style>
+      </head>
+      <body>
+        ${receiptHtml}
+      </body>
+      </html>
+    `)
+    iframeDoc.close()
+
+    iframe.contentWindow?.focus()
+    iframe.contentWindow?.print()
+
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
+    }, 1000)
+  }
 
   // Payment gate — opens payment modal
   const handleCharge = () => {
@@ -2894,7 +3087,8 @@ export default function PosView() {
             <div style={{ display: 'flex', gap: 12 }}>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printReceipt && triggerPrint(printReceipt)}
+                disabled={!printReceipt}
                 style={{
                   flex: 1,
                   height: 44,
@@ -2904,7 +3098,8 @@ export default function PosView() {
                   borderRadius: 'var(--radius-md)',
                   fontWeight: 600,
                   fontSize: 14,
-                  cursor: 'pointer',
+                  cursor: printReceipt ? 'pointer' : 'not-allowed',
+                  opacity: printReceipt ? 1 : 0.6,
                 }}
               >
                 🖨 Print Receipt
