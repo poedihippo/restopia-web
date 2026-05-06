@@ -255,33 +255,30 @@ export default function PosView() {
   const getProductUom = (id: number | null | undefined) =>
     id != null ? productUomsList.find((pu: any) => pu.id === id) : undefined
 
-  const getItemCategory = (item: any): string => {
-    // Path 1: look up via productUomsList — the only query that
-    // explicitly includes product.product_category, so this resolves
-    // the category even when the inventory row's nested chain stops
-    // at product_uom (the inventory include is just product_uom_batch).
-    const puid =
-      item.product_uom_batch?.product_uom_id
-      ?? item.product_uom_batch?.product_uom?.id
-      ?? item.product_uom_id
-    const pu = getProductUom(puid)
-    if (pu?.product?.product_category?.name) {
-      return pu.product.product_category.name
+  // Build a set of product_uom_ids whose product belongs to the selected
+  // category. productUomsList is the source of truth — inventory rows do
+  // not carry a usable product_category in their include chain.
+  const filteredProductUomIds = useMemo<Set<number> | null>(() => {
+    if (selectedCategory === null) return null
+    const ids = new Set<number>()
+    for (const pu of productUomsList as any[]) {
+      if (pu?.product?.product_category?.name === selectedCategory) {
+        ids.add(pu.id)
+      }
     }
-    // Path 2: fall back to whatever the inventory row carries inline.
-    return (
-      item.product_uom_batch?.product_uom?.product?.product_category?.name
-      ?? item.product_uom?.product?.product_category?.name
-      ?? ''
-    )
-  }
+    return ids
+  }, [selectedCategory, productUomsList])
 
   const filteredItems = useMemo(() => {
-    if (selectedCategory === null) return items
-    return items.filter(
-      (item: any) => getItemCategory(item) === selectedCategory,
-    )
-  }, [items, selectedCategory, productUomsList])
+    if (filteredProductUomIds === null) return items
+    return items.filter((item: any) => {
+      const puid =
+        item.product_uom_batch?.product_uom_id
+        ?? item.product_uom_batch?.product_uom?.id
+        ?? item.product_uom_id
+      return puid != null && filteredProductUomIds.has(puid)
+    })
+  }, [items, filteredProductUomIds])
 
   // Sort lots earliest-expiring-first-out: non-expired by expiry ASC, then
   // undated, then expired last. Undefined/null expiry sorts after all dated
