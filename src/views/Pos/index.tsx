@@ -245,7 +245,7 @@ export default function PosView() {
     queryFn: () =>
       productUomsService
         .list({
-          per_page: 200,
+          per_page: 500,
           include: 'product,product.product_category,uom',
           'filter[status]': 'active',
         } as any)
@@ -343,19 +343,16 @@ export default function PosView() {
     return Array.from(map.values())
   }, [filteredItems])
 
-  // Unique category names derived from inventory items
+  // Unique category names derived from productUomsList — using inventory
+  // items would only surface categories present on the current page (20).
   const categories = useMemo<string[]>(() => {
-    const seen = new Set<string>()
-    const result: string[] = []
-    for (const item of items as any[]) {
-      const name = getItemCategory(item)
-      if (name && !seen.has(name)) {
-        seen.add(name)
-        result.push(name)
-      }
+    const cats = new Set<string>()
+    for (const pu of productUomsList as any[]) {
+      const name = pu?.product?.product_category?.name
+      if (name) cats.add(name)
     }
-    return result.sort((a, b) => a.localeCompare(b))
-  }, [items, productUomsList])
+    return Array.from(cats).sort((a, b) => a.localeCompare(b))
+  }, [productUomsList])
 
   // Customer search query
   const { data: customerData } = useQuery({
