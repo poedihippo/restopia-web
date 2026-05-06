@@ -17,6 +17,12 @@ import { toast } from 'sonner'
 import { ChevronDown, ChevronUp, ShoppingCart } from 'lucide-react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
+import { usePrinter } from '@/hooks/usePrinter'
+import {
+  buildReceiptBytes,
+  type ReceiptData as PrinterReceiptData,
+} from '@/lib/print/receiptBuilder'
+import PrinterStatusBar from '@/components/pos/PrinterStatusBar'
 
 const generateKey = () =>
   Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -57,8 +63,34 @@ const qtyBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
+// Convert the iframe-shaped ReceiptData (multi-payment, customer, reprint)
+// into the simplified shape the ESC/POS builder accepts. Sums payments and
+// joins method labels — keeps the source data intact for the iframe path.
+function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
+  const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
+  const paymentMethod = r.payments.map((p) => p.method).join(' / ') || 'CASH'
+  return {
+    branchName: r.branchName,
+    branchAddress: r.branchAddress ?? '',
+    npwp: '71.008.539.0-411.000',
+    companyName: 'PT. Sumber Cemerlang Mandiri',
+    city: 'Tangerang Selatan',
+    phone: r.branchPhone,
+    invoiceNo: r.invoiceNo,
+    datetime: `${r.date} ${r.time}`,
+    cashier: r.cashierName,
+    items: r.items,
+    gross: r.grossAmount,
+    discount: r.discountAmount,
+    total: r.totalAmount,
+    payment: paymentTotal,
+    paymentMethod,
+  }
+}
+
 export default function PosView() {
   const { user } = useAuth()
+  const printer = usePrinter()
 
   const todayISO = () => {
     const now = new Date()
@@ -938,9 +970,21 @@ export default function PosView() {
     `
   }
 
-  // Open the system print dialog with the receipt rendered into a hidden
-  // iframe sized for an 80mm thermal roll. Does not affect the POS UI.
-  const triggerPrint = (receipt: ReceiptData) => {
+  // Print the receipt. Tries the WebUSB connection to the Epson TM-U220
+  // first; on any failure (no permission, transfer error, browser without
+  // WebUSB) falls back to the hidden-iframe window.print() flow that has
+  // always worked.
+  const triggerPrint = async (receipt: ReceiptData) => {
+    if (printer.status === 'connected') {
+      try {
+        const bytes = buildReceiptBytes(mapReceiptToBuilder(receipt))
+        await printer.print(bytes)
+        return
+      } catch (e) {
+        console.error('[Print] WebUSB failed, falling back to iframe', e)
+      }
+    }
+
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
     iframe.style.right = '0'
@@ -1288,6 +1332,8 @@ export default function PosView() {
             🗂 Pending
           </button>
         </div>
+
+        <PrinterStatusBar />
 
         {/* Products / Bundles tab switcher */}
         <div
