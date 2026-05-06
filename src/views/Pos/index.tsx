@@ -743,11 +743,14 @@ export default function PosView() {
           {
             product_inventory_id: lot.id,
             name:
+              lot.product_uom_batch?.product_uom?.product?.name ??
               lot.product_uom?.product?.name ??
-              lot.productUom?.product?.name ??
-              lot.product?.name ??
+              lot.code ??
+              `Item #${lot.id}`,
+            code:
+              lot.product_uom_batch?.product_uom?.code ??
+              lot.product_uom?.code ??
               lot.code,
-            code: lot.product_uom?.code ?? lot.code,
             price: linePrice,
             qty: 1,
             price_editable: lot.price_editable ?? false,
