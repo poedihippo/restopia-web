@@ -15,6 +15,7 @@ import { vouchersService } from '@/services/vouchers.service'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from 'sonner'
+import { ChevronDown, ChevronUp, ShoppingCart } from 'lucide-react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
 
@@ -103,6 +104,7 @@ export default function PosView() {
     new Date().toLocaleDateString('en-CA')
   )
   const [fulfillmentDate, setFulfillmentDate] = useState<string>(todayISO())
+  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [historySearch, setHistorySearch] = useState('')
@@ -1915,9 +1917,22 @@ export default function PosView() {
           }}
         >
           {cart.length === 0 && bundleCart.length === 0 ? (
-            <p style={{ color: 'var(--foreground-muted)', fontSize: 14, textAlign: 'center', marginTop: 24 }}>
-              Cart is empty.
-            </p>
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column',
+                gap: 8,
+                color: 'var(--foreground-muted)',
+                padding: '32px 0',
+              }}
+            >
+              <ShoppingCart size={32} color="var(--border)" />
+              <span style={{ fontSize: 13 }}>Cart is empty</span>
+              <span style={{ fontSize: 11 }}>Click products to add them</span>
+            </div>
           ) : (
             cart.map((item) => (
               <div
@@ -2354,11 +2369,106 @@ export default function PosView() {
           ))}
         </div>
 
+        {/* Totals (always visible) */}
+        <div
+          style={{
+            padding: '12px 20px',
+            borderTop: '1px solid var(--border)',
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
+            <span>Subtotal</span>
+            <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+          </div>
+
+          {appliedVoucher && discountAmount > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 13,
+                color: 'var(--destructive)',
+                padding: '2px 0',
+              }}
+            >
+              <span>Diskon ({appliedVoucher.code})</span>
+              <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+            </div>
+          )}
+
+          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
+              Rp {total.toLocaleString('id-ID')}
+            </span>
+          </div>
+        </div>
+
+        {/* Order Details accordion header */}
+        <button
+          type="button"
+          onClick={() => setOrderDetailsOpen((v) => !v)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '10px 16px',
+            background: 'var(--background)',
+            border: 'none',
+            borderTop: '1px solid var(--border)',
+            borderBottom: orderDetailsOpen ? '1px solid var(--border)' : 'none',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--foreground)',
+            flexShrink: 0,
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
+          <span>Order Details</span>
+          <span style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: 'var(--foreground-muted)' }}>
+            {(selectedCustomerId
+              ? customerSearch
+              : guestName || guestPhone || '') && (
+              <span
+                style={{
+                  maxWidth: 160,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {selectedCustomerId
+                  ? customerSearch
+                  : [guestName, guestPhone].filter(Boolean).join(' · ')}
+              </span>
+            )}
+            {orderDetailsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
+        </button>
+
+        {/* Order Details accordion body */}
+        {orderDetailsOpen && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--background)',
+            flexShrink: 0,
+          }}
+        >
         {/* Customer section */}
         <div
           style={{
             padding: '10px 16px 8px',
-            borderTop: '1px solid var(--border)',
             flexShrink: 0,
           }}
         >
@@ -2596,8 +2706,10 @@ export default function PosView() {
             }}
           />
         </div>
+        </div>
+        )}
 
-        {/* Cart footer */}
+        {/* Bottom action buttons (always visible) */}
         <div
           style={{
             padding: '12px 20px 16px',
@@ -2608,40 +2720,6 @@ export default function PosView() {
             gap: 6,
           }}
         >
-          {/* Subtotal */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
-            <span>Subtotal</span>
-            <span>Rp {subtotal.toLocaleString('id-ID')}</span>
-          </div>
-
-          {/* Discount (only when applied) */}
-          {appliedVoucher && discountAmount > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 13,
-                color: 'var(--destructive)',
-                padding: '2px 0',
-              }}
-            >
-              <span>Diskon ({appliedVoucher.code})</span>
-              <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
-            </div>
-          )}
-
-          {/* Divider */}
-          <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-
-          {/* Total */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
-            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
-              Rp {total.toLocaleString('id-ID')}
-            </span>
-          </div>
-
-          {/* Hold + Charge action row */}
           {(() => {
             const cartEmpty = cart.length === 0 && bundleCart.length === 0
             const noMethods = !paymentMethodsLoading && paymentMethods.length === 0
