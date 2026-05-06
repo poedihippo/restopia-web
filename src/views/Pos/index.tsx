@@ -63,19 +63,38 @@ const qtyBtnStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
+// TODO: pull from /v1/companies and /v1/branches once backend exposes
+// company name / address / NPWP and branch city/phone.
+const COMPANY = {
+  name: 'PT. Sumber Cemerlang Mandiri',
+  address:
+    'Ruko Golden Boulevard, J, 9, Lengkong Karya, Serpong Utara, Kota Tangerang Selatan, Banten, 15331',
+  npwp: '71.008.539.0-411.000',
+}
+
+const BRANCH_FALLBACK = {
+  branchName: 'DAPUR COKELAT',
+  branchCity: 'CIBUBUR',
+  branchAddress: 'Jl. Alternatif Cibubur Km 6, Cileungsi - Nagrak',
+  branchCity2: 'Bogor',
+  branchPhone: '021-8248 6446',
+}
+
 // Convert the iframe-shaped ReceiptData (multi-payment, customer, reprint)
-// into the simplified shape the ESC/POS builder accepts. Sums payments and
-// joins method labels — keeps the source data intact for the iframe path.
+// into the ESC/POS builder shape. Sums payments and uses the first method
+// label — keeps the source data intact for the iframe path.
 function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
   const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
-  const paymentMethod = r.payments.map((p) => p.method).join(' / ') || 'CASH'
+  const paymentMethod = r.payments[0]?.method?.toUpperCase() || 'CASH'
   return {
-    branchName: r.branchName,
-    branchAddress: r.branchAddress ?? '',
-    npwp: '71.008.539.0-411.000',
-    companyName: 'PT. Sumber Cemerlang Mandiri',
-    city: 'Tangerang Selatan',
-    phone: r.branchPhone,
+    companyName: COMPANY.name,
+    companyAddress: COMPANY.address,
+    npwp: COMPANY.npwp,
+    branchName: r.branchName?.toUpperCase() || BRANCH_FALLBACK.branchName,
+    branchCity: BRANCH_FALLBACK.branchCity,
+    branchAddress: r.branchAddress || BRANCH_FALLBACK.branchAddress,
+    branchCity2: BRANCH_FALLBACK.branchCity2,
+    branchPhone: r.branchPhone || BRANCH_FALLBACK.branchPhone,
     invoiceNo: r.invoiceNo,
     datetime: `${r.date} ${r.time}`,
     cashier: r.cashierName,
