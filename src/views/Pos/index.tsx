@@ -256,11 +256,22 @@ export default function PosView() {
     id != null ? productUomsList.find((pu: any) => pu.id === id) : undefined
 
   const getItemCategory = (item: any): string => {
-    const fallbackPu = getProductUom(item.product_uom_id)
+    // Path 1: look up via productUomsList — the only query that
+    // explicitly includes product.product_category, so this resolves
+    // the category even when the inventory row's nested chain stops
+    // at product_uom (the inventory include is just product_uom_batch).
+    const puid =
+      item.product_uom_batch?.product_uom_id
+      ?? item.product_uom_batch?.product_uom?.id
+      ?? item.product_uom_id
+    const pu = getProductUom(puid)
+    if (pu?.product?.product_category?.name) {
+      return pu.product.product_category.name
+    }
+    // Path 2: fall back to whatever the inventory row carries inline.
     return (
       item.product_uom_batch?.product_uom?.product?.product_category?.name
       ?? item.product_uom?.product?.product_category?.name
-      ?? fallbackPu?.product?.product_category?.name
       ?? ''
     )
   }
