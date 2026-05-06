@@ -873,7 +873,7 @@ export default function PosView() {
   // Build a printable HTML string mirroring PosReceipt's layout. Used by the
   // hidden-iframe printer below.
   const buildReceiptHtml = (r: ReceiptData): string => {
-    const divider = '----------------------------------------'
+    const divider = '--------------------------------------'
     const thin = '- - - - - - - - - - - - - - - - - - - -'
     const fmt = (n: number) => n.toLocaleString('id-ID')
     const row = (left: string, right: string) =>
@@ -975,13 +975,16 @@ export default function PosView() {
       <html>
       <head>
         <style>
-          @page { size: 80mm auto; margin: 0; }
+          @page { size: 76mm auto; margin: 2mm; }
           body {
             margin: 0;
             padding: 4mm;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            width: 72mm;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.3;
+            width: 70mm;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
           }
           * { box-sizing: border-box; }
         </style>
