@@ -208,38 +208,9 @@ export default function PosView() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Product inventories query — params built inside queryFn (no unsupported filters)
-  const { data, isLoading } = useQuery({
-    queryKey: [
-      'product-inventories-pos',
-      productPage,
-      searchDebounced,
-      sortBy,
-      inStockOnly,
-      orderType,
-    ],
-    queryFn: () => {
-      const params: Record<string, any> = {
-        page: productPage,
-        per_page: 20,
-        'filter[product_type]': 'final',
-        'filter[status]': 'active',
-        include: 'branch,product_uom_batch',
-      }
-      if (searchDebounced) params['filter[search]'] = searchDebounced
-      if (inStockOnly) params['filter[stock_gte]'] = 1
-      if (sortBy === 'price_asc') params['sort'] = 'base_price'
-      else if (sortBy === 'price_desc') params['sort'] = '-base_price'
-      else if (sortBy === 'stock_desc') params['sort'] = '-stock'
-      else params['sort'] = 'code'
-      return productInventoriesService.list(params).then((r) => r.data)
-    },
-  })
-  const items: any[] = (data as any)?.data ?? []
-  const productMeta = (data as any)?.meta
-
-  // Product UOMs lookup so we can resolve product/category/uom names without
-  // relying on deep includes on the inventory list.
+  // Product UOMs lookup — load first so we can resolve category names to
+  // IDs before the inventory query fires (the inventory list now filters
+  // by product_category_id server-side).
   const { data: puData } = useQuery({
     queryKey: ['product-uoms-pos'],
     queryFn: () =>
@@ -255,30 +226,54 @@ export default function PosView() {
   const getProductUom = (id: number | null | undefined) =>
     id != null ? productUomsList.find((pu: any) => pu.id === id) : undefined
 
-  // Build a set of product_uom_ids whose product belongs to the selected
-  // category. productUomsList is the source of truth — inventory rows do
-  // not carry a usable product_category in their include chain.
-  const filteredProductUomIds = useMemo<Set<number> | null>(() => {
-    if (selectedCategory === null) return null
-    const ids = new Set<number>()
+  // Category name → id map sourced from productUomsList. Used to translate
+  // the selected tab name into a backend filter[product_category_id].
+  const categoryIdMap = useMemo<Record<string, number>>(() => {
+    const map: Record<string, number> = {}
     for (const pu of productUomsList as any[]) {
-      if (pu?.product?.product_category?.name === selectedCategory) {
-        ids.add(pu.id)
-      }
+      const cat = pu?.product?.product_category
+      if (cat?.name && cat?.id) map[cat.name] = cat.id
     }
-    return ids
-  }, [selectedCategory, productUomsList])
+    return map
+  }, [productUomsList])
 
-  const filteredItems = useMemo(() => {
-    if (filteredProductUomIds === null) return items
-    return items.filter((item: any) => {
-      const puid =
-        item.product_uom_batch?.product_uom_id
-        ?? item.product_uom_batch?.product_uom?.id
-        ?? item.product_uom_id
-      return puid != null && filteredProductUomIds.has(puid)
-    })
-  }, [items, filteredProductUomIds])
+  const selectedCategoryId =
+    selectedCategory === null ? undefined : categoryIdMap[selectedCategory]
+
+  // Product inventories query — server-side filter by product_category_id
+  // when a category tab is selected, so pagination works per-category.
+  const { data, isLoading } = useQuery({
+    queryKey: [
+      'product-inventories-pos',
+      productPage,
+      searchDebounced,
+      sortBy,
+      inStockOnly,
+      orderType,
+      selectedCategoryId,
+    ],
+    queryFn: () => {
+      const params: Record<string, any> = {
+        page: productPage,
+        per_page: 50,
+        'filter[product_type]': 'final',
+        'filter[status]': 'active',
+        include: 'branch,product_uom_batch',
+      }
+      if (selectedCategoryId) {
+        params['filter[product_category_id]'] = selectedCategoryId
+      }
+      if (searchDebounced) params['filter[search]'] = searchDebounced
+      if (inStockOnly) params['filter[stock_gte]'] = 1
+      if (sortBy === 'price_asc') params['sort'] = 'base_price'
+      else if (sortBy === 'price_desc') params['sort'] = '-base_price'
+      else if (sortBy === 'stock_desc') params['sort'] = '-stock'
+      else params['sort'] = 'code'
+      return productInventoriesService.list(params).then((r) => r.data)
+    },
+  })
+  const items: any[] = (data as any)?.data ?? []
+  const productMeta = (data as any)?.meta
 
   // Sort lots earliest-expiring-first-out: non-expired by expiry ASC, then
   // undated, then expired last. Undefined/null expiry sorts after all dated
@@ -309,7 +304,7 @@ export default function PosView() {
       defaultLot: any
     }
     const map = new Map<string, Group>()
-    for (const row of filteredItems as any[]) {
+    for (const row of items as any[]) {
       const puid =
         row.product_uom_id
         ?? row.product_uom_batch?.product_uom?.id
@@ -338,7 +333,7 @@ export default function PosView() {
       g.representative = g.defaultLot
     }
     return Array.from(map.values())
-  }, [filteredItems])
+  }, [items])
 
   // Unique category names derived from productUomsList — using inventory
   // items would only surface categories present on the current page (20).
@@ -1467,7 +1462,7 @@ export default function PosView() {
                 />
               ))}
             </div>
-          ) : filteredItems.length === 0 ? (
+          ) : items.length === 0 ? (
             <div
               style={{
                 display: 'flex',
