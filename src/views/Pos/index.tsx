@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productUomsService } from '@/services/product-uoms.service'
-import { productCategoriesService } from '@/services/product-categories.service'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { customersService as customerService } from '@/services/customers.service'
 import { bundlesService as bundleService } from '@/services/bundles.service'
@@ -77,7 +76,7 @@ export default function PosView() {
   const [bundleSearchDebounced, setBundleSearchDebounced] = useState('')
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
   const [lotPickerFor, setLotPickerFor] = useState<number | null>(null)
-  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<string>('code')
   const [productPage, setProductPage] = useState(1)
   const [inStockOnly, setInStockOnly] = useState<boolean>(false)
@@ -247,7 +246,7 @@ export default function PosView() {
       productUomsService
         .list({
           per_page: 200,
-          include: 'product,uom',
+          include: 'product,product.product_category,uom',
           'filter[status]': 'active',
         } as any)
         .then((r) => r.data),
@@ -256,18 +255,22 @@ export default function PosView() {
   const getProductUom = (id: number | null | undefined) =>
     id != null ? productUomsList.find((pu: any) => pu.id === id) : undefined
 
+  const getItemCategory = (item: any): string => {
+    const fallbackPu = getProductUom(item.product_uom_id)
+    return (
+      item.product_uom_batch?.product_uom?.product?.product_category?.name
+      ?? item.product_uom?.product?.product_category?.name
+      ?? fallbackPu?.product?.product_category?.name
+      ?? ''
+    )
+  }
+
   const filteredItems = useMemo(() => {
-    if (categoryId === null) return items
-    return items.filter((item: any) => {
-      const pu =
-        item.product_uom_batch?.product_uom
-        ?? item.product_uom
-        ?? getProductUom(item.product_uom_id)
-      const catId =
-        pu?.product?.product_category_id ?? pu?.product?.product_category?.id
-      return catId === categoryId
-    })
-  }, [items, categoryId, productUomsList])
+    if (selectedCategory === null) return items
+    return items.filter(
+      (item: any) => getItemCategory(item) === selectedCategory,
+    )
+  }, [items, selectedCategory, productUomsList])
 
   // Sort lots earliest-expiring-first-out: non-expired by expiry ASC, then
   // undated, then expired last. Undefined/null expiry sorts after all dated
@@ -329,13 +332,19 @@ export default function PosView() {
     return Array.from(map.values())
   }, [filteredItems])
 
-  // Product categories query
-  const { data: catData } = useQuery({
-    queryKey: ['product-categories-all'],
-    queryFn: () =>
-      productCategoriesService.list({ per_page: 100 }).then((r) => r.data),
-  })
-  const categories: any[] = (catData as any)?.data ?? []
+  // Unique category names derived from inventory items
+  const categories = useMemo<string[]>(() => {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const item of items as any[]) {
+      const name = getItemCategory(item)
+      if (name && !seen.has(name)) {
+        seen.add(name)
+        result.push(name)
+      }
+    }
+    return result.sort((a, b) => a.localeCompare(b))
+  }, [items, productUomsList])
 
   // Customer search query
   const { data: customerData } = useQuery({
@@ -1328,14 +1337,14 @@ export default function PosView() {
         >
           <button
             type="button"
-            onClick={() => { setCategoryId(null); setProductPage(1) }}
+            onClick={() => { setSelectedCategory(null); setProductPage(1) }}
             style={{
               padding: '5px 14px',
               borderRadius: 'var(--radius-xl)',
               border: '1px solid',
-              borderColor: categoryId === null ? 'var(--accent)' : 'var(--border)',
-              background: categoryId === null ? 'var(--accent)' : 'var(--surface)',
-              color: categoryId === null ? 'white' : 'var(--foreground)',
+              borderColor: selectedCategory === null ? 'var(--accent)' : 'var(--border)',
+              background: selectedCategory === null ? 'var(--accent)' : 'var(--surface)',
+              color: selectedCategory === null ? 'white' : 'var(--foreground)',
               fontSize: 13,
               fontWeight: 500,
               cursor: 'pointer',
@@ -1345,18 +1354,18 @@ export default function PosView() {
           >
             All
           </button>
-          {categories.map((cat: any) => (
+          {categories.map((name: string) => (
             <button
-              key={cat.id}
+              key={name}
               type="button"
-              onClick={() => { setCategoryId(cat.id); setProductPage(1) }}
+              onClick={() => { setSelectedCategory(name); setProductPage(1) }}
               style={{
                 padding: '5px 14px',
                 borderRadius: 'var(--radius-xl)',
                 border: '1px solid',
-                borderColor: categoryId === cat.id ? 'var(--accent)' : 'var(--border)',
-                background: categoryId === cat.id ? 'var(--accent)' : 'var(--surface)',
-                color: categoryId === cat.id ? 'white' : 'var(--foreground)',
+                borderColor: selectedCategory === name ? 'var(--accent)' : 'var(--border)',
+                background: selectedCategory === name ? 'var(--accent)' : 'var(--surface)',
+                color: selectedCategory === name ? 'white' : 'var(--foreground)',
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -1364,7 +1373,7 @@ export default function PosView() {
                 flexShrink: 0,
               }}
             >
-              {cat.name}
+              {name}
             </button>
           ))}
         </div>
