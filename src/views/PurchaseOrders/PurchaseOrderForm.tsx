@@ -42,7 +42,6 @@ const schema = z.object({
   // at the schema level.
   supplier_id: z.coerce.number().optional(),
   supplier_branch_id: z.coerce.number().optional(),
-  branch_id: z.coerce.number().min(1, 'Branch is required'),
   date: z.string().min(1, 'Date is required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
@@ -84,7 +83,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       code: '',
       supplier_id: 0,
       supplier_branch_id: undefined,
-      branch_id: 0,
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
@@ -126,11 +124,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     label: (s.name as string) ?? `Supplier #${s.id}`,
     sublabel: s.code as string | undefined,
   }))
-  const branchOptions = branches.map((b: any) => ({
-    value: b.id as number,
-    label: (b.name as string) ?? `Branch #${b.id}`,
-    sublabel: b.code as string | undefined,
-  }))
   // Internal-source branches: every branch except our own.
   const sourceBranchOptions = branches
     .filter((b: any) => b.id !== myBranchId)
@@ -147,7 +140,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
-      reset(initialData)
+      // branch_id (the old destination-branch field) is intentionally dropped
+      // here so it never re-enters the form / payload.
+      reset({ ...initialData, branch_id: undefined })
       if (initialData.supplier_branch_id) setPoSourceType('branch')
     }
   }, [initialData, mode])
@@ -475,9 +470,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               </div>
             )}
 
-            {/* Source Branch (internal) — only when source is "branch" */}
+            {/* Source Branch (internal) — only when source is "branch"; spans
+                the full row now that the destination "Branch" field is gone. */}
             {poSourceType === 'branch' && (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
                 <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                   Source Branch
                   <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
@@ -499,29 +495,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 />
               </div>
             )}
-
-            {/* Branch */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Branch
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <Controller
-                name="branch_id"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? 0}
-                    onChange={field.onChange}
-                    options={branchOptions}
-                    placeholder="Select branch..."
-                    searchPlaceholder="Search branches..."
-                    loading={branchesLoading}
-                    error={errors.branch_id?.message as string | undefined}
-                  />
-                )}
-              />
-            </div>
 
             {/* Status */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
