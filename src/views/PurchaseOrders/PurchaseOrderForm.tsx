@@ -12,6 +12,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Plus,
   Trash2,
@@ -36,7 +37,11 @@ const detailSchema = z.object({
 
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
-  supplier_id: z.coerce.number().min(1, 'Supplier is required'),
+  // supplier_id / supplier_branch_id are mutually exclusive — required-ness is
+  // enforced in onSubmit based on the poSourceType toggle, so both stay optional
+  // at the schema level.
+  supplier_id: z.coerce.number().optional(),
+  supplier_branch_id: z.coerce.number().optional(),
   branch_id: z.coerce.number().min(1, 'Branch is required'),
   date: z.string().min(1, 'Date is required'),
   status: z.enum(['pending', 'final']),
@@ -57,12 +62,20 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
 
+  const { user } = useAuth()
+  const myBranchId = (user as any)?.branch?.id
+
+  // Order source: external Supplier (default) or internal Branch — mutually
+  // exclusive.
+  const [poSourceType, setPoSourceType] = useState<'supplier' | 'branch'>('supplier')
+
   const {
     register,
     handleSubmit,
     reset,
     watch,
     setValue,
+    setError,
     control,
     formState: { errors },
   } = useForm<FormValues>({
@@ -70,6 +83,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     defaultValues: {
       code: '',
       supplier_id: 0,
+      supplier_branch_id: undefined,
       branch_id: 0,
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
@@ -117,6 +131,14 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     label: (b.name as string) ?? `Branch #${b.id}`,
     sublabel: b.code as string | undefined,
   }))
+  // Internal-source branches: every branch except our own.
+  const sourceBranchOptions = branches
+    .filter((b: any) => b.id !== myBranchId)
+    .map((b: any) => ({
+      value: b.id as number,
+      label: (b.name as string) ?? `Branch #${b.id}`,
+      sublabel: b.code as string | undefined,
+    }))
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
@@ -126,12 +148,17 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   useEffect(() => {
     if (initialData && mode === 'edit') {
       reset(initialData)
+      if (initialData.supplier_branch_id) setPoSourceType('branch')
     }
   }, [initialData, mode])
 
   const buildPayload = (values: FormValues) => ({
     ...values,
     total_price: totalPrice,
+    supplier_id:
+      poSourceType === 'supplier' ? values.supplier_id || undefined : undefined,
+    supplier_branch_id:
+      poSourceType === 'branch' ? values.supplier_branch_id || undefined : undefined,
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
@@ -168,6 +195,14 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
 
   const onSubmit = (values: FormValues) => {
+    if (poSourceType === 'supplier' && !values.supplier_id) {
+      setError('supplier_id', { message: 'Supplier is required' })
+      return
+    }
+    if (poSourceType === 'branch' && !values.supplier_branch_id) {
+      setError('supplier_branch_id', { message: 'Source branch is required' })
+      return
+    }
     if (mode === 'edit' && orderId) {
       updateMutation.mutate(values)
     } else {
@@ -362,28 +397,108 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
             </div>
 
-            {/* Supplier */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Supplier
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            {/* Order source toggle — external Supplier or internal Branch */}
+            <div
+              style={{
+                gridColumn: 'span 2',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
+              <label
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground-muted)',
+                  marginRight: 8,
+                }}
+              >
+                Order From:
               </label>
-              <Controller
-                name="supplier_id"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? 0}
-                    onChange={field.onChange}
-                    options={supplierOptions}
-                    placeholder="Select supplier..."
-                    searchPlaceholder="Search suppliers..."
-                    loading={suppliersLoading}
-                    error={errors.supplier_id?.message as string | undefined}
-                  />
-                )}
-              />
+              {([
+                { key: 'supplier', label: 'Supplier' },
+                { key: 'branch', label: 'Internal Branch' },
+              ] as const).map(({ key, label }) => {
+                const selected = poSourceType === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      setPoSourceType(key)
+                      setValue('supplier_id', undefined)
+                      setValue('supplier_branch_id', undefined)
+                    }}
+                    style={{
+                      padding: '6px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      background: selected ? 'var(--accent)' : 'var(--background)',
+                      color: selected ? 'white' : 'var(--foreground-muted)',
+                      border: selected
+                        ? '1px solid var(--accent)'
+                        : '1px solid var(--border)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </div>
+
+            {/* Supplier (external) — only when source is "supplier" */}
+            {poSourceType === 'supplier' && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Supplier
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
+                <Controller
+                  name="supplier_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 0}
+                      onChange={field.onChange}
+                      options={supplierOptions}
+                      placeholder="Select supplier..."
+                      searchPlaceholder="Search suppliers..."
+                      loading={suppliersLoading}
+                      error={errors.supplier_id?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+            )}
+
+            {/* Source Branch (internal) — only when source is "branch" */}
+            {poSourceType === 'branch' && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Source Branch
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
+                <Controller
+                  name="supplier_branch_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 0}
+                      onChange={field.onChange}
+                      options={sourceBranchOptions}
+                      placeholder="Select source branch..."
+                      searchPlaceholder="Search branches..."
+                      loading={branchesLoading}
+                      error={errors.supplier_branch_id?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+            )}
 
             {/* Branch */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
