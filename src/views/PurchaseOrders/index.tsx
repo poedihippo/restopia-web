@@ -76,7 +76,7 @@ export default function PurchaseOrdersView() {
         .list({
           page,
           per_page: 15,
-          include: 'branch,supplier',
+          include: 'supplier,supplier_branch,supplier_branch.company,branch',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
@@ -321,7 +321,7 @@ export default function PurchaseOrdersView() {
           <thead>
             <tr>
               <th style={{ ...thStyle, width: 160 }}>Code</th>
-              <th style={thStyle}>Supplier</th>
+              <th style={thStyle}>Order From</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 130 }}>Date</th>
               <th style={{ ...thStyle, width: 150 }}>Total</th>
@@ -382,6 +382,16 @@ export default function PurchaseOrdersView() {
             ) : (
               items.map((item) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending
+                // Order source: external supplier, or internal source branch.
+                const po = item as any
+                const supplierName = po?.supplier?.name
+                const branchName = po?.supplier_branch?.name
+                const branchCode = po?.supplier_branch?.code
+                const orderFromLabel = supplierName
+                  ? supplierName
+                  : branchName
+                    ? `${branchName}${branchCode ? ` (${branchCode})` : ''}`
+                    : '—'
                 return (
                   <tr
                     key={item.id}
@@ -413,7 +423,28 @@ export default function PurchaseOrdersView() {
                           color: 'var(--foreground)',
                         }}
                       >
-                        {item.supplier?.name ?? '—'}
+                        {supplierName ? (
+                          <span
+                            style={{
+                              color: 'var(--foreground-muted)',
+                              fontSize: '0.75rem',
+                              marginRight: '0.25rem',
+                            }}
+                          >
+                            Supplier ·{' '}
+                          </span>
+                        ) : branchName ? (
+                          <span
+                            style={{
+                              color: 'var(--foreground-muted)',
+                              fontSize: '0.75rem',
+                              marginRight: '0.25rem',
+                            }}
+                          >
+                            Internal ·{' '}
+                          </span>
+                        ) : null}
+                        {orderFromLabel}
                       </span>
                     </td>
                     <td style={tdStyle}>
