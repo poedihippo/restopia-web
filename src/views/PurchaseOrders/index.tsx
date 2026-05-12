@@ -89,21 +89,6 @@ export default function PurchaseOrdersView() {
   const items: PurchaseOrder[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
-  // ── TEMP DIAGNOSTIC — remove after investigation ──────────────────────────
-  if (typeof window !== 'undefined') {
-    console.log('[PurchaseOrderList] order count:', items.length)
-    console.log('[PurchaseOrderList] first PO:', items[0])
-    console.log('[PurchaseOrderList] first PO supplier:', (items[0] as any)?.supplier)
-    console.log(
-      '[PurchaseOrderList] first PO supplier_branch:',
-      (items[0] as any)?.supplier_branch,
-    )
-    console.log(
-      '[PurchaseOrderList] first PO keys:',
-      items[0] ? Object.keys(items[0]) : null,
-    )
-  }
-
   const deleteMutation = useMutation({
     mutationFn: (id: number) => purchaseOrdersService.delete(id),
     onSuccess: () => {
