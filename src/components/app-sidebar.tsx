@@ -136,6 +136,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: BarChart3,
         permission: 'sales-order.read',
         children: [
+          { label: 'Sales Report', href: '/reports/sales-report', permission: 'sales-order.read' },
           { label: 'Sales by Product', href: '/reports/sales-by-product', permission: 'sales-order.read' },
           { label: 'Sales by Invoice', href: '/reports/sales-by-invoice', permission: 'sales-order.read' },
           { label: 'Transaction History', href: '/reports/transaction-history', permission: 'sales-order.read' },
