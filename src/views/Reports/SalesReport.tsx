@@ -71,31 +71,13 @@ export default function SalesReport() {
 
       // Line items → group by category
       ;(order.sales_order_details ?? []).forEach((d: any) => {
-        // Snapshots are JSON columns populated at order creation time.
-        // They may arrive as a parsed object OR as a JSON string — handle both.
-        const parseSnap = (v: any) => {
-          if (!v) return null
-          if (typeof v === 'string') {
-            try {
-              return JSON.parse(v)
-            } catch {
-              return null
-            }
-          }
-          return v
-        }
-        const pis = parseSnap(d.product_inventory_snapshot)
-        const bs = parseSnap(d.bundle_snapshot)
-
-        // Field paths inside the snapshot — derive defensively.
-        const code =
-          pis?.product_uom?.product?.code ?? pis?.code ?? bs?.code ?? '-'
-        const name =
-          pis?.product_uom?.product?.name ?? pis?.name ?? bs?.name ?? '-'
-        const catName =
-          pis?.product_uom?.product?.product_category?.name ??
-          pis?.product_category?.name ??
-          'OTHER'
+        // Snapshots are already-parsed JSON columns captured at sale time.
+        const pis = d.product_inventory_snapshot
+        const bs = d.bundle_snapshot
+        const prod = pis?.product_uom_batch?.product_uom?.product
+        const code = prod?.code ?? bs?.code ?? '-'
+        const name = prod?.name ?? bs?.name ?? '-'
+        const catName = prod?.product_category?.name ?? 'OTHER'
         const qty = d.qty ?? 0
         const price = d.price ?? 0
         const amount = qty * price
