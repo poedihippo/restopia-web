@@ -23,6 +23,49 @@ const formatNumber = (n: number | undefined): string => {
   return Number(n).toLocaleString('id-ID')
 }
 
+// Per-row batch picker — fetches batches scoped to the row's selected product UOM.
+function BatchSelect({
+  productUomId,
+  value,
+  onChange,
+  error,
+}: {
+  productUomId: number | null
+  value: number | null
+  onChange: (id: number) => void
+  error?: string
+}) {
+  const { data: batchesData, isLoading } = useQuery({
+    queryKey: ['product-uom-batches', { product_uom_id: productUomId }],
+    queryFn: () =>
+      productUomBatchesService
+        .list({ 'filter[product_uom_id]': productUomId, per_page: 100 } as any)
+        .then((r) => r.data),
+    enabled: !!productUomId,
+  })
+
+  const batchOptions = ((batchesData as any)?.data ?? []).map((b: any) => ({
+    value: b.id as number,
+    label: (b.batch_code as string) ?? `Batch #${b.id}`,
+    sublabel: b.expiry_date
+      ? `Exp: ${String(b.expiry_date).slice(0, 10)}`
+      : undefined,
+  }))
+
+  return (
+    <SearchableSelect
+      options={batchOptions}
+      value={value ?? 0}
+      onChange={(v) => onChange(Number(v))}
+      placeholder={productUomId ? 'Select batch...' : 'Pick product first'}
+      searchPlaceholder="Search batches..."
+      disabled={!productUomId}
+      loading={isLoading}
+      error={error}
+    />
+  )
+}
+
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   product_uom_batch_id: z.coerce.number().optional(),
@@ -146,21 +189,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         .then((r) => r.data),
   })
   const productUoms = (productUomsData as any)?.data ?? []
-
-  const { data: batchesData } = useQuery({
-    queryKey: ['product-uom-batches-all'],
-    queryFn: () =>
-      productUomBatchesService
-        .list({ per_page: 200, include: 'product_uom' } as any)
-        .then((r) => r.data),
-  })
-  const allBatches = (batchesData as any)?.data ?? []
-
-  const getBatchesForUom = (productUomId: number) =>
-    allBatches.filter(
-      (b: any) =>
-        b.product_uom_id === productUomId || b.product_uom?.id === productUomId,
-    )
 
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-pending'],
@@ -328,6 +356,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     sales_order_id: values.sales_order_id || undefined,
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
+      .filter((d) => !requiresBatch || Number(d.product_uom_batch_id) > 0)
       .map((d) => ({
         product_uom_id: d.product_uom_id,
         product_uom_batch_id:
@@ -830,56 +859,18 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 <Controller
                   control={control}
                   name={`details.${index}.product_uom_batch_id`}
-                  render={({ field: f }) => {
-                    const batches = getBatchesForUom(
-                      watchDetails[index]?.product_uom_id ?? 0,
-                    )
-                    const batchError = errors.details?.[index]?.product_uom_batch_id
-                      ?.message as string | undefined
-                    return (
-                      <div
-                        style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
-                      >
-                        <select
-                          value={f.value ?? 0}
-                          onChange={(e) =>
-                            f.onChange(Number(e.target.value) || undefined)
-                          }
-                          style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            border: `1px solid ${
-                              batchError ? 'var(--destructive)' : 'var(--border)'
-                            }`,
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 12,
-                            background: 'var(--surface)',
-                            outline: 'none',
-                            fontFamily: 'var(--font-sans)',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <option value={0}>
-                            {batches.length === 0
-                              ? 'No batches available'
-                              : 'Select batch...'}
-                          </option>
-                          {batches.map((b: any) => (
-                            <option key={b.id} value={b.id}>
-                              {`${b.code ?? `Batch #${b.id}`} | Exp: ${b.expiry_date ? String(b.expiry_date).split('T')[0] : 'No expiry'} | Stock: ${b.stock ?? 0}`}
-                            </option>
-                          ))}
-                        </select>
-                        {batchError && (
-                          <span
-                            style={{ fontSize: 10, color: 'var(--destructive)' }}
-                          >
-                            {batchError}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  }}
+                  render={({ field: f }) => (
+                    <BatchSelect
+                      productUomId={watchDetails[index]?.product_uom_id || null}
+                      value={f.value ?? null}
+                      onChange={(id) => f.onChange(id || undefined)}
+                      error={
+                        errors.details?.[index]?.product_uom_batch_id?.message as
+                          | string
+                          | undefined
+                      }
+                    />
+                  )}
                 />
               )}
 

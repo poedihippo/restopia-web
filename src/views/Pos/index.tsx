@@ -23,6 +23,7 @@ import {
   type ReceiptData as PrinterReceiptData,
 } from '@/lib/print/receiptBuilder'
 import PrinterStatusBar from '@/components/pos/PrinterStatusBar'
+import TransactionHistoryItem from '@/components/pos/TransactionHistoryItem'
 
 const generateKey = () =>
   Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -83,7 +84,7 @@ const BRANCH_FALLBACK = {
 // Convert the iframe-shaped ReceiptData (multi-payment, customer, reprint)
 // into the ESC/POS builder shape. Sums payments and uses the first method
 // label — keeps the source data intact for the iframe path.
-function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
+export function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
   const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
   const paymentMethod = r.payments[0]?.method?.toUpperCase() || 'CASH'
   return {
@@ -105,6 +106,141 @@ function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
     payment: paymentTotal,
     paymentMethod,
   }
+}
+
+// Build a printable HTML string mirroring PosReceipt's layout. Used by the
+// hidden-iframe printer below.
+function buildReceiptHtml(r: ReceiptData): string {
+  const divider = '--------------------------------------'
+  const thin = '- - - - - - - - - - - - - - - - - - - -'
+  const fmt = (n: number) => n.toLocaleString('id-ID')
+  const row = (left: string, right: string) =>
+    `<div style="display:flex;justify-content:space-between;"><span>${left}</span><span>${right}</span></div>`
+  const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
+
+  return `
+      <div style="text-align:center;margin-bottom:6px;font-size:11px;">
+        PT. Sumber Cemerlang Mandiri<br>
+        Ruko Golden Boulevard, J, 9, Lengkong Karya, Serpong Utara, Kota Tangerang Selatan, Banten, 15331<br>
+        NPWP: 71.008.539.0-411.000
+      </div>
+      <div style="text-align:center;margin-bottom:6px;">
+        <strong style="font-size:14px;">DAPUR COKELAT</strong><br>
+        <strong>${r.branchName.toUpperCase()}</strong><br>
+        ${r.branchAddress ? `<span style="font-size:11px;">${r.branchAddress}</span><br>` : ''}
+        ${r.branchPhone ?? ''}
+      </div>
+      <div>${divider}</div>
+      <div style="margin:4px 0;">
+        ${r.date} ${r.time}<br>
+        ${r.invoiceNo}<br>
+        ${r.cashierName}
+        ${r.customerName ? `<br>${r.customerName}` : ''}
+      </div>
+      <div>${divider}</div>
+      ${
+        r.isPrinted && r.reprintBy
+          ? `<div style="margin:4px 0;">Reprint by ${r.reprintBy} on<br>${r.reprintAt ?? ''}</div><div>${divider}</div>`
+          : ''
+      }
+      <div style="margin:4px 0;">
+        ${r.items
+          .map(
+            (item) => `
+              <div>${item.name}</div>
+              <div style="display:flex;justify-content:space-between;">
+                <span>${item.qty} x ${fmt(item.price)}</span>
+                <span>${fmt(item.subtotal)}</span>
+              </div>`,
+          )
+          .join('')}
+      </div>
+      <div>${thin}</div>
+      <div style="margin:4px 0;">
+        ${row('GROSS', fmt(r.grossAmount))}
+        ${r.discountAmount > 0 ? row('DISCOUNT', fmt(r.discountAmount)) : ''}
+      </div>
+      <div>${thin}</div>
+      <div style="margin:4px 0;">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;">
+          <span>TOTAL</span><span>${fmt(r.totalAmount)}</span>
+        </div>
+        ${r.payments.map((p) => row(p.method.toUpperCase(), fmt(p.amount))).join('')}
+        ${r.changeAmount && r.changeAmount > 0 ? row('KEMBALI', fmt(r.changeAmount)) : ''}
+      </div>
+      <div>${thin}</div>
+      <div style="display:flex;justify-content:space-between;font-weight:bold;margin:4px 0;">
+        <span>PAYMENT</span><span>${fmt(paymentTotal)}</span>
+      </div>
+      <div style="margin:4px 0;">${r.branchName.toUpperCase()} – ${r.orderType.toUpperCase()}</div>
+      <div>${divider}</div>
+      <div style="text-align:center;font-size:11px;margin:6px 0;">
+        ChocoCall : 0811-1920-9900<br>
+        ALL ABOUT CHOCOLATES &amp; CAKES
+      </div>
+      <div>${divider}</div>
+      <div style="text-align:center;font-size:11px;margin:4px 0;">Harga sudah termasuk pajak</div>
+      <div>${divider}</div>
+      <div style="text-align:center;font-size:11px;margin:4px 0;">
+        Keluhan mengenai produk dapat diterima maksimal 1x24 jam sejak tanggal pembelian
+      </div>
+    `
+}
+
+// Hidden-iframe window.print() fallback — used when WebUSB isn't connected or
+// a transfer fails. Mirrors PosReceipt's layout via buildReceiptHtml. Exported
+// so the Transaction History reprint button can reuse the exact same path.
+export function triggerIframePrint(receipt: ReceiptData): void {
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = 'none'
+  document.body.appendChild(iframe)
+
+  const iframeDoc = iframe.contentWindow?.document
+  if (!iframeDoc) {
+    document.body.removeChild(iframe)
+    return
+  }
+
+  const receiptHtml = buildReceiptHtml(receipt)
+
+  iframeDoc.open()
+  iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          @page { size: 76mm auto; margin: 2mm; }
+          body {
+            margin: 0;
+            padding: 4mm;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            line-height: 1.3;
+            width: 70mm;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+          }
+          * { box-sizing: border-box; }
+        </style>
+      </head>
+      <body>
+        ${receiptHtml}
+      </body>
+      </html>
+    `)
+  iframeDoc.close()
+
+  iframe.contentWindow?.focus()
+  iframe.contentWindow?.print()
+
+  setTimeout(() => {
+    if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
+  }, 1000)
 }
 
 export default function PosView() {
@@ -342,49 +478,117 @@ export default function PosView() {
     return ae - be
   }
 
-  // Group inventory rows by product_uom_id so multiple batches/lots of the
-  // same product collapse into one tile. Each group carries its FEFO-sorted
-  // lot list, summed stock, and a default lot for add-to-cart.
-  const groupedItems = useMemo(() => {
-    type Group = {
-      key: string
-      product_uom_id: number | null
-      representative: any
-      lots: any[]
-      totalStock: number
-      defaultLot: any
-    }
-    const map = new Map<string, Group>()
+  // POS catalog grid. The grid must show the full sellable catalogue (the
+  // product-uoms response), NOT only the product UOMs that happen to have an
+  // inventory row loaded for the current branch — otherwise a branch with few
+  // received-stock rows shows almost nothing (the bug: 1 tile rendered while
+  // product-uoms returned the whole catalogue). Inventory rows are LEFT-joined
+  // per product UOM for lots + stock; a UOM with no inventory row shows with
+  // Stock: 0. No branch-scoped client filtering is applied for any role, so
+  // superadmin (and every other user) sees every product UOM in the response.
+  // Category / search / in-stock / sort are mirrored client-side here since
+  // those controls previously only filtered the server-side inventory query.
+  type PosGroup = {
+    key: string
+    product_uom_id: number | null
+    representative: any
+    lots: any[]
+    totalStock: number
+    defaultLot: any
+  }
+  const groupedItems = useMemo<PosGroup[]>(() => {
+    const resolvePuid = (row: any): number | null =>
+      row.product_uom_id
+      ?? row.product_uom_batch?.product_uom?.id
+      ?? row.product_uom?.id
+      ?? null
+
+    // Left-join source: loaded inventory rows keyed by product UOM id.
+    const lotsByUom = new Map<number, any[]>()
     for (const row of items as any[]) {
-      const puid =
-        row.product_uom_id
-        ?? row.product_uom_batch?.product_uom?.id
-        ?? row.product_uom?.id
-        ?? null
-      const key = puid !== null ? `uom:${puid}` : `id:${row.id}`
-      let g = map.get(key)
-      if (!g) {
-        g = {
-          key,
-          product_uom_id: puid,
-          representative: row,
-          lots: [],
-          totalStock: 0,
-          defaultLot: row,
+      const puid = resolvePuid(row)
+      if (puid === null) continue
+      const arr = lotsByUom.get(puid)
+      if (arr) arr.push(row)
+      else lotsByUom.set(puid, [row])
+    }
+
+    const needle = searchDebounced.trim().toLowerCase()
+    const matchesSearch = (pu: any) => {
+      if (!needle) return true
+      const name = String(pu?.product?.name ?? '').toLowerCase()
+      const code = String(pu?.code ?? '').toLowerCase()
+      return name.includes(needle) || code.includes(needle)
+    }
+
+    let out: PosGroup[] = []
+
+    if ((productUomsList as any[]).length > 0) {
+      for (const pu of productUomsList as any[]) {
+        if (
+          selectedCategoryId &&
+          pu?.product?.product_category?.id !== selectedCategoryId
+        ) {
+          continue
         }
-        map.set(key, g)
+        if (!matchesSearch(pu)) continue
+        const lots = (lotsByUom.get(pu.id) ?? []).slice().sort(fefoCompare)
+        const totalStock = lots.reduce((s, l) => s + Number(l.stock ?? 0), 0)
+        if (inStockOnly && totalStock <= 0) continue
+        const firstStocked = lots.find((l) => Number(l.stock ?? 0) > 0)
+        const synthetic = {
+          id: null,
+          product_uom_id: pu.id,
+          product_uom: pu,
+          code: pu.code,
+          base_price: pu.base_price ?? 0,
+          online_price: pu.online_price ?? null,
+          price_editable: pu.price_editable ?? false,
+          stock: 0,
+          expiry_date: null,
+        }
+        const defaultLot = firstStocked ?? lots[0] ?? synthetic
+        out.push({
+          key: `uom:${pu.id}`,
+          product_uom_id: pu.id,
+          representative: defaultLot,
+          lots,
+          totalStock,
+          defaultLot,
+        })
       }
-      g.lots.push(row)
-      g.totalStock += Number(row.stock ?? 0)
+    } else {
+      // Catalogue not loaded yet — fall back to grouping the inventory rows.
+      const map = new Map<string, PosGroup>()
+      for (const row of items as any[]) {
+        const puid = resolvePuid(row)
+        const key = puid !== null ? `uom:${puid}` : `id:${row.id}`
+        let g = map.get(key)
+        if (!g) {
+          g = { key, product_uom_id: puid, representative: row, lots: [], totalStock: 0, defaultLot: row }
+          map.set(key, g)
+        }
+        g.lots.push(row)
+        g.totalStock += Number(row.stock ?? 0)
+      }
+      for (const g of map.values()) {
+        g.lots.sort(fefoCompare)
+        const firstStocked = g.lots.find((l) => Number(l.stock ?? 0) > 0)
+        g.defaultLot = firstStocked ?? g.lots[0]
+        g.representative = g.defaultLot
+      }
+      out = Array.from(map.values())
     }
-    for (const g of map.values()) {
-      g.lots.sort(fefoCompare)
-      const firstStocked = g.lots.find((l) => Number(l.stock ?? 0) > 0)
-      g.defaultLot = firstStocked ?? g.lots[0]
-      g.representative = g.defaultLot
-    }
-    return Array.from(map.values())
-  }, [items])
+
+    // Mirror the sort dropdown selection (price was previously a server sort).
+    const priceOf = (g: PosGroup) => Number(g.defaultLot?.base_price ?? 0)
+    if (sortBy === 'price_asc') out.sort((a, b) => priceOf(a) - priceOf(b))
+    else if (sortBy === 'price_desc') out.sort((a, b) => priceOf(b) - priceOf(a))
+    else if (sortBy === 'stock_desc') out.sort((a, b) => b.totalStock - a.totalStock)
+    else out.sort((a, b) => String(a.defaultLot?.code ?? '').localeCompare(String(b.defaultLot?.code ?? '')))
+
+    return out
+  }, [items, productUomsList, selectedCategoryId, searchDebounced, inStockOnly, sortBy])
 
   // Unique category names derived from productUomsList — using inventory
   // items would only surface categories present on the current page (20).
@@ -910,85 +1114,6 @@ export default function PosView() {
     })
   }, [])
 
-  // Build a printable HTML string mirroring PosReceipt's layout. Used by the
-  // hidden-iframe printer below.
-  const buildReceiptHtml = (r: ReceiptData): string => {
-    const divider = '--------------------------------------'
-    const thin = '- - - - - - - - - - - - - - - - - - - -'
-    const fmt = (n: number) => n.toLocaleString('id-ID')
-    const row = (left: string, right: string) =>
-      `<div style="display:flex;justify-content:space-between;"><span>${left}</span><span>${right}</span></div>`
-    const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
-
-    return `
-      <div style="text-align:center;margin-bottom:6px;font-size:11px;">
-        PT. Sumber Cemerlang Mandiri<br>
-        Ruko Golden Boulevard, J, 9, Lengkong Karya, Serpong Utara, Kota Tangerang Selatan, Banten, 15331<br>
-        NPWP: 71.008.539.0-411.000
-      </div>
-      <div style="text-align:center;margin-bottom:6px;">
-        <strong style="font-size:14px;">DAPUR COKELAT</strong><br>
-        <strong>${r.branchName.toUpperCase()}</strong><br>
-        ${r.branchAddress ? `<span style="font-size:11px;">${r.branchAddress}</span><br>` : ''}
-        ${r.branchPhone ?? ''}
-      </div>
-      <div>${divider}</div>
-      <div style="margin:4px 0;">
-        ${r.date} ${r.time}<br>
-        ${r.invoiceNo}<br>
-        ${r.cashierName}
-        ${r.customerName ? `<br>${r.customerName}` : ''}
-      </div>
-      <div>${divider}</div>
-      ${
-        r.isPrinted && r.reprintBy
-          ? `<div style="margin:4px 0;">Reprint by ${r.reprintBy} on<br>${r.reprintAt ?? ''}</div><div>${divider}</div>`
-          : ''
-      }
-      <div style="margin:4px 0;">
-        ${r.items
-          .map(
-            (item) => `
-              <div>${item.name}</div>
-              <div style="display:flex;justify-content:space-between;">
-                <span>${item.qty} x ${fmt(item.price)}</span>
-                <span>${fmt(item.subtotal)}</span>
-              </div>`,
-          )
-          .join('')}
-      </div>
-      <div>${thin}</div>
-      <div style="margin:4px 0;">
-        ${row('GROSS', fmt(r.grossAmount))}
-        ${r.discountAmount > 0 ? row('DISCOUNT', fmt(r.discountAmount)) : ''}
-      </div>
-      <div>${thin}</div>
-      <div style="margin:4px 0;">
-        <div style="display:flex;justify-content:space-between;font-weight:bold;">
-          <span>TOTAL</span><span>${fmt(r.totalAmount)}</span>
-        </div>
-        ${r.payments.map((p) => row(p.method.toUpperCase(), fmt(p.amount))).join('')}
-        ${r.changeAmount && r.changeAmount > 0 ? row('KEMBALI', fmt(r.changeAmount)) : ''}
-      </div>
-      <div>${thin}</div>
-      <div style="display:flex;justify-content:space-between;font-weight:bold;margin:4px 0;">
-        <span>PAYMENT</span><span>${fmt(paymentTotal)}</span>
-      </div>
-      <div style="margin:4px 0;">${r.branchName.toUpperCase()} – ${r.orderType.toUpperCase()}</div>
-      <div>${divider}</div>
-      <div style="text-align:center;font-size:11px;margin:6px 0;">
-        ChocoCall : 0811-1920-9900<br>
-        ALL ABOUT CHOCOLATES &amp; CAKES
-      </div>
-      <div>${divider}</div>
-      <div style="text-align:center;font-size:11px;margin:4px 0;">Harga sudah termasuk pajak</div>
-      <div>${divider}</div>
-      <div style="text-align:center;font-size:11px;margin:4px 0;">
-        Keluhan mengenai produk dapat diterima maksimal 1x24 jam sejak tanggal pembelian
-      </div>
-    `
-  }
-
   // Print the receipt. Tries the WebUSB connection to the Epson TM-U220
   // first; on any failure (no permission, transfer error, browser without
   // WebUSB) falls back to the hidden-iframe window.print() flow that has
@@ -1003,57 +1128,7 @@ export default function PosView() {
         console.error('[Print] WebUSB failed, falling back to iframe', e)
       }
     }
-
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'fixed'
-    iframe.style.right = '0'
-    iframe.style.bottom = '0'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = 'none'
-    document.body.appendChild(iframe)
-
-    const iframeDoc = iframe.contentWindow?.document
-    if (!iframeDoc) {
-      document.body.removeChild(iframe)
-      return
-    }
-
-    const receiptHtml = buildReceiptHtml(receipt)
-
-    iframeDoc.open()
-    iframeDoc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          @page { size: 76mm auto; margin: 2mm; }
-          body {
-            margin: 0;
-            padding: 4mm;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 11px;
-            line-height: 1.3;
-            width: 70mm;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-          }
-          * { box-sizing: border-box; }
-        </style>
-      </head>
-      <body>
-        ${receiptHtml}
-      </body>
-      </html>
-    `)
-    iframeDoc.close()
-
-    iframe.contentWindow?.focus()
-    iframe.contentWindow?.print()
-
-    setTimeout(() => {
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
-    }, 1000)
+    triggerIframePrint(receipt)
   }
 
   // Voucher apply — looks the voucher up directly and computes the discount
@@ -1502,7 +1577,7 @@ export default function PosView() {
             {inStockOnly ? '✓ In Stock Only' : 'In Stock Only'}
           </button>
           <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--foreground-subtle)' }}>
-            {productMeta?.total ?? items.length} items
+            {groupedItems.length} items
           </span>
         </div>
 
@@ -1527,7 +1602,7 @@ export default function PosView() {
                 />
               ))}
             </div>
-          ) : items.length === 0 ? (
+          ) : groupedItems.length === 0 ? (
             <div
               style={{
                 display: 'flex',
@@ -4029,86 +4104,7 @@ export default function PosView() {
               )}
 
               {orders.map((order: any) => (
-                <div
-                  key={order.id}
-                  style={{
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '12px 16px',
-                    background: 'var(--background)',
-                  }}
-                >
-                  {/* Order header row */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--foreground)' }}>
-                      {order.code}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: 'var(--radius-xl)',
-                        background:
-                          order.status === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)',
-                        color: order.status === 'final' ? 'var(--success)' : 'var(--warning)',
-                        textTransform: 'capitalize',
-                      }}
-                    >
-                      {order.status}
-                    </span>
-                  </div>
-
-                  {/* Customer + date row */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {order.customer_name || order.customer?.name || 'Walk-in'}
-                      {order.customer_phone ? ` · ${order.customer_phone}` : ''}
-                    </span>
-                    <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
-                      {new Date(order.created_at).toLocaleTimeString('id-ID', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-
-                  {/* Items summary */}
-                  {order.sales_order_details && order.sales_order_details.length > 0 && (
-                    <div
-                      style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 8 }}
-                    >
-                      {order.sales_order_details.length} item(s)
-                    </div>
-                  )}
-
-                  {/* Total */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Total</span>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
-                      Rp {Number(order.total_price).toLocaleString('id-ID')}
-                    </span>
-                  </div>
-                </div>
+                <TransactionHistoryItem key={order.id} order={order} />
               ))}
             </div>
 
