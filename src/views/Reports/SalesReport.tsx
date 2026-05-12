@@ -39,6 +39,25 @@ export default function SalesReport() {
   })
   const orders: any[] = (data as any)?.data ?? []
 
+  // ── TEMP DIAGNOSTIC — remove after investigation ──────────────────────────
+  if (typeof window !== 'undefined') {
+    console.log('[SalesReport] order count:', orders.length)
+    console.log('[SalesReport] first order:', orders[0])
+    console.log('[SalesReport] first order details:', orders[0]?.sales_order_details)
+    console.log('[SalesReport] first detail product chain:', {
+      product_inventory: orders[0]?.sales_order_details?.[0]?.product_inventory,
+      product_uom_batch:
+        orders[0]?.sales_order_details?.[0]?.product_inventory?.product_uom_batch,
+      product_uom:
+        orders[0]?.sales_order_details?.[0]?.product_inventory?.product_uom_batch
+          ?.product_uom,
+      product:
+        orders[0]?.sales_order_details?.[0]?.product_inventory?.product_uom_batch
+          ?.product_uom?.product,
+      bundle: orders[0]?.sales_order_details?.[0]?.bundle,
+    })
+  }
+
   // ── Aggregation (all client-side) ─────────────────────────────────────────
   const aggregated = useMemo(() => {
     const catMap: Record<
@@ -276,6 +295,15 @@ export default function SalesReport() {
   )
 
   const catEntries = Object.entries(aggregated.catMap)
+
+  // ── TEMP DIAGNOSTIC — remove after investigation ──────────────────────────
+  if (typeof window !== 'undefined') {
+    console.log(
+      '[SalesReport] grouped categories:',
+      Object.keys(aggregated.catMap ?? {}),
+    )
+    console.log('[SalesReport] grouped sample:', aggregated.catMap)
+  }
 
   return (
     <div
