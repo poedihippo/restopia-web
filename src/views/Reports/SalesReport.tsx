@@ -26,8 +26,7 @@ export default function SalesReport() {
       salesOrdersService
         .list({
           per_page: 500,
-          include:
-            'sales_order_details.product_inventory.product_uom_batch.product_uom.product.product_category,sales_order_details.bundle,payments.payment_method,branch',
+          include: 'sales_order_details,payments.payment_method,branch',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,
           'filter[date_lte]': dateTo,
@@ -38,25 +37,6 @@ export default function SalesReport() {
     enabled,
   })
   const orders: any[] = (data as any)?.data ?? []
-
-  // ── TEMP DIAGNOSTIC — remove after investigation ──────────────────────────
-  if (typeof window !== 'undefined') {
-    console.log('[SalesReport] order count:', orders.length)
-    console.log('[SalesReport] first order:', orders[0])
-    console.log('[SalesReport] first order details:', orders[0]?.sales_order_details)
-    console.log('[SalesReport] first detail product chain:', {
-      product_inventory: orders[0]?.sales_order_details?.[0]?.product_inventory,
-      product_uom_batch:
-        orders[0]?.sales_order_details?.[0]?.product_inventory?.product_uom_batch,
-      product_uom:
-        orders[0]?.sales_order_details?.[0]?.product_inventory?.product_uom_batch
-          ?.product_uom,
-      product:
-        orders[0]?.sales_order_details?.[0]?.product_inventory?.product_uom_batch
-          ?.product_uom?.product,
-      bundle: orders[0]?.sales_order_details?.[0]?.bundle,
-    })
-  }
 
   // ── Aggregation (all client-side) ─────────────────────────────────────────
   const aggregated = useMemo(() => {
@@ -91,13 +71,31 @@ export default function SalesReport() {
 
       // Line items → group by category
       ;(order.sales_order_details ?? []).forEach((d: any) => {
-        // Walk the full product chain from the included relations.
-        const product =
-          d?.product_inventory?.product_uom_batch?.product_uom?.product
-        const bundle = d?.bundle
-        const code = product?.code ?? bundle?.code ?? '-'
-        const name = product?.name ?? bundle?.name ?? '-'
-        const catName = product?.product_category?.name ?? 'OTHER'
+        // Snapshots are JSON columns populated at order creation time.
+        // They may arrive as a parsed object OR as a JSON string — handle both.
+        const parseSnap = (v: any) => {
+          if (!v) return null
+          if (typeof v === 'string') {
+            try {
+              return JSON.parse(v)
+            } catch {
+              return null
+            }
+          }
+          return v
+        }
+        const pis = parseSnap(d.product_inventory_snapshot)
+        const bs = parseSnap(d.bundle_snapshot)
+
+        // Field paths inside the snapshot — derive defensively.
+        const code =
+          pis?.product_uom?.product?.code ?? pis?.code ?? bs?.code ?? '-'
+        const name =
+          pis?.product_uom?.product?.name ?? pis?.name ?? bs?.name ?? '-'
+        const catName =
+          pis?.product_uom?.product?.product_category?.name ??
+          pis?.product_category?.name ??
+          'OTHER'
         const qty = d.qty ?? 0
         const price = d.price ?? 0
         const amount = qty * price
@@ -295,15 +293,6 @@ export default function SalesReport() {
   )
 
   const catEntries = Object.entries(aggregated.catMap)
-
-  // ── TEMP DIAGNOSTIC — remove after investigation ──────────────────────────
-  if (typeof window !== 'undefined') {
-    console.log(
-      '[SalesReport] grouped categories:',
-      Object.keys(aggregated.catMap ?? {}),
-    )
-    console.log('[SalesReport] grouped sample:', aggregated.catMap)
-  }
 
   return (
     <div
