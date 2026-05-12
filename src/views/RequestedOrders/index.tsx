@@ -82,7 +82,7 @@ export default function RequestedOrdersView() {
           page,
           per_page: 15,
           include:
-            'branch,supplier_branch,' +
+            'branch,supplier_branch,purchase_order_details,' +
             'purchase_order_details.product_uom.product,' +
             'purchase_order_details.product_uom.uom',
           sort: '-created_at',
