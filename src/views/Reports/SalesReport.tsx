@@ -26,7 +26,8 @@ export default function SalesReport() {
       salesOrdersService
         .list({
           per_page: 500,
-          include: 'sales_order_details,payments,payments.payment_method',
+          include:
+            'sales_order_details.product_inventory.product_uom_batch.product_uom.product.product_category,sales_order_details.bundle,payments.payment_method,branch',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,
           'filter[date_lte]': dateTo,
@@ -71,12 +72,13 @@ export default function SalesReport() {
 
       // Line items → group by category
       ;(order.sales_order_details ?? []).forEach((d: any) => {
-        const snap = d.product_inventory_snapshot ?? {}
-        const code = snap.code ?? String(d.product_inventory_id ?? '?')
-        const name =
-          snap.product_uom?.product?.name ?? snap.name ?? `Item #${d.id}`
-        const catName =
-          snap.product_uom?.product?.product_category?.name ?? 'Other'
+        // Walk the full product chain from the included relations.
+        const product =
+          d?.product_inventory?.product_uom_batch?.product_uom?.product
+        const bundle = d?.bundle
+        const code = product?.code ?? bundle?.code ?? '-'
+        const name = product?.name ?? bundle?.name ?? '-'
+        const catName = product?.product_category?.name ?? 'OTHER'
         const qty = d.qty ?? 0
         const price = d.price ?? 0
         const amount = qty * price
