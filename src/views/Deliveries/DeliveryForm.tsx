@@ -142,7 +142,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 200, include: 'product,uom' } as any)
+        .list({ per_page: 500, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
   const productUoms = (productUomsData as any)?.data ?? []

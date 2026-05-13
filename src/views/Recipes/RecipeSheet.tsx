@@ -146,7 +146,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 200, include: 'product,uom' })
+        .list({ per_page: 500, include: 'product,uom' })
         .then((r) => r.data),
   })
   const productUoms = (productUomsData as any)?.data ?? []
@@ -166,7 +166,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     enabled: showFinishedDrop && finishedSearchDebounced.length >= 2,
     queryFn: () => {
       const params: Record<string, any> = {
-        per_page: 50,
+        per_page: 500,
         include: 'product_uoms,product_uoms.uom',
         'filter[type]': 'final',
         sort: 'name',
@@ -182,7 +182,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     enabled: showMaterialDrop && materialSearchDebounced.length >= 2,
     queryFn: () => {
       const params: Record<string, any> = {
-        per_page: 50,
+        per_page: 500,
         include: 'product_uoms,product_uoms.uom',
         sort: 'name',
       }
@@ -200,7 +200,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       api
         .get('/product-uoms', {
           params: {
-            per_page: 50,
+            per_page: 500,
             include: 'uom',
             'filter[product_id]': selectedFinishedProductId,
           },
@@ -216,7 +216,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       api
         .get('/product-uoms', {
           params: {
-            per_page: 50,
+            per_page: 500,
             include: 'uom',
             'filter[product_id]': selectedMaterialProductId,
           },

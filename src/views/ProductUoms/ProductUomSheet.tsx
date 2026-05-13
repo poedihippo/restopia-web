@@ -72,7 +72,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['products-all'],
-    queryFn: () => productsService.list({ per_page: 50 }).then((r) => r.data),
+    queryFn: () => productsService.list({ per_page: 500 }).then((r) => r.data),
   })
   const products = (productsData as any)?.data ?? []
 

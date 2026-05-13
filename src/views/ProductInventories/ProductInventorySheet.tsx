@@ -120,7 +120,7 @@ export default function ProductInventorySheet({
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 50, include: 'product,uom' })
+        .list({ per_page: 500, include: 'product,uom' })
         .then((r) => r.data),
     enabled: !isEditMode,
   })

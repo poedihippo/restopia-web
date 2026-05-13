@@ -545,7 +545,7 @@ export default function ProductionForm({
       api
         .get('/products', {
           params: {
-            per_page: 200,
+            per_page: 500,
             'filter[type]': 'final',
             include: 'product_uoms,product_uoms.uom',
             sort: 'name',
@@ -567,7 +567,7 @@ export default function ProductionForm({
     queryKey: ['product-inventories-all'],
     queryFn: () =>
       productInventoriesService
-        .list({ per_page: 200, include: 'branch,product_uom_batch' } as any)
+        .list({ per_page: 500, include: 'branch,product_uom_batch' } as any)
         .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
@@ -580,7 +580,7 @@ export default function ProductionForm({
       api
         .get('/products', {
           params: {
-            per_page: 50,
+            per_page: 500,
             'filter[type]': 'final',
             'filter[search]': sharedProductSearchDebounced,
             sort: 'name',
@@ -598,7 +598,7 @@ export default function ProductionForm({
       api
         .get('/product-uoms', {
           params: {
-            per_page: 50,
+            per_page: 500,
             include: 'uom',
             'filter[product_id]': sharedSelectedProductId,
           },
@@ -615,7 +615,7 @@ export default function ProductionForm({
       api
         .get('/products', {
           params: {
-            per_page: 50,
+            per_page: 500,
             sort: 'name',
             'filter[search]': sharedMaterialSearchDebounced,
           },
@@ -632,7 +632,7 @@ export default function ProductionForm({
       api
         .get('/product-inventories', {
           params: {
-            per_page: 50,
+            per_page: 500,
             include: 'product_uom,product_uom.uom,product_uom.product',
             'filter[status]': 'active',
           },

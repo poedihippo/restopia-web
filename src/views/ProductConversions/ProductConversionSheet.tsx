@@ -65,7 +65,7 @@ export default function ProductConversionSheet({
     queryKey: ['products-all', 'active'],
     queryFn: () =>
       productsService
-        .list({ per_page: 50, 'filter[status]': 'active' })
+        .list({ per_page: 500, 'filter[status]': 'active' })
         .then((r) => r.data),
   })
   const products = (productsData as any)?.data ?? []

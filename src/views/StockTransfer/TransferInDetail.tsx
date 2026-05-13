@@ -75,7 +75,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 200, include: 'product,uom' } as any)
+        .list({ per_page: 500, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
   const productUoms: any[] = (productUomsData as any)?.data ?? []
