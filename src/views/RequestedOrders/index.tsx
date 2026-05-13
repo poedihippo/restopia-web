@@ -123,7 +123,9 @@ export default function RequestedOrdersView() {
         ? purchaseOrdersService.accept(id)
         : purchaseOrdersService.reject(id),
     onSuccess: (_res, vars) => {
+      // Refresh the supplier's incoming list AND the requester's PO list.
       queryClient.invalidateQueries({ queryKey: ['requested-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success(vars.action === 'accept' ? 'Order accepted' : 'Order rejected')
     },
     onError: (err: any) => toastMutationApiError(err, 'Action failed'),
@@ -470,53 +472,53 @@ export default function RequestedOrdersView() {
                       <Eye size={12} />
                       View
                     </button>
-                    {item.status === 'pending' && (
-                      <>
-                        <button
-                          type="button"
-                          disabled={actionMutation.isPending}
-                          onClick={() => handleAction(item.id, 'accept')}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '5px 10px',
-                            background: 'var(--success)',
-                            color: 'white',
-                            border: '1px solid var(--success)',
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 12,
-                            fontWeight: 500,
-                            cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
-                            opacity: actionMutation.isPending ? 0.6 : 1,
-                          }}
-                        >
-                          <Check size={12} />
-                          Accept
-                        </button>
-                        <button
-                          type="button"
-                          disabled={actionMutation.isPending}
-                          onClick={() => handleAction(item.id, 'reject')}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '5px 10px',
-                            background: 'var(--surface)',
-                            color: 'var(--destructive)',
-                            border: '1px solid var(--destructive)',
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 12,
-                            fontWeight: 500,
-                            cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
-                            opacity: actionMutation.isPending ? 0.6 : 1,
-                          }}
-                        >
-                          <X size={12} />
-                          Reject
-                        </button>
-                      </>
+                    {(item.status === 'pending' || item.status === 'rejected') && (
+                      <button
+                        type="button"
+                        disabled={actionMutation.isPending}
+                        onClick={() => handleAction(item.id, 'accept')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '5px 10px',
+                          background: 'var(--success)',
+                          color: 'white',
+                          border: '1px solid var(--success)',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                          opacity: actionMutation.isPending ? 0.6 : 1,
+                        }}
+                      >
+                        <Check size={12} />
+                        Accept
+                      </button>
+                    )}
+                    {(item.status === 'pending' || item.status === 'accepted') && (
+                      <button
+                        type="button"
+                        disabled={actionMutation.isPending}
+                        onClick={() => handleAction(item.id, 'reject')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '5px 10px',
+                          background: 'var(--surface)',
+                          color: 'var(--destructive)',
+                          border: '1px solid var(--destructive)',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                          opacity: actionMutation.isPending ? 0.6 : 1,
+                        }}
+                      >
+                        <X size={12} />
+                        Reject
+                      </button>
                     )}
                     {item.status === 'pending' && (
                       <button
