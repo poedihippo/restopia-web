@@ -24,18 +24,33 @@ interface PurchaseOrder {
   code: string
   date: string
   total_price: number
-  status: 'pending' | 'final'
+  status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final'
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
   supplier?: { id: number; name: string }
 }
 
-const STATUS_META = {
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: {
     label: 'Pending',
     color: 'var(--warning)',
     bg: 'var(--warning-bg)',
+  },
+  accepted: {
+    label: 'Accepted',
+    color: 'var(--success)',
+    bg: 'var(--success-bg)',
+  },
+  rejected: {
+    label: 'Rejected',
+    color: 'var(--destructive)',
+    bg: 'var(--destructive-bg)',
+  },
+  fulfilled: {
+    label: 'Fulfilled',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
   },
   final: {
     label: 'Final',
