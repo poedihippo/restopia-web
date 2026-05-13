@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import {
   Search,
@@ -15,6 +17,8 @@ import {
   Truck,
   Package,
   Building2,
+  Check,
+  X,
 } from 'lucide-react'
 
 interface RequestedPO {
@@ -22,7 +26,7 @@ interface RequestedPO {
   code: string
   date: string
   total_price: number
-  status: 'pending' | 'final'
+  status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final'
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
@@ -46,6 +50,21 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
     color: 'var(--warning)',
     bg: 'var(--warning-bg)',
   },
+  accepted: {
+    label: 'Accepted',
+    color: 'var(--success)',
+    bg: 'var(--success-bg)',
+  },
+  rejected: {
+    label: 'Rejected',
+    color: 'var(--destructive)',
+    bg: 'var(--destructive-bg)',
+  },
+  fulfilled: {
+    label: 'Fulfilled',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
   final: {
     label: 'Fulfilled',
     color: 'var(--success)',
@@ -57,6 +76,7 @@ export default function RequestedOrdersView() {
   const router = useRouter()
   const { user } = useAuth()
   const myBranchId = user?.branch?.id
+  const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -96,6 +116,23 @@ export default function RequestedOrdersView() {
   const items: RequestedPO[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
+
+  const actionMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'accept' | 'reject' }) =>
+      action === 'accept'
+        ? purchaseOrdersService.accept(id)
+        : purchaseOrdersService.reject(id),
+    onSuccess: (_res, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['requested-orders'] })
+      toast.success(vars.action === 'accept' ? 'Order accepted' : 'Order rejected')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Action failed'),
+  })
+
+  const handleAction = (id: number, action: 'accept' | 'reject') => {
+    if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
+    actionMutation.mutate({ id, action })
+  }
 
   const inputBase: React.CSSProperties = {
     border: '1px solid var(--border)',
@@ -433,6 +470,54 @@ export default function RequestedOrdersView() {
                       <Eye size={12} />
                       View
                     </button>
+                    {item.status === 'pending' && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={actionMutation.isPending}
+                          onClick={() => handleAction(item.id, 'accept')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '5px 10px',
+                            background: 'var(--success)',
+                            color: 'white',
+                            border: '1px solid var(--success)',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                            opacity: actionMutation.isPending ? 0.6 : 1,
+                          }}
+                        >
+                          <Check size={12} />
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          disabled={actionMutation.isPending}
+                          onClick={() => handleAction(item.id, 'reject')}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '5px 10px',
+                            background: 'var(--surface)',
+                            color: 'var(--destructive)',
+                            border: '1px solid var(--destructive)',
+                            borderRadius: 'var(--radius-md)',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                            opacity: actionMutation.isPending ? 0.6 : 1,
+                          }}
+                        >
+                          <X size={12} />
+                          Reject
+                        </button>
+                      </>
+                    )}
                     {item.status === 'pending' && (
                       <button
                         type="button"
