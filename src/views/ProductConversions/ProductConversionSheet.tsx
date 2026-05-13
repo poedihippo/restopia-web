@@ -63,17 +63,47 @@ export default function ProductConversionSheet({
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['products-all', 'active'],
-    queryFn: () =>
-      productsService
-        .list({ per_page: 500, 'filter[status]': 'active' })
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allProducts: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productsService
+          .list({ page, per_page: 100, sort: 'name', 'filter[status]': 'active' })
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allProducts = allProducts.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allProducts }
+    },
   })
   const products = (productsData as any)?.data ?? []
 
   const { data: uomsData, isLoading: uomsLoading } = useQuery({
     queryKey: ['uoms-all'],
-    queryFn: () =>
-      uomsService.list({ per_page: 100 }).then((r) => r.data),
+    queryFn: async () => {
+      let allUoms: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await uomsService
+          .list({ page, per_page: 100 })
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allUoms = allUoms.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allUoms }
+    },
   })
   const uoms = (uomsData as any)?.data ?? []
 
