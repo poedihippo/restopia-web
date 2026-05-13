@@ -69,13 +69,28 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
 
   const { data: inventoryData } = useQuery({
     queryKey: ['product-inventories-all'],
-    queryFn: () =>
-      productInventoriesService
-        .list({
-          per_page: 200,
-          include: 'branch,product_uom_batch',
-        })
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allInventories: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productInventoriesService
+          .list({
+            page,
+            per_page: 100,
+            include: 'branch,product_uom_batch',
+          })
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allInventories = allInventories.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allInventories }
+    },
   })
   const inventoryItems = (inventoryData as any)?.data ?? []
 

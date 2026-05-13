@@ -93,19 +93,47 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const { data: deliveriesData, isLoading: deliveriesLoading } = useQuery({
     queryKey: ['deliveries-pending'],
-    queryFn: () =>
-      deliveriesService
-        .list({ per_page: 50, 'filter[status]': 'final' } as any)
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allDeliveries: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await deliveriesService
+          .list({ page, per_page: 100, 'filter[status]': 'final' } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allDeliveries = allDeliveries.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allDeliveries }
+    },
   })
   const deliveries = (deliveriesData as any)?.data ?? []
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all'],
-    queryFn: () =>
-      productUomsService
-        .list({ per_page: 500, include: 'product,uom' } as any)
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allProductUoms: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productUomsService
+          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allProductUoms = allProductUoms.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allProductUoms }
+    },
   })
   const productUoms = (productUomsData as any)?.data ?? []
 

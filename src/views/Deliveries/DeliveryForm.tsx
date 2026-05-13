@@ -140,19 +140,47 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all'],
-    queryFn: () =>
-      productUomsService
-        .list({ per_page: 500, include: 'product,uom' } as any)
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allProductUoms: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productUomsService
+          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allProductUoms = allProductUoms.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allProductUoms }
+    },
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
   const { data: batchesData } = useQuery({
     queryKey: ['product-uom-batches-all'],
-    queryFn: () =>
-      productUomBatchesService
-        .list({ per_page: 200, include: 'product_uom' } as any)
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allBatches: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productUomBatchesService
+          .list({ page, per_page: 100, include: 'product_uom' } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allBatches = allBatches.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allBatches }
+    },
   })
   const allBatches = (batchesData as any)?.data ?? []
 
@@ -164,19 +192,47 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-pending'],
-    queryFn: () =>
-      purchaseOrdersService
-        .list({ per_page: 50, 'filter[status]': 'final' } as any)
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allOrders: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await purchaseOrdersService
+          .list({ page, per_page: 100, 'filter[status]': 'final' } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allOrders = allOrders.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allOrders }
+    },
   })
   const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
 
   const { data: salesOrdersData, isLoading: salesOrdersLoading } = useQuery({
     queryKey: ['sales-orders-pending'],
-    queryFn: () =>
-      salesOrdersService
-        .list({ per_page: 50, 'filter[status]': 'final' } as any)
-        .then((r) => r.data),
+    queryFn: async () => {
+      let allOrders: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await salesOrdersService
+          .list({ page, per_page: 100, 'filter[status]': 'final' } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allOrders = allOrders.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allOrders }
+    },
   })
   const salesOrders = (salesOrdersData as any)?.data ?? []
 
