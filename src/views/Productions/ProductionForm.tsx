@@ -9,7 +9,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { recipesService } from '@/services/recipes.service'
 import api from '@/hooks/useApi'
@@ -534,18 +533,35 @@ export default function ProductionForm({
   }, [sharedShowUomPicker, sharedShowMaterialUomPicker])
 
   // Queries
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
-    queryFn: () =>
-      productUomsService.list({ per_page: 200, include: 'product,uom' }).then((r) => r.data),
-  })
-  const productUoms = (productUomsData as any)?.data ?? []
 
-  const productUomOptions = productUoms.map((pu: any) => ({
-    value: pu.id as number,
-    label: pu.product?.name ?? `Product UOM #${pu.id}`,
-    sublabel: pu.code ?? pu.uom?.name ?? undefined,
-  }))
+  // Finished-product picker options: every product-UOM whose parent product is
+  // type=final — NOT filtered by branch inventory, so brand-new products this
+  // branch has never produced can still be selected. /product-uoms has no
+  // documented type filter, so we query /products?filter[type]=final with the
+  // product_uoms relation included (same approach recipes use) and flatten.
+  const { data: finishedProductsData, isLoading: productUomsLoading } = useQuery({
+    queryKey: ['production-finished-products'],
+    queryFn: () =>
+      api
+        .get('/products', {
+          params: {
+            per_page: 200,
+            'filter[type]': 'final',
+            include: 'product_uoms,product_uoms.uom',
+            sort: 'name',
+          },
+        })
+        .then((r) => r.data),
+  })
+  const finishedProducts = unwrapList(finishedProductsData)
+
+  const productUomOptions = finishedProducts.flatMap((p: any) =>
+    (p.product_uoms ?? []).map((pu: any) => ({
+      value: pu.id as number,
+      label: p.name ?? `Product UOM #${pu.id}`,
+      sublabel: pu.code ?? pu.uom?.name ?? undefined,
+    })),
+  )
 
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all'],
