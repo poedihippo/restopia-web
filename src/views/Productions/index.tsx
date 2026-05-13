@@ -74,7 +74,7 @@ export default function ProductionsView() {
         .list({
           page,
           per_page: 15,
-          include: 'branch',
+          include: 'branch,production_details',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
