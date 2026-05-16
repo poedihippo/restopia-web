@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -98,6 +98,21 @@ function unwrapList(resp: any): any[] {
   return []
 }
 
+/**
+ * Scale a per-batch recipe-material qty to the production-item qty.
+ *   material_qty = recipe_material.qty * production_item.qty / recipe.qty
+ * Rounded to 3 decimals with trailing zeros stripped (Number(toFixed)).
+ */
+function scaleMaterialQty(
+  matQty: number,
+  prodQty: number,
+  recipeQty: number,
+): number {
+  const denom = recipeQty && recipeQty > 0 ? recipeQty : 1
+  const raw = ((Number(matQty) || 0) * (Number(prodQty) || 0)) / denom
+  return Number(raw.toFixed(3))
+}
+
 // ── MaterialsFieldArray ───────────────────────────────────────────────────────
 
 interface MaterialsFieldArrayProps {
@@ -107,6 +122,7 @@ interface MaterialsFieldArrayProps {
   inventories: any[]
   errors: any
   onLoadFromRecipe: (index: number) => void
+  onMaterialQtyEdit: (detailIndex: number) => void
   isLoadingRecipe: boolean
   // material search props
   activeMaterialIndex: { detail: number; mat: number } | null
@@ -132,6 +148,7 @@ export function MaterialsFieldArray({
   register,
   errors,
   onLoadFromRecipe,
+  onMaterialQtyEdit,
   isLoadingRecipe,
   activeMaterialIndex,
   sharedMaterialSearch,
@@ -385,14 +402,21 @@ export function MaterialsFieldArray({
               )}
             </div>
 
+            {(() => {
+              const reg = register(
+                `details.${detailIndex}.materials.${matIndex}.qty` as any,
+                { valueAsNumber: true }
+              )
+              return (
             <input
               type="number"
               min={0.001}
               step={0.001}
-              {...register(
-                `details.${detailIndex}.materials.${matIndex}.qty` as any,
-                { valueAsNumber: true }
-              )}
+              {...reg}
+              onChange={(e) => {
+                reg.onChange(e)
+                onMaterialQtyEdit(detailIndex)
+              }}
               placeholder="Qty"
               style={{
                 padding: '7px 10px',
@@ -407,6 +431,8 @@ export function MaterialsFieldArray({
                 boxSizing: 'border-box',
               }}
             />
+              )
+            })()}
 
             <div style={{ position: 'relative', zIndex: 20, flexShrink: 0 }}>
               <button
@@ -446,6 +472,24 @@ export default function ProductionForm({
 
   const [expandedDetails, setExpandedDetails] = useState<number[]>([0])
   const [loadingRecipeFor, setLoadingRecipeFor] = useState<number | null>(null)
+
+  // Per-detail recipe source so material qty re-scales when production qty
+  // changes. baseQty is the per-batch recipe-material qty; recipeQty is the
+  // recipe batch yield. Cleared/overwritten on each Load from Recipe.
+  const [recipeSourceByDetail, setRecipeSourceByDetail] = useState<
+    Record<number, { recipeQty: number; baseQtys: number[] }>
+  >({})
+  // Detail indices the user manually edited a material qty on — stop
+  // auto-scaling those so we don't clobber deliberate overrides.
+  const [manualEditedDetails, setManualEditedDetails] = useState<
+    Record<number, boolean>
+  >({})
+
+  const markMaterialQtyEdited = useCallback((detailIndex: number) => {
+    setManualEditedDetails((prev) =>
+      prev[detailIndex] ? prev : { ...prev, [detailIndex]: true },
+    )
+  }, [])
 
   // ── Finished product two-step search ──────────────────────────────────────
   const [activeDetailIndex, setActiveDetailIndex] = useState<number | null>(null)
@@ -682,30 +726,36 @@ export default function ProductionForm({
       }
       setLoadingRecipeFor(detailIndex)
       try {
+        // /v1/recipes has no filter[product_uom_id]; fetch default recipes and
+        // match client-side by recipe.product_uom_id.
         const res = await recipesService.list({
-          per_page: 1,
+          per_page: 200,
           include:
             'recipe_materials,recipe_materials.product_uom,recipe_materials.product_uom.product,recipe_materials.product_uom.uom',
           'filter[is_default]': 1,
         } as any)
-        const recipes = (res.data as any)?.data ?? []
-        if (!recipes.length) {
-          toast.error('No default recipe found')
+        const recipes = unwrapList(res.data)
+        const recipe = recipes.find(
+          (r: any) => Number(r.product_uom_id) === Number(productUomId),
+        )
+        if (!recipe) {
+          toast.error('No recipe found for this product')
           return
         }
-        const recipe = recipes[0]
         const materials = recipe.recipe_materials ?? []
         if (!materials.length) {
           toast.error('Recipe has no materials')
           return
         }
+        const recipeQty = Number(recipe.qty) || 1
+        const prodQty = Number(watchDetails[detailIndex]?.qty) || 0
         const mappedMaterials = materials.map((mat: any) => {
           const match = inventories.find(
             (inv: any) => inv.product_uom_id === mat.product_uom_id
           )
           return {
             product_inventory_id: match?.id ?? 0,
-            qty: mat.qty,
+            qty: scaleMaterialQty(Number(mat.qty) || 0, prodQty, recipeQty),
           }
         })
         const labels: Record<string, string> = {}
@@ -729,6 +779,21 @@ export default function ProductionForm({
             ? mappedMaterials
             : [{ product_inventory_id: 0, qty: 1 }]
         )
+        // Remember the recipe so material qty re-scales when prod qty changes,
+        // and clear any prior manual-edit lock for this row.
+        setRecipeSourceByDetail((prev) => ({
+          ...prev,
+          [detailIndex]: {
+            recipeQty,
+            baseQtys: materials.map((mat: any) => Number(mat.qty) || 0),
+          },
+        }))
+        setManualEditedDetails((prev) => {
+          if (!prev[detailIndex]) return prev
+          const next = { ...prev }
+          delete next[detailIndex]
+          return next
+        })
         toast.success(`Loaded ${materials.length} material(s) from recipe`)
       } catch {
         toast.error('Failed to load recipe')
@@ -738,6 +803,24 @@ export default function ProductionForm({
     },
     [watchDetails, inventories, setValue],
   )
+
+  // Re-scale recipe-loaded materials whenever the production-item qty changes.
+  // Skipped for rows the user manually edited. The cur !== scaled guard keeps
+  // this from looping on its own setValue calls.
+  useEffect(() => {
+    Object.entries(recipeSourceByDetail).forEach(([key, src]) => {
+      const di = Number(key)
+      if (manualEditedDetails[di]) return
+      const prodQty = Number(watchDetails?.[di]?.qty) || 0
+      src.baseQtys.forEach((baseQty, mi) => {
+        const scaled = scaleMaterialQty(baseQty, prodQty, src.recipeQty)
+        const cur = watchDetails?.[di]?.materials?.[mi]?.qty
+        if (Number(cur) !== scaled) {
+          setValue(`details.${di}.materials.${mi}.qty` as any, scaled)
+        }
+      })
+    })
+  }, [watchDetails, recipeSourceByDetail, manualEditedDetails, setValue])
 
   // Derive material labels from inventories so edit mode shows readable names
   // instead of "Material #1". Manual labels (set via picker) take precedence.
@@ -1289,6 +1372,7 @@ export default function ProductionForm({
                         inventories={inventories}
                         errors={errors}
                         onLoadFromRecipe={handleLoadFromRecipe}
+                        onMaterialQtyEdit={markMaterialQtyEdited}
                         isLoadingRecipe={loadingRecipeFor === detailIndex}
                         activeMaterialIndex={activeMaterialIndex}
                         sharedMaterialSearch={sharedMaterialSearch}
