@@ -9,11 +9,14 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
+import { productInventoriesService } from '@/services/product-inventories.service'
+import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Select a product'),
+  product_uom_batch_id: z.coerce.number().optional(),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   price: z.coerce.number().min(0),
   description: z.string().optional(),
@@ -36,6 +39,8 @@ interface TransferOutFormProps {
 
 export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormProps) {
   const today = new Date().toISOString().split('T')[0]
+  const { user } = useAuth()
+  const sourceBranchId = user?.branch?.id
 
   const {
     register,
@@ -50,7 +55,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       target_branch_id: 0,
       date: today,
       description: '',
-      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+      details: [
+        { product_uom_id: 0, product_uom_batch_id: undefined, qty: 1, price: 0, description: '' },
+      ],
     },
   })
 
@@ -92,6 +99,84 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
+  // Available stock at the SOURCE branch (current active branch). We fetch all
+  // active inventory rows for this branch once, then pick a FIFO batch per line
+  // client-side. /v1/product-inventories supports filter[branch_id] directly,
+  // and filter[product_uom_id] per-UOM, but a single branch-wide fetch keeps
+  // this to one query and matches the fetch-all pattern used elsewhere.
+  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
+    queryKey: ['transfer-out-source-inventory', sourceBranchId],
+    enabled: !!sourceBranchId,
+    queryFn: async () => {
+      let allInv: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productInventoriesService
+          .list({
+            page,
+            per_page: 100,
+            'filter[branch_id]': sourceBranchId,
+            'filter[status]': 'active',
+            include: 'branch,product_uom_batch,product_uom_batch.product_uom',
+          } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allInv = allInv.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allInv }
+    },
+  })
+  const inventories = (inventoryData as any)?.data ?? []
+
+  // FIFO batch picker: oldest-expiring inventory row (with stock) for a UOM.
+  // Primary sort: expiry_date ASC, NULL expiry treated as +Infinity so dated
+  // batches ship before undated ones. Tiebreaker: batch created_at ASC.
+  const pickFifoInventory = React.useCallback(
+    (productUomId: number) => {
+      if (!productUomId) return undefined
+      const ts = (v?: string | null) => {
+        if (!v) return Number.POSITIVE_INFINITY
+        const t = new Date(v).getTime()
+        return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t
+      }
+      const candidates = inventories
+        .filter((inv: any) => {
+          const matchesUom =
+            inv.product_uom_id === productUomId ||
+            inv.product_uom_batch?.product_uom?.id === productUomId
+          return (
+            matchesUom &&
+            !!inv.product_uom_batch?.id &&
+            Number(inv.stock ?? 0) > 0
+          )
+        })
+        .sort((a: any, b: any) => {
+          const ae = ts(a.product_uom_batch?.expiry_date ?? a.expiry_date)
+          const be = ts(b.product_uom_batch?.expiry_date ?? b.expiry_date)
+          if (ae !== be) return ae - be
+          const ac = ts(a.product_uom_batch?.created_at ?? a.created_at)
+          const bc = ts(b.product_uom_batch?.created_at ?? b.created_at)
+          return ac - bc
+        })
+      return candidates[0]
+    },
+    [inventories],
+  )
+
+  const formatBatchLabel = (inv: any) => {
+    const code = inv?.product_uom_batch?.code ?? `Batch #${inv?.product_uom_batch?.id}`
+    const exp = inv?.product_uom_batch?.expiry_date ?? inv?.expiry_date
+    return exp
+      ? `${code} — Exp: ${String(exp).split('T')[0]}`
+      : `${code} — No expiry`
+  }
+
   const branchOptions = branches.map((b: any) => ({
     value: b.id as number,
     label: (b.name as string) ?? '',
@@ -116,13 +201,17 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
         description: values.description || undefined,
         details: values.details
           .filter((d) => Number(d.product_uom_id) > 0)
-          .map((d) => ({
-            product_uom_id: d.product_uom_id,
-            qty: d.qty,
-            price: d.price,
-            status: 'pending',
-            description: d.description || undefined,
-          })),
+          .map((d) => {
+            const pick = pickFifoInventory(Number(d.product_uom_id))
+            return {
+              product_uom_id: d.product_uom_id,
+              product_uom_batch_id: pick?.product_uom_batch?.id,
+              qty: d.qty,
+              price: d.price,
+              status: 'pending',
+              description: d.description || undefined,
+            }
+          }),
       }
       return deliveriesService.create(payload as any)
     },
@@ -134,7 +223,24 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       toast.error(err?.response?.data?.message ?? 'Failed to create transfer'),
   })
 
-  const onSubmit = (values: FormValues) => createMutation.mutate(values)
+  const onSubmit = (values: FormValues) => {
+    if (!sourceBranchId) {
+      toast.error('No active source branch — cannot determine stock')
+      return
+    }
+    if (inventoryLoading) {
+      toast.error('Still loading source branch stock — try again in a moment')
+      return
+    }
+    const missing = values.details
+      .filter((d) => Number(d.product_uom_id) > 0)
+      .filter((d) => !pickFifoInventory(Number(d.product_uom_id)))
+    if (missing.length > 0) {
+      toast.error('No stock available at source branch for one or more items')
+      return
+    }
+    createMutation.mutate(values)
+  }
 
   const onInvalid = (errs: any) => {
     const first = Object.values(errs)[0] as any
@@ -293,7 +399,13 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
             <button
               type="button"
               onClick={() =>
-                append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+                append({
+                  product_uom_id: 0,
+                  product_uom_batch_id: undefined,
+                  qty: 1,
+                  price: 0,
+                  description: '',
+                })
               }
               style={{
                 display: 'flex',
@@ -353,25 +465,53 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                   borderBottom: '1px solid var(--border)',
                 }}
               >
-                <Controller
-                  name={`details.${index}.product_uom_id`}
-                  control={control}
-                  render={({ field: f }) => (
-                    <SearchableSelect
-                      value={f.value ?? 0}
-                      onChange={f.onChange}
-                      options={productUomOptions}
-                      placeholder="Select product..."
-                      searchPlaceholder="Search products..."
-                      loading={productUomsLoading}
-                      error={
-                        errors.details?.[index]?.product_uom_id?.message as
-                          | string
-                          | undefined
-                      }
-                    />
-                  )}
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <Controller
+                    name={`details.${index}.product_uom_id`}
+                    control={control}
+                    render={({ field: f }) => (
+                      <SearchableSelect
+                        value={f.value ?? 0}
+                        onChange={f.onChange}
+                        options={productUomOptions}
+                        placeholder="Select product..."
+                        searchPlaceholder="Search products..."
+                        loading={productUomsLoading}
+                        error={
+                          errors.details?.[index]?.product_uom_id?.message as
+                            | string
+                            | undefined
+                        }
+                      />
+                    )}
+                  />
+                  {(() => {
+                    const uomId = Number(watchDetails?.[index]?.product_uom_id ?? 0)
+                    if (!uomId) return null
+                    if (inventoryLoading)
+                      return (
+                        <span
+                          style={{ fontSize: 11, color: 'var(--foreground-muted)' }}
+                        >
+                          Checking source stock…
+                        </span>
+                      )
+                    const pick = pickFifoInventory(uomId)
+                    if (!pick)
+                      return (
+                        <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
+                          No stock available at source branch
+                        </span>
+                      )
+                    return (
+                      <span
+                        style={{ fontSize: 11, color: 'var(--foreground-muted)' }}
+                      >
+                        {formatBatchLabel(pick)}
+                      </span>
+                    )
+                  })()}
+                </div>
                 <input
                   type="number"
                   min={0.001}
