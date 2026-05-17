@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   Pencil,
   Trash2,
+  CheckCircle2,
   PackageSearch,
   Calendar,
   Building2,
@@ -28,11 +29,18 @@ interface DeliveryFull {
   date: string
   total_price: number
   status: 'pending' | 'final'
+  source_type?:
+    | 'po_from_supplier'
+    | 'po_from_branch'
+    | 'transfer_to_branch'
+    | 'so_to_branch'
+  target_branch_id?: number
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
   target_branch?: { id: number; name: string }
   purchase_order?: { id: number; code: string }
+  sales_order?: { id: number; code: string }
   created_by?: { id: number; name: string }
   delivery_details?: Array<{
     id: number
@@ -41,6 +49,7 @@ interface DeliveryFull {
     status: 'pending' | 'packaging' | 'packed'
     description?: string
     product_uom_id?: number
+    product_uom_batch_id?: number
     purchase_order_detail_id?: number
     sales_order_detail_id?: number
   }>
@@ -108,6 +117,63 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
+
+  const finalizeMutation = useMutation({
+    mutationFn: () => {
+      const d = delivery as DeliveryFull
+      const rows = d.delivery_details ?? []
+      // Match DeliveryForm.buildPayload detail shape, but carry the
+      // existing detail `id` so the backend updates the rows in place
+      // (instead of recreating them) and flip pending -> packed so the
+      // stock_movement_applier fires for this transfer.
+      const payload = {
+        code: d.code,
+        source_type: d.source_type ?? 'transfer_to_branch',
+        target_branch_id: d.target_branch?.id ?? d.target_branch_id ?? 0,
+        purchase_order_id: d.purchase_order?.id || undefined,
+        sales_order_id: d.sales_order?.id || undefined,
+        date: d.date,
+        status: 'final',
+        description: d.description || undefined,
+        total_price: d.total_price,
+        details: rows.map((row) => ({
+          id: row.id,
+          product_uom_id: row.product_uom_id,
+          product_uom_batch_id: row.product_uom_batch_id || undefined,
+          purchase_order_detail_id: row.purchase_order_detail_id || undefined,
+          sales_order_detail_id: row.sales_order_detail_id || undefined,
+          qty: row.qty,
+          price: row.price,
+          status: 'packed',
+          description: row.description || undefined,
+        })),
+      }
+      return deliveriesService.update(id, payload as any)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+      queryClient.invalidateQueries({ queryKey: ['deliveries-transfer-out'] })
+      queryClient.invalidateQueries({ queryKey: ['delivery-detail', id] })
+      queryClient.invalidateQueries({ queryKey: ['receipts'] })
+      queryClient.invalidateQueries({ queryKey: ['receipts-for-delivery', id] })
+      toast.success('Transfer finalized')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to finalize transfer'),
+  })
+
+  const handleFinalize = () => {
+    if (
+      window.confirm(
+        'Finalize this transfer? This will decrement stock at the source branch and create a pending receipt at the destination.',
+      )
+    ) {
+      finalizeMutation.mutate()
+    }
+  }
+
+  const canFinalize =
+    delivery?.status === 'pending' &&
+    delivery?.source_type === 'transfer_to_branch'
 
   const details = delivery?.delivery_details ?? []
   const statusMeta =
@@ -282,6 +348,30 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
+          {canFinalize && (
+            <button
+              type="button"
+              onClick={handleFinalize}
+              disabled={finalizeMutation.isPending}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'white',
+                cursor: finalizeMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: finalizeMutation.isPending ? 0.7 : 1,
+              }}
+            >
+              <CheckCircle2 size={13} />
+              {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
