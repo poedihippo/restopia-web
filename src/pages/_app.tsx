@@ -29,7 +29,7 @@ export default function App({ Component, pageProps }: AppProps) {
             <Component {...pageProps} />
           </GlobalLayout>
         )}
-        <Toaster position="top-right" richColors />
+        <Toaster closeButton position="top-right" richColors />
       </AuthProvider>
     </QueryClientProvider>
   );
