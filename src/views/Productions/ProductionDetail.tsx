@@ -10,7 +10,7 @@ interface Props {
   id: number
 }
 
-const INCLUDE = 'branch,created_by,updated_by,production_details'
+const INCLUDE = 'branch,created_by,updated_by,production_details,media'
 
 const DETAIL_STATUS_META: Record<
   string,
@@ -104,6 +104,12 @@ export default function ProductionDetail({ id }: Props) {
               </p>
             </div>
             <div>
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Date</span>
+              <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground)' }}>
+                {formatDate(production?.date)}
+              </p>
+            </div>
+            <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Branch</span>
               <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground)' }}>
                 {production?.branch?.name ?? '—'}
@@ -122,13 +128,17 @@ export default function ProductionDetail({ id }: Props) {
             <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Created</span>
               <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground-muted)' }}>
-                {formatDate(production?.created_at)}
+                {production?.created_by?.name
+                  ? `${production.created_by.name} - ${formatDate(production?.created_at)}`
+                  : formatDate(production?.created_at)}
               </p>
             </div>
             <div>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Updated</span>
               <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--foreground-muted)' }}>
-                {formatDate(production?.updated_at)}
+                {production?.updated_by?.name
+                  ? `${production.updated_by.name} - ${formatDate(production?.updated_at)}`
+                  : formatDate(production?.updated_at)}
               </p>
             </div>
           </div>
@@ -168,6 +178,19 @@ export default function ProductionDetail({ id }: Props) {
               {production.production_details.map((detail: any, index: number) => {
                 const product = detail.product_uom?.product
                 const uom = detail.product_uom?.uom
+                const batch = detail.product_uom_batch
+                let batchLine: string | null = null
+                if (batch?.batch_code) {
+                  batchLine = `Batch: ${batch.batch_code} — ${
+                    batch.expiry_date ? `Exp: ${formatDate(batch.expiry_date)}` : 'No expiry'
+                  }`
+                } else if (detail.planned_batch_code) {
+                  batchLine = `Planned: ${detail.planned_batch_code} — ${
+                    detail.planned_expiry_date
+                      ? `Exp: ${formatDate(detail.planned_expiry_date)}`
+                      : 'No expiry'
+                  }`
+                }
                 const statusMeta = detail.status
                   ? DETAIL_STATUS_META[detail.status] ?? {
                       label: detail.status,
@@ -199,6 +222,16 @@ export default function ProductionDetail({ id }: Props) {
                         <p style={{ margin: '2px 0 0', fontWeight: 600, fontSize: 13 }}>
                           {product?.name ?? '—'}
                         </p>
+                        {batchLine && (
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--foreground-muted)' }}>
+                            {batchLine}
+                          </p>
+                        )}
+                        {detail.description && (
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--foreground-muted)' }}>
+                            {detail.description}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Code</span>
