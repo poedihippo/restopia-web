@@ -12,6 +12,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { recipesService } from '@/services/recipes.service'
 import api from '@/hooks/useApi'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Plus,
   Trash2,
@@ -469,6 +470,8 @@ export default function ProductionForm({
 }: ProductionFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const activeBranchId = user?.branch?.id
 
   const [expandedDetails, setExpandedDetails] = useState<number[]>([0])
   const [loadingRecipeFor, setLoadingRecipeFor] = useState<number | null>(null)
@@ -608,14 +611,20 @@ export default function ProductionForm({
   )
 
   const { data: inventoriesData } = useQuery({
-    queryKey: ['product-inventories-all'],
+    queryKey: ['product-inventories-all', activeBranchId],
+    enabled: !!activeBranchId,
     queryFn: async () => {
       let allInventories: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productInventoriesService
-          .list({ page, per_page: 100, include: 'branch,product_uom_batch' } as any)
+          .list({
+            page,
+            per_page: 100,
+            include: 'branch,product_uom_batch',
+            'filter[branch_id]': activeBranchId,
+          } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allInventories = allInventories.concat(items)
@@ -749,15 +758,46 @@ export default function ProductionForm({
         }
         const recipeQty = Number(recipe.qty) || 1
         const prodQty = Number(watchDetails[detailIndex]?.qty) || 0
+        const missing: string[] = []
         const mappedMaterials = materials.map((mat: any) => {
-          const match = inventories.find(
-            (inv: any) => inv.product_uom_id === mat.product_uom_id
+          const matches = inventories.filter(
+            (inv: any) =>
+              inv.product_uom_batch?.product_uom_id === mat.product_uom_id
           )
+          const sorted = matches.slice().sort((a: any, b: any) => {
+            // Prefer rows with stock > 0
+            const aHasStock = Number(a.stock) > 0 ? 1 : 0
+            const bHasStock = Number(b.stock) > 0 ? 1 : 0
+            if (aHasStock !== bHasStock) return bHasStock - aHasStock
+            // Then FIFO: oldest expiry first; null expiry treated as Infinity (use last)
+            const aExp = a.product_uom_batch?.expiry_date
+              ? new Date(a.product_uom_batch.expiry_date).getTime()
+              : Infinity
+            const bExp = b.product_uom_batch?.expiry_date
+              ? new Date(b.product_uom_batch.expiry_date).getTime()
+              : Infinity
+            return aExp - bExp
+          })
+          const match = sorted[0]
+          if (!match) {
+            missing.push(
+              mat.product_uom?.product?.name ??
+                String(mat.product_uom?.product_id ?? '?')
+            )
+          }
           return {
             product_inventory_id: match?.id ?? 0,
             qty: scaleMaterialQty(Number(mat.qty) || 0, prodQty, recipeQty),
           }
         })
+        // All-or-nothing: if any material lacks inventory at this branch,
+        // abort instead of silently shipping product_inventory_id: 0 rows.
+        if (missing.length > 0) {
+          toast.error(
+            `Cannot load recipe — materials missing inventory at this branch: ${missing.join(', ')}`
+          )
+          return
+        }
         const labels: Record<string, string> = {}
         materials.forEach((m: any, idx: number) => {
           const productName =
