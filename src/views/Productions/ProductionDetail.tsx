@@ -18,8 +18,6 @@ const DETAIL_STATUS_META: Record<
 > = {
   pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
   final: { label: 'Final', color: 'var(--success)', bg: 'var(--success-bg)' },
-  process: { label: 'In Progress', color: 'var(--info)', bg: 'var(--info-bg)' },
-  completed: { label: 'Completed', color: 'var(--success)', bg: 'var(--success-bg)' },
 }
 
 export default function ProductionDetail({ id }: Props) {
@@ -168,8 +166,8 @@ export default function ProductionDetail({ id }: Props) {
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {production.production_details.map((detail: any, index: number) => {
-                const product = detail.product_inventory?.product_uom?.product
-                const uom = detail.product_inventory?.product_uom?.uom
+                const product = detail.product_uom?.product
+                const uom = detail.product_uom?.uom
                 const statusMeta = detail.status
                   ? DETAIL_STATUS_META[detail.status] ?? {
                       label: detail.status,
@@ -199,12 +197,12 @@ export default function ProductionDetail({ id }: Props) {
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Product</span>
                         <p style={{ margin: '2px 0 0', fontWeight: 600, fontSize: 13 }}>
-                          {product?.name ?? detail.product_uom_id ?? `Item ${index + 1}`}
+                          {product?.name ?? '—'}
                         </p>
                       </div>
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Code</span>
-                        <p style={{ margin: '2px 0 0', fontSize: 13 }}>{detail.product_inventory?.code ?? '—'}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: 13 }}>{detail.product_uom?.code ?? '—'}</p>
                       </div>
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Qty</span>
@@ -249,13 +247,13 @@ export default function ProductionDetail({ id }: Props) {
                           </thead>
                           <tbody>
                             {detail.product_detail_materials.map((mat: any, mi: number) => {
-                              const mp = mat.product_inventory?.product_uom?.product
-                              const mu = mat.product_inventory?.product_uom?.uom
+                              const mp = mat.product_inventory?.product_uom_batch?.product_uom?.product
+                              const mu = mat.product_inventory?.product_uom_batch?.product_uom?.uom
                               return (
                                 <tr key={mat.id ?? mi} style={{ borderBottom: '1px solid var(--border)' }}>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mi + 1}</td>
                                   <td style={{ padding: '10px 12px', fontWeight: 500 }}>{mp?.name ?? '—'}</td>
-                                  <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mat.product_inventory?.code ?? '—'}</td>
+                                  <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mat.product_inventory?.product_uom_batch?.product_uom?.code ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{mat.qty ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mu?.name ?? '—'}</td>
                                 </tr>
