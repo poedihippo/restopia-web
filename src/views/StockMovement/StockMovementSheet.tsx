@@ -9,7 +9,17 @@ import { toast } from 'sonner'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { X, Loader2, TrendingUp, TrendingDown } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import SearchableSelect from '@/components/SearchableSelect'
+import { X, Loader2, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
+
+const formatExpiry = (v?: string) => {
+  if (!v) return 'No expiry'
+  const d = new Date(v)
+  return isNaN(d.getTime())
+    ? 'No expiry'
+    : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 const schema = z.object({
   product_inventory_id: z.coerce.number()
@@ -49,6 +59,9 @@ const TYPE_OPTIONS = [
 
 export default function StockMovementSheet({ open, onClose }: StockMovementSheetProps) {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const activeBranchId = (user as any)?.branch?.id
+  const activeBranchName = (user as any)?.branch?.name
 
   const {
     register,
@@ -68,7 +81,8 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   })
 
   const { data: inventoryData } = useQuery({
-    queryKey: ['product-inventories-all'],
+    queryKey: ['product-inventories-all', activeBranchId],
+    enabled: !!activeBranchId,
     queryFn: async () => {
       let allInventories: any[] = []
       let page = 1
@@ -79,7 +93,8 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
             page,
             per_page: 100,
             include: 'branch,product_uom_batch',
-          })
+            'filter[branch_id]': activeBranchId,
+          } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allInventories = allInventories.concat(items)
@@ -96,6 +111,31 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
 
   const watchDirection = watch('direction')
   const watchQty = watch('qty')
+  const watchInvId = watch('product_inventory_id')
+
+  const inventoryOptions = inventoryItems.map((inv: any) => {
+    const name =
+      inv.product_uom_batch?.product_uom?.product?.name ??
+      inv.product_uom?.product?.name ??
+      inv.code ??
+      `INV-${inv.id}`
+    const uomCode =
+      inv.product_uom_batch?.product_uom?.uom?.code ??
+      inv.product_uom_batch?.product_uom?.uom?.name ??
+      inv.product_uom?.uom?.code ??
+      ''
+    return {
+      value: inv.id as number,
+      label: `${name} — ${uomCode} — Stock: ${inv.stock}`,
+      sublabel: inv.product_uom_batch?.batch_code ?? undefined,
+    }
+  })
+
+  const selectedInv = inventoryItems.find((inv: any) => inv.id === watchInvId)
+  const negativeStock =
+    watchDirection === 'out' &&
+    selectedInv &&
+    Number(watchQty) > Number(selectedInv.stock)
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => stockMovementsService.create(data as any),
@@ -135,20 +175,6 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   const getQtyLabel = () => {
     if (watchDirection === 'in') return 'Quantity to Add'
     return 'Quantity to Remove'
-  }
-
-  const selectStyle = {
-    width: '100%',
-    padding: '9px 12px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 14,
-    color: 'var(--foreground)',
-    background: 'var(--surface)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-    boxSizing: 'border-box' as const,
-    cursor: 'pointer',
   }
 
   if (!open) return null
@@ -197,17 +223,30 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
             justifyContent: 'space-between',
           }}
         >
-          <h2
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 18,
-              fontWeight: 500,
-              margin: 0,
-              color: 'var(--foreground)',
-            }}
-          >
-            Record Stock Movement
-          </h2>
+          <div>
+            <h2
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 18,
+                fontWeight: 500,
+                margin: 0,
+                color: 'var(--foreground)',
+              }}
+            >
+              Record Stock Movement
+            </h2>
+            {activeBranchName && (
+              <p
+                style={{
+                  margin: '2px 0 0',
+                  fontSize: 12,
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                At: {activeBranchName}
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             style={{
@@ -339,41 +378,44 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
               name="product_inventory_id"
               control={control}
               render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                  style={{
-                    ...selectStyle,
-                    border: `1px solid ${errors.product_inventory_id ? 'var(--destructive)' : 'var(--border)'}`,
-                  }}
-                >
-                  <option value="" disabled>
-                    Select inventory item
-                  </option>
-                  {inventoryItems.map((inv: any) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.product_uom_batch?.product_uom?.product?.name
-                        ?? inv.product_uom?.product?.name
-                        ?? inv.code
-                        ?? `INV-${inv.id}`}
-                      {' — '}
-                      {inv.product_uom_batch?.product_uom?.uom?.code
-                        ?? inv.product_uom_batch?.product_uom?.uom?.name
-                        ?? inv.product_uom?.uom?.code
-                        ?? ''}
-                      {' ('}
-                      {inv.branch?.name ?? 'Unknown Branch'}
-                      {') — Qty: '}
-                      {inv.qty}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={field.value ?? 0}
+                  onChange={(v) => field.onChange(v)}
+                  options={inventoryOptions}
+                  placeholder="Select inventory item"
+                  searchPlaceholder="Search inventory..."
+                  error={errors.product_inventory_id?.message}
+                />
               )}
             />
-            {errors.product_inventory_id && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {errors.product_inventory_id.message}
-              </span>
+            {selectedInv && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  padding: '10px 12px',
+                  background: 'var(--background)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                <span>
+                  Current stock:{' '}
+                  <strong style={{ color: 'var(--foreground)' }}>
+                    {selectedInv.stock}
+                  </strong>
+                </span>
+                <span>
+                  Batch: {selectedInv.product_uom_batch?.batch_code ?? '—'}
+                </span>
+                <span>
+                  Expiry:{' '}
+                  {formatExpiry(selectedInv.product_uom_batch?.expiry_date)}
+                </span>
+              </div>
             )}
           </div>
 
@@ -414,6 +456,20 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
             {errors.qty && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
                 {errors.qty.message}
+              </span>
+            )}
+            {negativeStock && (
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12,
+                  color: 'var(--warning)',
+                }}
+              >
+                <AlertTriangle size={13} />
+                This will result in negative stock
               </span>
             )}
           </div>
