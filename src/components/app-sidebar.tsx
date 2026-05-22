@@ -79,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Product Categories', href: '/products/product-categories', permission: 'product-category.read' },
           { label: 'Units of Measure', href: '/products/uom', permission: 'uom.read' },
           { label: 'Product UOMs', href: '/products/product-uoms', permission: 'product-uom.read' },
+          { label: 'Product UOM Batches', href: '/products/product-uom-batches', permission: 'product-uom-batch.read' },
           { label: 'Product Conversions', href: '/products/product-conversions', permission: 'product-conversion.read' },
           { label: 'Product Inventory', href: '/products/product-inventory', permission: 'product-inventory.read' },
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.read' },
