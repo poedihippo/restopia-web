@@ -1,9 +1,10 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'
 import qs from 'qs'
 import { cookies } from '@/lib/cookies'
+import environment from '@/config/environment'
 
 const api: AxiosInstance = axios.create({
-  baseURL: '/v1',
+  baseURL: environment.API_URL,
   headers: { 'Content-Type': 'application/json' },
   paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'brackets', encode: false }),
 })
@@ -63,7 +64,7 @@ api.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const res = await axios.post('/v1/auth/token/refresh', { refresh_token: refreshToken })
+        const res = await axios.post(`${environment.API_URL}/auth/token/refresh`, { refresh_token: refreshToken })
         const newToken: string = res.data?.data?.access_token ?? res.data?.access_token
         cookies.set('token', newToken, {
           expires: 1,
