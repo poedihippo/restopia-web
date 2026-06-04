@@ -9,7 +9,7 @@ import type {
 
 export const authService = {
   login: (data: TokenRequest) =>
-    api.post<ApiResponse<TokenResponse>>('/auth/token/', data),
+    api.post<ApiResponse<TokenResponse>>('/auth/token', data),
 
   refresh: (data: RefreshTokenRequest) =>
     api.post<ApiResponse<TokenResponse>>('/auth/token/refresh', data),
