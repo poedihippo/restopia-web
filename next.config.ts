@@ -23,7 +23,6 @@ const API_BASE = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  skipTrailingSlashRedirect: true,
   images: {
     remotePatterns: [
       {
