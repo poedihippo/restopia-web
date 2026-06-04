@@ -21,7 +21,7 @@ const formatNumber = (n: number | undefined): string => {
 const schema = z.object({
   product_id: z.coerce.number().min(1, 'Product is required'),
   uom_id: z.coerce.number().min(1, 'UOM is required'),
-  code: z.string().optional(),
+  code: z.string().min(1, 'Code is required'),
   base_price: z.coerce.number().min(0).optional(),
   online_price: z.coerce.number().min(0).optional(),
   price_editable: z.boolean().optional(),
@@ -70,26 +70,27 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     },
   })
 
+  // Server-side product search (products list can exceed 100 rows, so the
+  // typed query is sent to the backend via filter[search] instead of filtering
+  // the first page client-side).
+  const [productSearch, setProductSearch] = React.useState('')
+  const [productSearchDebounced, setProductSearchDebounced] = React.useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setProductSearchDebounced(productSearch), 300)
+    return () => clearTimeout(t)
+  }, [productSearch])
+
   const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['products-all'],
-    queryFn: async () => {
-      let allProducts: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productsService
-          .list({ page, per_page: 100, sort: 'name' })
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProducts = allProducts.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProducts }
-    },
+    queryKey: ['products-all', productSearchDebounced],
+    queryFn: () =>
+      productsService
+        .list({
+          page: 1,
+          per_page: 50,
+          sort: 'name',
+          'filter[search]': productSearchDebounced || undefined,
+        } as any)
+        .then((r) => r.data),
   })
   const products = (productsData as any)?.data ?? []
 
@@ -336,6 +337,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                   placeholder="Select product..."
                   searchPlaceholder="Search products..."
                   loading={productsLoading}
+                  onSearchChange={setProductSearch}
                   error={errors.product_id?.message as string | undefined}
                 />
               )}
@@ -367,14 +369,20 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
 
           {/* Code */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
               Code
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
               {...register('code')}
-              placeholder="e.g. CHOC-KG (optional)"
+              placeholder="e.g. CHOC-KG"
               style={inputStyle}
             />
+            {errors.code?.message && (
+              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                {errors.code.message as string}
+              </span>
+            )}
           </div>
 
           {/* Base Price / Online Price */}
