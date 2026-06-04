@@ -429,16 +429,6 @@ export default function RequestedOrdersView() {
                           : '—'}
                       </span>
                       <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: 'var(--foreground)',
-                          fontFamily: 'var(--font-display)',
-                        }}
-                      >
-                        Rp {(item.total_price ?? 0).toLocaleString('id-ID')}
-                      </span>
-                      <span
                         style={{ fontSize: 12, color: 'var(--foreground-muted)' }}
                       >
                         {item.purchase_order_details?.length ?? 0} item(s)
@@ -453,7 +443,7 @@ export default function RequestedOrdersView() {
                     <button
                       type="button"
                       onClick={() =>
-                        router.push(`/purchase/purchase-orders/${item.id}/detail`)
+                        router.push(`/purchase/internal-orders/${item.id}/detail`)
                       }
                       style={{
                         display: 'flex',
@@ -636,8 +626,7 @@ export default function RequestedOrdersView() {
                                 color: 'var(--foreground)',
                               }}
                             >
-                              {(d.qty ?? 0).toLocaleString('id-ID')} × Rp{' '}
-                              {(d.price ?? 0).toLocaleString('id-ID')}
+                              {(d.qty ?? 0).toLocaleString('id-ID')}
                             </span>
                           </div>
                         ))}
