@@ -96,6 +96,7 @@ const NAV_GROUPS: NavGroup[] = [
         permission: 'purchase-order.read',
         children: [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.read' },
+          { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-order.read' },
           { label: 'Requested Orders', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
           { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.read' },
         ],
