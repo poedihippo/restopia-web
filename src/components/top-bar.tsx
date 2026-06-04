@@ -221,7 +221,8 @@ export default function TopBar() {
                 borderRadius: 'var(--radius-lg)',
                 boxShadow: 'var(--shadow-lg)',
                 zIndex: 50,
-                overflow: 'hidden',
+                maxHeight: '60vh',
+                overflowY: 'auto',
               }}
             >
               <div
