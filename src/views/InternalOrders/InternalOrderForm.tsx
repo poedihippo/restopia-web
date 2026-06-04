@@ -351,9 +351,12 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             {/* Source Branch (internal) — always shown; type is locked to branch. */}
             <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Source Branch
+                Order From
                 <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
               </label>
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 6 }}>
+                Branch that will supply the stock
+              </span>
               <Controller
                 name="supplier_branch_id"
                 control={control}
