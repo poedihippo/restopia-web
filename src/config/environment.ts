@@ -14,7 +14,7 @@ const normalizeBaseUrl = (url?: string | null) => {
 // Use /api proxy route to avoid CORS issues
 // The Next.js rewrite in next.config.ts will proxy /api/* to the actual API
 const environment = {
-  API_URL: typeof window !== "undefined" ? "/v1" : normalizeBaseUrl(rawUrl),
+  API_URL: normalizeBaseUrl(rawUrl),
 } as const;
 
 export default environment;
