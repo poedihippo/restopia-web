@@ -72,6 +72,7 @@ export default function ProductInventoriesView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [lowStockOnly, setLowStockOnly] = useState(false)
+  const [hideEmpty, setHideEmpty] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -146,14 +147,22 @@ export default function ProductInventoriesView() {
   const getProductUom = (id: number) =>
     productUomsAll.find((pu: any) => pu.id === id)
 
-  const filteredItems = lowStockOnly
-    ? items.filter(
-        (i) =>
-          i.min_qty !== undefined &&
-          i.min_qty !== null &&
-          (i.qty ?? 0) <= (i.min_qty ?? 0)
+  const filteredItems = items.filter((i) => {
+    if (
+      lowStockOnly &&
+      !(
+        i.min_qty !== undefined &&
+        i.min_qty !== null &&
+        (i.qty ?? 0) <= (i.min_qty ?? 0)
       )
-    : items
+    ) {
+      return false
+    }
+    if (hideEmpty && (i.qty ?? 0) === 0) {
+      return false
+    }
+    return true
+  })
 
   const lowCount = items.filter(
     (i) =>
@@ -317,6 +326,27 @@ export default function ProductInventoriesView() {
         >
           <AlertTriangle size={13} />
           Low Stock Only
+        </button>
+
+        {/* Hide empty batches toggle */}
+        <button
+          onClick={() => setHideEmpty(!hideEmpty)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 12px',
+            background: hideEmpty ? 'var(--accent-light-bg)' : 'var(--surface)',
+            border: `1px solid ${hideEmpty ? 'var(--accent-light)' : 'var(--border)'}`,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 12,
+            fontWeight: 500,
+            color: hideEmpty ? 'var(--accent)' : 'var(--foreground-muted)',
+            cursor: 'pointer',
+          }}
+        >
+          <Boxes size={13} />
+          Hide empty batches
         </button>
       </div>
 
