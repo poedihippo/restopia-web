@@ -191,14 +191,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     )
 
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
-    queryKey: ['purchase-orders-pending'],
+    queryKey: ['purchase-orders-linkable'],
     queryFn: async () => {
       let allOrders: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await purchaseOrdersService
-          .list({ page, per_page: 100, 'filter[status]': 'final' } as any)
+          .list({ page, per_page: 100 } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allOrders = allOrders.concat(items)
@@ -208,7 +208,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           1
         page += 1
       } while (page <= totalPages)
-      return { data: allOrders }
+      const linkable = allOrders.filter((po: any) =>
+        ['accepted', 'final'].includes(po?.status),
+      )
+      return { data: linkable }
     },
   })
   const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
