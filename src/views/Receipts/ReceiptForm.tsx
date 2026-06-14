@@ -151,6 +151,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   })
   const deliveryDetail = (deliveryData as any)?.data
 
+  // Internal-branch receipts (from internal deliveries/transfers) are
+  // price-free — hide all price UI and don't submit prices. Only known once
+  // the delivery loads; price shows until a delivery is selected.
+  const isInternalReceipt =
+    deliveryDetail?.source_type === 'po_from_branch' ||
+    deliveryDetail?.source_type === 'transfer_to_branch'
+
   // A delivery is selected but its line items haven't resolved yet — block
   // submit so a receipt can't be created before replace() loads the lines.
   const deliveryLinesPending =
@@ -205,7 +212,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const deliveryOptions = deliveries.map((d: any) => ({
     value: d.id as number,
     label: d.code ?? `DEL-${d.id}`,
-    sublabel: 'Rp ' + (d.total_price ?? 0).toLocaleString('id-ID'),
+    sublabel:
+      (d.total_price ?? 0) > 0
+        ? 'Rp ' + (d.total_price ?? 0).toLocaleString('id-ID')
+        : '',
   }))
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
@@ -222,7 +232,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const buildPayload = (values: FormValues) => ({
     ...values,
     status: 'final',
-    total_price: totalPrice,
+    // Internal receipts are price-free — never submit prices.
+    total_price: isInternalReceipt ? 0 : totalPrice,
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
@@ -230,7 +241,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         product_uom_id: d.product_uom_id,
         planned_expiry_date: d.planned_expiry_date || undefined,
         qty: d.qty,
-        price: d.price,
+        price: isInternalReceipt ? 0 : d.price,
         status: d.status,
         description: d.description || undefined,
         client_ref: d.client_ref || undefined,
@@ -581,14 +592,19 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 100px 120px 110px 120px 1fr 40px',
+              gridTemplateColumns: isInternalReceipt
+                ? '2fr 100px 110px 120px 1fr 40px'
+                : '2fr 100px 120px 110px 120px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
           >
-            {['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Notes', ''].map((h, i) => (
+            {(isInternalReceipt
+              ? ['Product UOM', 'Qty', 'Status', 'Planned Expiry', 'Notes', '']
+              : ['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Notes', '']
+            ).map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -609,7 +625,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 100px 120px 110px 120px 1fr 40px',
+                gridTemplateColumns: isInternalReceipt
+                  ? '2fr 100px 110px 120px 1fr 40px'
+                  : '2fr 100px 120px 110px 120px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -646,19 +664,21 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 style={lineInputStyle}
               />
 
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatNumber(watch(`details.${index}.price`))}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^\d]/g, '')
-                  setValue(
-                    `details.${index}.price`,
-                    raw === '' ? 0 : parseInt(raw, 10) || 0,
-                  )
-                }}
-                style={lineInputStyle}
-              />
+              {!isInternalReceipt && (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatNumber(watch(`details.${index}.price`))}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d]/g, '')
+                    setValue(
+                      `details.${index}.price`,
+                      raw === '' ? 0 : parseInt(raw, 10) || 0,
+                    )
+                  }}
+                  style={lineInputStyle}
+                />
+              )}
 
               <Controller
                 name={`details.${index}.status`}
@@ -712,29 +732,31 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </div>
           ))}
 
-          <div
-            style={{
-              padding: '14px 20px',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              gap: 12,
-              borderTop: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total</span>
-            <span
+          {!isInternalReceipt && (
+            <div
               style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: 'var(--accent)',
-                fontFamily: 'var(--font-display)',
+                padding: '14px 20px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: 12,
+                borderTop: '1px solid var(--border)',
+                background: 'var(--background)',
               }}
             >
-              {'Rp ' + totalPrice.toLocaleString('id-ID')}
-            </span>
-          </div>
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total</span>
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--font-display)',
+                }}
+              >
+                {'Rp ' + totalPrice.toLocaleString('id-ID')}
+              </span>
+            </div>
+          )}
 
           {errors.details && typeof (errors.details as any).message === 'string' && (
             <div style={{ padding: '8px 20px' }}>
