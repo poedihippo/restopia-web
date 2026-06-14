@@ -48,6 +48,7 @@ interface ReceiptFull {
     }
     product_uom_id?: number
     delivery_detail_id?: number
+    delivery_detail?: { id: number; qty: number }
   }>
 }
 
@@ -86,6 +87,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
         .findById(id, {
           include:
             'branch,delivery,created_by,receipt_details,' +
+            'receipt_details.delivery_detail,' +
             'receipt_details.product_uom,' +
             'receipt_details.product_uom.product,receipt_details.product_uom.uom',
         })
@@ -486,6 +488,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
               <th style={{ ...thStyle, width: 130 }}>Planned Expiry</th>
               <th style={{ ...thStyle, width: 130 }}>Client Ref</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
+              <th style={{ ...thStyle, width: 140 }}>Received / Delivered</th>
               <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
               <th style={{ ...thStyle, width: 140 }}>Subtotal</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
@@ -540,6 +543,28 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                     {detail.qty.toLocaleString('id-ID')}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    {(() => {
+                      const delivered = detail.delivery_detail?.qty
+                      if (delivered == null) {
+                        return <span>{detail.qty.toLocaleString('id-ID')} / —</span>
+                      }
+                      const partial = detail.qty < delivered
+                      return (
+                        <>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: partial ? 'var(--warning)' : 'var(--success)',
+                            }}
+                          >
+                            {detail.qty.toLocaleString('id-ID')}
+                          </span>
+                          <span>{' / ' + delivered.toLocaleString('id-ID')}</span>
+                        </>
+                      )
+                    })()}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {'Rp ' + detail.price.toLocaleString('id-ID')}
                   </td>
                   <td
@@ -577,7 +602,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
 
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
               <td
-                colSpan={6}
+                colSpan={7}
                 style={{
                   padding: '14px 16px',
                   textAlign: 'right',

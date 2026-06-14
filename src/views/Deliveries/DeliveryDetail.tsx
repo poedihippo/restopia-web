@@ -51,6 +51,7 @@ interface DeliveryFull {
     product_uom_id?: number
     product_uom_batch_id?: number
     purchase_order_detail_id?: number
+    purchase_order_detail?: { id: number; qty: number }
     sales_order_detail_id?: number
   }>
 }
@@ -89,7 +90,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,purchase_order,sales_order,created_by,delivery_details',
+            'branch,target_branch,purchase_order,sales_order,created_by,delivery_details,' +
+            'delivery_details.purchase_order_detail',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -592,6 +594,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               <th style={thStyle}>Product</th>
               <th style={{ ...thStyle, width: 100 }}>UOM</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
+              <th style={{ ...thStyle, width: 140 }}>Delivered / Ordered</th>
               <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
               <th style={{ ...thStyle, width: 140 }}>Subtotal</th>
               <th style={{ ...thStyle, width: 110 }}>Status</th>
@@ -625,6 +628,28 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                     }}
                   >
                     {detail.qty.toLocaleString('id-ID')}
+                  </td>
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    {(() => {
+                      const ordered = detail.purchase_order_detail?.qty
+                      if (ordered == null) {
+                        return <span>{detail.qty.toLocaleString('id-ID')} / —</span>
+                      }
+                      const partial = detail.qty < ordered
+                      return (
+                        <>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: partial ? 'var(--warning)' : 'var(--success)',
+                            }}
+                          >
+                            {detail.qty.toLocaleString('id-ID')}
+                          </span>
+                          <span>{' / ' + ordered.toLocaleString('id-ID')}</span>
+                        </>
+                      )
+                    })()}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {'Rp ' + detail.price.toLocaleString('id-ID')}
@@ -664,7 +689,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
 
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
               <td
-                colSpan={5}
+                colSpan={6}
                 style={{
                   padding: '14px 16px',
                   textAlign: 'right',
