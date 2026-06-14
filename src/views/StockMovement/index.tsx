@@ -23,6 +23,15 @@ interface StockMovement {
   branch_id?: number
   description?: string
   created_at?: string
+  product_inventory?: {
+    code?: string
+    product_uom_batch?: {
+      product_uom?: {
+        product?: { name: string }
+        uom?: { name: string }
+      }
+    }
+  }
 }
 
 const TYPE_META = {
@@ -71,7 +80,12 @@ export default function StockMovementView() {
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
-          include: 'branch,product_inventory',
+          include:
+            'branch,product_inventory,' +
+            'product_inventory.product_uom_batch,' +
+            'product_inventory.product_uom_batch.product_uom,' +
+            'product_inventory.product_uom_batch.product_uom.product,' +
+            'product_inventory.product_uom_batch.product_uom.uom',
         })
         .then((r) => r.data),
   })
@@ -357,7 +371,8 @@ export default function StockMovementView() {
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_inventory?.code ??
+                          {item.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
+                            item.product_inventory?.code ??
                             `INV-${item.product_inventory_id ?? '?'}`}
                         </div>
                         <div
