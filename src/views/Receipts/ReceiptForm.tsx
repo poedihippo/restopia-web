@@ -139,17 +139,24 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const watchDeliveryId = watch('delivery_id')
 
-  const { data: deliveryData } = useQuery({
+  const { data: deliveryData, isLoading: deliveryDetailLoading } = useQuery({
     queryKey: ['delivery-detail-for-receipt', watchDeliveryId],
     queryFn: () =>
       deliveriesService
         .findById(watchDeliveryId as number, {
-          include: 'delivery_details',
+          include: 'delivery_details,delivery_details.product_uom',
         })
         .then((r) => r.data),
     enabled: !!watchDeliveryId && (watchDeliveryId as number) > 0,
   })
   const deliveryDetail = (deliveryData as any)?.data
+
+  // A delivery is selected but its line items haven't resolved yet — block
+  // submit so a receipt can't be created before replace() loads the lines.
+  const deliveryLinesPending =
+    !!watchDeliveryId &&
+    (watchDeliveryId as number) > 0 &&
+    (deliveryDetailLoading || !deliveryDetail)
 
   useEffect(() => {
     if (!deliveryDetail?.delivery_details?.length) return
@@ -235,6 +242,17 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const onSubmit = (values: FormValues) => {
     console.log('ReceiptForm onSubmit called', { ...values, total_price: totalPrice })
+    // Guard against a stock-less receipt: the payload applies the same
+    // product_uom_id filter, so an empty result here means nothing would save.
+    const validDetails = values.details.filter(
+      (d) => Number(d.product_uom_id) > 0,
+    )
+    if (validDetails.length === 0) {
+      toast.error(
+        'No valid line items — wait for items to load from the delivery, or add an item.',
+      )
+      return
+    }
     if (mode === 'edit' && receiptId) {
       updateMutation.mutate(values)
     } else {
@@ -709,7 +727,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           </button>
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || deliveryLinesPending}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -721,11 +739,11 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: 'pointer',
-              opacity: isPending ? 0.7 : 1,
+              cursor: isPending || deliveryLinesPending ? 'not-allowed' : 'pointer',
+              opacity: isPending || deliveryLinesPending ? 0.7 : 1,
             }}
           >
-            {isPending && (
+            {(isPending || deliveryLinesPending) && (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
             )}
             <Save size={14} />
@@ -733,6 +751,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               ? isPending
                 ? 'Saving...'
                 : 'Save Changes'
+              : deliveryLinesPending
+              ? 'Loading items...'
               : isPending
               ? 'Creating...'
               : 'Create Receipt'}
