@@ -199,6 +199,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const buildPayload = (values: FormValues) => ({
     ...values,
     total_price: totalPrice,
+    type: poSourceType === 'branch' ? 'branch' : 'supplier',
     supplier_id:
       poSourceType === 'supplier' ? values.supplier_id || undefined : undefined,
     supplier_branch_id:
