@@ -265,6 +265,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const watchSalesOrderId = watch('sales_order_id')
   const watchSourceType = watch('source_type')
 
+  // Internal-branch deliveries/transfers are price-free — hide all price UI
+  // and don't submit computed prices. Supplier/SO deliveries keep price.
+  const isInternal =
+    watchSourceType === 'po_from_branch' ||
+    watchSourceType === 'transfer_to_branch'
+
   const showLinkedPO =
     watchSourceType === 'po_from_supplier' || watchSourceType === 'po_from_branch'
   const showLinkedSO = watchSourceType === 'so_to_branch'
@@ -404,7 +410,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const buildPayload = (values: FormValues) => ({
     ...values,
     status: 'final',
-    total_price: totalPrice,
+    // Internal deliveries/transfers are price-free — never submit prices.
+    total_price: isInternal ? 0 : totalPrice,
     purchase_order_id: values.purchase_order_id || undefined,
     sales_order_id: values.sales_order_id || undefined,
     details: values.details
@@ -418,7 +425,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         purchase_order_detail_id: d.purchase_order_detail_id || undefined,
         sales_order_detail_id: d.sales_order_detail_id || undefined,
         qty: d.qty,
-        price: d.price,
+        price: isInternal ? 0 : d.price,
         status: d.status,
         description: d.description || undefined,
       })),
@@ -838,8 +845,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             style={{
               display: 'grid',
               gridTemplateColumns: requiresBatch
-                ? '2fr 1fr 90px 120px 110px 1fr 40px'
-                : '2fr 90px 130px 110px 1fr 40px',
+                ? isInternal
+                  ? '2fr 1fr 90px 120px 1fr 40px'
+                  : '2fr 1fr 90px 120px 110px 1fr 40px'
+                : isInternal
+                  ? '2fr 90px 110px 1fr 40px'
+                  : '2fr 90px 130px 110px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
@@ -847,8 +858,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             }}
           >
             {(requiresBatch
-              ? ['Product', 'Batch', 'Qty', 'Unit Price', 'Status', 'Notes', '']
-              : ['Product', 'Qty', 'Unit Price', 'Status', 'Notes', '']
+              ? isInternal
+                ? ['Product', 'Batch', 'Qty', 'Status', 'Notes', '']
+                : ['Product', 'Batch', 'Qty', 'Unit Price', 'Status', 'Notes', '']
+              : isInternal
+                ? ['Product', 'Qty', 'Status', 'Notes', '']
+                : ['Product', 'Qty', 'Unit Price', 'Status', 'Notes', '']
             ).map((h, i) => (
               <span
                 key={i}
@@ -871,8 +886,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               style={{
                 display: 'grid',
                 gridTemplateColumns: requiresBatch
-                  ? '2fr 1fr 90px 120px 110px 1fr 40px'
-                  : '2fr 90px 130px 110px 1fr 40px',
+                  ? isInternal
+                    ? '2fr 1fr 90px 120px 1fr 40px'
+                    : '2fr 1fr 90px 120px 110px 1fr 40px'
+                  : isInternal
+                    ? '2fr 90px 110px 1fr 40px'
+                    : '2fr 90px 130px 110px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -972,19 +991,21 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 style={lineInputStyle}
               />
 
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatNumber(watch(`details.${index}.price`))}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^\d]/g, '')
-                  setValue(
-                    `details.${index}.price`,
-                    raw === '' ? 0 : parseInt(raw, 10) || 0,
-                  )
-                }}
-                style={lineInputStyle}
-              />
+              {!isInternal && (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatNumber(watch(`details.${index}.price`))}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^\d]/g, '')
+                    setValue(
+                      `details.${index}.price`,
+                      raw === '' ? 0 : parseInt(raw, 10) || 0,
+                    )
+                  }}
+                  style={lineInputStyle}
+                />
+              )}
 
               <Controller
                 name={`details.${index}.status`}
@@ -1028,29 +1049,31 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             </div>
           ))}
 
-          <div
-            style={{
-              padding: '14px 20px',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              gap: 12,
-              borderTop: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total:</span>
-            <span
+          {!isInternal && (
+            <div
               style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: 'var(--accent)',
-                fontFamily: 'var(--font-display)',
+                padding: '14px 20px',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: 12,
+                borderTop: '1px solid var(--border)',
+                background: 'var(--background)',
               }}
             >
-              {'Rp ' + totalPrice.toLocaleString('id-ID')}
-            </span>
-          </div>
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total:</span>
+              <span
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: 'var(--accent)',
+                  fontFamily: 'var(--font-display)',
+                }}
+              >
+                {'Rp ' + totalPrice.toLocaleString('id-ID')}
+              </span>
+            </div>
+          )}
 
           {errors.details && typeof (errors.details as any).message === 'string' && (
             <div style={{ padding: '8px 20px' }}>
