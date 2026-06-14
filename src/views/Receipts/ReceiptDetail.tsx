@@ -85,7 +85,8 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
       receiptsService
         .findById(id, {
           include:
-            'branch,delivery,created_by,' +
+            'branch,delivery,created_by,receipt_details,' +
+            'receipt_details.product_uom,' +
             'receipt_details.product_uom.product,receipt_details.product_uom.uom',
         })
         .then((r) => r.data),
