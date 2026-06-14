@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
-import { productUomBatchesService } from '@/services/product-uom-batches.service'
+import { productInventoriesService } from '@/services/product-inventories.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -161,34 +161,56 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
-  const { data: batchesData } = useQuery({
-    queryKey: ['product-uom-batches-all'],
+  // Source-branch inventory — the batch picker must show only batches that
+  // actually have stock at the supplying branch, with the REAL per-branch
+  // quantity (not the global batch stock). Per-branch stock lives in
+  // product_inventory, so we source the picker from there.
+  const { data: inventoryData } = useQuery({
+    queryKey: ['source-branch-inventory', myBranchId],
+    enabled: !!myBranchId,
     queryFn: async () => {
-      let allBatches: any[] = []
+      let allRows: any[] = []
       let page = 1
       let totalPages = 1
       do {
-        const res = await productUomBatchesService
-          .list({ page, per_page: 100, include: 'product_uom' } as any)
+        const res = await productInventoriesService
+          .list({
+            page,
+            per_page: 100,
+            'filter[branch_id]': myBranchId,
+            include: 'product_uom_batch,product_uom_batch.product_uom',
+          } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
-        allBatches = allBatches.concat(items)
+        allRows = allRows.concat(items)
         totalPages =
           (res as any)?.meta?.last_page ??
           (res as any)?.meta?.total_pages ??
           1
         page += 1
       } while (page <= totalPages)
-      return { data: allBatches }
+      return { data: allRows }
     },
   })
-  const allBatches = (batchesData as any)?.data ?? []
+  const sourceInventory = (inventoryData as any)?.data ?? []
 
-  const getBatchesForUom = (productUomId: number) =>
-    allBatches.filter(
-      (b: any) =>
-        b.product_uom_id === productUomId || b.product_uom?.id === productUomId,
-    )
+  // Batch options for a line's product UOM: only batches with stock > 0 at the
+  // source branch, each carrying its real per-branch quantity.
+  const getBatchOptionsForUom = (productUomId: number) =>
+    sourceInventory
+      .filter((inv: any) => {
+        const invUomId =
+          inv.product_uom_id ?? inv.product_uom_batch?.product_uom?.id
+        const hasBatch = !!inv.product_uom_batch?.id
+        const stock = inv.stock ?? inv.qty ?? 0
+        return hasBatch && invUomId === productUomId && stock > 0
+      })
+      .map((inv: any) => ({
+        batchId: inv.product_uom_batch.id as number,
+        code: inv.product_uom_batch.code as string | undefined,
+        expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
+        stock: inv.stock ?? inv.qty ?? 0,
+      }))
 
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-linkable'],
@@ -890,7 +912,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   control={control}
                   name={`details.${index}.product_uom_batch_id`}
                   render={({ field: f }) => {
-                    const batches = getBatchesForUom(
+                    const batches = getBatchOptionsForUom(
                       watchDetails[index]?.product_uom_id ?? 0,
                     )
                     const batchError = errors.details?.[index]?.product_uom_batch_id
@@ -920,12 +942,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         >
                           <option value={0}>
                             {batches.length === 0
-                              ? 'No batches available'
+                              ? 'No stock available at this branch'
                               : 'Select batch...'}
                           </option>
                           {batches.map((b: any) => (
-                            <option key={b.id} value={b.id}>
-                              {`${b.code ?? `Batch #${b.id}`} | Exp: ${b.expiry_date ? String(b.expiry_date).split('T')[0] : 'No expiry'} | Stock: ${b.stock ?? 0}`}
+                            <option key={b.batchId} value={b.batchId}>
+                              {`${b.code ?? `Batch #${b.batchId}`} | Exp: ${b.expiry_date ? String(b.expiry_date).split('T')[0] : 'No expiry'} | Stock: ${(b.stock ?? 0).toLocaleString('id-ID')}`}
                             </option>
                           ))}
                         </select>
