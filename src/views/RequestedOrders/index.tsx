@@ -510,7 +510,7 @@ export default function RequestedOrdersView() {
                         Reject
                       </button>
                     )}
-                    {item.status === 'pending' && (
+                    {item.status === 'accepted' && (
                       <button
                         type="button"
                         onClick={() =>
