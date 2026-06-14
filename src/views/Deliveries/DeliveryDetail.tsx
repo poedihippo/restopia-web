@@ -17,6 +17,7 @@ import {
   Building2,
   Truck,
   FileText,
+  Printer,
 } from 'lucide-react'
 
 interface DeliveryDetailProps {
@@ -290,7 +291,9 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
   }
 
   return (
+    <>
     <div
+      className="dd-screen"
       style={{
         padding: '32px 32px 64px',
         maxWidth: 960,
@@ -374,6 +377,26 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 14px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--foreground)',
+              cursor: 'pointer',
+            }}
+          >
+            <Printer size={13} />
+            Print Surat Jalan
+          </button>
           <button
             type="button"
             onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
@@ -816,5 +839,135 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
         }
       `}</style>
     </div>
+
+    {/* ── Printable A4 Surat Jalan (hidden on screen, shown only in print) ── */}
+    <div className="surat-jalan-print">
+      {/* Letterhead */}
+      <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '6mm', marginBottom: '6mm' }}>
+        <div style={{ fontSize: '22pt', fontWeight: 700, letterSpacing: '1px' }}>
+          DAPUR COKELAT
+        </div>
+        {/* TODO: replace with real company address / phone */}
+        <div style={{ fontSize: '9pt', marginTop: '2mm' }}>
+          Jl. ____, Jakarta · Telp: ____
+        </div>
+        <div style={{ fontSize: '13pt', fontWeight: 700, marginTop: '3mm' }}>
+          SURAT JALAN / DELIVERY ORDER
+        </div>
+      </div>
+
+      {/* Document meta — two columns */}
+      <table style={{ width: '100%', fontSize: '10pt', marginBottom: '6mm', borderCollapse: 'collapse' }}>
+        <tbody>
+          <tr>
+            <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
+              <strong>No. Surat Jalan:</strong> {delivery.code}
+            </td>
+            <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
+              <strong>Tanggal:</strong>{' '}
+              {delivery.date ? String(delivery.date).slice(0, 10) : '-'}
+            </td>
+          </tr>
+          <tr>
+            <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
+              <strong>Dari (From):</strong> {delivery.branch?.name ?? '-'}
+            </td>
+            <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
+              <strong>Kepada (To):</strong> {delivery.target_branch?.name ?? '-'}
+            </td>
+          </tr>
+          {delivery.purchase_order?.code && (
+            <tr>
+              <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
+                <strong>Ref PO:</strong> {delivery.purchase_order.code}
+              </td>
+              <td />
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Items table */}
+      <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
+        <thead style={{ display: 'table-header-group' }}>
+          <tr>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center', width: '10mm' }}>No</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left' }}>Nama Produk</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '24mm' }}>Qty</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '28mm' }}>Satuan</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '45mm' }}>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {details.map((detail, index) => {
+            const pu = getProductUom(detail.product_uom_id ?? 0)
+            return (
+              <tr key={detail.id}>
+                <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center' }}>
+                  {index + 1}
+                </td>
+                <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                  {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
+                </td>
+                <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right' }}>
+                  {detail.qty.toLocaleString('id-ID')}
+                </td>
+                <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                  {pu?.uom?.name ?? pu?.uom?.code ?? '-'}
+                </td>
+                <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                  {detail.description ?? '-'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+
+      {/* Notes */}
+      {delivery.description && (
+        <div style={{ fontSize: '10pt', marginTop: '5mm' }}>
+          <strong>Catatan:</strong> {delivery.description}
+        </div>
+      )}
+
+      {/* Signatures — 3 columns */}
+      <table style={{ width: '100%', fontSize: '10pt', marginTop: '16mm', borderCollapse: 'collapse' }}>
+        <tbody>
+          <tr>
+            {['Pengirim', 'Penerima', 'Sopir / Driver'].map((label) => (
+              <td key={label} style={{ width: '33%', textAlign: 'center', verticalAlign: 'top', padding: '0 4mm' }}>
+                <div>{label}</div>
+                <div style={{ height: '22mm' }} />
+                <div>( ____________ )</div>
+                <div style={{ fontSize: '8pt', marginTop: '1mm' }}>Nama Jelas</div>
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <style>{`
+      .surat-jalan-print { display: none; }
+      @media print {
+        @page { size: A4 portrait; margin: 18mm; }
+        body * { visibility: hidden !important; }
+        .surat-jalan-print, .surat-jalan-print * { visibility: visible !important; }
+        .surat-jalan-print {
+          display: block !important;
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          color: #000;
+          background: #fff;
+          font-family: Arial, Helvetica, sans-serif;
+        }
+        .dd-screen { display: none !important; }
+        .surat-jalan-print thead { display: table-header-group; }
+      }
+    `}</style>
+    </>
   )
 }
