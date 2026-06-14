@@ -75,6 +75,7 @@ export default function ProductCategoriesView() {
     mutationFn: (id: number) => productCategoriesService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-categories'] })
+      queryClient.invalidateQueries({ queryKey: ['product-categories-all'] })
       toast.success('Category deleted')
       setDeleteConfirmId(null)
     },

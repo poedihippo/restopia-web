@@ -47,6 +47,7 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
     mutationFn: (data: FormValues) => productCategoriesService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-categories'] })
+      queryClient.invalidateQueries({ queryKey: ['product-categories-all'] })
       toast.success('Category created')
       onClose()
     },
@@ -59,6 +60,7 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
       productCategoriesService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-categories'] })
+      queryClient.invalidateQueries({ queryKey: ['product-categories-all'] })
       toast.success('Category updated')
       onClose()
     },
