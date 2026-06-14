@@ -93,6 +93,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
 
   const watchDetails = watch('details')
+  const watchSupplierId = watch('supplier_id')
   const totalPrice = watchDetails.reduce(
     (sum, d) => sum + Number(d.qty) * Number(d.price),
     0
@@ -132,6 +133,40 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     },
   })
   const productUoms = (productUomsData as any)?.data ?? []
+
+  // Last-purchase-price history for the selected supplier. Reads existing POs;
+  // no backend change. Newest entry per product_uom_id (POs sorted -date).
+  const { data: historyData } = useQuery({
+    queryKey: ['po-supplier-history', watchSupplierId],
+    enabled:
+      poSourceType === 'supplier' && !!watchSupplierId && watchSupplierId > 0,
+    queryFn: () =>
+      purchaseOrdersService
+        .list({
+          'filter[supplier_id]': watchSupplierId,
+          include: 'purchase_order_details,purchase_order_details.product_uom',
+          sort: '-date',
+          per_page: 50,
+        } as any)
+        .then((r) => r.data),
+  })
+  const supplierPOs = (historyData as any)?.data ?? []
+
+  const lastPriceByUom = React.useMemo(() => {
+    const map = new Map<number, { price: number; date: string }>()
+    for (const po of supplierPOs as any[]) {
+      // Don't let the PO being edited reference itself.
+      if (mode === 'edit' && orderId && po?.id === orderId) continue
+      for (const d of po?.purchase_order_details ?? []) {
+        const uomId = Number(d?.product_uom_id)
+        const price = Number(d?.price)
+        if (!uomId || !(price > 0)) continue
+        if (map.has(uomId)) continue // first-seen = newest (sorted -date)
+        map.set(uomId, { price, date: po?.date })
+      }
+    }
+    return map
+  }, [supplierPOs, mode, orderId])
 
   const supplierOptions = suppliers.map((s: any) => ({
     value: s.id as number,
@@ -699,6 +734,29 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   }}
                   style={lineInputStyle}
                 />
+                {(() => {
+                  if (poSourceType !== 'supplier') return null
+                  const uomId = Number(watch(`details.${index}.product_uom_id`))
+                  const last = uomId ? lastPriceByUom.get(uomId) : undefined
+                  if (!last) return null
+                  return (
+                    <span
+                      role="button"
+                      title="Tap to use this price"
+                      onClick={() =>
+                        setValue(`details.${index}.price`, last.price)
+                      }
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--foreground-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {`Last: Rp ${last.price.toLocaleString('id-ID')}`}
+                      {last.date ? ` · ${String(last.date).slice(0, 10)}` : ''}
+                    </span>
+                  )
+                })()}
               </div>
 
               {/* Description */}
