@@ -29,6 +29,12 @@ interface PurchaseOrder {
   created_at?: string
   branch?: { id: number; name: string }
   supplier?: { id: number; name: string }
+  purchase_order_details?: Array<{
+    id: number
+    qty: number
+    received_qty?: number
+    outstanding_qty?: number
+  }>
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -91,7 +97,7 @@ export default function PurchaseOrdersView() {
         .list({
           page,
           per_page: 15,
-          include: 'supplier,supplier_branch,supplier_branch.company,branch',
+          include: 'supplier,supplier_branch,supplier_branch.company,branch,purchase_order_details',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
@@ -407,6 +413,19 @@ export default function PurchaseOrdersView() {
                   : branchName
                     ? `${branchName}${branchCode ? ` (${branchCode})` : ''}`
                     : '—'
+                // Fulfillment summary — only meaningful for final orders.
+                const poDetails = item.purchase_order_details ?? []
+                const totalOrdered = poDetails.reduce(
+                  (s, d) => s + Number(d.qty ?? 0),
+                  0,
+                )
+                const totalReceived = poDetails.reduce(
+                  (s, d) => s + Number(d.received_qty ?? 0),
+                  0,
+                )
+                const showFulfillment =
+                  item.status === 'final' && totalReceived > 0
+                const fullyReceived = totalReceived >= totalOrdered
                 return (
                   <tr
                     key={item.id}
@@ -490,20 +509,51 @@ export default function PurchaseOrdersView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <span
+                      <div
                         style={{
-                          display: 'inline-flex',
+                          display: 'flex',
                           alignItems: 'center',
-                          padding: '3px 10px',
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: statusMeta.bg,
-                          color: statusMeta.color,
+                          gap: 6,
+                          flexWrap: 'wrap',
                         }}
                       >
-                        {statusMeta.label}
-                      </span>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 10px',
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: statusMeta.bg,
+                            color: statusMeta.color,
+                          }}
+                        >
+                          {statusMeta.label}
+                        </span>
+                        {showFulfillment && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '3px 10px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: fullyReceived
+                                ? 'var(--success-bg)'
+                                : 'var(--warning-bg)',
+                              color: fullyReceived
+                                ? 'var(--success)'
+                                : 'var(--warning)',
+                            }}
+                          >
+                            {fullyReceived
+                              ? 'Received'
+                              : `Partial · ${totalReceived.toLocaleString('id-ID')}/${totalOrdered.toLocaleString('id-ID')}`}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={tdStyle}>
                       <div

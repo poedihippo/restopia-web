@@ -39,6 +39,8 @@ interface PurchaseOrderFull {
   purchase_order_details?: Array<{
     id: number
     qty: number
+    received_qty?: number
+    outstanding_qty?: number
     price: number
     description?: string
     product_uom_id?: number
@@ -94,6 +96,15 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
 
   const details = order?.purchase_order_details ?? []
   const statusMeta = STATUS_META[order?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+
+  // Fulfillment summary — only meaningful once goods start arriving on a final PO.
+  const totalOrdered = details.reduce((s, d) => s + Number(d.qty ?? 0), 0)
+  const totalReceived = details.reduce(
+    (s, d) => s + Number(d.received_qty ?? 0),
+    0,
+  )
+  const showFulfillment = order?.status === 'final' && totalReceived > 0
+  const fullyReceived = totalReceived >= totalOrdered
 
   const backBtnStyle: React.CSSProperties = {
     display: 'flex',
@@ -529,9 +540,34 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
           }}
         >
           <span style={sectionLabelStyle}>Line Items</span>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            {details.length} item(s)
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {showFulfillment && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  {`Fulfillment: ${totalReceived.toLocaleString('id-ID')} of ${totalOrdered.toLocaleString('id-ID')} received`}
+                </span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '3px 10px',
+                    borderRadius: 99,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: fullyReceived
+                      ? 'var(--success-bg)'
+                      : 'var(--warning-bg)',
+                    color: fullyReceived ? 'var(--success)' : 'var(--warning)',
+                  }}
+                >
+                  {fullyReceived ? 'Received' : 'Partial'}
+                </span>
+              </div>
+            )}
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              {details.length} item(s)
+            </span>
+          </div>
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -541,6 +577,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               <th style={thStyle}>Product</th>
               <th style={{ ...thStyle, width: 100 }}>UOM</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
+              <th style={{ ...thStyle, width: 130 }}>Received / Outstanding</th>
               <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
               <th style={{ ...thStyle, width: 140 }}>Subtotal</th>
               <th style={{ ...thStyle, width: 160 }}>Notes</th>
@@ -571,6 +608,22 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                   {detail.qty.toLocaleString('id-ID')}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      color:
+                        Number(detail.outstanding_qty ?? 0) > 0
+                          ? 'var(--warning)'
+                          : 'var(--foreground)',
+                    }}
+                  >
+                    {Number(detail.received_qty ?? 0).toLocaleString('id-ID')}
+                  </span>
+                  <span style={{ color: 'var(--foreground-subtle)' }}>
+                    {' / ' + detail.qty.toLocaleString('id-ID')}
+                  </span>
+                </td>
+                <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                   {'Rp ' + detail.price.toLocaleString('id-ID')}
                 </td>
                 <td
@@ -592,7 +645,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             {/* Total row */}
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
               <td
-                colSpan={5}
+                colSpan={6}
                 style={{
                   padding: '14px 16px',
                   textAlign: 'right',
