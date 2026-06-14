@@ -158,6 +158,32 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     (watchDeliveryId as number) > 0 &&
     (deliveryDetailLoading || !deliveryDetail)
 
+  // Duplicate guard: does this delivery already have a final receipt?
+  // Only relevant when creating — editing naturally matches its own delivery.
+  const { data: receiptExistsData } = useQuery({
+    queryKey: ['receipt-exists-for-delivery', watchDeliveryId],
+    enabled:
+      mode === 'create' &&
+      !!watchDeliveryId &&
+      (watchDeliveryId as number) > 0,
+    queryFn: () =>
+      receiptsService
+        .list({
+          'filter[delivery_id]': watchDeliveryId,
+          'filter[status]': 'final',
+          per_page: 1,
+        } as any)
+        .then((r) => r.data),
+  })
+  const existingReceipts = (receiptExistsData as any)?.data ?? []
+  // In edit mode, ignore the receipt being edited (it matches its own delivery).
+  const otherReceiptCount =
+    mode === 'edit'
+      ? existingReceipts.filter((r: any) => r.id !== receiptId).length
+      : ((receiptExistsData as any)?.meta?.total ?? 0)
+  const deliveryAlreadyReceived =
+    mode === 'create' && otherReceiptCount > 0
+
   useEffect(() => {
     if (!deliveryDetail?.delivery_details?.length) return
 
@@ -250,6 +276,12 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     if (validDetails.length === 0) {
       toast.error(
         'No valid line items — wait for items to load from the delivery, or add an item.',
+      )
+      return
+    }
+    if (deliveryAlreadyReceived) {
+      toast.error(
+        'This delivery already has a final receipt. Creating another will double-count stock.',
       )
       return
     }
@@ -473,6 +505,19 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   }}
                 >
                   ✓ {deliveryDetail.delivery_details?.length ?? 0} item(s) loaded from delivery
+                </span>
+              )}
+              {deliveryAlreadyReceived && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--warning)',
+                    marginTop: 4,
+                    display: 'block',
+                  }}
+                >
+                  This delivery already has a final receipt. Creating another will
+                  double-count stock.
                 </span>
               )}
             </div>
@@ -727,7 +772,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           </button>
           <button
             type="submit"
-            disabled={isPending || deliveryLinesPending}
+            disabled={isPending || deliveryLinesPending || deliveryAlreadyReceived}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -739,8 +784,14 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: isPending || deliveryLinesPending ? 'not-allowed' : 'pointer',
-              opacity: isPending || deliveryLinesPending ? 0.7 : 1,
+              cursor:
+                isPending || deliveryLinesPending || deliveryAlreadyReceived
+                  ? 'not-allowed'
+                  : 'pointer',
+              opacity:
+                isPending || deliveryLinesPending || deliveryAlreadyReceived
+                  ? 0.7
+                  : 1,
             }}
           >
             {(isPending || deliveryLinesPending) && (
