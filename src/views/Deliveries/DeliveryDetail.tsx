@@ -952,8 +952,14 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       .surat-jalan-print { display: none; }
       @media print {
         @page { size: A4 portrait; margin: 18mm; }
+        /* Defeat the global pos-print.css rule (body > * { display:none })
+           that otherwise collapses #__next and blanks this page. */
+        body > * { display: block !important; }
+        #pos-receipt { display: none !important; }
+        /* Isolate: hide the on-screen detail UI, show only the surat jalan. */
         body * { visibility: hidden !important; }
         .surat-jalan-print, .surat-jalan-print * { visibility: visible !important; }
+        .dd-screen { display: none !important; }
         .surat-jalan-print {
           display: block !important;
           position: absolute;
@@ -964,7 +970,6 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           background: #fff;
           font-family: Arial, Helvetica, sans-serif;
         }
-        .dd-screen { display: none !important; }
         .surat-jalan-print thead { display: table-header-group; }
       }
     `}</style>
