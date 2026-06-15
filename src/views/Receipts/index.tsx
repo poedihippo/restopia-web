@@ -394,6 +394,10 @@ export default function ReceiptsView() {
             ) : (
               items.map((item) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending
+                // Internal receipts (from internal deliveries) are price-free.
+                const isInternal = ['po_from_branch', 'transfer_to_branch'].includes(
+                  (item.delivery as any)?.source_type,
+                )
                 return (
                   <tr
                     key={item.id}
@@ -442,7 +446,9 @@ export default function ReceiptsView() {
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                        {'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')}
+                        {isInternal
+                          ? ''
+                          : 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
                     <td style={tdStyle}>

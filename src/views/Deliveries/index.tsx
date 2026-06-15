@@ -388,6 +388,10 @@ export default function DeliveriesView() {
             ) : (
               items.map((item) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending
+                // Internal deliveries/transfers are price-free.
+                const isInternal = ['po_from_branch', 'transfer_to_branch'].includes(
+                  (item as any).source_type,
+                )
                 return (
                   <tr
                     key={item.id}
@@ -445,7 +449,9 @@ export default function DeliveriesView() {
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                        {'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')}
+                        {isInternal
+                          ? ''
+                          : 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
                     <td style={tdStyle}>

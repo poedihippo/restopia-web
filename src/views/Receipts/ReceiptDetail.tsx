@@ -110,6 +110,10 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
   const details = receipt?.receipt_details ?? []
   const statusMeta =
     STATUS_META[receipt?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+  // Internal receipts (from internal deliveries) are price-free.
+  const isInternal = ['po_from_branch', 'transfer_to_branch'].includes(
+    (receipt?.delivery as any)?.source_type,
+  )
 
   const backBtnStyle: React.CSSProperties = {
     display: 'flex',
@@ -489,8 +493,8 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
               <th style={{ ...thStyle, width: 130 }}>Client Ref</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
               <th style={{ ...thStyle, width: 140 }}>Received / Delivered</th>
-              <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
-              <th style={{ ...thStyle, width: 140 }}>Subtotal</th>
+              {!isInternal && <th style={{ ...thStyle, width: 130 }}>Unit Price</th>}
+              {!isInternal && <th style={{ ...thStyle, width: 140 }}>Subtotal</th>}
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: 160 }}>Notes</th>
             </tr>
@@ -564,19 +568,23 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                       )
                     })()}
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {'Rp ' + detail.price.toLocaleString('id-ID')}
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    {'Rp ' + (detail.qty * detail.price).toLocaleString('id-ID')}
-                  </td>
+                  {!isInternal && (
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      {'Rp ' + detail.price.toLocaleString('id-ID')}
+                    </td>
+                  )}
+                  {!isInternal && (
+                    <td
+                      style={{
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--foreground)',
+                      }}
+                    >
+                      {'Rp ' + (detail.qty * detail.price).toLocaleString('id-ID')}
+                    </td>
+                  )}
                   <td style={{ padding: '12px 16px' }}>
                     <span
                       style={{
@@ -600,34 +608,36 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
               )
             })}
 
-            <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-              <td
-                colSpan={7}
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'right',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                }}
-              >
-                Total
-              </td>
-              <td style={{ padding: '14px 16px' }}>
-                <span
+            {!isInternal && (
+              <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
+                <td
+                  colSpan={7}
                   style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: 'var(--accent)',
-                    fontFamily: 'var(--font-display)',
+                    padding: '14px 16px',
+                    textAlign: 'right',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
                   }}
                 >
-                  {'Rp ' + receipt.total_price.toLocaleString('id-ID')}
-                </span>
-              </td>
-              <td style={{ padding: '14px 16px' }} />
-              <td style={{ padding: '14px 16px' }} />
-            </tr>
+                  Total
+                </td>
+                <td style={{ padding: '14px 16px' }}>
+                  <span
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: 'var(--accent)',
+                      fontFamily: 'var(--font-display)',
+                    }}
+                  >
+                    {'Rp ' + receipt.total_price.toLocaleString('id-ID')}
+                  </span>
+                </td>
+                <td style={{ padding: '14px 16px' }} />
+                <td style={{ padding: '14px 16px' }} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

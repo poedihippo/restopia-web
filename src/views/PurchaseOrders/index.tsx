@@ -413,6 +413,8 @@ export default function PurchaseOrdersView() {
                   : branchName
                     ? `${branchName}${branchCode ? ` (${branchCode})` : ''}`
                     : '—'
+                // Internal PO = ordered from a branch (no supplier) — price-free.
+                const isInternal = !!po?.supplier_branch
                 // Fulfillment summary — only meaningful for final orders.
                 const poDetails = item.purchase_order_details ?? []
                 const totalOrdered = poDetails.reduce(
@@ -505,7 +507,9 @@ export default function PurchaseOrdersView() {
                           color: 'var(--foreground)',
                         }}
                       >
-                        {'Rp ' + item.total_price.toLocaleString('id-ID')}
+                        {isInternal
+                          ? ''
+                          : 'Rp ' + item.total_price.toLocaleString('id-ID')}
                       </span>
                     </td>
                     <td style={tdStyle}>

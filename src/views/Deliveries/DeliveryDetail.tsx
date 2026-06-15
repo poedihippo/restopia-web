@@ -181,6 +181,10 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
   const details = delivery?.delivery_details ?? []
   const statusMeta =
     STATUS_META[delivery?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+  // Internal deliveries/transfers are price-free.
+  const isInternal = ['po_from_branch', 'transfer_to_branch'].includes(
+    (delivery as any)?.source_type,
+  )
 
   const backBtnStyle: React.CSSProperties = {
     display: 'flex',
@@ -618,8 +622,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               <th style={{ ...thStyle, width: 100 }}>UOM</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
               <th style={{ ...thStyle, width: 140 }}>Delivered / Ordered</th>
-              <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
-              <th style={{ ...thStyle, width: 140 }}>Subtotal</th>
+              {!isInternal && <th style={{ ...thStyle, width: 130 }}>Unit Price</th>}
+              {!isInternal && <th style={{ ...thStyle, width: 140 }}>Subtotal</th>}
               <th style={{ ...thStyle, width: 110 }}>Status</th>
               <th style={{ ...thStyle, width: 160 }}>Notes</th>
             </tr>
@@ -674,19 +678,23 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                       )
                     })()}
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {'Rp ' + detail.price.toLocaleString('id-ID')}
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    {'Rp ' + (detail.qty * detail.price).toLocaleString('id-ID')}
-                  </td>
+                  {!isInternal && (
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      {'Rp ' + detail.price.toLocaleString('id-ID')}
+                    </td>
+                  )}
+                  {!isInternal && (
+                    <td
+                      style={{
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--foreground)',
+                      }}
+                    >
+                      {'Rp ' + (detail.qty * detail.price).toLocaleString('id-ID')}
+                    </td>
+                  )}
                   <td style={{ padding: '12px 16px' }}>
                     <span
                       style={{
@@ -710,34 +718,36 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               )
             })}
 
-            <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-              <td
-                colSpan={6}
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'right',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                }}
-              >
-                Total
-              </td>
-              <td style={{ padding: '14px 16px' }}>
-                <span
+            {!isInternal && (
+              <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
+                <td
+                  colSpan={6}
                   style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: 'var(--accent)',
-                    fontFamily: 'var(--font-display)',
+                    padding: '14px 16px',
+                    textAlign: 'right',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
                   }}
                 >
-                  {'Rp ' + delivery.total_price.toLocaleString('id-ID')}
-                </span>
-              </td>
-              <td style={{ padding: '14px 16px' }} />
-              <td style={{ padding: '14px 16px' }} />
-            </tr>
+                  Total
+                </td>
+                <td style={{ padding: '14px 16px' }}>
+                  <span
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 700,
+                      color: 'var(--accent)',
+                      fontFamily: 'var(--font-display)',
+                    }}
+                  >
+                    {'Rp ' + delivery.total_price.toLocaleString('id-ID')}
+                  </span>
+                </td>
+                <td style={{ padding: '14px 16px' }} />
+                <td style={{ padding: '14px 16px' }} />
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
