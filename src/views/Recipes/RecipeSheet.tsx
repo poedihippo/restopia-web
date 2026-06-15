@@ -176,18 +176,19 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   }, [finishedSearch])
 
   const { data: finishedData } = useQuery({
-    queryKey: ['recipe-finished-search', finishedSearchDebounced],
-    enabled: showFinishedDrop && finishedSearchDebounced.length >= 2,
-    queryFn: () => {
-      const params: Record<string, any> = {
-        per_page: 500,
-        include: 'product_uoms,product_uoms.uom',
-        'filter[type]': 'final',
-        sort: 'name',
-      }
-      if (finishedSearchDebounced) params['filter[search]'] = finishedSearchDebounced
-      return api.get('/products', { params }).then((r) => r.data)
-    },
+    queryKey: ['products', 'final', finishedSearchDebounced],
+    enabled: showFinishedDrop === true,
+    queryFn: () =>
+      api
+        .get('/products', {
+          params: {
+            'filter[type]': 'final',
+            'filter[search]': finishedSearchDebounced,
+            per_page: 20,
+            include: 'product_category',
+          },
+        })
+        .then((r) => r.data),
   })
   const finishedProducts = unwrapProductsList(finishedData)
 
@@ -541,9 +542,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         margin: 0,
                       }}
                     >
-                      {finishedSearchDebounced.length < 2
-                        ? 'Type at least 2 characters to search...'
-                        : 'No products found'}
+                      No products found
                     </p>
                   )}
                   {finishedProducts.map((p: any) => (
