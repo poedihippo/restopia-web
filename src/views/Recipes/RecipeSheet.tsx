@@ -136,7 +136,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       product_uom_id: 0,
       qty: 1,
       is_default: false,
-      materials: [{ product_uom_id: 0, qty: 1 }],
+      materials: [],
     },
   })
 
@@ -273,7 +273,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
           editData.recipe_materials?.map((m) => ({
             product_uom_id: m.product_uom_id,
             qty: m.qty,
-          })) ?? [{ product_uom_id: 0, qty: 1 }],
+          })) ?? [],
       })
       const map: Record<number, any> = {}
       editData.recipe_materials?.forEach((m) => {
@@ -299,7 +299,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         product_uom_id: 0,
         qty: 1,
         is_default: false,
-        materials: [{ product_uom_id: 0, qty: 1 }],
+        materials: [],
       })
       setMaterialInfoMap({})
       setSelectedFinishedLabel('')
