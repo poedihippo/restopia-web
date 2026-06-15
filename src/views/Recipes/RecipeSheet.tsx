@@ -1123,6 +1123,33 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
               )
             })}
 
+            {/* Add another ingredient — reopens the search so the next picked
+                product+UOM appends a new row via the existing append flow. */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMaterialProductId(null)
+                setSelectedMaterialProductName('')
+                setShowMaterialUomPicker(false)
+                setMaterialSearch('')
+                setShowMaterialDrop(true)
+              }}
+              style={{
+                marginTop: 8,
+                alignSelf: 'flex-start',
+                padding: '8px 12px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--accent)',
+                cursor: 'pointer',
+              }}
+            >
+              + Add ingredient
+            </button>
+
             {/* Array-level materials error */}
             {errors.materials && typeof (errors.materials as any).message === 'string' && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
