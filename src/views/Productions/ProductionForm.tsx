@@ -587,28 +587,26 @@ export default function ProductionForm({
   // documented type filter, so we query /products?filter[type]=final with the
   // product_uoms relation included (same approach recipes use) and flatten.
   const { data: finishedProductsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['production-finished-products'],
+    queryKey: ['production-finished-product-uoms'],
     queryFn: () =>
       api
-        .get('/products', {
+        .get('/product-uoms', {
           params: {
-            per_page: 500,
-            'filter[type]': 'final',
-            include: 'product_uoms,product_uoms.uom',
-            sort: 'name',
+            per_page: 100,
+            include: 'uom,product',
           },
         })
         .then((r) => r.data),
   })
-  const finishedProducts = unwrapList(finishedProductsData)
+  const finishedProductUoms = unwrapList(finishedProductsData)
 
-  const productUomOptions = finishedProducts.flatMap((p: any) =>
-    (p.product_uoms ?? []).map((pu: any) => ({
+  const productUomOptions = finishedProductUoms
+    .filter((pu: any) => pu.product?.type === 'final')
+    .map((pu: any) => ({
       value: pu.id as number,
-      label: p.name ?? `Product UOM #${pu.id}`,
+      label: pu.product?.name ?? `Product UOM #${pu.id}`,
       sublabel: pu.code ?? pu.uom?.name ?? undefined,
-    })),
-  )
+    }))
 
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all', activeBranchId],
