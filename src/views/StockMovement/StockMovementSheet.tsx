@@ -112,7 +112,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   const watchDirection = watch('direction')
   const watchQty = watch('qty')
   const watchInvId = watch('product_inventory_id')
-
+  //trigger
   const inventoryOptions = inventoryItems.map((inv: any) => {
     const name =
       inv.product_uom_batch?.product_uom?.product?.name ??
