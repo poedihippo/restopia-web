@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { deliveriesService } from '@/services/deliveries.service'
 import DeliveryForm from './DeliveryForm'
 import { PackageSearch } from 'lucide-react'
+import { parseDate } from '@/helper/parseDate'
 
 interface DeliveryEditProps {
   id: number
@@ -33,41 +34,41 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
 
   const initialData = delivery
     ? {
-        code: delivery.code,
-        source_type: delivery.source_type ?? 'po_from_supplier',
-        target_branch_id: delivery.target_branch?.id ?? delivery.target_branch_id ?? 0,
-        purchase_order_id:
-          delivery.purchase_order?.id ?? delivery.purchase_order_id ?? undefined,
-        sales_order_id:
-          delivery.sales_order?.id ?? delivery.sales_order_id ?? undefined,
-        date: delivery.date,
-        status: 'final',
-        description: delivery.description ?? '',
-        details: rawDetails.length
-          ? rawDetails.map((d: any) => ({
-              product_uom_id:
-                d.product_uom_id ?? d.product_uom?.id ?? 0,
-              purchase_order_detail_id:
-                d.purchase_order_detail_id ?? undefined,
-              sales_order_detail_id:
-                d.sales_order_detail_id ?? undefined,
-              qty: d.qty ?? 1,
-              price: d.price ?? 0,
-              status: d.status ?? 'pending',
-              description: d.description ?? '',
-            }))
-          : [
-              {
-                product_uom_id: 0,
-                purchase_order_detail_id: undefined,
-                sales_order_detail_id: undefined,
-                qty: 1,
-                price: 0,
-                status: 'pending',
-                description: '',
-              },
-            ],
-      }
+      code: delivery.code,
+      source_type: delivery.source_type ?? 'po_from_supplier',
+      target_branch_id: delivery.target_branch?.id ?? delivery.target_branch_id ?? 0,
+      purchase_order_id:
+        delivery.purchase_order?.id ?? delivery.purchase_order_id ?? undefined,
+      sales_order_id:
+        delivery.sales_order?.id ?? delivery.sales_order_id ?? undefined,
+      date: parseDate(delivery.date) ? parseDate(delivery.date.substring(0, 10)) : '',
+      status: 'final',
+      description: delivery.description ?? '',
+      details: rawDetails.length
+        ? rawDetails.map((d: any) => ({
+          product_uom_id:
+            d.product_uom_id ?? d.product_uom?.id ?? 0,
+          purchase_order_detail_id:
+            d.purchase_order_detail_id ?? undefined,
+          sales_order_detail_id:
+            d.sales_order_detail_id ?? undefined,
+          qty: d.qty ?? 1,
+          price: d.price ?? 0,
+          status: d.status ?? 'pending',
+          description: d.description ?? '',
+        }))
+        : [
+          {
+            product_uom_id: 0,
+            purchase_order_detail_id: undefined,
+            sales_order_detail_id: undefined,
+            qty: 1,
+            price: 0,
+            status: 'pending',
+            description: '',
+          },
+        ],
+    }
     : undefined
 
   if (isLoading) {

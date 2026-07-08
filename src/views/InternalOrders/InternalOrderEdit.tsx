@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import InternalOrderForm from './InternalOrderForm'
 import { PackageSearch } from 'lucide-react'
+import { parseDate } from '@/helper/parseDate'
 
 interface InternalOrderEditProps {
   id: number
@@ -33,21 +34,21 @@ export default function InternalOrderEdit({ id }: InternalOrderEditProps) {
 
   const initialData = order
     ? {
-        code: order.code,
-        supplier_branch_id:
-          order.supplier_branch?.id ?? order.supplier_branch_id ?? 0,
-        date: order.date,
-        status: order.status,
-        description: order.description ?? '',
-        details: rawDetails.length
-          ? rawDetails.map((d: any) => ({
-              product_uom_id:
-                d.product_uom_id ?? d.product_uom?.id ?? 0,
-              qty: d.qty ?? 1,
-              description: d.description ?? '',
-            }))
-          : [{ product_uom_id: 0, qty: 1, description: '' }],
-      }
+      code: order.code,
+      supplier_branch_id:
+        order.supplier_branch?.id ?? order.supplier_branch_id ?? 0,
+      date: parseDate(order.date),
+      status: order.status,
+      description: order.description ?? '',
+      details: rawDetails.length
+        ? rawDetails.map((d: any) => ({
+          product_uom_id:
+            d.product_uom_id ?? d.product_uom?.id ?? 0,
+          qty: d.qty ?? 1,
+          description: d.description ?? '',
+        }))
+        : [{ product_uom_id: 0, qty: 1, description: '' }],
+    }
     : undefined
 
   if (isLoading) {

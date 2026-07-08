@@ -47,7 +47,24 @@ const Schema = z.object({
       path: ['supplier_branch_id',],
       message: "Please choose supplier or supplier branch"
     });
+
+
   }
+
+  const uniqueProductUom = new Set<number>();
+  val.details.forEach((detail, index) => {
+    if (uniqueProductUom.has(detail.product_inventory_id)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['details', index, 'product_inventory_id'],
+        message: "Produk dengan UOM ini sudah ada",
+      });
+    } else {
+      uniqueProductUom.add(detail.product_inventory_id);
+    }
+  })
+  console.log('heheha:', uniqueProductUom)
+
 });
 
 export type PurchaseOrdersFormValues = z.output<typeof Schema>;

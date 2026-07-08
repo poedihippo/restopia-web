@@ -97,7 +97,7 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.read' },
           { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-order.read' },
-          { label: 'Requested Orders', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
+          { label: 'Requested PO', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
           { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.read' },
         ],
       },
@@ -212,7 +212,22 @@ export default function AppSidebar() {
 
   function isActive(href: string): boolean {
     if (router.pathname === href) return true;
-    if (href !== '/dashboard' && router.pathname.startsWith(href + '/')) return true;
+    if (href !== '/dashboard' && router.pathname.startsWith(href + '/')) {
+      const allHrefs = NAV_GROUPS.flatMap((g) =>
+        g.items.flatMap((i) => (i.children ? i.children.map((c) => c.href) : [i.href]))).filter(Boolean) as string[];
+
+      const hasLongerMatch = allHrefs.some(
+        (otherHref) =>
+          otherHref.length > href.length &&
+          (router.pathname === otherHref || router.pathname.startsWith(otherHref + '/'))
+      );
+
+      if (hasLongerMatch) {
+        return false;
+      }
+      return true;
+
+    }
     return false;
   }
 
@@ -306,140 +321,140 @@ export default function AppSidebar() {
           });
           if (visibleItems.length === 0) return null;
           return (
-          <div key={group.title}>
-            {!collapsed && (
-              <div
-                style={{
-                  padding: '12px 16px 4px',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  letterSpacing: 1.5,
-                  color: 'var(--sidebar-text-muted)',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {group.title}
-              </div>
-            )}
-
-            {visibleItems.map((item) => {
-              const Icon = item.icon;
-
-              if (!item.children) {
-                const active = isActive(item.href!);
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href!}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: collapsed ? '10px 0' : '8px 12px',
-                      margin: '1px 8px',
-                      borderRadius: 'var(--radius-md)',
-                      textDecoration: 'none',
-                      fontSize: 13.5,
-                      fontWeight: active ? 500 : 400,
-                      color: active ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-text)',
-                      background: active ? 'var(--sidebar-item-active-bg)' : 'transparent',
-                      justifyContent: collapsed ? 'center' : 'flex-start',
-                      transition: 'background 150ms ease',
-                    }}
-                  >
-                    <Icon size={16} />
-                    {!collapsed && (
-                      <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
-                    )}
-                  </Link>
-                );
-              }
-
-              const children = visibleChildren(item);
-              if (children.length === 0) return null;
-
-              const isOpen = !!openGroups[item.label];
-              const anyChildActive = children.some((c) => isActive(c.href));
-
-              return (
-                <div key={item.label}>
-                  <button
-                    onClick={() => toggleGroup(item.label)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      padding: collapsed ? '10px 0' : '8px 12px',
-                      margin: '1px 8px',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 13.5,
-                      fontWeight: anyChildActive ? 500 : 400,
-                      color: anyChildActive ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-text)',
-                      background: anyChildActive ? 'var(--sidebar-item-active-bg)' : 'transparent',
-                      justifyContent: collapsed ? 'center' : 'flex-start',
-                      transition: 'background 150ms ease',
-                      cursor: 'pointer',
-                      border: 'none',
-                      width: 'calc(100% - 16px)',
-                    }}
-                  >
-                    <Icon size={16} />
-                    {!collapsed && (
-                      <>
-                        <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
-                        <ChevronDown
-                          size={14}
-                          style={{
-                            marginLeft: 'auto',
-                            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                            transition: 'transform 150ms ease',
-                          }}
-                        />
-                      </>
-                    )}
-                  </button>
-
-                  {isOpen && !collapsed && (
-                    <div>
-                      {children.map((child) => {
-                        const childActive = isActive(child.href);
-                        return (
-                          <Link
-                            key={child.href}
-                            href={child.href}
-                            style={{
-                              padding: '6px 12px 6px 38px',
-                              margin: '1px 8px',
-                              fontSize: 13,
-                              color: childActive ? 'var(--accent)' : 'var(--foreground-muted)',
-                              fontWeight: childActive ? 500 : 400,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                              borderRadius: 'var(--radius-md)',
-                              textDecoration: 'none',
-                              background: childActive ? 'var(--accent-light-bg)' : 'transparent',
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: 4,
-                                height: 4,
-                                borderRadius: 99,
-                                background: childActive ? 'var(--accent-light)' : 'var(--border-strong)',
-                                flexShrink: 0,
-                              }}
-                            />
-                            {child.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
+            <div key={group.title}>
+              {!collapsed && (
+                <div
+                  style={{
+                    padding: '12px 16px 4px',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: 1.5,
+                    color: 'var(--sidebar-text-muted)',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {group.title}
                 </div>
-              );
-            })}
-          </div>
+              )}
+
+              {visibleItems.map((item) => {
+                const Icon = item.icon;
+
+                if (!item.children) {
+                  const active = isActive(item.href!);
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href!}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: collapsed ? '10px 0' : '8px 12px',
+                        margin: '1px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        textDecoration: 'none',
+                        fontSize: 13.5,
+                        fontWeight: active ? 500 : 400,
+                        color: active ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-text)',
+                        background: active ? 'var(--sidebar-item-active-bg)' : 'transparent',
+                        justifyContent: collapsed ? 'center' : 'flex-start',
+                        transition: 'background 150ms ease',
+                      }}
+                    >
+                      <Icon size={16} />
+                      {!collapsed && (
+                        <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                      )}
+                    </Link>
+                  );
+                }
+
+                const children = visibleChildren(item);
+                if (children.length === 0) return null;
+
+                const isOpen = !!openGroups[item.label];
+                const anyChildActive = children.some((c) => isActive(c.href));
+
+                return (
+                  <div key={item.label}>
+                    <button
+                      onClick={() => toggleGroup(item.label)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: collapsed ? '10px 0' : '8px 12px',
+                        margin: '1px 8px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 13.5,
+                        fontWeight: anyChildActive ? 500 : 400,
+                        color: anyChildActive ? 'var(--sidebar-item-active-text)' : 'var(--sidebar-text)',
+                        background: anyChildActive ? 'var(--sidebar-item-active-bg)' : 'transparent',
+                        justifyContent: collapsed ? 'center' : 'flex-start',
+                        transition: 'background 150ms ease',
+                        cursor: 'pointer',
+                        border: 'none',
+                        width: 'calc(100% - 16px)',
+                      }}
+                    >
+                      <Icon size={16} />
+                      {!collapsed && (
+                        <>
+                          <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                          <ChevronDown
+                            size={14}
+                            style={{
+                              marginLeft: 'auto',
+                              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 150ms ease',
+                            }}
+                          />
+                        </>
+                      )}
+                    </button>
+
+                    {isOpen && !collapsed && (
+                      <div>
+                        {children.map((child) => {
+                          const childActive = isActive(child.href);
+                          return (
+                            <Link
+                              key={child.href}
+                              href={child.href}
+                              style={{
+                                padding: '6px 12px 6px 38px',
+                                margin: '1px 8px',
+                                fontSize: 13,
+                                color: childActive ? 'var(--accent)' : 'var(--foreground-muted)',
+                                fontWeight: childActive ? 500 : 400,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                borderRadius: 'var(--radius-md)',
+                                textDecoration: 'none',
+                                background: childActive ? 'var(--accent-light-bg)' : 'transparent',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 4,
+                                  height: 4,
+                                  borderRadius: 99,
+                                  background: childActive ? 'var(--accent-light)' : 'var(--border-strong)',
+                                  flexShrink: 0,
+                                }}
+                              />
+                              {child.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           );
         })}
       </div>

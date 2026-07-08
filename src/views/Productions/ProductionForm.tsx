@@ -409,29 +409,29 @@ export function MaterialsFieldArray({
                 { valueAsNumber: true }
               )
               return (
-            <input
-              type="number"
-              min={0.001}
-              step={0.001}
-              {...reg}
-              onChange={(e) => {
-                reg.onChange(e)
-                onMaterialQtyEdit(detailIndex)
-              }}
-              placeholder="Qty"
-              style={{
-                padding: '7px 10px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                outline: 'none',
-                width: '100%',
-                color: 'var(--foreground)',
-                background: 'var(--surface)',
-                fontFamily: 'var(--font-sans)',
-                boxSizing: 'border-box',
-              }}
-            />
+                <input
+                  type="number"
+                  min={0.001}
+                  step={0.001}
+                  {...reg}
+                  onChange={(e) => {
+                    reg.onChange(e)
+                    onMaterialQtyEdit(detailIndex)
+                  }}
+                  placeholder="Qty"
+                  style={{
+                    padding: '7px 10px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 12,
+                    outline: 'none',
+                    width: '100%',
+                    color: 'var(--foreground)',
+                    background: 'var(--surface)',
+                    fontFamily: 'var(--font-sans)',
+                    boxSizing: 'border-box',
+                  }}
+                />
               )
             })()}
 
@@ -698,7 +698,7 @@ export default function ProductionForm({
         .get('/product-inventories', {
           params: {
             per_page: 500,
-            include: 'product_uom,product_uom.uom,product_uom.product',
+            include: 'product_uom_batch',
             'filter[status]': 'active',
           },
         })
@@ -706,8 +706,12 @@ export default function ProductionForm({
   })
   const allMaterialInventories = unwrapList(prodMaterialInvData)
   const materialInventories = allMaterialInventories.filter(
-    (inv: any) => inv.product_uom?.product_id === sharedMaterialProductId,
+    (inv: any) =>
+      inv.product_uom?.product_id === sharedMaterialProductId ||
+      inv.product_uom_batch?.product_uom?.product_id === sharedMaterialProductId
   )
+  console.log('all material inv:', allMaterialInventories);
+  console.log('material inv:', materialInventories);
 
   // Edit mode: prefill
   useEffect(() => {
@@ -780,7 +784,7 @@ export default function ProductionForm({
           if (!match) {
             missing.push(
               mat.product_uom?.product?.name ??
-                String(mat.product_uom?.product_id ?? '?')
+              String(mat.product_uom?.product_id ?? '?')
             )
           }
           return {
@@ -864,27 +868,27 @@ export default function ProductionForm({
   // instead of "Material #1". Manual labels (set via picker) take precedence.
   const derivedMaterialLabels = useMemo(() => {
     const labels: Record<string, string> = {}
-    ;(watchDetails ?? []).forEach((d: any, di: number) => {
-      ;(d?.materials ?? []).forEach((m: any, mi: number) => {
-        const id = m?.product_inventory_id
-        if (!id) return
-        const inv = inventories.find((i: any) => i.id === id)
-        if (!inv) return
-        const name =
-          inv?.product_uom_batch?.product_uom?.product?.name ??
-          inv?.product_uom?.product?.name ??
-          inv?.code ??
-          `Material #${id}`
-        const uomCode =
-          inv?.product_uom_batch?.product_uom?.uom?.code ??
-          inv?.product_uom?.uom?.code ??
-          ''
-        const sku = inv?.code ?? ''
-        labels[`${di}-${mi}`] = [name, uomCode, sku ? `SKU: ${sku}` : '']
-          .filter(Boolean)
-          .join(' · ')
+      ; (watchDetails ?? []).forEach((d: any, di: number) => {
+        ; (d?.materials ?? []).forEach((m: any, mi: number) => {
+          const id = m?.product_inventory_id
+          if (!id) return
+          const inv = inventories.find((i: any) => i.id === id)
+          if (!inv) return
+          const name =
+            inv?.product_uom_batch?.product_uom?.product?.name ??
+            inv?.product_uom?.product?.name ??
+            inv?.code ??
+            `Material #${id}`
+          const uomCode =
+            inv?.product_uom_batch?.product_uom?.uom?.code ??
+            inv?.product_uom?.uom?.code ??
+            ''
+          const sku = inv?.code ?? ''
+          labels[`${di}-${mi}`] = [name, uomCode, sku ? `SKU: ${sku}` : '']
+            .filter(Boolean)
+            .join(' · ')
+        })
       })
-    })
     return labels
   }, [watchDetails, inventories])
 
@@ -960,7 +964,7 @@ export default function ProductionForm({
     }
   }
 
-  const onInvalid = (_errors: any) => {}
+  const onInvalid = (_errors: any) => { }
 
   const isPending = createMutation.isPending || updateMutation.isPending
 
