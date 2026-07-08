@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Eye, X } from 'lucide-react';
 import { customersService as customerService } from '@/services/customers.service';
 import { toastMutationApiError } from '@/utils/apiError';
+import { formatDateTime, formatDate } from '@/utils/date';
 import { useAuth } from '@/hooks/useAuth';
 import CustomerSheet from './CustomerSheet';
 
@@ -109,7 +110,7 @@ export default function CustomersView() {
               <tr key={item.id}>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{item.name}</td>
                 <td style={tdStyle}>{item.phone ?? '—'}</td>
-                <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>{new Date(item.created_at).toLocaleDateString('id-ID')}</td>
+                <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>{formatDate(item.created_at)}</td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -236,7 +237,7 @@ export default function CustomersView() {
                 {
                   label: 'Created At',
                   value: selectedItem.created_at
-                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    ? formatDateTime(selectedItem.created_at)
                     : '—',
                 },
               ].map((f) => (

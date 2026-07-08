@@ -124,9 +124,10 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
       inv.product_uom_batch?.product_uom?.uom?.name ??
       inv.product_uom?.uom?.code ??
       ''
+    const expiryDate = inv.product_uom_batch?.expiry_date?.substring(0, 10) ?? 'No expiry';
     return {
       value: inv.id as number,
-      label: `${name} — ${uomCode} — Stock: ${inv.stock}`,
+      label: `${name} — ${uomCode} — Stock: ${inv.stock}-Exp Date:${expiryDate}`,
       sublabel: inv.product_uom_batch?.batch_code ?? undefined,
     }
   })
@@ -151,7 +152,22 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   })
 
   const onSubmit = (values: FormValues) => {
-    createMutation.mutate(values)
+    // Backend mengharapkan product_uom_batch_id, bukan product_inventory_id
+    // Cari product_uom_batch_id dari item inventory yang dipilih
+    const selectedInventory = inventoryItems.find((inv: any) => inv.id === values.product_inventory_id)
+    if (!selectedInventory) {
+      toast.error('Invalid inventory item selected')
+      return
+    }
+
+    const payload = {
+      product_uom_batch_id: selectedInventory.product_uom_batch_id,
+      qty: values.qty,
+      direction: values.direction,
+      description: values.description,
+    }
+
+    createMutation.mutate(payload as any)
   }
 
   const isPending = createMutation.isPending
@@ -409,7 +425,10 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                   </strong>
                 </span>
                 <span>
-                  Batch: {selectedInv.product_uom_batch?.batch_code ?? '—'}
+                  Batch:{' '}
+                  {selectedInv.product_uom_batch
+                    ? `${selectedInv.product_uom_batch.reference_type ?? ''} #${selectedInv.product_uom_batch.reference_id ?? selectedInv.product_uom_batch.id}`
+                    : '—'}
                 </span>
                 <span>
                   Expiry:{' '}

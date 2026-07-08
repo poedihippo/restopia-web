@@ -73,10 +73,10 @@ interface DeliveryFormProps {
   deliveryId?: number
   prefill?: {
     source_type?:
-      | 'po_from_supplier'
-      | 'po_from_branch'
-      | 'transfer_to_branch'
-      | 'so_to_branch'
+    | 'po_from_supplier'
+    | 'po_from_branch'
+    | 'transfer_to_branch'
+    | 'so_to_branch'
     purchase_order_id?: number
     sales_order_id?: number
     target_branch_id?: number
@@ -264,6 +264,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const watchPurchaseOrderId = watch('purchase_order_id')
   const watchSalesOrderId = watch('sales_order_id')
   const watchSourceType = watch('source_type')
+
+  useEffect(() => {
+    if (watchSourceType === 'po_from_supplier' && myBranchId) {
+      setValue('target_branch_id', myBranchId)
+    }
+  }, [watchSourceType, myBranchId, setValue])
 
   // Internal-branch deliveries/transfers are price-free — hide all price UI
   // and don't submit computed prices. Supplier/SO deliveries keep price.
@@ -918,8 +924,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       loading={productUomsLoading}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
-                          | string
-                          | undefined
+                        | string
+                        | undefined
                       }
                     />
                   )}
@@ -948,9 +954,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                           style={{
                             width: '100%',
                             padding: '8px 10px',
-                            border: `1px solid ${
-                              batchError ? 'var(--destructive)' : 'var(--border)'
-                            }`,
+                            border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'
+                              }`,
                             borderRadius: 'var(--radius-md)',
                             fontSize: 12,
                             background: 'var(--surface)',
@@ -1136,8 +1141,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 ? 'Saving...'
                 : 'Save Changes'
               : isPending
-              ? 'Creating...'
-              : 'Create Delivery'}
+                ? 'Creating...'
+                : 'Create Delivery'}
           </button>
         </div>
       </form>

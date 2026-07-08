@@ -177,7 +177,7 @@ export default function RequestedOrdersView() {
               margin: 0,
             }}
           >
-            Requested Orders
+            Requested PO
           </h1>
           <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
             Purchase orders from other branches requesting supply from your branch
@@ -422,10 +422,10 @@ export default function RequestedOrdersView() {
                       >
                         {item.date
                           ? new Date(item.date).toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })
                           : '—'}
                       </span>
                       <span

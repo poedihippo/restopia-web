@@ -247,30 +247,7 @@ export default function ProductInventoriesView() {
             )}
             <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
           </button>
-          {canCreate && (
-            <button
-              onClick={() => {
-                setEditData(null)
-                setSheetOpen(true)
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={15} />
-              New Item
-            </button>
-          )}
+
         </div>
       </div>
 
@@ -512,8 +489,8 @@ export default function ProductInventoriesView() {
                         hoveredRow === item.id
                           ? 'var(--background)'
                           : isLow
-                          ? 'rgba(146, 96, 10, 0.03)'
-                          : 'transparent',
+                            ? 'rgba(146, 96, 10, 0.03)'
+                            : 'transparent',
                     }}
                   >
                     {/* Product */}
@@ -951,77 +928,77 @@ export default function ProductInventoriesView() {
                     label: 'UOM',
                     value: uom ? `${uom.name} (${uom.code})` : undefined,
                   },
-                { label: 'Branch', value: selectedItem.branch?.name },
-                {
-                  label: 'Current Stock',
-                  value: (selectedItem.qty ?? 0).toLocaleString('id-ID'),
-                },
-                {
-                  label: 'Base Price',
-                  value:
-                    selectedItem.base_price != null
-                      ? `Rp ${selectedItem.base_price.toLocaleString('id-ID')}`
-                      : undefined,
-                },
-                {
-                  label: 'Online Price',
-                  value:
-                    selectedItem.online_price != null
-                      ? `Rp ${selectedItem.online_price.toLocaleString('id-ID')}`
-                      : undefined,
-                },
-                { label: 'Status', value: selectedItem.status },
-                { label: 'Expiry Date', value: selectedItem.expiry_date },
-                {
-                  label: 'Created At',
-                  value: selectedItem.created_at
-                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
-                    : '—',
-                },
-              ].map((f) => (
-                <div
-                  key={f.label}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--foreground-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.6px',
-                    }}
+                  { label: 'Branch', value: selectedItem.branch?.name },
+                  {
+                    label: 'Current Stock',
+                    value: (selectedItem.qty ?? 0).toLocaleString('id-ID'),
+                  },
+                  {
+                    label: 'Base Price',
+                    value:
+                      selectedItem.base_price != null
+                        ? `Rp ${selectedItem.base_price.toLocaleString('id-ID')}`
+                        : undefined,
+                  },
+                  {
+                    label: 'Online Price',
+                    value:
+                      selectedItem.online_price != null
+                        ? `Rp ${selectedItem.online_price.toLocaleString('id-ID')}`
+                        : undefined,
+                  },
+                  { label: 'Status', value: selectedItem.status },
+                  { label: 'Expiry Date', value: selectedItem.expiry_date },
+                  {
+                    label: 'Created At',
+                    value: selectedItem.created_at
+                      ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                      : '—',
+                  },
+                ].map((f) => (
+                  <div
+                    key={f.label}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
                   >
-                    {f.label}
-                  </span>
-                  {f.label === 'Status' && selectedItem.status ? (
                     <span
                       style={{
-                        display: 'inline-flex',
-                        alignSelf: 'flex-start',
-                        padding: '2px 10px',
-                        borderRadius: 99,
                         fontSize: 11,
-                        fontWeight: 500,
-                        background:
-                          selectedItem.status === 'active'
-                            ? 'var(--success-bg)'
-                            : 'var(--destructive-bg)',
-                        color:
-                          selectedItem.status === 'active'
-                            ? 'var(--success)'
-                            : 'var(--destructive)',
+                        fontWeight: 600,
+                        color: 'var(--foreground-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.6px',
                       }}
                     >
-                      {selectedItem.status}
+                      {f.label}
                     </span>
-                  ) : (
-                    <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
-                      {f.value ?? '—'}
-                    </span>
-                  )}
-                </div>
-              ))
+                    {f.label === 'Status' && selectedItem.status ? (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignSelf: 'flex-start',
+                          padding: '2px 10px',
+                          borderRadius: 99,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          background:
+                            selectedItem.status === 'active'
+                              ? 'var(--success-bg)'
+                              : 'var(--destructive-bg)',
+                          color:
+                            selectedItem.status === 'active'
+                              ? 'var(--success)'
+                              : 'var(--destructive)',
+                        }}
+                      >
+                        {selectedItem.status}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
+                        {f.value ?? '—'}
+                      </span>
+                    )}
+                  </div>
+                ))
               })()}
             </div>
           </div>

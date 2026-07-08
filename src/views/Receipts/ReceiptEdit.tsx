@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { receiptsService } from '@/services/receipts.service'
 import ReceiptForm from './ReceiptForm'
 import { ReceiptText } from 'lucide-react'
+import { parseDate } from '@/helper/parseDate'
 
 interface ReceiptEditProps {
   id: number
@@ -32,38 +33,38 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
 
   const initialData = receipt
     ? {
-        code: receipt.code,
-        delivery_id: receipt.delivery?.id ?? receipt.delivery_id ?? 0,
-        date: receipt.date,
-        status: 'final',
-        description: receipt.description ?? '',
-        details: rawDetails.length
-          ? rawDetails.map((d: any) => ({
-              delivery_detail_id: d.delivery_detail_id ?? undefined,
-              product_uom_id:
-                d.product_uom_id ?? d.product_uom?.id ?? 0,
-              planned_expiry_date: d.planned_expiry_date
-                ? d.planned_expiry_date.split('T')[0]
-                : '',
-              qty: d.qty ?? 1,
-              price: d.price ?? 0,
-              status: d.status ?? 'pending',
-              description: d.description ?? '',
-              client_ref: d.client_ref ?? '',
-            }))
-          : [
-              {
-                delivery_detail_id: undefined,
-                product_uom_id: 0,
-                planned_expiry_date: '',
-                qty: 1,
-                price: 0,
-                status: 'pending',
-                description: '',
-                client_ref: '',
-              },
-            ],
-      }
+      code: receipt.code,
+      delivery_id: receipt.delivery?.id ?? receipt.delivery_id ?? 0,
+      date: parseDate(receipt.date),
+      status: 'final',
+      description: receipt.description ?? '',
+      details: rawDetails.length
+        ? rawDetails.map((d: any) => ({
+          delivery_detail_id: d.delivery_detail_id ?? undefined,
+          product_uom_id:
+            d.product_uom_id ?? d.product_uom?.id ?? 0,
+          planned_expiry_date: parseDate(d.planned_expiry_date)
+            ? parseDate(d.planned_expiry_date.split('T')[0])
+            : '',
+          qty: d.qty ?? 1,
+          price: d.price ?? 0,
+          status: d.status ?? 'pending',
+          description: d.description ?? '',
+          client_ref: d.client_ref ?? '',
+        }))
+        : [
+          {
+            delivery_detail_id: undefined,
+            product_uom_id: 0,
+            planned_expiry_date: '',
+            qty: 1,
+            price: 0,
+            status: 'pending',
+            description: '',
+            client_ref: '',
+          },
+        ],
+    }
     : undefined
 
   if (isLoading) {

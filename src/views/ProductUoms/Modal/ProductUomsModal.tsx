@@ -13,6 +13,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import useGetProductList from "@/hooks/product/useGetProductList";
 import useGetUOMList from "@/hooks/uom/useGetUOMList";
 import { Controller, UseFormReturn } from "react-hook-form";
+import { useState, useEffect } from "react";
 import { ProductUomsFormValues } from "./useCreateProductUomsModal";
 import { Switch } from "@/components/ui/switch";
 
@@ -35,13 +36,28 @@ export const ProductUomsModal = ({
 }: Props) => {
   const isEdit = mode === "edit";
 
-  const { data: productData, isLoading: isLoadingProduct } = useGetProductList({
-    enabled: isOpen,
-  });
+  const [productSearch, setProductSearch] = useState("");
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState("");
 
-  const { data: allUomData, isLoading: isLoadingUom } = useGetUOMList({
-    enabled: isOpen,
-  });
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProductSearch(productSearch);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [productSearch]);
+
+  const { data: productData, isLoading: isLoadingProduct } = useGetProductList(
+    { 
+      "filter[search]": debouncedProductSearch, 
+      per_page: 20 
+    },
+    { enabled: isOpen }
+  );
+
+  const { data: allUomData, isLoading: isLoadingUom } = useGetUOMList(
+    { per_page: 50 },
+    { enabled: isOpen }
+  );
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
@@ -106,6 +122,11 @@ export const ProductUomsModal = ({
                             label: item.name ?? "",
                           }))[0] ?? null
                       }
+                      onInputChange={(newValue, actionMeta) => {
+                        if (actionMeta.action === "input-change") {
+                          setProductSearch(newValue);
+                        }
+                      }}
                       onChange={(selected) => {
                         field.onChange(
                           selected

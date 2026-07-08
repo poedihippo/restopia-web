@@ -87,7 +87,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         status: 'active',
       })
     }
-  }, [editData, reset])
+  }, [editData, reset, categories.length]) // categories.length memastikan reset dijalankan ulang setelah list kategori berhasil di-fetch
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => productsService.create(data as any),
@@ -112,11 +112,18 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   })
 
   const onSubmit = (values: FormValues) => {
+    console.log('[ProductSheet] onSubmit called with:', values)
     if (editData) {
       updateMutation.mutate(values)
     } else {
       createMutation.mutate(values)
     }
+  }
+
+  const onInvalid = (errors: any) => {
+    console.log('[ProductSheet] Validation errors:', errors)
+    const firstError = Object.values(errors)[0] as any
+    toast.error(firstError?.message ?? 'Please fill in all required fields')
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -430,7 +437,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           <button
             type="button"
             disabled={isPending}
-            onClick={handleSubmit(onSubmit)}
+            onClick={handleSubmit(onSubmit, onInvalid)}
             style={{
               padding: '8px 16px',
               background: 'var(--accent)',

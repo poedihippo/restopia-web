@@ -63,7 +63,26 @@ interface ProductInventorySheetProps {
     price_editable?: boolean
     expiry_date?: string
     status?: 'active' | 'inactive'
+    product_uom_batch?: {
+      code?: string
+      expiry_date?: string
+    }
   } | null
+}
+
+const parseExpiryDate = (dateStr?: string) => {
+  if (!dateStr) return ''
+  // Jika format awalnya YYYY-MM-DD
+  if (dateStr.includes('-') && dateStr.split('-')[0].length === 4) {
+    return dateStr.split('T')[0]
+  }
+  // Jika formatnya DD-MM-YYYY (contoh: 15-06-2026 04:55 WIB)
+  const match = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})/)
+  if (match) {
+    const [, d, m, y] = match
+    return `${y}-${m}-${d}`
+  }
+  return ''
 }
 
 const inputStyle: React.CSSProperties = {
@@ -148,15 +167,16 @@ export default function ProductInventorySheet({
 
   useEffect(() => {
     if (editData) {
+      const code = editData.product_uom_batch?.code ?? editData.code ?? ''
+      const expiry = editData.product_uom_batch?.expiry_date ?? editData.expiry_date
+
       reset({
         product_uom_id: editData.product_uom_id,
-        code: editData.code ?? '',
+        code: code,
         base_price: editData.base_price ?? 0,
         online_price: editData.online_price ?? 0,
         price_editable: editData.price_editable ?? false,
-        expiry_date: editData.expiry_date
-          ? editData.expiry_date.split('T')[0]
-          : '',
+        expiry_date: parseExpiryDate(expiry),
         status: editData.status ?? 'active',
       })
     } else {
