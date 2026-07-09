@@ -370,12 +370,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by",
+            "description": "Comma-separated relations: created_by, updated_by, account_category",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by",
+              "example": "created_by,updated_by,account_category",
               "type": "string"
             }
           },
@@ -781,33 +781,6 @@
             }
           },
           {
-            "description": "Filter by reference_id",
-            "in": "query",
-            "name": "filter[reference_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by created_at_gte",
-            "in": "query",
-            "name": "filter[created_at_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by created_at_lte",
-            "in": "query",
-            "name": "filter[created_at_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by search",
             "in": "query",
             "name": "filter[search]",
@@ -838,6 +811,33 @@
             "description": "Filter by reference_type",
             "in": "query",
             "name": "filter[reference_type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by reference_id",
+            "in": "query",
+            "name": "filter[reference_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by created_at_gte",
+            "in": "query",
+            "name": "filter[created_at_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by created_at_lte",
+            "in": "query",
+            "name": "filter[created_at_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -1005,12 +1005,12 @@
         "operationId": "getCurrentUser",
         "parameters": [
           {
-            "description": "Comma-separated relations: created_by, updated_by, roles, permissions, branches",
+            "description": "Comma-separated relations: updated_by, roles, permissions, branches, created_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,roles,permissions,branches",
+              "example": "updated_by,roles,permissions,branches,created_by",
               "type": "string"
             }
           }
@@ -1222,18 +1222,18 @@
             }
           },
           {
-            "description": "Filter by company_id",
+            "description": "Filter by search",
             "in": "query",
-            "name": "filter[company_id]",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by search",
+            "description": "Filter by company_id",
             "in": "query",
-            "name": "filter[search]",
+            "name": "filter[company_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -1541,12 +1541,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by",
+            "description": "Comma-separated relations: period, chart_of_account, created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by",
+              "example": "period,chart_of_account,created_by,updated_by",
               "type": "string"
             }
           },
@@ -1561,9 +1561,9 @@
             }
           },
           {
-            "description": "Filter by chart_of_account_id",
+            "description": "Filter by search",
             "in": "query",
-            "name": "filter[chart_of_account_id]",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -1573,6 +1573,15 @@
             "description": "Filter by period_id",
             "in": "query",
             "name": "filter[period_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by chart_of_account_id",
+            "in": "query",
+            "name": "filter[chart_of_account_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -1880,12 +1889,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, media, bundle_details, created_by",
+            "description": "Comma-separated relations: created_by, updated_by, media, bundle_details",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,media,bundle_details,created_by",
+              "example": "created_by,updated_by,media,bundle_details",
               "type": "string"
             }
           },
@@ -1900,18 +1909,18 @@
             }
           },
           {
-            "description": "Filter by status",
+            "description": "Filter by search",
             "in": "query",
-            "name": "filter[status]",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by search",
+            "description": "Filter by status",
             "in": "query",
-            "name": "filter[search]",
+            "name": "filter[status]",
             "required": false,
             "schema": {
               "type": "string"
@@ -2219,12 +2228,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: account_type, parent, children, created_by, updated_by, account_category",
+            "description": "Comma-separated relations: children, created_by, updated_by, account_type, parent",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "account_type,parent,children,created_by,updated_by,account_category",
+              "example": "children,created_by,updated_by,account_type,parent",
               "type": "string"
             }
           },
@@ -2235,15 +2244,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by is_header",
-            "in": "query",
-            "name": "filter[is_header]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -2266,18 +2266,18 @@
             }
           },
           {
-            "description": "Filter by search",
+            "description": "Filter by account_category_id",
             "in": "query",
-            "name": "filter[search]",
+            "name": "filter[account_category_id]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by account_category_id",
+            "description": "Filter by search",
             "in": "query",
-            "name": "filter[account_category_id]",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -2296,6 +2296,15 @@
             "description": "Filter by parent_id",
             "in": "query",
             "name": "filter[parent_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_header",
+            "in": "query",
+            "name": "filter[is_header]",
             "required": false,
             "schema": {
               "type": "string"
@@ -2943,12 +2952,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, created_by",
+            "description": "Comma-separated relations: created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,created_by",
+              "example": "created_by,updated_by",
               "type": "string"
             }
           },
@@ -3345,12 +3354,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: target_branch, purchase_order, sales_order, media, delivery_details, created_by, updated_by",
+            "description": "Comma-separated relations: created_by, updated_by, target_branch, purchase_order, sales_order, media, delivery_details",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "target_branch,purchase_order,sales_order,media,delivery_details,created_by,updated_by",
+              "example": "created_by,updated_by,target_branch,purchase_order,sales_order,media,delivery_details",
               "type": "string"
             }
           },
@@ -3374,24 +3383,6 @@
             }
           },
           {
-            "description": "Filter by source_type",
-            "in": "query",
-            "name": "filter[source_type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by target_branch_id",
-            "in": "query",
-            "name": "filter[target_branch_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by sales_order_id",
             "in": "query",
             "name": "filter[sales_order_id]",
@@ -3401,9 +3392,9 @@
             }
           },
           {
-            "description": "Filter by date_gte",
+            "description": "Filter by date_lte",
             "in": "query",
-            "name": "filter[date_gte]",
+            "name": "filter[date_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -3428,6 +3419,24 @@
             }
           },
           {
+            "description": "Filter by source_type",
+            "in": "query",
+            "name": "filter[source_type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by target_branch_id",
+            "in": "query",
+            "name": "filter[target_branch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by purchase_order_id",
             "in": "query",
             "name": "filter[purchase_order_id]",
@@ -3437,9 +3446,9 @@
             }
           },
           {
-            "description": "Filter by date_lte",
+            "description": "Filter by date_gte",
             "in": "query",
-            "name": "filter[date_lte]",
+            "name": "filter[date_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -3747,12 +3756,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, created_by",
+            "description": "Comma-separated relations: created_by, updated_by, company",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,created_by",
+              "example": "created_by,updated_by,company",
               "type": "string"
             }
           },
@@ -4095,22 +4104,31 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, posted_by, journal_details, journal_details.chart_of_account",
+            "description": "Comma-separated relations: journal_details, created_by, updated_by, posted_by, period",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,posted_by,journal_details,journal_details.chart_of_account",
+              "example": "journal_details,created_by,updated_by,posted_by,period",
               "type": "string"
             }
           },
           {
-            "description": "Sort by field (prefix - for desc): id, journal_number, journal_date, created_at",
+            "description": "Sort by field (prefix - for desc): id, journal_number, date, created_at",
             "in": "query",
             "name": "sort",
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by date",
+            "in": "query",
+            "name": "filter[date]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -4154,15 +4172,6 @@
             "description": "Filter by is_reversed",
             "in": "query",
             "name": "filter[is_reversed]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by journal_date",
-            "in": "query",
-            "name": "filter[journal_date]",
             "required": false,
             "schema": {
               "type": "string"
@@ -4833,6 +4842,15 @@
             }
           },
           {
+            "description": "Filter by shift_mode",
+            "in": "query",
+            "name": "filter[shift_mode]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by search",
             "in": "query",
             "name": "filter[search]",
@@ -4854,15 +4872,6 @@
             "description": "Filter by operation_mode",
             "in": "query",
             "name": "filter[operation_mode]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by shift_mode",
-            "in": "query",
-            "name": "filter[shift_mode]",
             "required": false,
             "schema": {
               "type": "string"
@@ -5399,12 +5408,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by",
+            "description": "Comma-separated relations: updated_by, created_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by",
+              "example": "updated_by,created_by",
               "type": "string"
             }
           }
@@ -5805,12 +5814,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, sales_order, payment_method, created_by",
+            "description": "Comma-separated relations: created_by, updated_by, sales_order, payment_method",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,sales_order,payment_method,created_by",
+              "example": "created_by,updated_by,sales_order,payment_method",
               "type": "string"
             }
           },
@@ -5821,6 +5830,24 @@
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by sales_order_id",
+            "in": "query",
+            "name": "filter[sales_order_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by payment_method_id",
+            "in": "query",
+            "name": "filter[payment_method_id]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -5846,24 +5873,6 @@
             "description": "Filter by branch_id",
             "in": "query",
             "name": "filter[branch_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by sales_order_id",
-            "in": "query",
-            "name": "filter[sales_order_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by payment_method_id",
-            "in": "query",
-            "name": "filter[payment_method_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -6171,12 +6180,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, closed_by",
+            "description": "Comma-separated relations: created_by, updated_by, closed_by, fiscal_year, company",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,closed_by",
+              "example": "created_by,updated_by,closed_by,fiscal_year,company",
               "type": "string"
             }
           },
@@ -6187,24 +6196,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by is_active",
-            "in": "query",
-            "name": "filter[is_active]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by is_closed",
-            "in": "query",
-            "name": "filter[is_closed]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -6221,6 +6212,24 @@
             "description": "Filter by fiscal_year_id",
             "in": "query",
             "name": "filter[fiscal_year_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_active",
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_closed",
+            "in": "query",
+            "name": "filter[is_closed]",
             "required": false,
             "schema": {
               "type": "string"
@@ -6894,12 +6903,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, product, uom, target_uom",
+            "description": "Comma-separated relations: updated_by, product, uom, target_uom, created_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,product,uom,target_uom",
+              "example": "updated_by,product,uom,target_uom,created_by",
               "type": "string"
             }
           },
@@ -6910,15 +6919,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -6944,6 +6944,15 @@
             "description": "Filter by target_uom",
             "in": "query",
             "name": "filter[target_uom]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -7116,12 +7125,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: target_uom, created_by, updated_by, product, uom",
+            "description": "Comma-separated relations: created_by, updated_by, product, uom, target_uom",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "target_uom,created_by,updated_by,product,uom",
+              "example": "created_by,updated_by,product,uom,target_uom",
               "type": "string"
             }
           }
@@ -7261,12 +7270,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: product_uom_batch, created_by, updated_by",
+            "description": "Comma-separated relations: created_by, updated_by, product_uom_batch",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "product_uom_batch,created_by,updated_by",
+              "example": "created_by,updated_by,product_uom_batch",
               "type": "string"
             }
           },
@@ -7281,18 +7290,18 @@
             }
           },
           {
-            "description": "Filter by branch_id",
+            "description": "Filter by product_uom_batch_id",
             "in": "query",
-            "name": "filter[branch_id]",
+            "name": "filter[product_uom_batch_id]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by base_price_lte",
+            "description": "Filter by online_price_gte",
             "in": "query",
-            "name": "filter[base_price_lte]",
+            "name": "filter[online_price_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -7326,45 +7335,18 @@
             }
           },
           {
-            "description": "Filter by expiry_date_lte",
+            "description": "Filter by base_price_gte",
             "in": "query",
-            "name": "filter[expiry_date_lte]",
+            "name": "filter[base_price_gte]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by search",
+            "description": "Filter by base_price_lte",
             "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by online_price_gte",
-            "in": "query",
-            "name": "filter[online_price_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by product_type",
-            "in": "query",
-            "name": "filter[product_type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by product_uom_batch_id",
-            "in": "query",
-            "name": "filter[product_uom_batch_id]",
+            "name": "filter[base_price_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -7380,18 +7362,27 @@
             }
           },
           {
-            "description": "Filter by status",
+            "description": "Filter by expiry_date_lte",
             "in": "query",
-            "name": "filter[status]",
+            "name": "filter[expiry_date_lte]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by base_price_gte",
+            "description": "Filter by product_type",
             "in": "query",
-            "name": "filter[base_price_gte]",
+            "name": "filter[product_type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by product_category_id",
+            "in": "query",
+            "name": "filter[product_category_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -7407,9 +7398,27 @@
             }
           },
           {
-            "description": "Filter by product_category_id",
+            "description": "Filter by branch_id",
             "in": "query",
-            "name": "filter[product_category_id]",
+            "name": "filter[branch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -7661,12 +7670,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: product_uom, created_by, updated_by",
+            "description": "Comma-separated relations: created_by, updated_by, product_uom",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "product_uom,created_by,updated_by",
+              "example": "created_by,updated_by,product_uom",
               "type": "string"
             }
           },
@@ -7677,33 +7686,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by expiry_date_gte",
-            "in": "query",
-            "name": "filter[expiry_date_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by expiry_date_lte",
-            "in": "query",
-            "name": "filter[expiry_date_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by reference_type",
-            "in": "query",
-            "name": "filter[reference_type]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -7729,6 +7711,33 @@
             "description": "Filter by product_uom_id",
             "in": "query",
             "name": "filter[product_uom_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by expiry_date_gte",
+            "in": "query",
+            "name": "filter[expiry_date_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by expiry_date_lte",
+            "in": "query",
+            "name": "filter[expiry_date_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by reference_type",
+            "in": "query",
+            "name": "filter[reference_type]",
             "required": false,
             "schema": {
               "type": "string"
@@ -8046,12 +8055,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: product, uom, default_recipe, created_by, updated_by",
+            "description": "Comma-separated relations: default_recipe, created_by, updated_by, product, uom",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "product,uom,default_recipe,created_by,updated_by",
+              "example": "default_recipe,created_by,updated_by,product,uom",
               "type": "string"
             }
           },
@@ -8062,33 +8071,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by base_price_lte",
-            "in": "query",
-            "name": "filter[base_price_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by online_price_gte",
-            "in": "query",
-            "name": "filter[online_price_gte]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -8105,6 +8087,42 @@
             "description": "Filter by product_id",
             "in": "query",
             "name": "filter[product_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by online_price_gte",
+            "in": "query",
+            "name": "filter[online_price_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by price_editable",
+            "in": "query",
+            "name": "filter[price_editable]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_default",
+            "in": "query",
+            "name": "filter[is_default]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -8129,18 +8147,9 @@
             }
           },
           {
-            "description": "Filter by price_editable",
+            "description": "Filter by base_price_lte",
             "in": "query",
-            "name": "filter[price_editable]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by is_default",
-            "in": "query",
-            "name": "filter[is_default]",
+            "name": "filter[base_price_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -8313,12 +8322,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, product, uom, default_recipe",
+            "description": "Comma-separated relations: default_recipe, created_by, updated_by, product, uom",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,product,uom,default_recipe",
+              "example": "default_recipe,created_by,updated_by,product,uom",
               "type": "string"
             }
           }
@@ -8458,12 +8467,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: media, production_details, created_by, updated_by",
+            "description": "Comma-separated relations: created_by, updated_by, media, production_details",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "media,production_details,created_by,updated_by",
+              "example": "created_by,updated_by,media,production_details",
               "type": "string"
             }
           },
@@ -9172,12 +9181,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: supplier_branch, supplier_branch.company, media, purchase_order_details, created_by, updated_by, supplier",
+            "description": "Comma-separated relations: created_by, updated_by, supplier, supplier_branch, supplier_branch.company, media, purchase_order_details",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "supplier_branch,supplier_branch.company,media,purchase_order_details,created_by,updated_by,supplier",
+              "example": "created_by,updated_by,supplier,supplier_branch,supplier_branch.company,media,purchase_order_details",
               "type": "string"
             }
           },
@@ -9188,15 +9197,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by status",
-            "in": "query",
-            "name": "filter[status]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -9258,6 +9258,15 @@
             "description": "Filter by date_lte",
             "in": "query",
             "name": "filter[date_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "filter[status]",
             "required": false,
             "schema": {
               "type": "string"
@@ -9692,15 +9701,6 @@
             }
           },
           {
-            "description": "Filter by delivery_id",
-            "in": "query",
-            "name": "filter[delivery_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by date_gte",
             "in": "query",
             "name": "filter[date_gte]",
@@ -9749,6 +9749,15 @@
             "description": "Filter by target_branch_id",
             "in": "query",
             "name": "filter[target_branch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by delivery_id",
+            "in": "query",
+            "name": "filter[delivery_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -10917,12 +10926,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, shift, customer, credit_by, media, sales_order_details",
+            "description": "Comma-separated relations: sales_order_details, created_by, updated_by, shift, customer, credit_by, media",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,shift,customer,credit_by,media,sales_order_details",
+              "example": "sales_order_details,created_by,updated_by,shift,customer,credit_by,media",
               "type": "string"
             }
           },
@@ -10933,6 +10942,33 @@
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by fulfillment_date_lte",
+            "in": "query",
+            "name": "filter[fulfillment_date_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by credit_by_id",
+            "in": "query",
+            "name": "filter[credit_by_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -10955,18 +10991,9 @@
             }
           },
           {
-            "description": "Filter by type",
+            "description": "Filter by date_gte",
             "in": "query",
-            "name": "filter[type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by date_lte",
-            "in": "query",
-            "name": "filter[date_lte]",
+            "name": "filter[date_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -10982,9 +11009,27 @@
             }
           },
           {
-            "description": "Filter by customer_id",
+            "description": "Filter by branch_id",
             "in": "query",
-            "name": "filter[customer_id]",
+            "name": "filter[branch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by type",
+            "in": "query",
+            "name": "filter[type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by voucher_id",
+            "in": "query",
+            "name": "filter[voucher_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -10994,15 +11039,6 @@
             "description": "Filter by fulfillment_date_gte",
             "in": "query",
             "name": "filter[fulfillment_date_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by status",
-            "in": "query",
-            "name": "filter[status]",
             "required": false,
             "schema": {
               "type": "string"
@@ -11027,15 +11063,6 @@
             }
           },
           {
-            "description": "Filter by branch_id",
-            "in": "query",
-            "name": "filter[branch_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by shift_id",
             "in": "query",
             "name": "filter[shift_id]",
@@ -11045,36 +11072,18 @@
             }
           },
           {
-            "description": "Filter by voucher_id",
+            "description": "Filter by customer_id",
             "in": "query",
-            "name": "filter[voucher_id]",
+            "name": "filter[customer_id]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by date_gte",
+            "description": "Filter by date_lte",
             "in": "query",
-            "name": "filter[date_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by fulfillment_date_lte",
-            "in": "query",
-            "name": "filter[fulfillment_date_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by credit_by_id",
-            "in": "query",
-            "name": "filter[credit_by_id]",
+            "name": "filter[date_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -11528,18 +11537,18 @@
             }
           },
           {
-            "description": "Filter by search",
+            "description": "Filter by branch_id",
             "in": "query",
-            "name": "filter[search]",
+            "name": "filter[branch_id]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by branch_id",
+            "description": "Filter by search",
             "in": "query",
-            "name": "filter[branch_id]",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -11867,15 +11876,6 @@
             }
           },
           {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by branch_id",
             "in": "query",
             "name": "filter[branch_id]",
@@ -11897,6 +11897,15 @@
             "description": "Filter by shift_rule_id",
             "in": "query",
             "name": "filter[shift_rule_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -12171,15 +12180,6 @@
             }
           },
           {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by branch_id",
             "in": "query",
             "name": "filter[branch_id]",
@@ -12228,6 +12228,15 @@
             "description": "Filter by product_uom_batch_id",
             "in": "query",
             "name": "filter[product_uom_batch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -13296,12 +13305,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, roles, permissions, branches, created_by",
+            "description": "Comma-separated relations: created_by, updated_by, roles, permissions, branches",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,roles,permissions,branches,created_by",
+              "example": "created_by,updated_by,roles,permissions,branches",
               "type": "string"
             }
           }
@@ -13461,33 +13470,6 @@
             }
           },
           {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by discount_type",
-            "in": "query",
-            "name": "filter[discount_type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by valid_until_lte",
-            "in": "query",
-            "name": "filter[valid_until_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by status",
             "in": "query",
             "name": "filter[status]",
@@ -13506,9 +13488,9 @@
             }
           },
           {
-            "description": "Filter by scope",
+            "description": "Filter by discount_type",
             "in": "query",
-            "name": "filter[scope]",
+            "name": "filter[discount_type]",
             "required": false,
             "schema": {
               "type": "string"
@@ -13533,9 +13515,9 @@
             }
           },
           {
-            "description": "Filter by valid_until_gte",
+            "description": "Filter by valid_until_lte",
             "in": "query",
-            "name": "filter[valid_until_gte]",
+            "name": "filter[valid_until_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -13545,6 +13527,33 @@
             "description": "Filter by activated_at_gte",
             "in": "query",
             "name": "filter[activated_at_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by scope",
+            "in": "query",
+            "name": "filter[scope]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by valid_until_gte",
+            "in": "query",
+            "name": "filter[valid_until_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -13726,12 +13735,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: voucher_product_uoms, created_by, updated_by, activated_by, voucher_branches",
+            "description": "Comma-separated relations: created_by, updated_by, activated_by, voucher_branches, voucher_product_uoms",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "voucher_product_uoms,created_by,updated_by,activated_by,voucher_branches",
+              "example": "created_by,updated_by,activated_by,voucher_branches,voucher_product_uoms",
               "type": "string"
             }
           }
@@ -13937,7 +13946,11 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
           },
           "updated_at": {
@@ -13960,6 +13973,16 @@
             "example": "ASSET",
             "type": "string"
           },
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "company_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
           "id": {
             "example": 1,
             "type": "integer"
@@ -13969,14 +13992,24 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
           }
         },
         "type": "object"
       },
       "AccountTypeResponse": {
         "properties": {
+          "account_category": {
+            "$ref": "#/components/schemas/AccountCategorySimpleResponse"
+          },
           "account_category_id": {
             "example": 1,
             "type": "integer"
@@ -13984,6 +14017,13 @@
           "code": {
             "example": "CURRENT_ASSET",
             "type": "string"
+          },
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "company_id": {
+            "example": 1,
+            "type": "integer"
           },
           "created_at": {
             "example": "2026-06-03 09:00:00",
@@ -14028,6 +14068,9 @@
       },
       "AccountTypeSimpleResponse": {
         "properties": {
+          "account_category": {
+            "$ref": "#/components/schemas/AccountCategorySimpleResponse"
+          },
           "account_category_id": {
             "example": 1,
             "type": "integer"
@@ -14036,6 +14079,16 @@
             "example": "CURRENT_ASSET",
             "type": "string"
           },
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "company_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
           "id": {
             "example": 1,
             "type": "integer"
@@ -14043,6 +14096,9 @@
           "name": {
             "example": "Current Asset",
             "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
           }
         },
         "type": "object"
@@ -14280,6 +14336,16 @@
             "example": 10000000,
             "type": "integer"
           },
+          "branch": {
+            "$ref": "#/components/schemas/BranchSimpleResponse"
+          },
+          "branch_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "chart_of_account": {
+            "$ref": "#/components/schemas/ChartOfAccountSimpleResponse"
+          },
           "chart_of_account_id": {
             "example": 1,
             "type": "integer"
@@ -14306,6 +14372,9 @@
           "id": {
             "example": 1,
             "type": "integer"
+          },
+          "period": {
+            "$ref": "#/components/schemas/PeriodSimpleResponse"
           },
           "period_id": {
             "example": 1,
@@ -14472,13 +14541,6 @@
       },
       "ChartOfAccountResponse": {
         "properties": {
-          "account_category": {
-            "$ref": "#/components/schemas/AccountCategorySimpleResponse"
-          },
-          "account_category_id": {
-            "example": 1,
-            "type": "integer"
-          },
           "account_type": {
             "$ref": "#/components/schemas/AccountTypeSimpleResponse"
           },
@@ -14489,6 +14551,13 @@
           "code": {
             "example": "1-1000",
             "type": "string"
+          },
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "company_id": {
+            "example": 1,
+            "type": "integer"
           },
           "created_at": {
             "example": "2026-06-03 09:00:00",
@@ -14530,7 +14599,11 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
           },
           "parent_id": {
@@ -14552,13 +14625,6 @@
       },
       "ChartOfAccountSimpleResponse": {
         "properties": {
-          "account_category": {
-            "$ref": "#/components/schemas/AccountCategorySimpleResponse"
-          },
-          "account_category_id": {
-            "example": 1,
-            "type": "integer"
-          },
           "account_type": {
             "$ref": "#/components/schemas/AccountTypeSimpleResponse"
           },
@@ -14568,6 +14634,20 @@
           },
           "code": {
             "example": "1-1000",
+            "type": "string"
+          },
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "company_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "description": {
+            "example": "Cash on hand",
             "type": "string"
           },
           "id": {
@@ -14587,11 +14667,18 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
           },
           "parent_id": {
             "type": "integer"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
           }
         },
         "type": "object"
@@ -14679,7 +14766,11 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
           }
         },
@@ -14827,10 +14918,6 @@
       },
       "CreateChartOfAccountRequest": {
         "properties": {
-          "account_category_id": {
-            "example": 1,
-            "type": "integer"
-          },
           "account_type_id": {
             "example": 1,
             "type": "integer"
@@ -14856,7 +14943,11 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
           },
           "parent_id": {
@@ -14864,7 +14955,6 @@
           }
         },
         "required": [
-          "account_category_id",
           "account_type_id",
           "code",
           "name",
@@ -15042,6 +15132,11 @@
       },
       "CreateJournalRequest": {
         "properties": {
+          "date": {
+            "example": "2026-06-03",
+            "format": "date",
+            "type": "string"
+          },
           "description": {
             "example": "Payment for invoice INV-001",
             "type": "string"
@@ -15051,15 +15146,6 @@
               "$ref": "#/components/schemas/JournalDetailRequest"
             },
             "type": "array"
-          },
-          "journal_date": {
-            "example": "2025-01-15T00:00:00Z",
-            "format": "date-time",
-            "type": "string"
-          },
-          "journal_type": {
-            "example": "M",
-            "type": "string"
           },
           "period_id": {
             "example": 1,
@@ -15072,13 +15158,26 @@
           "reference_type": {
             "example": "purchase_orders",
             "type": "string"
+          },
+          "type": {
+            "enum": [
+              "manual",
+              "sales",
+              "purchase",
+              "receipt",
+              "payment",
+              "adjustment",
+              "closing"
+            ],
+            "example": "manual",
+            "type": "string"
           }
         },
         "required": [
           "period_id",
-          "journal_date",
+          "date",
           "description",
-          "journal_type",
+          "type",
           "details"
         ],
         "type": "object"
@@ -16538,6 +16637,13 @@
       },
       "FiscalYearResponse": {
         "properties": {
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "company_id": {
+            "example": 1,
+            "type": "integer"
+          },
           "created_at": {
             "example": "2026-06-03 09:00:00",
             "type": "string"
@@ -16591,6 +16697,42 @@
           "updated_by_id": {
             "example": 1,
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "FiscalYearSimpleResponse": {
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "company_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "end_date": {
+            "example": "2025-12-31",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_closed": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "FY 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01",
+            "type": "string"
           }
         },
         "type": "object"
@@ -16656,6 +16798,9 @@
       },
       "JournalResponse": {
         "properties": {
+          "branch": {
+            "$ref": "#/components/schemas/BranchSimpleResponse"
+          },
           "branch_id": {
             "example": 1,
             "type": "integer"
@@ -16670,6 +16815,10 @@
           "created_by_id": {
             "example": 1,
             "type": "integer"
+          },
+          "date": {
+            "example": "2025-01-15",
+            "type": "string"
           },
           "deleted_at": {
             "example": "2026-06-03 11:00:00",
@@ -16695,10 +16844,6 @@
             "example": false,
             "type": "boolean"
           },
-          "journal_date": {
-            "example": "2025-01-15",
-            "type": "string"
-          },
           "journal_details": {
             "items": {
               "$ref": "#/components/schemas/JournalDetailResponse"
@@ -16709,9 +16854,8 @@
             "example": "JRN-2025-000001",
             "type": "string"
           },
-          "journal_type": {
-            "example": "M",
-            "type": "string"
+          "period": {
+            "$ref": "#/components/schemas/PeriodSimpleResponse"
           },
           "period_id": {
             "example": 1,
@@ -16738,6 +16882,19 @@
           },
           "reversing_id": {
             "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "manual",
+              "sales",
+              "purchase",
+              "receipt",
+              "payment",
+              "adjustment",
+              "closing"
+            ],
+            "example": "manuals",
+            "type": "string"
           },
           "updated_at": {
             "example": "2026-06-03 10:00:00",
@@ -17247,6 +17404,9 @@
             "example": 1,
             "type": "integer"
           },
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
           "created_at": {
             "example": "2026-06-03 09:00:00",
             "type": "string"
@@ -17269,6 +17429,9 @@
           "end_date": {
             "example": "2025-01-31",
             "type": "string"
+          },
+          "fiscal_year": {
+            "$ref": "#/components/schemas/FiscalYearSimpleResponse"
           },
           "fiscal_year_id": {
             "example": 1,
@@ -17304,6 +17467,45 @@
           "updated_by_id": {
             "example": 1,
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PeriodSimpleResponse": {
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/CompanySimpleResponse"
+          },
+          "end_date": {
+            "example": "2025-01-31",
+            "type": "string"
+          },
+          "fiscal_year": {
+            "$ref": "#/components/schemas/FiscalYearSimpleResponse"
+          },
+          "fiscal_year_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_closed": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "January 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01",
+            "type": "string"
           }
         },
         "type": "object"
@@ -19574,7 +19776,11 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
           }
         },
@@ -19702,10 +19908,6 @@
       },
       "UpdateChartOfAccountRequest": {
         "properties": {
-          "account_category_id": {
-            "example": 1,
-            "type": "integer"
-          },
           "account_type_id": {
             "example": 1,
             "type": "integer"
@@ -19731,7 +19933,11 @@
             "type": "string"
           },
           "normal_balance": {
-            "example": "D",
+            "enum": [
+              "debit",
+              "credit"
+            ],
+            "example": "debit",
             "type": "string"
           },
           "parent_id": {
@@ -19897,6 +20103,11 @@
       },
       "UpdateJournalRequest": {
         "properties": {
+          "date": {
+            "example": "2026-06-04",
+            "format": "date",
+            "type": "string"
+          },
           "description": {
             "example": "Payment for invoice INV-001",
             "type": "string"
@@ -19906,15 +20117,6 @@
               "$ref": "#/components/schemas/JournalDetailRequest"
             },
             "type": "array"
-          },
-          "journal_date": {
-            "example": "2025-01-15T00:00:00Z",
-            "format": "date-time",
-            "type": "string"
-          },
-          "journal_type": {
-            "example": "M",
-            "type": "string"
           },
           "period_id": {
             "example": 1,
@@ -19926,6 +20128,19 @@
           },
           "reference_type": {
             "example": "purchase_orders",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "manual",
+              "sales",
+              "purchase",
+              "receipt",
+              "payment",
+              "adjustment",
+              "closing"
+            ],
+            "example": "manual",
             "type": "string"
           }
         },

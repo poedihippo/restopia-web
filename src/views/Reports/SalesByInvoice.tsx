@@ -1,4 +1,5 @@
 'use client'
+import { formatDateShort } from '@/utils/date';
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
@@ -476,7 +477,7 @@ export default function SalesByInvoiceReport() {
                   <td style={tdBase}>{order.branch?.name ?? '—'}</td>
                   <td style={{ ...tdBase, whiteSpace: 'nowrap' }}>
                     {order.date
-                      ? new Date(order.date).toLocaleDateString('id-ID')
+                      ? formatDateShort(order.date)
                       : '—'}
                   </td>
                   <td style={{ ...tdBase, whiteSpace: 'nowrap' }}>

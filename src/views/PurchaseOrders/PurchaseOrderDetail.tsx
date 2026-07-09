@@ -1,4 +1,5 @@
 'use client'
+import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -435,12 +436,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             }}
           >
             {order.date
-              ? new Date(order.date).toLocaleDateString('id-ID', {
-                  weekday: 'long',
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })
+              ? formatDate(order.date)
               : '—'}
           </div>
         </div>
@@ -486,7 +482,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             </div>
             {order.created_at && (
               <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4, display: 'block' }}>
-                {new Date(order.created_at).toLocaleString('id-ID')}
+                {formatDateTime(order.created_at)}
               </span>
             )}
           </div>

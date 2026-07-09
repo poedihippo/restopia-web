@@ -1,3 +1,4 @@
+import { parseApiDate } from '@/utils/date';
 import { IPurchaseOrderDTO } from "@/@types/purchase-orders";
 import useMediaDeleteMutation from "@/hooks/media/useMediaDeleteMutation";
 import useMediaMutation from "@/hooks/media/useMediaMutation";
@@ -104,7 +105,7 @@ export const useEditPurchaseOrders = ({ id }: Props) => {
   useEffect(() => {
     form.reset({
       code: data?.code,
-      date: data?.date ? format(new Date(data.date), "yyyy-MM-dd") : "",
+      date: data?.date ? format((parseApiDate(data.date) || new Date()), "yyyy-MM-dd") : "",
       status: data?.status,
       supplier_id: data?.supplier_id ?? undefined,
       supplier_branch_id: data?.supplier_branch_id ?? undefined,

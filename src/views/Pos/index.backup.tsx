@@ -1,4 +1,5 @@
 'use client'
+import { formatDate, formatDateTime, parseApiDate } from '@/utils/date';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -622,7 +623,7 @@ export default function PosView() {
 
     setFulfillmentDate(
       order.fulfillment_date
-        ? new Date(order.fulfillment_date).toISOString().slice(0, 16)
+        ? (parseApiDate(order.fulfillment_date) || new Date()).toISOString().slice(0, 16)
         : todayISO()
     )
     setOrderNote(order.description ?? '')
@@ -1643,11 +1644,7 @@ export default function PosView() {
                             }}
                           >
                             Exp:{' '}
-                            {new Date(item.expiry_date).toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
+                            {formatDate(item.expiry_date)}
                             {lotCount > 1 && ' (earliest)'}
                           </span>
                         )}
@@ -2060,11 +2057,7 @@ export default function PosView() {
                             }}
                           >
                             Exp{' '}
-                            {new Date(item.expiry_date).toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
+                            {formatDate(item.expiry_date)}
                           </span>
                         )}
                         {item.lot_options && item.lot_options.length > 1 && (
@@ -3783,10 +3776,7 @@ export default function PosView() {
                   <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 8 }}>
                     📅 Pickup:{' '}
                     {order.fulfillment_date
-                      ? new Date(order.fulfillment_date).toLocaleString('id-ID', {
-                        day: '2-digit', month: 'short', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })
+                      ? formatDateTime(order.fulfillment_date)
                       : '—'}
                   </div>
 

@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/date';
 import { IProductInventories } from "@/@types/product-inventories";
 import { Button } from "@/components/ui/button";
 import { Column, DataTable } from "@/components/ui/data-table";
@@ -139,12 +140,12 @@ const ProductInventories = () => {
         title: "Expiry Date",
         key: "expiry_date",
         render: (value) =>
-          value ? format(new Date(value as string), "dd MMM yyyy") : "-",
+          value ? formatDate(value as string) : "-",
       },
       {
         title: "Created At",
         key: "created_at",
-        render: (value) => format(new Date(value as string), "dd MMM yyyy"),
+        render: (value) => formatDate(value as string),
       },
     ],
     [],

@@ -1,4 +1,5 @@
 'use client'
+import { formatDate } from '@/utils/date';
 
 import React, { useEffect } from 'react'
 import { useRouter } from 'next/router'
@@ -357,11 +358,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
             </span>
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
               {delivery.date
-                ? new Date(delivery.date).toLocaleDateString('id-ID', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric',
-                  })
+                ? formatDate(delivery.date)
                 : '—'}
             </span>
           </div>
@@ -514,11 +511,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                       }}
                     >
                       {r.date
-                        ? new Date(r.date).toLocaleDateString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })
+                        ? formatDate(r.date)
                         : '—'}
                     </td>
                     <td

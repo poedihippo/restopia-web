@@ -1,4 +1,5 @@
 'use client'
+import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -397,12 +398,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
             }}
           >
             {receipt.date
-              ? new Date(receipt.date).toLocaleDateString('id-ID', {
-                  weekday: 'long',
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })
+              ? formatDate(receipt.date)
               : '—'}
           </div>
         </div>
@@ -434,7 +430,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                   display: 'block',
                 }}
               >
-                {new Date(receipt.created_at).toLocaleString('id-ID')}
+                {formatDateTime(receipt.created_at)}
               </span>
             )}
           </div>
@@ -519,11 +515,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                     }}
                   >
                     {detail.planned_expiry_date
-                      ? new Date(detail.planned_expiry_date).toLocaleDateString('id-ID', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })
+                      ? formatDate(detail.planned_expiry_date)
                       : '—'}
                   </td>
                   <td

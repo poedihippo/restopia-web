@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/date';
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { RecipesModal } from "./Modal/RecipesModal";
 import useRecipes from "./useRecipes";
@@ -62,7 +63,7 @@ const Recipes = () => {
       {
         title: "Created At",
         key: "created_at",
-        render: (value) => format(new Date(value as string), "dd MMM yyyy"),
+        render: (value) => formatDate(value as string),
       },
     ],
     [],

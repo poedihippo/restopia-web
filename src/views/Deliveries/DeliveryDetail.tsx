@@ -1,4 +1,5 @@
 'use client'
+import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -500,12 +501,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
             }}
           >
             {delivery.date
-              ? new Date(delivery.date).toLocaleDateString('id-ID', {
-                  weekday: 'long',
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })
+              ? formatDate(delivery.date)
               : '—'}
           </div>
         </div>
@@ -537,7 +533,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                   display: 'block',
                 }}
               >
-                {new Date(delivery.created_at).toLocaleString('id-ID')}
+                {formatDateTime(delivery.created_at)}
               </span>
             )}
           </div>

@@ -739,13 +739,7 @@ export default function SalesOrderDetail() {
                 {payments.map((p: any) => {
                   const dateSrc = p.created_at ?? p.date
                   const dateStr = dateSrc
-                    ? new Date(dateSrc).toLocaleString('id-ID', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
+                    ? formatDateTime(dateSrc)
                     : '—'
                   const isDeleting =
                     deletePaymentMutation.isPending &&

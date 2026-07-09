@@ -1,4 +1,5 @@
 'use client'
+import { formatDate } from '@/utils/date';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -357,12 +358,7 @@ export default function VoucherDetail({ id }: VoucherDetailProps) {
             }}
           >
             {voucher.valid_from
-              ? new Date(voucher.valid_from).toLocaleDateString('id-ID', {
-                  weekday: 'long',
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })
+              ? formatDate(voucher.valid_from)
               : '—'}
           </div>
         </div>
@@ -383,12 +379,7 @@ export default function VoucherDetail({ id }: VoucherDetailProps) {
             }}
           >
             {voucher.valid_until
-              ? new Date(voucher.valid_until).toLocaleDateString('id-ID', {
-                  weekday: 'long',
-                  day: '2-digit',
-                  month: 'long',
-                  year: 'numeric',
-                })
+              ? formatDate(voucher.valid_until)
               : '—'}
           </div>
         </div>

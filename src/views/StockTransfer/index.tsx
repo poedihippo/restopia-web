@@ -1,4 +1,5 @@
 'use client'
+import { formatDate } from '@/utils/date';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -379,11 +380,7 @@ export default function StockTransferView() {
                               style={{ fontSize: 13, color: 'var(--foreground-muted)' }}
                             >
                               {item.date
-                                ? new Date(item.date).toLocaleDateString('id-ID', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric',
-                                  })
+                                ? formatDate(item.date)
                                 : '—'}
                             </span>
                           </td>
@@ -538,11 +535,7 @@ export default function StockTransferView() {
                             style={{ fontSize: 13, color: 'var(--foreground-muted)' }}
                           >
                             {item.date
-                              ? new Date(item.date).toLocaleDateString('id-ID', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                })
+                              ? formatDate(item.date)
                               : '—'}
                           </span>
                         </td>

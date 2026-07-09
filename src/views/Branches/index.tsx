@@ -1,4 +1,5 @@
 'use client'
+import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -334,11 +335,7 @@ export default function BranchesView() {
                   <td style={tdStyle}>
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                       {item.created_at
-                        ? new Date(item.created_at).toLocaleDateString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })
+                        ? formatDate(item.created_at)
                         : '—'}
                     </span>
                   </td>
@@ -615,7 +612,7 @@ export default function BranchesView() {
                 {
                   label: 'Created At',
                   value: selectedItem.created_at
-                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    ? formatDateTime(selectedItem.created_at)
                     : '—',
                 },
               ].map((f) => (

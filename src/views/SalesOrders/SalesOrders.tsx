@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/date';
 import React, { useCallback, useMemo } from 'react'
 import useSalesOrders from './useSalesOrders'
 import { Column, DataTable } from '@/components/ui/data-table';
@@ -81,7 +82,7 @@ const SalesOrders = () => {
             {
                 title: "Date",
                 key: "date",
-                render: (value) => format(new Date(value as string), "dd MMM yyyy"),
+                render: (value) => formatDate(value as string),
             },
             {
                 title: "Status",
@@ -94,7 +95,7 @@ const SalesOrders = () => {
             {
                 title: "Created At",
                 key: "created_at",
-                render: (value) => format(new Date(value as string), "dd MMM yyyy"),
+                render: (value) => formatDate(value as string),
             },
         ],
         [],

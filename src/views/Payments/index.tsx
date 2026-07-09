@@ -1,4 +1,5 @@
 'use client'
+import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -316,13 +317,7 @@ export default function PaymentsView() {
                   <td style={tdStyle}>
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                       {item.created_at
-                        ? new Date(item.created_at).toLocaleString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
+                        ? formatDateTime(item.created_at)
                         : '—'}
                     </span>
                   </td>

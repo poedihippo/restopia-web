@@ -1,4 +1,5 @@
 'use client'
+import { formatDateShort } from '@/utils/date';
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
@@ -480,7 +481,7 @@ export default function CreditReport() {
                   </td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                     {order.date
-                      ? new Date(order.date).toLocaleDateString('id-ID')
+                      ? formatDateShort(order.date)
                       : '—'}
                     {dt && (
                       <span style={{ color: 'var(--foreground-muted)', marginLeft: 6 }}>

@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/date';
 import { IProductConversions } from "@/@types/product-conversions";
 import { Button } from "@/components/ui/button";
 import { Column, DataTable } from "@/components/ui/data-table";
@@ -86,7 +87,7 @@ const ProductConversions = () => {
       {
         title: "Created At",
         key: "created_at",
-        render: (value) => format(new Date(value as string), "dd MMM yyyy"),
+        render: (value) => formatDate(value as string),
       },
     ],
     [],
