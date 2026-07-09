@@ -1,4 +1,5 @@
 'use client'
+import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -48,7 +49,7 @@ const thStyle: React.CSSProperties = {
   borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
 }
 const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
-const fmtDate = (d: string) => new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+const fmtDate = (d: string) => formatDate(d)
 
 export default function PeriodsView() {
   const queryClient = useQueryClient()

@@ -1,4 +1,5 @@
 'use client'
+import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -778,7 +779,7 @@ export default function UsersView() {
                 </span>
                 <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
                   {selectedItem.created_at
-                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    ? formatDateTime(selectedItem.created_at)
                     : '—'}
                 </span>
               </div>

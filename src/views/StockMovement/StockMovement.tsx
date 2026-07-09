@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/utils/date';
 import { IStockMovement } from "@/@types/stock-movements";
 import { Column, DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
@@ -91,7 +92,7 @@ const StockMovement = () => {
       {
         title: "Created At",
         key: "created_at",
-        render: (value) => format(new Date(value as string), "dd MMM yyyy HH:mm"),
+        render: (value) => formatDateTime(value as string),
       },
     ],
     [],

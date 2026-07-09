@@ -1,4 +1,5 @@
 'use client'
+import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -952,7 +953,7 @@ export default function ProductInventoriesView() {
                   {
                     label: 'Created At',
                     value: selectedItem.created_at
-                      ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                      ? formatDateTime(selectedItem.created_at)
                       : '—',
                   },
                 ].map((f) => (

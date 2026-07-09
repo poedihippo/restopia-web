@@ -1,4 +1,5 @@
 'use client'
+import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -352,11 +353,7 @@ export default function RolesView() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.created_at
-                          ? new Date(item.created_at).toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })
+                          ? formatDate(item.created_at)
                           : '—'}
                       </span>
                     </td>
@@ -701,7 +698,7 @@ export default function RolesView() {
                 </span>
                 <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
                   {selectedItem.created_at
-                    ? new Date(selectedItem.created_at).toLocaleString('id-ID')
+                    ? formatDateTime(selectedItem.created_at)
                     : '—'}
                 </span>
               </div>

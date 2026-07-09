@@ -1,4 +1,5 @@
 'use client'
+import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -436,13 +437,7 @@ export default function StockMovementView() {
                       }}
                     >
                       {item.created_at
-                        ? new Date(item.created_at).toLocaleString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
+                        ? formatDateTime(item.created_at)
                         : '—'}
                     </td>
                   </tr>

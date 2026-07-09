@@ -1,3 +1,4 @@
+import { parseApiDate } from '@/utils/date';
 import { ISalesOrderDTO } from "@/@types/sales-orders";
 import useMediaDeleteMutation from "@/hooks/media/useMediaDeleteMutation";
 import useMediaMutation from "@/hooks/media/useMediaMutation";
@@ -106,8 +107,8 @@ export const useEditSalesOrders = ({ id }: Props) => {
       customer_id: data?.customer_id ?? undefined,
       customer_name: data?.customer_name ?? undefined,
       customer_phone: data?.customer_phone ?? undefined,
-      date: data?.date ? format(new Date(data.date), "yyyy-MM-dd") : "",
-      fulfillment_date: data?.fulfillment_date ? format(new Date(data.fulfillment_date), "yyyy-MM-dd'T'HH:mm") : "",
+      date: data?.date ? format((parseApiDate(data.date) || new Date()), "yyyy-MM-dd") : "",
+      fulfillment_date: data?.fulfillment_date ? format((parseApiDate(data.fulfillment_date) || new Date()), "yyyy-MM-dd'T'HH:mm") : "",
       voucher_id: data?.voucher_id ?? undefined,
       subtotal_price: data?.subtotal_price,
       discount_price: data?.discount_price,

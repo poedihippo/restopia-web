@@ -1,3 +1,4 @@
+import { formatDate } from '@/utils/date';
 import React from 'react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 
@@ -342,11 +343,7 @@ export default function PosProductGrid({
                           }}
                         >
                           Exp:{' '}
-                          {new Date(item.expiry_date).toLocaleDateString('id-ID', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
+                          {formatDate(item.expiry_date)}
                           {lotCount > 1 && ' (earliest)'}
                         </span>
                       )}

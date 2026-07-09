@@ -1,4 +1,5 @@
 'use client'
+import { formatDate, formatDateShort } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -422,11 +423,7 @@ export default function ProductionsView() {
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {item.date
-                      ? new Date(item.date).toLocaleDateString('id-ID', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })
+                      ? formatDate(item.date)
                       : '—'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
@@ -457,7 +454,7 @@ export default function ProductionsView() {
                     {item.production_details?.length ?? 0}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID') : '—'}
+                    {item.created_at ? formatDateShort(item.created_at) : '—'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>

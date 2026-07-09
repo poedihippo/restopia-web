@@ -1,4 +1,5 @@
 'use client'
+import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -214,7 +215,7 @@ export default function AccountCategoriesView() {
                   </td>
                   <td style={tdStyle}>
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      {item.created_at ? formatDate(item.created_at) : '—'}
                     </span>
                   </td>
                   <td style={tdStyle}>

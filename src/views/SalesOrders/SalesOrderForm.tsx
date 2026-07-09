@@ -1,4 +1,5 @@
 'use client'
+import { parseApiDate } from '@/utils/date';
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
@@ -51,7 +52,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const [date, setDate] = useState(editingOrder?.date ?? today)
   const [fulfillmentDate, setFulfillmentDate] = useState(
     editingOrder?.fulfillment_date
-      ? new Date(editingOrder.fulfillment_date).toISOString().slice(0, 16)
+      ? (parseApiDate(editingOrder.fulfillment_date) || new Date()).toISOString().slice(0, 16)
       : todayDateTime
   )
   const [status, setStatus] = useState<'pending' | 'final'>(editingOrder?.status ?? 'pending')

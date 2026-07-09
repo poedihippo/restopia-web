@@ -1,4 +1,5 @@
 'use client'
+import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -390,22 +391,14 @@ export default function VouchersView() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.valid_from
-                          ? new Date(item.valid_from).toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })
+                          ? formatDate(item.valid_from)
                           : '—'}
                       </span>
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.valid_until
-                          ? new Date(item.valid_until).toLocaleDateString('id-ID', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })
+                          ? formatDate(item.valid_until)
                           : '—'}
                       </span>
                     </td>

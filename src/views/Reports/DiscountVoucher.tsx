@@ -1,4 +1,5 @@
 'use client'
+import { formatDateShort } from '@/utils/date';
 
 import React, { useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
@@ -448,7 +449,7 @@ export default function DiscountVoucherReport() {
                   <td style={tdStyle}>{order.branch?.name ?? '—'}</td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                     {order.date
-                      ? new Date(order.date).toLocaleDateString('id-ID')
+                      ? formatDateShort(order.date)
                       : '—'}
                   </td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
