@@ -5,6 +5,684 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/v1/account-categories": {
+      "get": {
+        "description": "",
+        "operationId": "listAccountCategories",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "example": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "example": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated relations: created_by, updated_by",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "example": "created_by,updated_by",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort by field (prefix - for desc): id, code, name, created_at",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by normal_balance",
+            "in": "query",
+            "name": "filter[normal_balance]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/AccountCategoryResponse"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Account Categories",
+        "tags": [
+          "Accounting - Account Categories"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createAccountCategory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data created successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Account Category",
+        "tags": [
+          "Accounting - Account Categories"
+        ]
+      }
+    },
+    "/v1/account-categories/{id}": {
+      "delete": {
+        "description": "",
+        "operationId": "deleteAccountCategory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data deleted successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Account Category",
+        "tags": [
+          "Accounting - Account Categories"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "findAccountCategory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AccountCategoryResponse"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find Account Category",
+        "tags": [
+          "Accounting - Account Categories"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "updateAccountCategory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update Account Category",
+        "tags": [
+          "Accounting - Account Categories"
+        ]
+      }
+    },
+    "/v1/account-types": {
+      "get": {
+        "description": "",
+        "operationId": "listAccountTypes",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "example": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "example": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated relations: created_by, updated_by",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "example": "created_by,updated_by",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort by field (prefix - for desc): id, code, name, created_at",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by account_category_id",
+            "in": "query",
+            "name": "filter[account_category_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/AccountTypeResponse"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Account Types",
+        "tags": [
+          "Accounting - Account Types"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createAccountType",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data created successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Account Type",
+        "tags": [
+          "Accounting - Account Types"
+        ]
+      }
+    },
+    "/v1/account-types/{id}": {
+      "delete": {
+        "description": "",
+        "operationId": "deleteAccountType",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data deleted successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Account Type",
+        "tags": [
+          "Accounting - Account Types"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "findAccountType",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/AccountTypeResponse"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find Account Type",
+        "tags": [
+          "Accounting - Account Types"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "updateAccountType",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccountTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update Account Type",
+        "tags": [
+          "Accounting - Account Types"
+        ]
+      }
+    },
     "/v1/ai/query": {
       "post": {
         "description": "",
@@ -103,24 +781,6 @@
             }
           },
           {
-            "description": "Filter by action",
-            "in": "query",
-            "name": "filter[action]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by reference_type",
-            "in": "query",
-            "name": "filter[reference_type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by reference_id",
             "in": "query",
             "name": "filter[reference_id]",
@@ -160,6 +820,24 @@
             "description": "Filter by branch_id",
             "in": "query",
             "name": "filter[branch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by action",
+            "in": "query",
+            "name": "filter[action]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by reference_type",
+            "in": "query",
+            "name": "filter[reference_type]",
             "required": false,
             "schema": {
               "type": "string"
@@ -544,18 +1222,18 @@
             }
           },
           {
-            "description": "Filter by search",
+            "description": "Filter by company_id",
             "in": "query",
-            "name": "filter[search]",
+            "name": "filter[company_id]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by company_id",
+            "description": "Filter by search",
             "in": "query",
-            "name": "filter[company_id]",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -837,6 +1515,345 @@
         ]
       }
     },
+    "/v1/budgets": {
+      "get": {
+        "description": "",
+        "operationId": "listBudgets",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "example": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "example": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated relations: created_by, updated_by",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "example": "created_by,updated_by",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort by field (prefix - for desc): id, amount, created_at",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by chart_of_account_id",
+            "in": "query",
+            "name": "filter[chart_of_account_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by period_id",
+            "in": "query",
+            "name": "filter[period_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/BudgetResponse"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Budgets",
+        "tags": [
+          "Accounting - Budgets"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createBudget",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBudgetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data created successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Budget",
+        "tags": [
+          "Accounting - Budgets"
+        ]
+      }
+    },
+    "/v1/budgets/{id}": {
+      "delete": {
+        "description": "",
+        "operationId": "deleteBudget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data deleted successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Budget",
+        "tags": [
+          "Accounting - Budgets"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "findBudget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/BudgetResponse"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find Budget",
+        "tags": [
+          "Accounting - Budgets"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "updateBudget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBudgetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update Budget",
+        "tags": [
+          "Accounting - Budgets"
+        ]
+      }
+    },
     "/v1/bundles": {
       "get": {
         "description": "",
@@ -863,12 +1880,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, media, bundle_details",
+            "description": "Comma-separated relations: updated_by, media, bundle_details, created_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,media,bundle_details",
+              "example": "updated_by,media,bundle_details,created_by",
               "type": "string"
             }
           },
@@ -883,18 +1900,18 @@
             }
           },
           {
-            "description": "Filter by search",
+            "description": "Filter by status",
             "in": "query",
-            "name": "filter[search]",
+            "name": "filter[status]",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Filter by status",
+            "description": "Filter by search",
             "in": "query",
-            "name": "filter[status]",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -1173,6 +2190,390 @@
         "summary": "Update Bundle",
         "tags": [
           "Bundles"
+        ]
+      }
+    },
+    "/v1/chart-of-accounts": {
+      "get": {
+        "description": "",
+        "operationId": "listChartOfAccounts",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "example": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "example": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated relations: account_type, parent, children, created_by, updated_by, account_category",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "example": "account_type,parent,children,created_by,updated_by,account_category",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort by field (prefix - for desc): id, code, name, created_at",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_header",
+            "in": "query",
+            "name": "filter[is_header]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_active",
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by normal_balance",
+            "in": "query",
+            "name": "filter[normal_balance]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by account_category_id",
+            "in": "query",
+            "name": "filter[account_category_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by account_type_id",
+            "in": "query",
+            "name": "filter[account_type_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by parent_id",
+            "in": "query",
+            "name": "filter[parent_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/ChartOfAccountResponse"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Chart of Accounts",
+        "tags": [
+          "Accounting - Chart of Accounts"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createChartOfAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChartOfAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data created successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Chart of Account",
+        "tags": [
+          "Accounting - Chart of Accounts"
+        ]
+      }
+    },
+    "/v1/chart-of-accounts/{id}": {
+      "delete": {
+        "description": "",
+        "operationId": "deleteChartOfAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data deleted successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Chart of Account",
+        "tags": [
+          "Accounting - Chart of Accounts"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "findChartOfAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/ChartOfAccountResponse"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find Chart of Account",
+        "tags": [
+          "Accounting - Chart of Accounts"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "updateChartOfAccount",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChartOfAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update Chart of Account",
+        "tags": [
+          "Accounting - Chart of Accounts"
         ]
       }
     },
@@ -1542,12 +2943,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by",
+            "description": "Comma-separated relations: updated_by, created_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by",
+              "example": "updated_by,created_by",
               "type": "string"
             }
           },
@@ -1944,12 +3345,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, target_branch, purchase_order, sales_order, media, delivery_details, created_by",
+            "description": "Comma-separated relations: target_branch, purchase_order, sales_order, media, delivery_details, created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,target_branch,purchase_order,sales_order,media,delivery_details,created_by",
+              "example": "target_branch,purchase_order,sales_order,media,delivery_details,created_by,updated_by",
               "type": "string"
             }
           },
@@ -2000,6 +3401,24 @@
             }
           },
           {
+            "description": "Filter by date_gte",
+            "in": "query",
+            "name": "filter[date_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by search",
             "in": "query",
             "name": "filter[search]",
@@ -2018,27 +3437,9 @@
             }
           },
           {
-            "description": "Filter by date_gte",
-            "in": "query",
-            "name": "filter[date_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by date_lte",
             "in": "query",
             "name": "filter[date_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by status",
-            "in": "query",
-            "name": "filter[status]",
             "required": false,
             "schema": {
               "type": "string"
@@ -2320,6 +3721,784 @@
         ]
       }
     },
+    "/v1/fiscal-years": {
+      "get": {
+        "description": "",
+        "operationId": "listFiscalYears",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "example": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "example": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated relations: updated_by, created_by",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "example": "updated_by,created_by",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort by field (prefix - for desc): id, name, start_date, end_date, created_at",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_active",
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_closed",
+            "in": "query",
+            "name": "filter[is_closed]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/FiscalYearResponse"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Fiscal Years",
+        "tags": [
+          "Accounting - Fiscal Years"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createFiscalYear",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFiscalYearRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data created successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Fiscal Year",
+        "tags": [
+          "Accounting - Fiscal Years"
+        ]
+      }
+    },
+    "/v1/fiscal-years/{id}": {
+      "delete": {
+        "description": "",
+        "operationId": "deleteFiscalYear",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data deleted successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Fiscal Year",
+        "tags": [
+          "Accounting - Fiscal Years"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "findFiscalYear",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/FiscalYearResponse"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find Fiscal Year",
+        "tags": [
+          "Accounting - Fiscal Years"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "updateFiscalYear",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFiscalYearRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update Fiscal Year",
+        "tags": [
+          "Accounting - Fiscal Years"
+        ]
+      }
+    },
+    "/v1/journals": {
+      "get": {
+        "description": "",
+        "operationId": "listJournals",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "example": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "example": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated relations: created_by, updated_by, posted_by, journal_details, journal_details.chart_of_account",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "example": "created_by,updated_by,posted_by,journal_details,journal_details.chart_of_account",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort by field (prefix - for desc): id, journal_number, journal_date, created_at",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by period_id",
+            "in": "query",
+            "name": "filter[period_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by journal_type",
+            "in": "query",
+            "name": "filter[journal_type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_posted",
+            "in": "query",
+            "name": "filter[is_posted]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_reversed",
+            "in": "query",
+            "name": "filter[is_reversed]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by journal_date",
+            "in": "query",
+            "name": "filter[journal_date]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/JournalResponse"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Journals",
+        "tags": [
+          "Accounting - Journals"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createJournal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJournalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data created successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Journal",
+        "tags": [
+          "Accounting - Journals"
+        ]
+      }
+    },
+    "/v1/journals/{id}": {
+      "delete": {
+        "description": "",
+        "operationId": "deleteJournal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data deleted successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Journal",
+        "tags": [
+          "Accounting - Journals"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "findJournal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/JournalResponse"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find Journal",
+        "tags": [
+          "Accounting - Journals"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "updateJournal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateJournalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update Journal",
+        "tags": [
+          "Accounting - Journals"
+        ]
+      }
+    },
+    "/v1/journals/{id}/post": {
+      "post": {
+        "description": "",
+        "operationId": "postJournal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Post Journal",
+        "tags": [
+          "Accounting - Journals"
+        ]
+      }
+    },
     "/v1/media": {
       "get": {
         "description": "",
@@ -2366,24 +4545,6 @@
             }
           },
           {
-            "description": "Filter by collection_name",
-            "in": "query",
-            "name": "filter[collection_name]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by disk",
-            "in": "query",
-            "name": "filter[disk]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by search",
             "in": "query",
             "name": "filter[search]",
@@ -2396,6 +4557,24 @@
             "description": "Filter by media_type",
             "in": "query",
             "name": "filter[media_type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by collection_name",
+            "in": "query",
+            "name": "filter[collection_name]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by disk",
+            "in": "query",
+            "name": "filter[disk]",
             "required": false,
             "schema": {
               "type": "string"
@@ -2634,12 +4813,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, created_by",
+            "description": "Comma-separated relations: created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,created_by",
+              "example": "created_by,updated_by",
               "type": "string"
             }
           },
@@ -3626,12 +5805,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: sales_order, payment_method, created_by, updated_by",
+            "description": "Comma-separated relations: updated_by, sales_order, payment_method, created_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "sales_order,payment_method,created_by,updated_by",
+              "example": "updated_by,sales_order,payment_method,created_by",
               "type": "string"
             }
           },
@@ -3642,6 +5821,15 @@
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by sales_order_type",
+            "in": "query",
+            "name": "filter[sales_order_type]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -3676,15 +5864,6 @@
             "description": "Filter by payment_method_id",
             "in": "query",
             "name": "filter[payment_method_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by sales_order_type",
-            "in": "query",
-            "name": "filter[sales_order_type]",
             "required": false,
             "schema": {
               "type": "string"
@@ -3963,6 +6142,363 @@
         "summary": "Update Payment",
         "tags": [
           "Payments"
+        ]
+      }
+    },
+    "/v1/periods": {
+      "get": {
+        "description": "",
+        "operationId": "listPeriods",
+        "parameters": [
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "example": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "example": 10,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Comma-separated relations: created_by, updated_by, closed_by",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "example": "created_by,updated_by,closed_by",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Sort by field (prefix - for desc): id, name, start_date, end_date, created_at",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_active",
+            "in": "query",
+            "name": "filter[is_active]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by is_closed",
+            "in": "query",
+            "name": "filter[is_closed]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by fiscal_year_id",
+            "in": "query",
+            "name": "filter[fiscal_year_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/PeriodResponse"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/Meta"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List Periods",
+        "tags": [
+          "Accounting - Periods"
+        ]
+      },
+      "post": {
+        "description": "",
+        "operationId": "createPeriod",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data created successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create Period",
+        "tags": [
+          "Accounting - Periods"
+        ]
+      }
+    },
+    "/v1/periods/{id}": {
+      "delete": {
+        "description": "",
+        "operationId": "deletePeriod",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data deleted successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Delete Period",
+        "tags": [
+          "Accounting - Periods"
+        ]
+      },
+      "get": {
+        "description": "",
+        "operationId": "findPeriod",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/PeriodResponse"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find Period",
+        "tags": [
+          "Accounting - Periods"
+        ]
+      },
+      "patch": {
+        "description": "",
+        "operationId": "updatePeriod",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "example": "Data updated successfully",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update Period",
+        "tags": [
+          "Accounting - Periods"
         ]
       }
     },
@@ -4358,12 +6894,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, product, uom, target_uom, created_by",
+            "description": "Comma-separated relations: created_by, updated_by, product, uom, target_uom",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,product,uom,target_uom,created_by",
+              "example": "created_by,updated_by,product,uom,target_uom",
               "type": "string"
             }
           },
@@ -4580,12 +7116,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, product, uom, target_uom",
+            "description": "Comma-separated relations: target_uom, created_by, updated_by, product, uom",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,product,uom,target_uom",
+              "example": "target_uom,created_by,updated_by,product,uom",
               "type": "string"
             }
           }
@@ -4725,12 +7261,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, product_uom_batch",
+            "description": "Comma-separated relations: product_uom_batch, created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,product_uom_batch",
+              "example": "product_uom_batch,created_by,updated_by",
               "type": "string"
             }
           },
@@ -4745,9 +7281,36 @@
             }
           },
           {
-            "description": "Filter by online_price_gte",
+            "description": "Filter by branch_id",
             "in": "query",
-            "name": "filter[online_price_gte]",
+            "name": "filter[branch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by base_price_lte",
+            "in": "query",
+            "name": "filter[base_price_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by price_editable",
+            "in": "query",
+            "name": "filter[price_editable]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by stock_gte",
+            "in": "query",
+            "name": "filter[stock_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -4781,27 +7344,9 @@
             }
           },
           {
-            "description": "Filter by base_price_lte",
+            "description": "Filter by online_price_gte",
             "in": "query",
-            "name": "filter[base_price_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by online_price_lte",
-            "in": "query",
-            "name": "filter[online_price_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by stock_gte",
-            "in": "query",
-            "name": "filter[stock_gte]",
+            "name": "filter[online_price_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -4817,27 +7362,18 @@
             }
           },
           {
-            "description": "Filter by price_editable",
-            "in": "query",
-            "name": "filter[price_editable]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by expiry_date_gte",
-            "in": "query",
-            "name": "filter[expiry_date_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by product_uom_batch_id",
             "in": "query",
             "name": "filter[product_uom_batch_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by online_price_lte",
+            "in": "query",
+            "name": "filter[online_price_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -4853,27 +7389,27 @@
             }
           },
           {
-            "description": "Filter by product_category_id",
-            "in": "query",
-            "name": "filter[product_category_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by branch_id",
-            "in": "query",
-            "name": "filter[branch_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by base_price_gte",
             "in": "query",
             "name": "filter[base_price_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by expiry_date_gte",
+            "in": "query",
+            "name": "filter[expiry_date_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by product_category_id",
+            "in": "query",
+            "name": "filter[product_category_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -5125,12 +7661,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, product_uom",
+            "description": "Comma-separated relations: product_uom, created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,product_uom",
+              "example": "product_uom,created_by,updated_by",
               "type": "string"
             }
           },
@@ -5141,15 +7677,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by product_uom_id",
-            "in": "query",
-            "name": "filter[product_uom_id]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -5193,6 +7720,15 @@
             "description": "Filter by search",
             "in": "query",
             "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by product_uom_id",
+            "in": "query",
+            "name": "filter[product_uom_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -5365,12 +7901,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, product_uom, created_by",
+            "description": "Comma-separated relations: created_by, updated_by, product_uom",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,product_uom,created_by",
+              "example": "created_by,updated_by,product_uom",
               "type": "string"
             }
           }
@@ -5539,9 +8075,9 @@
             }
           },
           {
-            "description": "Filter by product_id",
+            "description": "Filter by base_price_lte",
             "in": "query",
-            "name": "filter[product_id]",
+            "name": "filter[base_price_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -5566,6 +8102,15 @@
             }
           },
           {
+            "description": "Filter by product_id",
+            "in": "query",
+            "name": "filter[product_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by uom_id",
             "in": "query",
             "name": "filter[uom_id]",
@@ -5578,15 +8123,6 @@
             "description": "Filter by base_price_gte",
             "in": "query",
             "name": "filter[base_price_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by base_price_lte",
-            "in": "query",
-            "name": "filter[base_price_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -5922,12 +8458,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, media, production_details",
+            "description": "Comma-separated relations: media, production_details, created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,media,production_details",
+              "example": "media,production_details,created_by,updated_by",
               "type": "string"
             }
           },
@@ -5938,24 +8474,6 @@
             "required": false,
             "schema": {
               "example": "id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by status",
-            "in": "query",
-            "name": "filter[status]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
               "type": "string"
             }
           },
@@ -5981,6 +8499,24 @@
             "description": "Filter by date_lte",
             "in": "query",
             "name": "filter[date_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -6308,15 +8844,6 @@
             }
           },
           {
-            "description": "Filter by type",
-            "in": "query",
-            "name": "filter[type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by search",
             "in": "query",
             "name": "filter[search]",
@@ -6329,6 +8856,15 @@
             "description": "Filter by product_category_id",
             "in": "query",
             "name": "filter[product_category_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by type",
+            "in": "query",
+            "name": "filter[type]",
             "required": false,
             "schema": {
               "type": "string"
@@ -6636,12 +9172,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: supplier, supplier_branch, supplier_branch.company, media, purchase_order_details, created_by, updated_by",
+            "description": "Comma-separated relations: supplier_branch, supplier_branch.company, media, purchase_order_details, created_by, updated_by, supplier",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "supplier,supplier_branch,supplier_branch.company,media,purchase_order_details,created_by,updated_by",
+              "example": "supplier_branch,supplier_branch.company,media,purchase_order_details,created_by,updated_by,supplier",
               "type": "string"
             }
           },
@@ -7136,12 +9672,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: receipt_details, created_by, updated_by, delivery, media",
+            "description": "Comma-separated relations: media, receipt_details, created_by, updated_by, delivery",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "receipt_details,created_by,updated_by,delivery,media",
+              "example": "media,receipt_details,created_by,updated_by,delivery",
               "type": "string"
             }
           },
@@ -7152,6 +9688,24 @@
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by delivery_id",
+            "in": "query",
+            "name": "filter[delivery_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by date_gte",
+            "in": "query",
+            "name": "filter[date_gte]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -7195,24 +9749,6 @@
             "description": "Filter by target_branch_id",
             "in": "query",
             "name": "filter[target_branch_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by delivery_id",
-            "in": "query",
-            "name": "filter[delivery_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by date_gte",
-            "in": "query",
-            "name": "filter[date_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -7540,6 +10076,15 @@
             }
           },
           {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by product_uom_id",
             "in": "query",
             "name": "filter[product_uom_id]",
@@ -7552,15 +10097,6 @@
             "description": "Filter by is_default",
             "in": "query",
             "name": "filter[is_default]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -8381,12 +10917,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: sales_order_details, created_by, updated_by, shift, customer, credit_by, media",
+            "description": "Comma-separated relations: created_by, updated_by, shift, customer, credit_by, media, sales_order_details",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "sales_order_details,created_by,updated_by,shift,customer,credit_by,media",
+              "example": "created_by,updated_by,shift,customer,credit_by,media,sales_order_details",
               "type": "string"
             }
           },
@@ -8397,6 +10933,96 @@
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by payment_status",
+            "in": "query",
+            "name": "filter[payment_status]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by type",
+            "in": "query",
+            "name": "filter[type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by date_lte",
+            "in": "query",
+            "name": "filter[date_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by settlement_at_lte",
+            "in": "query",
+            "name": "filter[settlement_at_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by customer_id",
+            "in": "query",
+            "name": "filter[customer_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by fulfillment_date_gte",
+            "in": "query",
+            "name": "filter[fulfillment_date_gte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by settlement_status",
+            "in": "query",
+            "name": "filter[settlement_status]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by settlement_at_gte",
+            "in": "query",
+            "name": "filter[settlement_at_gte]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -8428,18 +11054,9 @@
             }
           },
           {
-            "description": "Filter by date_lte",
+            "description": "Filter by date_gte",
             "in": "query",
-            "name": "filter[date_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by fulfillment_date_gte",
-            "in": "query",
-            "name": "filter[fulfillment_date_gte]",
+            "name": "filter[date_gte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -8455,90 +11072,9 @@
             }
           },
           {
-            "description": "Filter by payment_status",
-            "in": "query",
-            "name": "filter[payment_status]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by customer_id",
-            "in": "query",
-            "name": "filter[customer_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by date_gte",
-            "in": "query",
-            "name": "filter[date_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by settlement_at_gte",
-            "in": "query",
-            "name": "filter[settlement_at_gte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by type",
-            "in": "query",
-            "name": "filter[type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by status",
-            "in": "query",
-            "name": "filter[status]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by credit_by_id",
             "in": "query",
             "name": "filter[credit_by_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by settlement_status",
-            "in": "query",
-            "name": "filter[settlement_status]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by settlement_at_lte",
-            "in": "query",
-            "name": "filter[settlement_at_lte]",
             "required": false,
             "schema": {
               "type": "string"
@@ -9331,6 +11867,15 @@
             }
           },
           {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by branch_id",
             "in": "query",
             "name": "filter[branch_id]",
@@ -9352,15 +11897,6 @@
             "description": "Filter by shift_rule_id",
             "in": "query",
             "name": "filter[shift_rule_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
             "required": false,
             "schema": {
               "type": "string"
@@ -10072,12 +12608,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: updated_by, created_by",
+            "description": "Comma-separated relations: created_by, updated_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "updated_by,created_by",
+              "example": "created_by,updated_by",
               "type": "string"
             }
           }
@@ -10547,12 +13083,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: permissions, branches, created_by, updated_by, roles",
+            "description": "Comma-separated relations: created_by, updated_by, roles, permissions, branches",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "permissions,branches,created_by,updated_by,roles",
+              "example": "created_by,updated_by,roles,permissions,branches",
               "type": "string"
             }
           },
@@ -10563,6 +13099,15 @@
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by branch_id",
+            "in": "query",
+            "name": "filter[branch_id]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -10579,15 +13124,6 @@
             "description": "Filter by type",
             "in": "query",
             "name": "filter[type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by branch_id",
-            "in": "query",
-            "name": "filter[branch_id]",
             "required": false,
             "schema": {
               "type": "string"
@@ -10760,12 +13296,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: created_by, updated_by, roles, permissions, branches",
+            "description": "Comma-separated relations: updated_by, roles, permissions, branches, created_by",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "created_by,updated_by,roles,permissions,branches",
+              "example": "updated_by,roles,permissions,branches,created_by",
               "type": "string"
             }
           }
@@ -10905,12 +13441,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: voucher_product_uoms, created_by, updated_by, activated_by, voucher_branches",
+            "description": "Comma-separated relations: created_by, updated_by, activated_by, voucher_branches, voucher_product_uoms",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "voucher_product_uoms,created_by,updated_by,activated_by,voucher_branches",
+              "example": "created_by,updated_by,activated_by,voucher_branches,voucher_product_uoms",
               "type": "string"
             }
           },
@@ -10921,6 +13457,60 @@
             "required": false,
             "schema": {
               "example": "id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by search",
+            "in": "query",
+            "name": "filter[search]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by discount_type",
+            "in": "query",
+            "name": "filter[discount_type]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by valid_until_lte",
+            "in": "query",
+            "name": "filter[valid_until_lte]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by status",
+            "in": "query",
+            "name": "filter[status]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by company_id",
+            "in": "query",
+            "name": "filter[company_id]",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by scope",
+            "in": "query",
+            "name": "filter[scope]",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           },
@@ -10961,63 +13551,9 @@
             }
           },
           {
-            "description": "Filter by status",
-            "in": "query",
-            "name": "filter[status]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by search",
-            "in": "query",
-            "name": "filter[search]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by company_id",
-            "in": "query",
-            "name": "filter[company_id]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by discount_type",
-            "in": "query",
-            "name": "filter[discount_type]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by valid_until_lte",
-            "in": "query",
-            "name": "filter[valid_until_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "description": "Filter by activated_at_lte",
             "in": "query",
             "name": "filter[activated_at_lte]",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by scope",
-            "in": "query",
-            "name": "filter[scope]",
             "required": false,
             "schema": {
               "type": "string"
@@ -11190,12 +13726,12 @@
             }
           },
           {
-            "description": "Comma-separated relations: activated_by, voucher_branches, voucher_product_uoms, created_by, updated_by",
+            "description": "Comma-separated relations: voucher_product_uoms, created_by, updated_by, activated_by, voucher_branches",
             "in": "query",
             "name": "include",
             "required": false,
             "schema": {
-              "example": "activated_by,voucher_branches,voucher_product_uoms,created_by,updated_by",
+              "example": "voucher_product_uoms,created_by,updated_by,activated_by,voucher_branches",
               "type": "string"
             }
           }
@@ -11367,6 +13903,150 @@
   },
   "components": {
     "schemas": {
+      "AccountCategoryResponse": {
+        "properties": {
+          "code": {
+            "example": "ASSET",
+            "type": "string"
+          },
+          "created_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "created_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "deleted_at": {
+            "example": "2026-06-03 11:00:00",
+            "type": "string"
+          },
+          "deleted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "name": {
+            "example": "Asset",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          },
+          "updated_at": {
+            "example": "2026-06-03 10:00:00",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "updated_by_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AccountCategorySimpleResponse": {
+        "properties": {
+          "code": {
+            "example": "ASSET",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "name": {
+            "example": "Asset",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AccountTypeResponse": {
+        "properties": {
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "CURRENT_ASSET",
+            "type": "string"
+          },
+          "created_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "created_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "deleted_at": {
+            "example": "2026-06-03 11:00:00",
+            "type": "string"
+          },
+          "deleted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "name": {
+            "example": "Current Asset",
+            "type": "string"
+          },
+          "updated_at": {
+            "example": "2026-06-03 10:00:00",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "updated_by_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AccountTypeSimpleResponse": {
+        "properties": {
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "CURRENT_ASSET",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "name": {
+            "example": "Current Asset",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AiResponse": {
         "properties": {
           "data": {
@@ -11473,7 +14153,14 @@
               "vouchers",
               "sales_orders",
               "payment_methods",
-              "payments"
+              "payments",
+              "account_categories",
+              "account_types",
+              "chart_of_accounts",
+              "fiscal_years",
+              "periods",
+              "journals",
+              "budgets"
             ],
             "example": "company",
             "type": "string"
@@ -11583,6 +14270,57 @@
             ],
             "example": "Asia/Jakarta",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BudgetResponse": {
+        "properties": {
+          "amount": {
+            "example": 10000000,
+            "type": "integer"
+          },
+          "chart_of_account_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "created_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "created_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "deleted_at": {
+            "example": "2026-06-03 11:00:00",
+            "type": "string"
+          },
+          "deleted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "period_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "updated_at": {
+            "example": "2026-06-03 10:00:00",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "updated_by_id": {
+            "example": 1,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -11732,6 +14470,132 @@
         ],
         "type": "object"
       },
+      "ChartOfAccountResponse": {
+        "properties": {
+          "account_category": {
+            "$ref": "#/components/schemas/AccountCategorySimpleResponse"
+          },
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "account_type": {
+            "$ref": "#/components/schemas/AccountTypeSimpleResponse"
+          },
+          "account_type_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "1-1000",
+            "type": "string"
+          },
+          "created_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "created_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "deleted_at": {
+            "example": "2026-06-03 11:00:00",
+            "type": "string"
+          },
+          "deleted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "description": {
+            "example": "Cash on hand",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_header": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "Cash",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "example": "2026-06-03 10:00:00",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "updated_by_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ChartOfAccountSimpleResponse": {
+        "properties": {
+          "account_category": {
+            "$ref": "#/components/schemas/AccountCategorySimpleResponse"
+          },
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "account_type": {
+            "$ref": "#/components/schemas/AccountTypeSimpleResponse"
+          },
+          "account_type_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "1-1000",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_header": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "Cash",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "CompanyResponse": {
         "properties": {
           "created_at": {
@@ -11804,6 +14668,50 @@
         },
         "type": "object"
       },
+      "CreateAccountCategoryRequest": {
+        "properties": {
+          "code": {
+            "example": "ASSET",
+            "type": "string"
+          },
+          "name": {
+            "example": "Asset",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "normal_balance"
+        ],
+        "type": "object"
+      },
+      "CreateAccountTypeRequest": {
+        "properties": {
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "CURRENT_ASSET",
+            "type": "string"
+          },
+          "name": {
+            "example": "Current Asset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_category_id",
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
       "CreateBranchRequest": {
         "properties": {
           "code": {
@@ -11834,6 +14742,28 @@
           "name",
           "timezone",
           "is_default"
+        ],
+        "type": "object"
+      },
+      "CreateBudgetRequest": {
+        "properties": {
+          "amount": {
+            "example": 10000000,
+            "type": "integer"
+          },
+          "chart_of_account_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "period_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "period_id",
+          "chart_of_account_id",
+          "amount"
         ],
         "type": "object"
       },
@@ -11892,6 +14822,53 @@
           "name",
           "status",
           "details"
+        ],
+        "type": "object"
+      },
+      "CreateChartOfAccountRequest": {
+        "properties": {
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "account_type_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "1-1000",
+            "type": "string"
+          },
+          "description": {
+            "example": "Cash on hand",
+            "type": "string"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_header": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "Cash",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "account_category_id",
+          "account_type_id",
+          "code",
+          "name",
+          "normal_balance"
         ],
         "type": "object"
       },
@@ -12039,6 +15016,73 @@
         ],
         "type": "object"
       },
+      "CreateFiscalYearRequest": {
+        "properties": {
+          "end_date": {
+            "example": "2025-12-31T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "example": "FY 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "start_date",
+          "end_date"
+        ],
+        "type": "object"
+      },
+      "CreateJournalRequest": {
+        "properties": {
+          "description": {
+            "example": "Payment for invoice INV-001",
+            "type": "string"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/JournalDetailRequest"
+            },
+            "type": "array"
+          },
+          "journal_date": {
+            "example": "2025-01-15T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "journal_type": {
+            "example": "M",
+            "type": "string"
+          },
+          "period_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "reference_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "reference_type": {
+            "example": "purchase_orders",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_id",
+          "journal_date",
+          "description",
+          "journal_type",
+          "details"
+        ],
+        "type": "object"
+      },
       "CreateMediaRequest": {
         "properties": {},
         "type": "object"
@@ -12111,6 +15155,35 @@
           "sales_order_id",
           "payment_method_id",
           "amount"
+        ],
+        "type": "object"
+      },
+      "CreatePeriodRequest": {
+        "properties": {
+          "end_date": {
+            "example": "2025-01-31T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "fiscal_year_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "name": {
+            "example": "January 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fiscal_year_id",
+          "name",
+          "start_date",
+          "end_date"
         ],
         "type": "object"
       },
@@ -13463,6 +16536,223 @@
         "properties": {},
         "type": "object"
       },
+      "FiscalYearResponse": {
+        "properties": {
+          "created_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "created_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "deleted_at": {
+            "example": "2026-06-03 11:00:00",
+            "type": "string"
+          },
+          "deleted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "end_date": {
+            "example": "2025-12-31",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_closed": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "FY 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01",
+            "type": "string"
+          },
+          "updated_at": {
+            "example": "2026-06-03 10:00:00",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "updated_by_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "JournalDetailRequest": {
+        "properties": {
+          "chart_of_account_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "credit": {
+            "example": 0,
+            "type": "integer"
+          },
+          "debit": {
+            "example": 100000,
+            "type": "integer"
+          },
+          "description": {
+            "example": "Payment for invoice",
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "chart_of_account_id"
+        ],
+        "type": "object"
+      },
+      "JournalDetailResponse": {
+        "properties": {
+          "chart_of_account": {
+            "$ref": "#/components/schemas/ChartOfAccountSimpleResponse"
+          },
+          "chart_of_account_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "credit": {
+            "example": 0,
+            "type": "integer"
+          },
+          "debit": {
+            "example": 100000,
+            "type": "integer"
+          },
+          "description": {
+            "example": "Payment for invoice",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "journal_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "JournalResponse": {
+        "properties": {
+          "branch_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "created_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "created_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "deleted_at": {
+            "example": "2026-06-03 11:00:00",
+            "type": "string"
+          },
+          "deleted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "description": {
+            "example": "Payment for invoice INV-001",
+            "type": "string"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_posted": {
+            "example": false,
+            "type": "boolean"
+          },
+          "is_reversed": {
+            "example": false,
+            "type": "boolean"
+          },
+          "journal_date": {
+            "example": "2025-01-15",
+            "type": "string"
+          },
+          "journal_details": {
+            "items": {
+              "$ref": "#/components/schemas/JournalDetailResponse"
+            },
+            "type": "array"
+          },
+          "journal_number": {
+            "example": "JRN-2025-000001",
+            "type": "string"
+          },
+          "journal_type": {
+            "example": "M",
+            "type": "string"
+          },
+          "period_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "posted_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "posted_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "posted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "reference_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "reference_type": {
+            "example": "purchase_orders",
+            "type": "string"
+          },
+          "reversing_id": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "example": "2026-06-03 10:00:00",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "updated_by_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "MediaResponse": {
         "properties": {
           "collection_name": {
@@ -13936,6 +17226,80 @@
           "updated_by": {
             "$ref": "#/components/schemas/UserAuditResponse",
             "example": "{...}"
+          },
+          "updated_by_id": {
+            "example": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PeriodResponse": {
+        "properties": {
+          "closed_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "closed_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "closed_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "created_at": {
+            "example": "2026-06-03 09:00:00",
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
+          },
+          "created_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "deleted_at": {
+            "example": "2026-06-03 11:00:00",
+            "type": "string"
+          },
+          "deleted_by_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "end_date": {
+            "example": "2025-01-31",
+            "type": "string"
+          },
+          "fiscal_year_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_closed": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "January 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01",
+            "type": "string"
+          },
+          "updated_at": {
+            "example": "2026-06-03 10:00:00",
+            "type": "string"
+          },
+          "updated_by": {
+            "$ref": "#/components/schemas/UserAuditResponse"
           },
           "updated_by_id": {
             "example": 1,
@@ -16199,6 +19563,40 @@
         },
         "type": "object"
       },
+      "UpdateAccountCategoryRequest": {
+        "properties": {
+          "code": {
+            "example": "ASSET",
+            "type": "string"
+          },
+          "name": {
+            "example": "Asset",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateAccountTypeRequest": {
+        "properties": {
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "CURRENT_ASSET",
+            "type": "string"
+          },
+          "name": {
+            "example": "Current Asset",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateBranchRequest": {
         "properties": {
           "code": {
@@ -16222,6 +19620,23 @@
             ],
             "example": "Asia/Jakarta",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateBudgetRequest": {
+        "properties": {
+          "amount": {
+            "example": 10000000,
+            "type": "integer"
+          },
+          "chart_of_account_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "period_id": {
+            "example": 1,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -16283,6 +19698,46 @@
         "required": [
           "details"
         ],
+        "type": "object"
+      },
+      "UpdateChartOfAccountRequest": {
+        "properties": {
+          "account_category_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "account_type_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "code": {
+            "example": "1-1000",
+            "type": "string"
+          },
+          "description": {
+            "example": "Cash on hand",
+            "type": "string"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_header": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "Cash",
+            "type": "string"
+          },
+          "normal_balance": {
+            "example": "D",
+            "type": "string"
+          },
+          "parent_id": {
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "UpdateCompanyRequest": {
@@ -16413,6 +19868,69 @@
         ],
         "type": "object"
       },
+      "UpdateFiscalYearRequest": {
+        "properties": {
+          "end_date": {
+            "example": "2025-12-31T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_closed": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "FY 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateJournalRequest": {
+        "properties": {
+          "description": {
+            "example": "Payment for invoice INV-001",
+            "type": "string"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/JournalDetailRequest"
+            },
+            "type": "array"
+          },
+          "journal_date": {
+            "example": "2025-01-15T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "journal_type": {
+            "example": "M",
+            "type": "string"
+          },
+          "period_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "reference_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "reference_type": {
+            "example": "purchase_orders",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "UpdateOperationRuleRequest": {
         "properties": {
           "auto_close_cron": {
@@ -16464,6 +19982,37 @@
           "payment_method_id": {
             "example": 1,
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdatePeriodRequest": {
+        "properties": {
+          "end_date": {
+            "example": "2025-01-31T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "fiscal_year_id": {
+            "example": 1,
+            "type": "integer"
+          },
+          "is_active": {
+            "example": true,
+            "type": "boolean"
+          },
+          "is_closed": {
+            "example": false,
+            "type": "boolean"
+          },
+          "name": {
+            "example": "January 2025",
+            "type": "string"
+          },
+          "start_date": {
+            "example": "2025-01-01T00:00:00Z",
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"

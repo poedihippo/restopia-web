@@ -29,6 +29,7 @@ import {
   CreditCard,
   UserCheck,
   BarChart3,
+  Calculator,
 } from 'lucide-react';
 
 type NavChild = {
@@ -128,6 +129,24 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.read' },
+    ],
+  },
+  {
+    title: 'ACCOUNTING',
+    items: [
+      {
+        label: 'Accounting',
+        icon: Calculator,
+        children: [
+          { label: 'Bagan Akun', href: '/accounting/chart-of-accounts' },
+          { label: 'Kategori Akun', href: '/accounting/account-categories' },
+          { label: 'Tipe Akun', href: '/accounting/account-types' },
+          { label: 'Jurnal', href: '/accounting/journals' },
+          { label: 'Tahun Fiskal', href: '/accounting/fiscal-years' },
+          { label: 'Periode', href: '/accounting/periods' },
+          { label: 'Anggaran', href: '/accounting/budgets' },
+        ],
+      },
     ],
   },
   {
