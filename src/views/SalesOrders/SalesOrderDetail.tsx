@@ -10,6 +10,7 @@ import { salesOrdersService as salesOrderService } from '@/services/sales-orders
 import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
+import { formatDateTime } from '@/utils/date';
 import SalesOrdersDetail from './Detail/SalesOrdersDetail';
 
 const sectionStyle: CSSProperties = {

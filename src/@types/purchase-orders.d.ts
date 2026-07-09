@@ -9,12 +9,12 @@ export interface IPurchaseOrder {
     code?: string;
     supplier_id?: number | null;
     supplier_branch_id?: number | null;
-    date?: Date;
+    date?: string;
     total_price?: number;
     description?: string;
     status?: string;
-    created_at?: Date;
-    updated_at?: Date;
+    created_at?: string;
+    updated_at?: string;
     branch?: Branch;
     media?: Media[]
     purchase_order_details?: PurchaseOrderDetail[];
@@ -93,9 +93,9 @@ export interface Media {
     mime_type?: string;
     status?: string;
     url?: string;
-    created_at?: Date;
+    created_at?: string;
     created_by_id?: number;
-    updated_at?: Date;
+    updated_at?: string;
     updated_by_id?: number;
 }
 
