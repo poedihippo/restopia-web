@@ -161,7 +161,7 @@ export default function JournalsView() {
           : [{ chart_of_account_id: 0, debit: 0, credit: 0, description: '' }, { chart_of_account_id: 0, debit: 0, credit: 0, description: '' }],
       })
     } else {
-      reset({ period_id: 0, date: '', type: 'general', description: '', details: [{ chart_of_account_id: 0, debit: 0, credit: 0, description: '' }, { chart_of_account_id: 0, debit: 0, credit: 0, description: '' }] })
+      reset({ period_id: 0, date: '', type: 'manual', description: '', details: [{ chart_of_account_id: 0, debit: 0, credit: 0, description: '' }, { chart_of_account_id: 0, debit: 0, credit: 0, description: '' }] })
     }
   }, [editData, reset])
 

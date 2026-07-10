@@ -130,7 +130,7 @@ export interface JournalDetailRequest {
 export interface JournalRequest {
   period_id: number
   date: string
-  type: 'manual' | 'sales' | 'closing' | 'purchase' | 'receipt' | 'payment' | 'adjusment'
+  type: 'manual' | 'sales' | 'closing' | 'purchase' | 'receipt' | 'payment' | 'adjustment'
   description?: string
   reference_type?: string
   reference_id?: number

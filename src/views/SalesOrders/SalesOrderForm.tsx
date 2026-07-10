@@ -1,7 +1,7 @@
 'use client'
 import { parseApiDate } from '@/utils/date';
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -38,7 +38,7 @@ interface LineItem {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function SalesOrderForm({ editingOrder }: { editingOrder?: any }) {
+export default function SalesOrderForm({ editingOrder }: { editingOrder?: any }): React.ReactElement {
   const router = useRouter()
   const qc = useQueryClient()
   const isEdit = !!editingOrder
@@ -109,8 +109,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       price: d.price,
       status: d.status,
       description: d.description ?? '',
-    }))
+    }
   })
+})
 
   // ── Product search state ───────────────────────────────────────────────────
   const [productSearch, setProductSearch] = useState('')

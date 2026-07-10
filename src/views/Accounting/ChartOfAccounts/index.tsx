@@ -298,7 +298,7 @@ export default function ChartOfAccountsView() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Normal Balance <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                  <select {...register('normal_balance')} style={{ ...inputStyle, opacity: 0.7, pointerEvents: 'none' }} tabIndex={-1} readOnly>
+                  <select {...register('normal_balance')} style={{ ...inputStyle, opacity: 0.7, pointerEvents: 'none' }} tabIndex={-1}>
                     <option value="debit">Debit</option>
                     <option value="credit">Credit</option>
                   </select>
