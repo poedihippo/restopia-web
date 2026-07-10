@@ -33,14 +33,14 @@ interface CoA {
   created_at?: string
 }
 
-interface AccountCategory { id: number; code: string; name: string }
+interface AccountCategory { id: number; code: string; name: string; normal_balance: 'debit' | 'credit' }
 interface AccountType { id: number; code: string; name: string; account_category_id: number }
 
 const schema = z.object({
-  account_category_id: z.coerce.number().min(1, 'Kategori wajib dipilih'),
-  account_type_id: z.coerce.number().min(1, 'Tipe wajib dipilih'),
-  code: z.string().min(1, 'Kode wajib diisi'),
-  name: z.string().min(1, 'Nama wajib diisi'),
+  account_category_id: z.coerce.number().min(1, 'Category is required'),
+  account_type_id: z.coerce.number().min(1, 'Type is required'),
+  code: z.string().min(1, 'Code is required'),
+  name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
   is_active: z.boolean(),
   is_header: z.boolean(),
@@ -98,8 +98,8 @@ export default function ChartOfAccountsView() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => chartOfAccountsService.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] }); toast.success('Akun dihapus'); setDeleteConfirmId(null) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal menghapus'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] }); toast.success('Account deleted'); setDeleteConfirmId(null) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
@@ -120,18 +120,24 @@ export default function ChartOfAccountsView() {
     }
   }, [editData, reset])
 
-  useEffect(() => { setValue('account_type_id', 0) }, [watchedCategoryId, setValue])
+  useEffect(() => { 
+    setValue('account_type_id', 0) 
+    if (watchedCategoryId && !editData) {
+      const cat = categories.find(c => c.id === Number(watchedCategoryId))
+      if (cat) setValue('normal_balance', cat.normal_balance)
+    }
+  }, [watchedCategoryId, setValue, categories, editData])
 
   const createMutation = useMutation({
     mutationFn: (data: ChartOfAccountRequest) => chartOfAccountsService.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] }); toast.success('Akun dibuat'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal membuat'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] }); toast.success('Account created'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (data: ChartOfAccountRequest) => chartOfAccountsService.update(editData!.id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] }); toast.success('Akun diperbarui'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal memperbarui'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] }); toast.success('Account updated'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -145,12 +151,12 @@ export default function ChartOfAccountsView() {
     <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Bagan Akun (Chart of Accounts)</h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Daftar lengkap akun yang digunakan dalam sistem pembukuan</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Chart of Accounts (Chart of Accounts)</h1>
+          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Complete list of accounts used in the bookkeeping system</p>
         </div>
         {isSuperadmin && (
           <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> Akun Baru
+            <Plus size={16} /> New Account
           </button>
         )}
       </div>
@@ -158,7 +164,7 @@ export default function ChartOfAccountsView() {
       <div style={{ marginBottom: 16 }}>
         <div style={{ position: 'relative', width: 320 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari kode atau nama akun..."
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account code or name..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
       </div>
@@ -167,11 +173,11 @@ export default function ChartOfAccountsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 120 }}>Kode</th>
-              <th style={thStyle}>Nama Akun</th>
-              <th style={{ ...thStyle, width: 160 }}>Kategori</th>
-              <th style={{ ...thStyle, width: 140 }}>Tipe</th>
-              <th style={{ ...thStyle, width: 110 }}>Saldo Normal</th>
+              <th style={{ ...thStyle, width: 120 }}>Code</th>
+              <th style={thStyle}>Account Name</th>
+              <th style={{ ...thStyle, width: 160 }}>Category</th>
+              <th style={{ ...thStyle, width: 140 }}>Type</th>
+              <th style={{ ...thStyle, width: 110 }}>Normal Balance</th>
               <th style={{ ...thStyle, width: 80 }}>Status</th>
               <th style={{ ...thStyle, width: 70 }}>Header</th>
               <th style={{ ...thStyle, width: 80 }} />
@@ -188,7 +194,7 @@ export default function ChartOfAccountsView() {
               <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <BookOpen size={32} style={{ opacity: 0.4 }} />
-                  <span style={{ fontSize: 14 }}>Belum ada akun</span>
+                  <span style={{ fontSize: 14 }}>No accounts found</span>
                 </div>
               </td></tr>
             ) : (
@@ -208,13 +214,13 @@ export default function ChartOfAccountsView() {
                   <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.account_type?.name || '—'}</span></td>
                   <td style={tdStyle}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 500, background: item.normal_balance === 'debit' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)', color: item.normal_balance === 'debit' ? '#3b82f6' : '#10b981' }}>
-                      {item.normal_balance === 'debit' ? 'Debit' : 'Kredit'}
+                      {item.normal_balance === 'debit' ? 'Debit' : 'Credit'}
                     </span>
                   </td>
                   <td style={tdStyle}>
                     {item.is_active
-                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981' }}><CheckCircle2 size={13} /> Aktif</span>
-                      : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--foreground-muted)' }}><XCircle size={13} /> Nonaktif</span>
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981' }}><CheckCircle2 size={13} /> Active</span>
+                      : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--foreground-muted)' }}><XCircle size={13} /> Inactive</span>
                     }
                   </td>
                   <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.is_header ? 'Ya' : '—'}</span></td>
@@ -238,7 +244,7 @@ export default function ChartOfAccountsView() {
       {meta && meta.last_page > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Halaman {page} dari {meta.last_page}</span>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
           <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
@@ -247,11 +253,11 @@ export default function ChartOfAccountsView() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 360, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Hapus Akun</h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>Tindakan ini tidak dapat dibatalkan dan dapat mempengaruhi jurnal yang ada.</p>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Account</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone and may affect existing journals.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
-              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Hapus</button>
+              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
             </div>
           </div>
         </div>
@@ -262,23 +268,23 @@ export default function ChartOfAccountsView() {
           <div onClick={() => setSheetOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
           <div style={{ position: 'relative', zIndex: 50, width: 500, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Akun' : 'Akun Baru'}</h2>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Account' : 'New Account'}</h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Kategori Akun <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Categories <span style={{ color: 'var(--destructive)' }}>*</span></label>
                   <select {...register('account_category_id')} style={errors.account_category_id ? inputError : inputStyle}>
-                    <option value={0}>-- Pilih --</option>
+                    <option value={0}>-- Select --</option>
                     {categories.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
                   </select>
                   {errors.account_category_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_category_id.message}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Tipe Akun <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Types <span style={{ color: 'var(--destructive)' }}>*</span></label>
                   <select {...register('account_type_id')} style={errors.account_type_id ? inputError : inputStyle}>
-                    <option value={0}>-- Pilih --</option>
+                    <option value={0}>-- Select --</option>
                     {typesForSheet.map((t) => <option key={t.id} value={t.id}>{t.code} – {t.name}</option>)}
                   </select>
                   {errors.account_type_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_type_id.message}</span>}
@@ -286,30 +292,30 @@ export default function ChartOfAccountsView() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Kode Akun <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                  <input {...register('code')} placeholder="mis. 1101" style={errors.code ? inputError : inputStyle} />
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Code <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                  <input {...register('code')} placeholder="e.g. 1101" style={errors.code ? inputError : inputStyle} />
                   {errors.code && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.code.message}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Saldo Normal <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                  <select {...register('normal_balance')} style={inputStyle}>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Normal Balance <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                  <select {...register('normal_balance')} style={{ ...inputStyle, opacity: 0.7, pointerEvents: 'none' }} tabIndex={-1} readOnly>
                     <option value="debit">Debit</option>
-                    <option value="credit">Kredit</option>
+                    <option value="credit">Credit</option>
                   </select>
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Nama Akun <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <input {...register('name')} placeholder="mis. Kas dan Bank" style={errors.name ? inputError : inputStyle} />
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Name <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <input {...register('name')} placeholder="e.g. Kas dan Bank" style={errors.name ? inputError : inputStyle} />
                 {errors.name && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.name.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Deskripsi</label>
-                <textarea {...register('description')} rows={2} placeholder="Keterangan opsional" style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Description</label>
+                <textarea {...register('description')} rows={2} placeholder="Description opsional" style={{ ...inputStyle, resize: 'vertical', minHeight: 60 }} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Akun Induk</label>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Parent Account</label>
                   <select {...register('parent_id')} style={inputStyle}>
                     <option value="">-- Tidak ada --</option>
                     {items.filter((i) => i.is_header && i.id !== editData?.id).map((a) => <option key={a.id} value={a.id}>{a.code} – {a.name}</option>)}
@@ -319,19 +325,19 @@ export default function ChartOfAccountsView() {
               <div style={{ display: 'flex', gap: 20 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
                   <input type="checkbox" {...register('is_active')} style={{ width: 15, height: 15 }} />
-                  <span>Akun Aktif</span>
+                  <span>Active Account</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
                   <input type="checkbox" {...register('is_header')} style={{ width: 15, height: 15 }} />
-                  <span>Akun Header (Grup)</span>
+                  <span>Header Account (Group)</span>
                 </label>
               </div>
             </form>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
+              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
               <button type="button" disabled={isPending} onClick={handleSubmit(onSubmit)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending ? 0.7 : 1 }}>
                 {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                {editData ? 'Simpan' : 'Buat Akun'}
+                {editData ? 'Save' : 'Create Account'}
               </button>
             </div>
           </div>

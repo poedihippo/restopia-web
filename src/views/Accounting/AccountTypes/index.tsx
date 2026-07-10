@@ -30,9 +30,9 @@ interface AccountCategory {
 }
 
 const schema = z.object({
-  account_category_id: z.coerce.number().min(1, 'Kategori wajib dipilih'),
-  code: z.string().min(1, 'Kode wajib diisi'),
-  name: z.string().min(1, 'Nama wajib diisi'),
+  account_category_id: z.coerce.number().min(1, 'Category is required'),
+  code: z.string().min(1, 'Code is required'),
+  name: z.string().min(1, 'Name is required'),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -85,8 +85,8 @@ export default function AccountTypesView() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => accountTypesService.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Tipe akun dihapus'); setDeleteConfirmId(null) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal menghapus'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Account type deleted'); setDeleteConfirmId(null) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
@@ -101,14 +101,14 @@ export default function AccountTypesView() {
 
   const createMutation = useMutation({
     mutationFn: (data: AccountTypeRequest) => accountTypesService.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Tipe akun dibuat'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal membuat'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Account type created'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (data: AccountTypeRequest) => accountTypesService.update(editData!.id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Tipe akun diperbarui'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal memperbarui'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Account type updated'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -121,12 +121,12 @@ export default function AccountTypesView() {
     <div style={{ padding: '32px 32px 64px', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Tipe Akun</h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Sub-kelompok dalam kategori akun</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Account Types</h1>
+          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Sub-groups within account categories</p>
         </div>
         {isSuperadmin && (
           <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> Tipe Baru
+            <Plus size={16} /> New Type
           </button>
         )}
       </div>
@@ -134,7 +134,7 @@ export default function AccountTypesView() {
       <div style={{ marginBottom: 16 }}>
         <div style={{ position: 'relative', width: 280 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari tipe akun..."
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account types..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
       </div>
@@ -143,9 +143,9 @@ export default function AccountTypesView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 100 }}>Kode</th>
-              <th style={thStyle}>Nama</th>
-              <th style={{ ...thStyle, width: 200 }}>Kategori Akun</th>
+              <th style={{ ...thStyle, width: 100 }}>Code</th>
+              <th style={thStyle}>Name</th>
+              <th style={{ ...thStyle, width: 200 }}>Account Categories</th>
               <th style={{ ...thStyle, width: 80 }} />
             </tr>
           </thead>
@@ -160,7 +160,7 @@ export default function AccountTypesView() {
               <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <Layers size={32} style={{ opacity: 0.4 }} />
-                  <span style={{ fontSize: 14 }}>Belum ada tipe akun</span>
+                  <span style={{ fontSize: 14 }}>No account types found</span>
                 </div>
               </td></tr>
             ) : (
@@ -195,7 +195,7 @@ export default function AccountTypesView() {
       {meta && meta.last_page > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Halaman {page} dari {meta.last_page}</span>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
           <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
@@ -204,11 +204,11 @@ export default function AccountTypesView() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 360, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Hapus Tipe Akun</h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>Tindakan ini tidak dapat dibatalkan.</p>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Account Types</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
-              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Hapus</button>
+              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
             </div>
           </div>
         </div>
@@ -219,34 +219,34 @@ export default function AccountTypesView() {
           <div onClick={() => setSheetOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
           <div style={{ position: 'relative', zIndex: 50, width: 460, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Tipe Akun' : 'Tipe Akun Baru'}</h2>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Account Types' : 'Account Types Baru'}</h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Kategori Akun <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Categories <span style={{ color: 'var(--destructive)' }}>*</span></label>
                 <select {...register('account_category_id')} style={errors.account_category_id ? inputError : inputStyle}>
-                  <option value={0}>-- Pilih Kategori --</option>
+                  <option value={0}>-- Select Category --</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
                 </select>
                 {errors.account_category_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_category_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Kode <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <input {...register('code')} placeholder="mis. 11, 12, 21..." style={errors.code ? inputError : inputStyle} />
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Code <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <input {...register('code')} placeholder="e.g. 11, 12, 21..." style={errors.code ? inputError : inputStyle} />
                 {errors.code && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.code.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Nama <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <input {...register('name')} placeholder="mis. Aset Lancar, Hutang Usaha..." style={errors.name ? inputError : inputStyle} />
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Name <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <input {...register('name')} placeholder="e.g. Aset Lancar, Hutang Usaha..." style={errors.name ? inputError : inputStyle} />
                 {errors.name && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.name.message}</span>}
               </div>
             </form>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
+              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
               <button type="button" disabled={isPending} onClick={handleSubmit(onSubmit)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending ? 0.7 : 1 }}>
                 {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                {editData ? 'Simpan' : 'Buat'}
+                {editData ? 'Save' : 'Create'}
               </button>
             </div>
           </div>

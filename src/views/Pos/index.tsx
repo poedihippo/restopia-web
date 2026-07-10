@@ -138,6 +138,31 @@ export default function PosView() {
         resetCart={logic.resetCart}
         printReceipt={null} // Replace with actual state
         triggerPrint={() => {}}
+
+        preorderSearch={logic.preorderSearch}
+        setPreorderSearch={logic.setPreorderSearch}
+        preorderDateFrom={logic.preorderDateFrom}
+        setPreorderDateFrom={logic.setPreorderDateFrom}
+        preorderDateTo={logic.preorderDateTo}
+        setPreorderDateTo={logic.setPreorderDateTo}
+        preorderPage={logic.preorderPage}
+        setPreorderPage={logic.setPreorderPage}
+        preorders={logic.preorders}
+        preorderMeta={logic.preorderMeta}
+        isPreordersLoading={logic.isPreordersLoading}
+        loadPreorderToCart={logic.loadPreorderToCart}
+
+        historySearch={logic.historySearch}
+        setHistorySearch={logic.setHistorySearch}
+        historyDateFrom={logic.historyDateFrom}
+        setHistoryDateFrom={logic.setHistoryDateFrom}
+        historyDateTo={logic.historyDateTo}
+        setHistoryDateTo={logic.setHistoryDateTo}
+        historyPage={logic.historyPage}
+        setHistoryPage={logic.setHistoryPage}
+        historyOrders={logic.historyOrders}
+        historyMeta={logic.historyMeta}
+        isHistoryLoading={logic.isHistoryLoading}
       />
     </div>
   )

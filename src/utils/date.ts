@@ -109,3 +109,19 @@ export function formatRelativeDate(
     return formatDate(value, locale)
   }
 }
+
+/**
+ * Maps a backend date string to a YYYY-MM-DD string suitable for HTML <input type="date">.
+ */
+export function toInputDate(value: string | null | undefined): string {
+  if (!value) return ''
+  // If it's already YYYY-MM-DD
+  if (value.match(/^\d{4}-\d{2}-\d{2}/)) return value.substring(0, 10)
+  // If it's DD-MM-YYYY
+  const dateOnlyMatch = value.match(/^(\d{2})-(\d{2})-(\d{4})/)
+  if (dateOnlyMatch) {
+    const [, dd, mm, yyyy] = dateOnlyMatch
+    return `${yyyy}-${mm}-${dd}`
+  }
+  return value.substring(0, 10)
+}

@@ -1,5 +1,5 @@
 'use client'
-import { formatDate } from '@/utils/date';
+import { formatDate, toInputDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -30,10 +30,12 @@ interface Period {
 interface FiscalYear { id: number; name: string }
 
 const schema = z.object({
-  fiscal_year_id: z.coerce.number().min(1, 'Tahun fiskal wajib dipilih'),
-  name: z.string().min(1, 'Nama wajib diisi'),
-  start_date: z.string().min(1, 'Tanggal mulai wajib diisi'),
-  end_date: z.string().min(1, 'Tanggal selesai wajib diisi'),
+  fiscal_year_id: z.coerce.number().min(1, 'Fiscal year is required'),
+  name: z.string().min(1, 'Name is required'),
+  start_date: z.string().min(1, 'Start date is required'),
+  end_date: z.string().min(1, 'End date is required'),
+  is_active: z.boolean().default(true),
+  is_closed: z.boolean().default(false),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -80,30 +82,30 @@ export default function PeriodsView() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => periodsService.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['periods'] }); toast.success('Periode dihapus'); setDeleteConfirmId(null) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal menghapus'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['periods'] }); toast.success('Period deleted'); setDeleteConfirmId(null) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { fiscal_year_id: 0, name: '', start_date: '', end_date: '' },
+    defaultValues: { fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true, is_closed: false },
   })
 
   useEffect(() => {
-    if (editData) reset({ fiscal_year_id: editData.fiscal_year_id, name: editData.name, start_date: editData.start_date?.substring(0, 10) ?? '', end_date: editData.end_date?.substring(0, 10) ?? '' })
-    else reset({ fiscal_year_id: 0, name: '', start_date: '', end_date: '' })
+    if (editData) reset({ fiscal_year_id: editData.fiscal_year_id, name: editData.name, start_date: toInputDate(editData.start_date), end_date: toInputDate(editData.end_date), is_active: editData.is_active ?? true, is_closed: editData.is_closed ?? false })
+    else reset({ fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true, is_closed: false })
   }, [editData, reset])
 
   const createMutation = useMutation({
     mutationFn: (data: PeriodRequest) => periodsService.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['periods'] }); toast.success('Periode dibuat'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal membuat'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['periods'] }); toast.success('Period created'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (data: PeriodRequest) => periodsService.update(editData!.id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['periods'] }); toast.success('Periode diperbarui'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal memperbarui'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['periods'] }); toast.success('Period updated'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -116,12 +118,12 @@ export default function PeriodsView() {
     <div style={{ padding: '32px 32px 64px', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Periode Akuntansi</h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Bulan atau kuartal dalam satu tahun fiskal untuk pencatatan jurnal</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Accounting Periods</h1>
+          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Month or quarter within a fiscal year for journal entries</p>
         </div>
         {isSuperadmin && (
           <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> Periode Baru
+            <Plus size={16} /> New Period
           </button>
         )}
       </div>
@@ -129,7 +131,7 @@ export default function PeriodsView() {
       <div style={{ marginBottom: 16 }}>
         <div style={{ position: 'relative', width: 280 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari periode..."
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search periods..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
       </div>
@@ -138,10 +140,10 @@ export default function PeriodsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={thStyle}>Nama</th>
-              <th style={{ ...thStyle, width: 180 }}>Tahun Fiskal</th>
-              <th style={{ ...thStyle, width: 140 }}>Mulai</th>
-              <th style={{ ...thStyle, width: 140 }}>Selesai</th>
+              <th style={thStyle}>Name</th>
+              <th style={{ ...thStyle, width: 180 }}>Fiscal Years</th>
+              <th style={{ ...thStyle, width: 140 }}>Start Date</th>
+              <th style={{ ...thStyle, width: 140 }}>End Date</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: 80 }} />
             </tr>
@@ -157,7 +159,7 @@ export default function PeriodsView() {
               <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <Calendar size={32} style={{ opacity: 0.4 }} />
-                  <span style={{ fontSize: 14 }}>Belum ada periode</span>
+                  <span style={{ fontSize: 14 }}>No periods found</span>
                 </div>
               </td></tr>
             ) : (
@@ -171,10 +173,10 @@ export default function PeriodsView() {
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.end_date ? fmtDate(item.end_date) : '—'}</span></td>
                   <td style={tdStyle}>
                     {item.is_closed
-                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--foreground-muted)', padding: '2px 8px', borderRadius: 99, background: 'var(--background)', border: '1px solid var(--border)' }}><Lock size={11} /> Ditutup</span>
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--foreground-muted)', padding: '2px 8px', borderRadius: 99, background: 'var(--background)', border: '1px solid var(--border)' }}><Lock size={11} /> Closed</span>
                       : item.is_active
-                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}><CheckCircle2 size={11} /> Aktif</span>
-                        : <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Nonaktif</span>
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}><CheckCircle2 size={11} /> Active</span>
+                        : <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Inactive</span>
                     }
                   </td>
                   <td style={tdStyle}>
@@ -197,7 +199,7 @@ export default function PeriodsView() {
       {meta && meta.last_page > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Halaman {page} dari {meta.last_page}</span>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
           <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
@@ -206,11 +208,11 @@ export default function PeriodsView() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 360, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Hapus Periode</h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>Ini akan menghapus periode dan dapat mempengaruhi jurnal terkait.</p>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Period</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This will delete the period and may affect related journals.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
-              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Hapus</button>
+              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
             </div>
           </div>
         </div>
@@ -221,41 +223,51 @@ export default function PeriodsView() {
           <div onClick={() => setSheetOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
           <div style={{ position: 'relative', zIndex: 50, width: 460, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Periode' : 'Periode Baru'}</h2>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Period' : 'New Period'}</h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Tahun Fiskal <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Fiscal Years <span style={{ color: 'var(--destructive)' }}>*</span></label>
                 <select {...register('fiscal_year_id')} style={errors.fiscal_year_id ? inputError : inputStyle}>
-                  <option value={0}>-- Pilih Tahun Fiskal --</option>
+                  <option value={0}>-- Select Fiscal Year --</option>
                   {fiscalYears.map((fy) => <option key={fy.id} value={fy.id}>{fy.name}</option>)}
                 </select>
                 {errors.fiscal_year_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.fiscal_year_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Nama Periode <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <input {...register('name')} placeholder="mis. Januari 2025, Q1 2025" style={errors.name ? inputError : inputStyle} />
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Name Periode <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <input {...register('name')} placeholder="e.g. Januari 2025, Q1 2025" style={errors.name ? inputError : inputStyle} />
                 {errors.name && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.name.message}</span>}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Tanggal Mulai <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Date Start Date <span style={{ color: 'var(--destructive)' }}>*</span></label>
                   <input type="date" {...register('start_date')} style={errors.start_date ? inputError : inputStyle} />
                   {errors.start_date && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.start_date.message}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Tanggal Selesai <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Date End Date <span style={{ color: 'var(--destructive)' }}>*</span></label>
                   <input type="date" {...register('end_date')} style={errors.end_date ? inputError : inputStyle} />
                   {errors.end_date && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.end_date.message}</span>}
                 </div>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
+                  <input type="checkbox" {...register('is_active')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+                  Active
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
+                  <input type="checkbox" {...register('is_closed')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+                  Close Period
+                </label>
+              </div>
             </form>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
+              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
               <button type="button" disabled={isPending} onClick={handleSubmit(onSubmit)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending ? 0.7 : 1 }}>
                 {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                {editData ? 'Simpan' : 'Buat'}
+                {editData ? 'Save' : 'Create'}
               </button>
             </div>
           </div>

@@ -13,6 +13,7 @@ import { paymentMethodsService } from '@/services/payment-methods.service'
 import { paymentsService } from '@/services/payments.service'
 import { vouchersService } from '@/services/vouchers.service'
 import api from '@/hooks/useApi'
+import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
@@ -43,6 +44,8 @@ export function usePosLogic() {
   const [cart, setCart] = useState<PosCartItem[]>([])
   const [bundleCart, setBundleCart] = useState<PosCartBundle[]>([])
   const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
+  const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null)
 
   // Customer State
   const [customerSearch, setCustomerSearch] = useState('')
@@ -65,6 +68,17 @@ export function usePosLogic() {
   const [showPayment, setShowPayment] = useState(false)
   const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null)
   const [cashTendered, setCashTendered] = useState<string>('')
+  const [historySearch, setHistorySearch] = useState('')
+  const [historySearchDebounced, setHistorySearchDebounced] = useState('')
+  const [historyDateFrom, setHistoryDateFrom] = useState('')
+  const [historyDateTo, setHistoryDateTo] = useState('')
+  const [historyPage, setHistoryPage] = useState(1)
+
+  const [preorderSearch, setPreorderSearch] = useState('')
+  const [preorderSearchDebounced, setPreorderSearchDebounced] = useState('')
+  const [preorderDateFrom, setPreorderDateFrom] = useState('')
+  const [preorderDateTo, setPreorderDateTo] = useState('')
+  const [preorderPage, setPreorderPage] = useState(1)
 
   // Order Details State
   const [orderNote, setOrderNote] = useState('')
@@ -99,15 +113,100 @@ export function usePosLogic() {
     return () => clearTimeout(t)
   }, [bundleSearch])
 
+  useEffect(() => {
+    const t = setTimeout(() => setPreorderSearchDebounced(preorderSearch), 400)
+    return () => clearTimeout(t)
+  }, [preorderSearch])
+
+  useEffect(() => {
+    const t = setTimeout(() => setHistorySearchDebounced(historySearch), 400)
+    return () => clearTimeout(t)
+  }, [historySearch])
+
   // ---------------------------------------------------------------------------
   // 3. QUERIES (Data Fetching)
   // ---------------------------------------------------------------------------
-  // TODO: Implement the useQuery hooks for:
-  // - productUoms (to get categories)
-  // - productInventories (items in grid)
-  // - bundles
-  // - customers
-  // - payment methods
+
+  // Pending pre-orders panel query
+  const { data: preorderData, isLoading: isPreordersLoading } = useQuery({
+    queryKey: ['pos-preorders', preorderPage, preorderSearchDebounced, preorderDateFrom, preorderDateTo],
+    enabled: showPreorders,
+    queryFn: () => {
+      const params: Record<string, any> = {
+        page: preorderPage,
+        per_page: 20,
+        sort: 'fulfillment_date',
+        'filter[status]': 'pending',
+        include: 'sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer',
+      }
+      if (preorderSearchDebounced) params['filter[search]'] = preorderSearchDebounced
+      if (preorderDateFrom) params['filter[fulfillment_date_gte]'] = preorderDateFrom
+      if (preorderDateTo) params['filter[fulfillment_date_lte]'] = preorderDateTo
+      return salesOrderService.list(params).then((r) => r.data)
+    },
+  })
+  const preorders: any[] = (preorderData as any)?.data ?? []
+  const preorderMeta = (preorderData as any)?.meta
+
+  const { data: historyData, isLoading: isHistoryLoading } = useQuery({
+    queryKey: ['pos-history', historyPage, historySearchDebounced, historyDateFrom, historyDateTo],
+    enabled: showHistory,
+    queryFn: () => {
+      const params: Record<string, any> = {
+        page: historyPage,
+        per_page: 20,
+        sort: '-created_at',
+        include: 'sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer',
+      }
+      if (historySearchDebounced) params['filter[search]'] = historySearchDebounced
+      if (historyDateFrom) params['filter[date_gte]'] = historyDateFrom
+      if (historyDateTo) params['filter[date_lte]'] = historyDateTo
+      return salesOrderService.list(params).then((r) => r.data)
+    },
+  })
+  const historyOrders: any[] = (historyData as any)?.data ?? []
+  const historyMeta = (historyData as any)?.meta
+
+  const loadPreorderToCart = (order: any) => {
+    setCart([])
+    setBundleCart([])
+    const details = order.sales_order_details ?? []
+    const newCart: PosCartItem[] = details
+      .filter((d: any) => !d.bundle_id)
+      .map((d: any) => {
+        let snapshot = d.product_inventory_snapshot
+        if (typeof snapshot === 'string') {
+          try {
+            snapshot = JSON.parse(snapshot)
+          } catch (e) {}
+        }
+        
+        // Extract product uom from either the batch relation or direct relation
+        const pu = snapshot?.product_uom_batch?.product_uom ?? snapshot?.product_uom ?? d.product_inventory?.product_uom_batch?.product_uom ?? d.product_inventory?.product_uom
+        
+        return {
+          product_inventory_id: d.product_inventory_id,
+          name: pu?.product?.name ?? d.description ?? `Item #${d.product_inventory_id}`,
+          code: pu?.code ?? pu?.product?.code ?? '',
+          price: Number(d.price),
+          qty: Number(d.qty),
+          price_editable: snapshot?.price_editable ?? d.product_inventory?.price_editable ?? false,
+        }
+      })
+    setCart(newCart)
+    if (order.customer_id) {
+      setSelectedCustomerId(order.customer_id)
+      setCustomerSearch(order.customer?.name ?? '')
+    } else {
+      setSelectedCustomerId(null)
+      setGuestName(order.customer_name ?? '')
+      setGuestPhone(order.customer_phone ?? '')
+    }
+    setEditingOrderId(order.id)
+    setEditingOrderCode(order.code)
+    setShowPreorders(false)
+    toast.success('Pending order loaded to cart')
+  }
 
   // Customer search query
   const { data: customerData } = useQuery({
@@ -324,6 +423,8 @@ export function usePosLogic() {
     setPaymentMethodId(null)
     setCashTendered('')
     setShowReceipt(false)
+    setEditingOrderId(null)
+    setEditingOrderCode(null)
     // setReceiptData(null)
   }, [])
 
@@ -440,7 +541,10 @@ export function usePosLogic() {
 
   // Hold — save the current cart as a pending order with no payment.
   const { mutate: holdMutate, isPending: isHoldPending } = useMutation({
-    mutationFn: (payload: any) => api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
+    mutationFn: (payload: any) => 
+      editingOrderId 
+        ? salesOrderService.update(editingOrderId, payload as any)
+        : api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       toast.success('Order held as pending')
@@ -474,7 +578,7 @@ export function usePosLogic() {
     ]
 
     const payload = {
-      code: `POS-${Date.now()}`,
+      code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
       customer_id: selectedCustomerId ?? null,
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
@@ -494,11 +598,14 @@ export function usePosLogic() {
     holdMutate(payload)
   }
 
-  // Sales order mutation — creates new order
+  // Sales order mutation — creates new order or completes pending order
   const { mutate, isPending } = useMutation({
-    mutationFn: (payload: any) => api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
+    mutationFn: (payload: any) =>
+      editingOrderId
+        ? salesOrderService.update(editingOrderId, payload as any)
+        : api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
     onSuccess: async (res: any, variables: any) => {
-      const salesOrderId = res?.data?.id ?? null
+      const salesOrderId = res?.data?.id ?? editingOrderId ?? null
       const paidAmount = isCashMethod
         ? Number(cashTendered.replace(/\D/g, ''))
         : variables.total_price
@@ -519,6 +626,8 @@ export function usePosLogic() {
         }
       }
 
+      qc.invalidateQueries({ queryKey: ['pos-preorders'] })
+      qc.invalidateQueries({ queryKey: ['pos-history'] })
       toast.success('Order placed!')
       resetCart()
     },
@@ -546,7 +655,7 @@ export function usePosLogic() {
     ]
 
     const payload = {
-      code: `POS-${Date.now()}`,
+      code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
       customer_id: selectedCustomerId ?? null,
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
@@ -601,6 +710,10 @@ export function usePosLogic() {
     showReceipt, setShowReceipt,
     showHistory, setShowHistory,
     showPreorders, setShowPreorders,
+    preorderSearch, setPreorderSearch, preorderDateFrom, setPreorderDateFrom, preorderDateTo, setPreorderDateTo, preorderPage, setPreorderPage,
+    preorders, preorderMeta, isPreordersLoading, loadPreorderToCart,
+    historySearch, setHistorySearch, historyDateFrom, setHistoryDateFrom, historyDateTo, setHistoryDateTo, historyPage, setHistoryPage,
+    historyOrders, historyMeta, isHistoryLoading,
     showPreorder, setShowPreorder,
 
     // Data & Computed

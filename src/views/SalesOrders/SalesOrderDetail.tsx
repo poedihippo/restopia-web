@@ -928,7 +928,10 @@ export default function SalesOrderDetail() {
                 {!isDetailsLoading &&
                   details.map((d: any, idx: number) => {
                   const isBundle = !!d.bundle_id
-                  const snap = d.product_inventory_snapshot
+                  let snap = d.product_inventory_snapshot
+                  if (typeof snap === 'string') {
+                    try { snap = JSON.parse(snap) } catch (e) {}
+                  }
                   const name =
                     snap?.product_uom?.product?.name ??
                     snap?.name ??

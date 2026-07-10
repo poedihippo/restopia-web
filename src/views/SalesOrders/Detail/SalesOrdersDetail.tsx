@@ -82,19 +82,19 @@ const SalesOrdersDetail = ({
                         </div>
                         <div className='flex flex-col gap-0'>
                             <p className='text-md font-medium'>Date:</p>
-                            <p className='text-sm text-gray-500'>{data?.date ? format(data?.date, "dd/MM/yyyy") : '-'}</p>
+                            <p className='text-sm text-gray-500'>{data?.date ?? '-'}</p>
                         </div>
                         <div className='flex flex-col gap-0'>
                             <p className='text-md font-medium'>Fulfillment Date:</p>
-                            <p className='text-sm text-gray-500'>{data?.fulfillment_date ? format(data?.fulfillment_date, "dd/MM/yyyy") : '-'}</p>
+                            <p className='text-sm text-gray-500'>{data?.fulfillment_date ? format(new Date(data?.fulfillment_date), "dd/MM/yyyy") : '-'}</p>
                         </div>
                         <div className='flex flex-col gap-0'>
                             <p className='text-md font-medium'>Created At:</p>
-                            <p className='text-sm text-gray-500'>{data?.created_at ? format(data?.created_at, "dd/MM/yyyy") : '-'}</p>
+                            <p className='text-sm text-gray-500'>{data?.created_at ?? '-'}</p>
                         </div>
                         <div className='flex flex-col gap-0'>
                             <p className='text-md font-medium'>Updated At:</p>
-                            <p className='text-sm text-gray-500'>{data?.updated_at ? format(data?.updated_at, "dd/MM/yyyy") : '-'}</p>
+                            <p className='text-sm text-gray-500'>{data?.updated_at ?? '-'}</p>
                         </div>
                         <div className='flex flex-col gap-0'>
                             <p className='text-md font-medium'>Created By:</p>

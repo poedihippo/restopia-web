@@ -1,5 +1,6 @@
 'use client'
 import { formatDateTime } from '@/utils/date';
+import Link from 'next/link';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -260,17 +261,33 @@ export default function PaymentsView() {
                   }
                 >
                   <td style={tdStyle}>
-                    <span
-                      style={{
-                        fontFamily: 'monospace',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {item.sales_order?.code ??
-                        (item.sales_order?.id ? `SO-${item.sales_order.id}` : '—')}
-                    </span>
+                    {item.sales_order?.id ? (
+                      <Link 
+                        href={`/sales/sales-orders/${item.sales_order.id}/detail`}
+                        style={{
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--accent)',
+                          textDecoration: 'none'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                        onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                      >
+                        {item.sales_order?.code ?? `SO-${item.sales_order.id}`}
+                      </Link>
+                    ) : (
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {item.sales_order?.code ?? '—'}
+                      </span>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

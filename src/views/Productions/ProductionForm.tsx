@@ -737,13 +737,12 @@ export default function ProductionForm({
       }
       setLoadingRecipeFor(detailIndex)
       try {
-        // /v1/recipes has no filter[product_uom_id]; fetch default recipes and
-        // match client-side by recipe.product_uom_id.
+        // Fetch recipe by product_uom_id
         const res = await recipesService.list({
           per_page: 200,
           include:
             'recipe_materials,recipe_materials.product_uom,recipe_materials.product_uom.product,recipe_materials.product_uom.uom',
-          'filter[is_default]': 1,
+          'filter[product_uom_id]': productUomId,
         } as any)
         const recipes = unwrapList(res.data)
         const recipe = recipes.find(

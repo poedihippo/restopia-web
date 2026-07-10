@@ -2,6 +2,8 @@ import React from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import type { ReceiptData } from '@/components/PosReceipt'
+import PosPreordersModal from './PosPreordersModal'
+import PosHistoryModal from './PosHistoryModal'
 
 interface PosModalsProps {
   showPayment: boolean
@@ -32,9 +34,32 @@ interface PosModalsProps {
   printReceipt: ReceiptData | null
   triggerPrint: (receipt: ReceiptData) => void
 
-  // ... preorder and history props ...
-  // For the sake of learning, you can fill the rest of the modal logic here
-  // or split them further into PosPaymentModal.tsx, PosReceiptModal.tsx, etc.
+  // Preorders
+  preorderSearch: string
+  setPreorderSearch: (val: string) => void
+  preorderDateFrom: string
+  setPreorderDateFrom: (val: string) => void
+  preorderDateTo: string
+  setPreorderDateTo: (val: string) => void
+  preorderPage: number
+  setPreorderPage: (val: number | ((prev: number) => number)) => void
+  preorders: any[]
+  preorderMeta: any
+  isPreordersLoading: boolean
+  loadPreorderToCart: (order: any) => void
+
+  // History
+  historySearch: string
+  setHistorySearch: (val: string) => void
+  historyDateFrom: string
+  setHistoryDateFrom: (val: string) => void
+  historyDateTo: string
+  setHistoryDateTo: (val: string) => void
+  historyPage: number
+  setHistoryPage: (val: number | ((prev: number) => number)) => void
+  historyOrders: any[]
+  historyMeta: any
+  isHistoryLoading: boolean
 }
 
 export default function PosModals({
@@ -65,6 +90,31 @@ export default function PosModals({
   resetCart,
   printReceipt,
   triggerPrint,
+
+  preorderSearch,
+  setPreorderSearch,
+  preorderDateFrom,
+  setPreorderDateFrom,
+  preorderDateTo,
+  setPreorderDateTo,
+  preorderPage,
+  setPreorderPage,
+  preorders,
+  preorderMeta,
+  isPreordersLoading,
+  loadPreorderToCart,
+
+  historySearch,
+  setHistorySearch,
+  historyDateFrom,
+  setHistoryDateFrom,
+  historyDateTo,
+  setHistoryDateTo,
+  historyPage,
+  setHistoryPage,
+  historyOrders,
+  historyMeta,
+  isHistoryLoading,
 }: PosModalsProps) {
   
   return (
@@ -333,8 +383,36 @@ export default function PosModals({
         </div>
       )}
 
-      {/* Adding other modals similarly... */}
-      {/* For learning purpose, leaving out History and Pre-order as TODOs */}
+      <PosPreordersModal
+        showPreorders={showPreorders}
+        setShowPreorders={setShowPreorders}
+        preorderSearch={preorderSearch}
+        setPreorderSearch={setPreorderSearch}
+        preorderDateFrom={preorderDateFrom}
+        setPreorderDateFrom={setPreorderDateFrom}
+        preorderPage={preorderPage}
+        setPreorderPage={setPreorderPage}
+        preorders={preorders}
+        preorderMeta={preorderMeta}
+        isPreordersLoading={isPreordersLoading}
+        loadPreorderToCart={loadPreorderToCart}
+      />
+
+      <PosHistoryModal
+        showHistory={showHistory}
+        setShowHistory={setShowHistory}
+        historySearch={historySearch}
+        setHistorySearch={setHistorySearch}
+        historyDateFrom={historyDateFrom}
+        setHistoryDateFrom={setHistoryDateFrom}
+        historyDateTo={historyDateTo}
+        setHistoryDateTo={setHistoryDateTo}
+        historyPage={historyPage}
+        setHistoryPage={setHistoryPage}
+        historyOrders={historyOrders}
+        historyMeta={historyMeta}
+        isHistoryLoading={isHistoryLoading}
+      />
     </>
   )
 }

@@ -76,6 +76,8 @@ export interface FiscalYearRequest {
   name: string
   start_date: string
   end_date: string
+  is_active: boolean
+  is_closed: boolean
 }
 
 export const fiscalYearsService = {
@@ -98,6 +100,8 @@ export interface PeriodRequest {
   name: string
   start_date: string
   end_date: string
+  is_active: boolean
+  is_closed: boolean
 }
 
 export const periodsService = {
@@ -125,8 +129,8 @@ export interface JournalDetailRequest {
 
 export interface JournalRequest {
   period_id: number
-  journal_date: string
-  journal_type: 'general' | 'adjusting' | 'closing' | 'reversing'
+  date: string
+  type: 'manual' | 'sales' | 'closing' | 'purchase' | 'receipt' | 'payment' | 'adjusment'
   description?: string
   reference_type?: string
   reference_id?: number

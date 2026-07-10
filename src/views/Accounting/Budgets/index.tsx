@@ -31,9 +31,9 @@ interface Period { id: number; name: string }
 interface CoA { id: number; code: string; name: string }
 
 const schema = z.object({
-  chart_of_account_id: z.coerce.number().min(1, 'Akun wajib dipilih'),
-  period_id: z.coerce.number().min(1, 'Periode wajib dipilih'),
-  amount: z.coerce.number().min(1, 'Jumlah wajib diisi'),
+  chart_of_account_id: z.coerce.number().min(1, 'Account is required'),
+  period_id: z.coerce.number().min(1, 'Period is required'),
+  amount: z.coerce.number().min(1, 'Amount wajib diisi'),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -81,8 +81,8 @@ export default function BudgetsView() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => budgetsService.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['budgets'] }); toast.success('Anggaran dihapus'); setDeleteConfirmId(null) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal menghapus'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['budgets'] }); toast.success('Budget deleted'); setDeleteConfirmId(null) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
@@ -97,14 +97,14 @@ export default function BudgetsView() {
 
   const createMutation = useMutation({
     mutationFn: (data: BudgetRequest) => budgetsService.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['budgets'] }); toast.success('Anggaran dibuat'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal membuat'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['budgets'] }); toast.success('Budget created'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (data: BudgetRequest) => budgetsService.update(editData!.id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['budgets'] }); toast.success('Anggaran diperbarui'); setSheetOpen(false) },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal memperbarui'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['budgets'] }); toast.success('Budgets diperbarui'); setSheetOpen(false) },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -117,12 +117,12 @@ export default function BudgetsView() {
     <div style={{ padding: '32px 32px 64px', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Anggaran (Budget)</h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Alokasi anggaran per akun per periode untuk perencanaan keuangan</p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Budgets (Budget)</h1>
+          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Budget allocation per account per period for financial planning</p>
         </div>
         {isSuperadmin && (
           <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> Anggaran Baru
+            <Plus size={16} /> Budgets Baru
           </button>
         )}
       </div>
@@ -131,9 +131,9 @@ export default function BudgetsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={thStyle}>Akun</th>
+              <th style={thStyle}>Account</th>
               <th style={{ ...thStyle, width: 180 }}>Periode</th>
-              <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Jumlah Anggaran</th>
+              <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Amount Budgets</th>
               <th style={{ ...thStyle, width: 80 }} />
             </tr>
           </thead>
@@ -148,7 +148,7 @@ export default function BudgetsView() {
               <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <PiggyBank size={32} style={{ opacity: 0.4 }} />
-                  <span style={{ fontSize: 14 }}>Belum ada anggaran</span>
+                  <span style={{ fontSize: 14 }}>No budgets found</span>
                 </div>
               </td></tr>
             ) : (
@@ -185,7 +185,7 @@ export default function BudgetsView() {
       {meta && meta.last_page > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Halaman {page} dari {meta.last_page}</span>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
           <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
@@ -194,11 +194,11 @@ export default function BudgetsView() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 360, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Hapus Anggaran</h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>Tindakan ini tidak dapat dibatalkan.</p>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Budgets</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
-              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Hapus</button>
+              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
             </div>
           </div>
         </div>
@@ -209,14 +209,14 @@ export default function BudgetsView() {
           <div onClick={() => setSheetOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
           <div style={{ position: 'relative', zIndex: 50, width: 460, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Anggaran' : 'Anggaran Baru'}</h2>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Budgets' : 'Budgets Baru'}</h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Akun <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account <span style={{ color: 'var(--destructive)' }}>*</span></label>
                 <select {...register('chart_of_account_id')} style={errors.chart_of_account_id ? inputError : inputStyle}>
-                  <option value={0}>-- Pilih Akun --</option>
+                  <option value={0}>-- Select Account --</option>
                   {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} – {a.name}</option>)}
                 </select>
                 {errors.chart_of_account_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.chart_of_account_id.message}</span>}
@@ -224,22 +224,22 @@ export default function BudgetsView() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Periode <span style={{ color: 'var(--destructive)' }}>*</span></label>
                 <select {...register('period_id')} style={errors.period_id ? inputError : inputStyle}>
-                  <option value={0}>-- Pilih Periode --</option>
+                  <option value={0}>-- Select Period --</option>
                   {periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
                 {errors.period_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.period_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Jumlah Anggaran (Rp) <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <input type="number" min={0} {...register('amount')} placeholder="mis. 5000000" style={errors.amount ? { ...inputError, textAlign: 'right' } : { ...inputStyle, textAlign: 'right' }} />
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Amount Budgets (Rp) <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <input type="number" min={0} {...register('amount')} placeholder="e.g. 5000000" style={errors.amount ? { ...inputError, textAlign: 'right' } : { ...inputStyle, textAlign: 'right' }} />
                 {errors.amount && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.amount.message}</span>}
               </div>
             </form>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Batal</button>
+              <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
               <button type="button" disabled={isPending} onClick={handleSubmit(onSubmit)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending ? 0.7 : 1 }}>
                 {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                {editData ? 'Simpan' : 'Buat'}
+                {editData ? 'Save' : 'Create'}
               </button>
             </div>
           </div>

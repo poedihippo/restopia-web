@@ -86,18 +86,25 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   // ── Line items state ───────────────────────────────────────────────────────
   const [items, setItems] = useState<LineItem[]>(() => {
     if (!editingOrder?.sales_order_details) return []
-    return editingOrder.sales_order_details.map((d: any) => ({
-      type: d.bundle_id ? 'bundle' : 'product',
-      product_inventory_id: d.product_inventory_id ?? null,
-      bundle_id: d.bundle_id ?? null,
-      bundle_details: d.bundle_details ?? null,
-      name:
-        d.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
-        d.product_inventory?.product_uom?.product?.name ??
-        d.bundle?.name ??
-        d.description ??
-        '—',
-      code: d.product_inventory?.code ?? d.bundle?.code ?? '',
+    return editingOrder.sales_order_details.map((d: any) => {
+      let snap = d.product_inventory_snapshot
+      if (typeof snap === 'string') {
+        try { snap = JSON.parse(snap) } catch (e) {}
+      }
+      return {
+        type: d.bundle_id ? 'bundle' : 'product',
+        product_inventory_id: d.product_inventory_id ?? null,
+        bundle_id: d.bundle_id ?? null,
+        bundle_details: d.bundle_details ?? null,
+        name:
+          snap?.product_uom?.product?.name ??
+          snap?.name ??
+          d.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
+          d.product_inventory?.product_uom?.product?.name ??
+          d.bundle?.name ??
+          d.description ??
+          '—',
+        code: snap?.code ?? d.product_inventory?.code ?? d.bundle?.code ?? '',
       qty: d.qty,
       price: d.price,
       status: d.status,
