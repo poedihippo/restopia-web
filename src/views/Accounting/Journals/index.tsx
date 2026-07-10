@@ -17,7 +17,7 @@ import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle,
 } from 'lucide-react'
-
+//trigger
 interface JournalDetail {
   id?: number
   chart_of_account_id: number
