@@ -12,6 +12,7 @@ import { X, Loader2 } from 'lucide-react'
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
+  timezone: z.string().optional(),
   is_default: z.boolean().default(false),
 })
 type FormValues = z.infer<typeof schema>
@@ -38,7 +39,8 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { code: '', name: '', is_default: false },
+    defaultValues: { code: '', name: '',
+      timezone: 'Asia/Jakarta', is_default: false },
   })
 
   useEffect(() => {
@@ -49,7 +51,9 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
         is_default: editData.is_default ?? false,
       })
     } else {
-      reset({ code: '', name: '', is_default: false })
+      reset({ code: '', name: '',
+        timezone: 'Asia/Jakarta',
+        is_default: false })
     }
   }, [editData, open, reset])
 
@@ -225,6 +229,21 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
                 />
                 {errors.name && <div style={errorStyle}>{errors.name.message}</div>}
               </div>
+            </div>
+
+            {/* Timezone */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={labelStyle}>Timezone</label>
+              <select
+                {...register('timezone')}
+                style={errors.timezone ? inputErrorStyle : inputStyle}
+              >
+                <option value="UTC">UTC</option>
+                <option value="Asia/Jakarta">Asia/Jakarta</option>
+                <option value="Asia/Makassar">Asia/Makassar</option>
+                <option value="Asia/Jayapura">Asia/Jayapura</option>
+              </select>
+              {errors.timezone && <div style={errorStyle}>{errors.timezone.message}</div>}
             </div>
 
             {/* is_default */}

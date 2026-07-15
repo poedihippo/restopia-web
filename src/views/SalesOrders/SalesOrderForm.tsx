@@ -45,15 +45,12 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
   // ── Header state ───────────────────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10)
-  const todayDateTime = new Date().toISOString().slice(0, 16)
 
   const [code, setCode] = useState(editingOrder?.code ?? `SO-${Date.now()}`)
   const [type, setType] = useState<'offline' | 'online'>(editingOrder?.type ?? 'offline')
   const [date, setDate] = useState(editingOrder?.date ?? today)
   const [fulfillmentDate, setFulfillmentDate] = useState(
-    editingOrder?.fulfillment_date
-      ? (parseApiDate(editingOrder.fulfillment_date) || new Date()).toISOString().slice(0, 16)
-      : todayDateTime
+    editingOrder?.fulfillment_date ?? today
   )
   const [status, setStatus] = useState<'pending' | 'final'>(editingOrder?.status ?? 'pending')
   const [settlementStatus, setSettlementStatus] = useState<
@@ -89,7 +86,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     return editingOrder.sales_order_details.map((d: any) => {
       let snap = d.product_inventory_snapshot
       if (typeof snap === 'string') {
-        try { snap = JSON.parse(snap) } catch (e) {}
+        try { snap = JSON.parse(snap) } catch (e) { }
       }
       return {
         type: d.bundle_id ? 'bundle' : 'product',
@@ -105,13 +102,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           d.description ??
           '—',
         code: snap?.code ?? d.product_inventory?.code ?? d.bundle?.code ?? '',
-      qty: d.qty,
-      price: d.price,
-      status: d.status,
-      description: d.description ?? '',
-    }
+        qty: d.qty,
+        price: d.price,
+        status: d.status,
+        description: d.description ?? '',
+      }
+    })
   })
-})
 
   // ── Product search state ───────────────────────────────────────────────────
   const [productSearch, setProductSearch] = useState('')
@@ -275,7 +272,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         code,
         type,
         date,
-        fulfillment_date: new Date(fulfillmentDate).toISOString(),
+        fulfillment_date: fulfillmentDate,
         customer_id: customerId ?? null,
         customer_name: customerId ? undefined : customerName || undefined,
         customer_phone: customerId ? undefined : customerPhone || undefined,
@@ -417,13 +414,6 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         >
           <div>
             <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-              Order Code
-              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-            </label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} style={fieldStyle} />
-          </div>
-          <div>
-            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
               Type
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
@@ -506,7 +496,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     label: (u.name as string) ?? '',
                     sublabel: u.credit
                       ? 'Credit: Rp ' +
-                        Number(u.credit ?? 0).toLocaleString('id-ID')
+                      Number(u.credit ?? 0).toLocaleString('id-ID')
                       : 'No credit set',
                   })),
                 ]}
@@ -543,7 +533,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <input
-              type="datetime-local"
+              type="date"
               value={fulfillmentDate}
               onChange={(e) => setFulfillmentDate(e.target.value)}
               style={fieldStyle}

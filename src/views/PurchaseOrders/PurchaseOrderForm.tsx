@@ -46,6 +46,8 @@ const schema = z.object({
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
+  type: z.string().optional(),
+  total_price: z.coerce.number().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -87,6 +89,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       status: 'pending',
       description: '',
       details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+      type: 'standard',
+      total_price: 0,
     },
   })
 

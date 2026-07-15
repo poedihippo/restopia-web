@@ -185,6 +185,16 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.read' },
       { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard, permission: 'payment-method.read' },
       { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.read' },
+      {
+        label: 'Store Operations',
+        icon: Store,
+        children: [
+          { label: 'Operation Rules', href: '/settings/operation-rules' },
+          { label: 'Operations', href: '/settings/operations' },
+          { label: 'Shift Rules', href: '/settings/shift-rules' },
+          { label: 'Shifts', href: '/settings/shifts' },
+        ],
+      },
     ],
   },
 ];

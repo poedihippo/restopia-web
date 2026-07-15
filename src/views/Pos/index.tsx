@@ -4,6 +4,7 @@ import PosHeader from './components/PosHeader'
 import PosProductGrid from './components/PosProductGrid'
 import PosCartSidebar from './components/PosCartSidebar'
 import PosModals from './components/PosModals'
+import PosShiftBlockerModal from './components/PosShiftBlockerModal'
 // TODO: You might want to extract PosPreorderModal and PosHistoryModal later.
 
 export default function PosView() {
@@ -164,6 +165,8 @@ export default function PosView() {
         historyMeta={logic.historyMeta}
         isHistoryLoading={logic.isHistoryLoading}
       />
+      
+      <PosShiftBlockerModal />
     </div>
   )
 }

@@ -491,9 +491,7 @@ export default function PurchaseOrdersView() {
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                        {item.date
-                          ? formatDate(item.date)
-                          : '—'}
+                        {item.date}
                       </span>
                     </td>
                     <td style={tdStyle}>

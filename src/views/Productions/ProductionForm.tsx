@@ -42,7 +42,6 @@ const detailSchema = z.object({
 })
 
 const schema = z.object({
-  code: z.string().min(1, 'Code is required'),
   date: z.string().min(1, 'Date is required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
@@ -525,7 +524,6 @@ export default function ProductionForm({
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      code: '',
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
@@ -909,7 +907,6 @@ export default function ProductionForm({
   )
 
   const buildPayload = (values: FormValues) => ({
-    code: values.code,
     date: values.date,
     status: values.status,
     description: values.description || undefined,
@@ -1056,26 +1053,6 @@ export default function ProductionForm({
               gap: 16,
             }}
           >
-            {/* Code */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Production Code
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <input
-                {...register('code')}
-                placeholder="e.g. PN-2026-001"
-                style={{
-                  ...fieldInputStyle,
-                  border: `1px solid ${errors.code ? 'var(--destructive)' : 'var(--border)'}`,
-                }}
-              />
-              {errors.code && (
-                <span style={{ fontSize: 11, color: 'var(--destructive)', marginTop: 3 }}>
-                  {errors.code.message}
-                </span>
-              )}
-            </div>
 
             {/* Date */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>

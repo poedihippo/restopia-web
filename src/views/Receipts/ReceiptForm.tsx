@@ -37,6 +37,7 @@ const schema = z.object({
   status: z.literal('final'),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
+  total_price: z.coerce.number().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -80,6 +81,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
         },
       ],
+      total_price: 0,
     },
   })
 
@@ -225,7 +227,14 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
-      reset(initialData)
+      reset({
+        ...initialData,
+        date: initialData.date.split('T')[0],
+        status: initialData.status,
+        description: initialData.description ?? '',
+        details: initialData.details,
+        total_price: initialData.total_price ?? 0,
+      })
     }
   }, [initialData, mode])
 
@@ -233,7 +242,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     ...values,
     status: 'final',
     // Internal receipts are price-free — never submit prices.
-    total_price: isInternalReceipt ? 0 : totalPrice,
+    total_price: isInternalReceipt ? 0 : (values.total_price ?? totalPrice),
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({

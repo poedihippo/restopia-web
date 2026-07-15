@@ -74,7 +74,7 @@ const PurchaseOrders = () => {
       {
         title: "Date",
         key: "date",
-        render: (value) => formatDate(value as string),
+        render: (value) => value as string,
       },
       {
         title: "Status",
@@ -87,7 +87,7 @@ const PurchaseOrders = () => {
       {
         title: "Created At",
         key: "created_at",
-        render: (value) => formatDate(value as string),
+        render: (value) => value as string,
       },
     ],
     [],

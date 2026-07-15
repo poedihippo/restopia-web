@@ -117,7 +117,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           sales_order_detail_id: undefined,
           qty: 1,
           price: 0,
-          status: 'pending',
+          status: 'packed',
           description: '',
         },
       ],
@@ -322,7 +322,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       sales_order_detail_id: undefined,
       qty: d.qty ?? 1,
       price: d.price ?? 0,
-      status: 'pending' as const,
+      status: 'packed' as const,
       description: d.description ?? '',
     }))
 
@@ -354,7 +354,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         sales_order_detail_id: d.id,
         qty: d.qty ?? 1,
         price: d.price ?? 0,
-        status: 'pending' as const,
+        status: 'packed' as const,
         description: d.description ?? '',
       }))
       replace(newDetails)
@@ -824,7 +824,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   sales_order_detail_id: undefined,
                   qty: 1,
                   price: 0,
-                  status: 'pending',
+                  status: 'packed',
                   description: '',
                 })
               }

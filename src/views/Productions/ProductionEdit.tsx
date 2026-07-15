@@ -4,6 +4,7 @@ import React, { useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import useGetProduction from '@/hooks/productions/useGetProduction'
 import ProductionForm from './ProductionForm'
+import { parseDate } from '@/helper/parseDate'
 
 interface Props {
   id: number
@@ -16,8 +17,8 @@ function mapApiToForm(production: any) {
   const dateStr =
     production.date != null
       ? typeof production.date === 'string'
-        ? production.date.slice(0, 10)
-        : new Date(production.date).toISOString().split('T')[0]
+        ? parseDate(production.date)
+        : parseDate(production.date)
       : ''
 
   const detailsRows = (production.production_details ?? []).map((d: any) => {
@@ -30,7 +31,7 @@ function mapApiToForm(production: any) {
       product_uom_id: d.product_uom_id ?? 0,
       qty: d.qty ?? 1,
       status: d.status ?? 'pending',
-      expiry_date: d.expiry_date ? String(d.expiry_date).split('T')[0] : '',
+      expiry_date: parseDate(d.expiry_date) ? parseDate(d.expiry_date) : '',
       description: d.description ?? '',
       materials: mats.length > 0 ? mats : [{ product_inventory_id: 0, qty: 1 }],
     }
@@ -40,15 +41,15 @@ function mapApiToForm(production: any) {
     detailsRows.length > 0
       ? detailsRows
       : [
-          {
-            product_uom_id: 0,
-            qty: 1,
-            status: 'pending' as const,
-            expiry_date: '',
-            description: '',
-            materials: [{ product_inventory_id: 0, qty: 1 }],
-          },
-        ]
+        {
+          product_uom_id: 0,
+          qty: 1,
+          status: 'pending' as const,
+          expiry_date: '',
+          description: '',
+          materials: [{ product_inventory_id: 0, qty: 1 }],
+        },
+      ]
 
   return {
     code: production.code ?? '',
