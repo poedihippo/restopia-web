@@ -68,26 +68,29 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   const categories = (catData as any)?.data ?? []
 
   useEffect(() => {
-    if (editData) {
-      reset({
-        name: editData.name,
-        code: editData.code ?? '',
-        product_category_id: editData.product_category_id ?? 0,
-        type: editData.type ?? '',
-        description: editData.description ?? '',
-        status: editData.status,
-      })
-    } else {
-      reset({
-        name: '',
-        code: '',
-        product_category_id: 0,
-        type: '',
-        description: '',
-        status: 'active',
-      })
+    if (open) {
+      if (editData) {
+        reset({
+          name: editData.name,
+          code: editData.code ?? '',
+          product_category_id: editData.product_category_id ?? 0,
+          type: editData.type ?? '',
+          description: editData.description ?? '',
+          status: editData.status,
+        })
+      } else {
+        reset({
+          name: '',
+          code: '',
+          product_category_id: 0,
+          type: '',
+          description: '',
+          status: 'active',
+        })
+      }
     }
-  }, [editData, reset, categories.length]) // categories.length memastikan reset dijalankan ulang setelah list kategori berhasil di-fetch
+
+  }, [open, editData, reset, categories.length]) // categories.length memastikan reset dijalankan ulang setelah list kategori berhasil di-fetch
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => productsService.create(data as any),

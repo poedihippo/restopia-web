@@ -1,7 +1,7 @@
 'use client'
 import { formatDateShort } from '@/utils/date';
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer } from 'lucide-react'
@@ -79,7 +79,15 @@ export default function DiscountVoucherReport() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth())
   const [dateTo, setDateTo] = useState(today())
   const [branchFilter, setBranchFilter] = useState('')
+  const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState(false)
+
+  useEffect(() => {
+    if (user?.branch_id && !hasSetDefault) {
+      setBranchFilter(String(user.branch_id))
+      setHasSetDefault(true)
+    }
+  }, [user, hasSetDefault])
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['report-discount-voucher', dateFrom, dateTo, branchFilter],

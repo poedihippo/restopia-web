@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { useAuth } from '@/hooks/useAuth'
@@ -18,7 +18,15 @@ export default function SalesReport() {
   const [dateFrom, setDateFrom] = useState<string>(today())
   const [dateTo, setDateTo] = useState<string>(today())
   const [branchFilter, setBranchFilter] = useState<string>('')
+  const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (user?.branch_id && !hasSetDefault) {
+      setBranchFilter(String(user.branch_id))
+      setHasSetDefault(true)
+    }
+  }, [user, hasSetDefault])
 
   const { data, isLoading } = useQuery({
     queryKey: ['report-sales', dateFrom, dateTo, branchFilter],

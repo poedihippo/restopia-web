@@ -1,7 +1,7 @@
 'use client'
 import { formatDateShort } from '@/utils/date';
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -136,8 +136,16 @@ export default function SalesByInvoiceReport() {
   const [dateFrom, setDateFrom] = useState<string>(firstOfMonth())
   const [dateTo, setDateTo] = useState<string>(today())
   const [branchFilter, setBranchFilter] = useState<string>('')
+  const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState<boolean>(false)
   const [page, setPage] = useState<number>(1)
+
+  useEffect(() => {
+    if (user?.branch_id && !hasSetDefault) {
+      setBranchFilter(String(user.branch_id))
+      setHasSetDefault(true)
+    }
+  }, [user, hasSetDefault])
 
   const { data, isLoading } = useQuery({
     queryKey: [

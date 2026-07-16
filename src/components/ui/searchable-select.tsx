@@ -1,4 +1,6 @@
 import ReactSelect, { Props as ReactSelectProps } from "react-select";
+import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
 
 export interface SelectOption {
   value: number;
@@ -11,6 +13,25 @@ type SearchableSelectProps = Omit<
 >;
 
 export const SearchableSelect = (props: SearchableSelectProps) => {
+  const { user } = useAuth();
+  const { value, options, placeholder, onChange } = props;
+
+  useEffect(() => {
+    const lowerPlaceholder = typeof placeholder === 'string' ? placeholder.toLowerCase() : '';
+    const isOwnBranchSelect =
+      lowerPlaceholder.includes('branch') &&
+      !lowerPlaceholder.includes('target') &&
+      !lowerPlaceholder.includes('supplier') &&
+      !lowerPlaceholder.includes('buyer')
+
+    if (!value && user?.branch_id && isOwnBranchSelect && options && onChange) {
+      const branchOpt = (options as SelectOption[]).find((o) => o.value === user.branch_id);
+      if (branchOpt) {
+        onChange(branchOpt, { action: "select-option", option: branchOpt });
+      }
+    }
+  }, [value, user, placeholder, options, onChange]);
+
   return (
     <ReactSelect<SelectOption, boolean>
       {...props}

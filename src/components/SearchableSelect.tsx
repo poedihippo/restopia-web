@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 export interface SearchableSelectOption {
   value: number
@@ -32,6 +33,7 @@ export default function SearchableSelect({
   onSearchChange,
   error,
 }: SearchableSelectProps) {
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [dropdownPos, setDropdownPos] = useState<
@@ -39,6 +41,22 @@ export default function SearchableSelect({
   >(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const lowerPlaceholder = placeholder?.toLowerCase() ?? ''
+    const isOwnBranchSelect =
+      lowerPlaceholder.includes('branch') &&
+      !lowerPlaceholder.includes('target') &&
+      !lowerPlaceholder.includes('supplier') &&
+      !lowerPlaceholder.includes('buyer')
+
+    if (!value && user?.branch_id && isOwnBranchSelect) {
+      const hasBranchOption = options.some((o) => o.value === user.branch_id)
+      if (hasBranchOption) {
+        onChange(user.branch_id)
+      }
+    }
+  }, [value, user, placeholder, options, onChange])
 
   const selectedOption = options.find((o) => o.value === value)
 

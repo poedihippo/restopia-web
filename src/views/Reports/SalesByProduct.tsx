@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer } from 'lucide-react'
@@ -90,7 +90,15 @@ export default function SalesByProductReport() {
   const [dateFrom, setDateFrom] = useState<string>(firstOfMonth())
   const [dateTo, setDateTo] = useState<string>(today())
   const [branchFilter, setBranchFilter] = useState<string>('')
+  const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState<boolean>(false)
+
+  useEffect(() => {
+    if (user?.branch_id && !hasSetDefault) {
+      setBranchFilter(String(user.branch_id))
+      setHasSetDefault(true)
+    }
+  }, [user, hasSetDefault])
 
   const { data, isLoading } = useQuery({
     queryKey: ['report-sales-product', dateFrom, dateTo, branchFilter],

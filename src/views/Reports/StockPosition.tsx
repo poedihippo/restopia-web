@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer, Search } from 'lucide-react'
@@ -59,11 +59,19 @@ export default function StockPositionReport() {
   const { user, isSuperadmin } = useAuth()
 
   const [branchFilter, setBranchFilter] = useState('')
+  const [hasSetDefault, setHasSetDefault] = useState(false)
   const [productTypeFilter, setProductTypeFilter] = useState<
     '' | 'raw' | 'wip' | 'final'
   >('')
   const [searchText, setSearchText] = useState('')
   const [enabled, setEnabled] = useState(false)
+
+  useEffect(() => {
+    if (user?.branch_id && !hasSetDefault) {
+      setBranchFilter(String(user.branch_id))
+      setHasSetDefault(true)
+    }
+  }, [user, hasSetDefault])
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: [

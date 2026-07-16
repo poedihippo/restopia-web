@@ -1,7 +1,7 @@
 'use client'
 import { formatDateShort } from '@/utils/date';
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer } from 'lucide-react'
@@ -92,9 +92,17 @@ export default function TransactionHistoryReport() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth())
   const [dateTo, setDateTo] = useState(today())
   const [branchFilter, setBranchFilter] = useState('')
+  const [hasSetDefault, setHasSetDefault] = useState(false)
   const [typeFilter, setTypeFilter] = useState<'' | 'offline' | 'online'>('')
   const [page, setPage] = useState(1)
   const [enabled, setEnabled] = useState(false)
+
+  useEffect(() => {
+    if (user?.branch_id && !hasSetDefault) {
+      setBranchFilter(String(user.branch_id))
+      setHasSetDefault(true)
+    }
+  }, [user, hasSetDefault])
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: [

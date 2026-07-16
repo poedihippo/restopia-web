@@ -36,7 +36,6 @@ const detailSchema = z.object({
 })
 
 const schema = z.object({
-  code: z.string().min(1, 'Code is required'),
   // supplier_id / supplier_branch_id are mutually exclusive — required-ness is
   // enforced in onSubmit based on the poSourceType toggle, so both stay optional
   // at the schema level.
@@ -82,7 +81,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      code: '',
       supplier_id: 0,
       supplier_branch_id: undefined,
       date: new Date().toISOString().split('T')[0],
@@ -418,20 +416,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               gap: 16,
             }}
           >
-            {/* Code */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Order Code
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <input
-                {...register('code')}
-                placeholder="e.g. PO-2026-001"
-                style={errors.code ? inputErrorStyle : inputStyle}
-              />
-              {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
-            </div>
-
             {/* Date */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -698,15 +682,22 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={f.onChange}
+                      onChange={(val) => {
+                        f.onChange(val)
+
+                        const matchingUom = productUoms.find((pu: any) => pu.id === val)
+                        if (matchingUom) {
+                          setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
+                        }
+                      }}
                       options={productUomOptions}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={productUomsLoading}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
-                          | string
-                          | undefined
+                        | string
+                        | undefined
                       }
                     />
                   )}

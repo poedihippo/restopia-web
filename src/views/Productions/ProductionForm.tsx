@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/router'
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -140,6 +140,9 @@ interface MaterialsFieldArrayProps {
   setSharedShowMaterialUomPicker: (v: boolean) => void
   onSelectMaterialInventory: (detailIndex: number, matIndex: number, inv: any, productName: string) => void
   materialLabels: Record<string, string>
+  recipeSource?: { recipeQty: number; baseQtys: number[] }
+  manualEdited?: boolean
+  setValue: any
 }
 
 export function MaterialsFieldArray({
@@ -165,11 +168,37 @@ export function MaterialsFieldArray({
   setSharedShowMaterialUomPicker,
   onSelectMaterialInventory,
   materialLabels,
+  recipeSource,
+  manualEdited,
+  setValue,
 }: MaterialsFieldArrayProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: `details.${detailIndex}.materials` as any,
   })
+
+  const prodQty = useWatch({
+    control,
+    name: `details.${detailIndex}.qty`
+  })
+
+  const watchedMaterials = useWatch({
+    control,
+    name: `details.${detailIndex}.materials`
+  })
+
+  useEffect(() => {
+    if (recipeSource && !manualEdited) {
+      const pQty = Number(prodQty) || 0
+      recipeSource.baseQtys.forEach((baseQty, mi) => {
+        const scaled = scaleMaterialQty(baseQty, pQty, recipeSource.recipeQty)
+        const cur = watchedMaterials?.[mi]?.qty
+        if (Number(cur) !== scaled) {
+          setValue(`details.${detailIndex}.materials.${mi}.qty` as any, scaled)
+        }
+      })
+    }
+  }, [prodQty, recipeSource, manualEdited, setValue, detailIndex, watchedMaterials])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -843,24 +872,6 @@ export default function ProductionForm({
     [watchDetails, inventories, setValue],
   )
 
-  // Re-scale recipe-loaded materials whenever the production-item qty changes.
-  // Skipped for rows the user manually edited. The cur !== scaled guard keeps
-  // this from looping on its own setValue calls.
-  useEffect(() => {
-    Object.entries(recipeSourceByDetail).forEach(([key, src]) => {
-      const di = Number(key)
-      if (manualEditedDetails[di]) return
-      const prodQty = Number(watchDetails?.[di]?.qty) || 0
-      src.baseQtys.forEach((baseQty, mi) => {
-        const scaled = scaleMaterialQty(baseQty, prodQty, src.recipeQty)
-        const cur = watchDetails?.[di]?.materials?.[mi]?.qty
-        if (Number(cur) !== scaled) {
-          setValue(`details.${di}.materials.${mi}.qty` as any, scaled)
-        }
-      })
-    })
-  }, [watchDetails, recipeSourceByDetail, manualEditedDetails, setValue])
-
   // Derive material labels from inventories so edit mode shows readable names
   // instead of "Material #1". Manual labels (set via picker) take precedence.
   const derivedMaterialLabels = useMemo(() => {
@@ -1407,6 +1418,9 @@ export default function ProductionForm({
                         setSharedShowMaterialUomPicker={setSharedShowMaterialUomPicker}
                         onSelectMaterialInventory={handleSelectMaterialInventory}
                         materialLabels={mergedMaterialLabels}
+                        recipeSource={recipeSourceByDetail[detailIndex]}
+                        manualEdited={manualEditedDetails[detailIndex]}
+                        setValue={setValue}
                       />
                     </div>
                   )}

@@ -36,12 +36,14 @@ export default function UomSheet({ open, onClose, editData }: UomSheetProps) {
   })
 
   useEffect(() => {
-    if (editData) {
-      reset({ name: editData.name, code: editData.code })
-    } else {
-      reset({ name: '', code: '' })
+    if (open) {
+      if (editData) {
+        reset({ name: editData.name, code: editData.code })
+      } else {
+        reset({ name: '', code: '' })
+      }
     }
-  }, [editData, reset])
+  }, [open, editData, reset])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => uomsService.create(data as any),
