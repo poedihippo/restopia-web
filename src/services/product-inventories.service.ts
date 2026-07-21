@@ -3,10 +3,24 @@ import type { ApiResponse, PaginatedData, ListParams, ProductInventoryRequest } 
 
 export const productInventoriesService = {
   list: (params?: ListParams) =>
-    api.get<ApiResponse<PaginatedData<unknown>>>('/product-inventories', { params }),
+    api.get<ApiResponse<PaginatedData<unknown>>>('/product-inventories', { params }).then((res) => {
+      if (res.data?.data && Array.isArray(res.data.data.data)) {
+        res.data.data.data = res.data.data.data.map((item: any) => ({
+          ...item,
+          qty: item.stock ?? item.qty ?? 0,
+        }))
+      }
+      return res
+    }),
 
   findById: (id: number, params?: { include?: string }) =>
-    api.get<ApiResponse<unknown>>(`/product-inventories/${id}`, { params }),
+    api.get<ApiResponse<unknown>>(`/product-inventories/${id}`, { params }).then((res) => {
+      const item = res.data?.data as any
+      if (item) {
+        item.qty = item.stock ?? item.qty ?? 0
+      }
+      return res
+    }),
 
   create: (data: ProductInventoryRequest) =>
     api.post<ApiResponse<unknown>>('/product-inventories', data),

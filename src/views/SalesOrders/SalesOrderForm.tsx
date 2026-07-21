@@ -14,12 +14,15 @@ import { branchesService } from '@/services/branches.service'
 import { usersService } from '@/services/users.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import api from '@/hooks/useApi'
+import { usePrice } from '@/hooks/usePrice'
+import { PriceDisplay } from '@/components/PriceDisplay'
 
 const generateKey = () =>
   Math.random().toString(36).substring(2) + Date.now().toString(36)
 
-const formatNumber = (n: number | undefined): string => {
+const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
+  if (!canReadPrice) return '***'
   return Number(n).toLocaleString('id-ID')
 }
 
@@ -41,6 +44,7 @@ interface LineItem {
 export default function SalesOrderForm({ editingOrder }: { editingOrder?: any }): React.ReactElement {
   const router = useRouter()
   const qc = useQueryClient()
+  const { canReadPrice, formatPrice } = usePrice()
   const isEdit = !!editingOrder
 
   // ── Header state ───────────────────────────────────────────────────────────
@@ -544,7 +548,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             <input
               type="text"
               inputMode="numeric"
-              value={formatNumber(discountPrice)}
+              value={formatNumber(discountPrice, canReadPrice)}
               onChange={(e) => {
                 const raw = e.target.value.replace(/[^\d]/g, '')
                 setDiscountPrice(raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -1010,7 +1014,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={formatNumber(item.price)}
+                      value={formatNumber(item.price, canReadPrice)}
+                      disabled={!canReadPrice}
                       onChange={(e) => {
                         const raw = e.target.value.replace(/[^\d]/g, '')
                         updateItem(idx, 'price', raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -1022,6 +1027,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                         borderRadius: 'var(--radius-sm)',
                         padding: '0 8px',
                         fontSize: 13,
+                        background: !canReadPrice ? 'var(--surface)' : undefined,
+                        cursor: !canReadPrice ? 'not-allowed' : undefined,
                       }}
                     />
                   </td>
@@ -1053,7 +1060,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                       borderBottom: '1px solid var(--border)',
                     }}
                   >
-                    Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                    <PriceDisplay amount={item.price * item.qty} />
                   </td>
                   <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
                     <button
@@ -1090,7 +1097,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             }}
           >
             <span style={{ color: 'var(--foreground-muted)' }}>Subtotal</span>
-            <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+            <PriceDisplay amount={subtotal} />
           </div>
           <div
             style={{
@@ -1102,7 +1109,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           >
             <span style={{ color: 'var(--foreground-muted)' }}>Discount</span>
             <span style={{ color: 'var(--success)' }}>
-              - Rp {discountPrice.toLocaleString('id-ID')}
+              - <PriceDisplay amount={discountPrice} prefix="Rp " />
             </span>
           </div>
           <div
@@ -1116,7 +1123,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           >
             <span style={{ fontWeight: 700, fontSize: 16 }}>Total</span>
             <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>
-              Rp {total.toLocaleString('id-ID')}
+              <PriceDisplay amount={total} />
             </span>
           </div>
           <div style={{ display: 'flex', gap: 12 }}>

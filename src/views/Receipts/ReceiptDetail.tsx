@@ -398,7 +398,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
             }}
           >
             {receipt.date
-              ? formatDate(receipt.date)
+              ? receipt.date
               : '—'}
           </div>
         </div>

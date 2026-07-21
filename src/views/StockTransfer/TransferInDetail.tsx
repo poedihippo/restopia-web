@@ -13,6 +13,8 @@ import { receiptsService } from '@/services/receipts.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
 import { ArrowLeft, Package, Check, Loader2 } from 'lucide-react'
+import { usePrice } from '@/hooks/usePrice'
+import { PriceDisplay } from '@/components/PriceDisplay'
 
 const detailSchema = z.object({
   delivery_detail_id: z.coerce.number().optional(),
@@ -46,6 +48,7 @@ interface TransferInDetailProps {
 export default function TransferInDetail({ id }: TransferInDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { canReadPrice } = usePrice()
   const today = new Date().toISOString().split('T')[0]
 
   const { data, isLoading } = useQuery({
@@ -392,7 +395,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                 fontFamily: 'var(--font-display)',
               }}
             >
-              Rp {Number(delivery.total_price ?? 0).toLocaleString('id-ID')}
+              <PriceDisplay amount={Number(delivery.total_price ?? 0)} />
             </span>
           </div>
           <div>
@@ -691,13 +694,22 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={inputStyle}
                 />
-                <input
-                  type="number"
-                  min={0}
-                  step={100}
-                  {...register(`details.${index}.price`, { valueAsNumber: true })}
-                  style={inputStyle}
-                />
+                {canReadPrice ? (
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    {...register(`details.${index}.price`, { valueAsNumber: true })}
+                    style={inputStyle}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value="***"
+                    disabled
+                    style={{ ...inputStyle, background: 'var(--surface)', cursor: 'not-allowed' }}
+                  />
+                )}
                 <input
                   type="date"
                   {...register(`details.${index}.planned_expiry_date`)}

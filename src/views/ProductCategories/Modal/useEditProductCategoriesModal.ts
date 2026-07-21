@@ -39,7 +39,8 @@ export const useEditProductCategoriesModal = (onSuccess?: () => void) => {
 
   const closeModal = useCallback(() => {
     setIsOpen(false);
-    form.reset();
+    form.reset({ name: "" });
+    setSelected(null);
   }, [form]);
 
   const handleSubmit = useCallback(

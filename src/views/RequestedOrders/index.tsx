@@ -107,7 +107,7 @@ export default function RequestedOrdersView() {
             'purchase_order_details.product_uom.product,' +
             'purchase_order_details.product_uom.uom',
           sort: '-created_at',
-          'filter[supplier_branch_id]': myBranchId || undefined,
+          'filter[target_branch_id]': myBranchId || undefined,
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
         } as any)

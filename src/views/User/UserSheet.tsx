@@ -52,6 +52,10 @@ interface RoleOption {
 interface BranchOption {
   id: number
   name: string
+  company?: {
+    id: number
+    name: string
+  }
 }
 
 const toggleId = (arr: number[], id: number): number[] =>
@@ -92,7 +96,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
 
   const { data: branchesData } = useQuery({
     queryKey: ['branches-all'],
-    queryFn: () => branchesService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches: BranchOption[] = (branchesData as any)?.data ?? []
 
@@ -473,32 +477,49 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                       </span>
                     )
                   }
+
+                  const branchesByCompany = branches.reduce((acc, branch) => {
+                    const companyName = branch.company?.name ?? 'Other'
+                    if (!acc[companyName]) acc[companyName] = []
+                    acc[companyName].push(branch)
+                    return acc
+                  }, {} as Record<string, BranchOption[]>)
+
                   return (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {branches.map((branch) => {
-                        const selected = value.includes(branch.id)
-                        return (
-                          <button
-                            type="button"
-                            key={branch.id}
-                            onClick={() => field.onChange(toggleId(value, branch.id))}
-                            style={{
-                              padding: '5px 12px',
-                              borderRadius: 'var(--radius-md)',
-                              fontSize: 12,
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              background: selected ? 'var(--accent)' : 'var(--background)',
-                              color: selected ? 'white' : 'var(--foreground-muted)',
-                              border: selected
-                                ? '1px solid var(--accent)'
-                                : '1px solid var(--border)',
-                            }}
-                          >
-                            {branch.name}
-                          </button>
-                        )
-                      })}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                      {Object.entries(branchesByCompany).map(([companyName, companyBranches]) => (
+                        <div key={companyName}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)', marginBottom: 8 }}>
+                            {companyName}
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {companyBranches.map((branch) => {
+                              const selected = value.includes(branch.id)
+                              return (
+                                <button
+                                  type="button"
+                                  key={branch.id}
+                                  onClick={() => field.onChange(toggleId(value, branch.id))}
+                                  style={{
+                                    padding: '5px 12px',
+                                    borderRadius: 'var(--radius-md)',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    background: selected ? 'var(--accent)' : 'var(--background)',
+                                    color: selected ? 'white' : 'var(--foreground-muted)',
+                                    border: selected
+                                      ? '1px solid var(--accent)'
+                                      : '1px solid var(--border)',
+                                  }}
+                                >
+                                  {branch.name}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )
                 }}

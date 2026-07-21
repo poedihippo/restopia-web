@@ -21,7 +21,12 @@ const Suppliers = () => {
     editModal,
     createModal,
     deleteModal, } = useSuppliers()
-  const { canCreate, canUpdate, canDelete } = usePermission()
+  const {
+    canCreate,
+    canUpdate,
+    canDelete,
+    canRead
+  } = usePermission()
 
   const columns: Column<ISupplier>[] = useMemo(
     () => [
@@ -49,22 +54,18 @@ const Suppliers = () => {
   const renderActions = useCallback(
     (_record: ISupplier, _index: number) => (
       <div className="flex gap-2">
-        {canUpdate('supplier') && (
-          <button
-            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-            onClick={() => editModal.openModal(suppliers[_index])}
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {canDelete('supplier') && (
-          <button
-            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-            onClick={() => deleteModal.openModal(suppliers[_index])}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        {(<button
+          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+          onClick={() => editModal.openModal(suppliers[_index])}
+          disabled={!canUpdate('supplier')}>
+          <Pencil className="h-4 w-4" />
+        </button>)}
+        {(<button
+          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          onClick={() => deleteModal.openModal(suppliers[_index])}
+          disabled={!canDelete('supplier')}>
+          <Trash2 className="h-4 w-4" />
+        </button>)}
       </div>
     ),
     [suppliers, editModal, deleteModal, canUpdate, canDelete],
@@ -77,7 +78,6 @@ const Suppliers = () => {
           Manage your suppliers here
         </p>
       </div>
-
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -88,17 +88,13 @@ const Suppliers = () => {
               className="w-full sm:max-w-sm"
             />
           </div>
-          {canCreate('supplier') && (
-            <Button
-              onClick={() => createModal.openModal()}
-              className="w-full sm:w-auto"
-            >
-              Create Supplier
-            </Button>
-          )}
+          {(<Button
+            onClick={() => createModal.openModal()}
+            className="w-full sm:w-auto"
+            disabled={!canCreate('supplier')}>Create Supplier
+                        </Button>)}
         </div>
       </div>
-
       {/* Data Table */}
       <DataTable
         columns={columns}
@@ -112,8 +108,7 @@ const Suppliers = () => {
           onChange: handlePageChange,
         }}
         actions={renderActions}
-      />
-
+        canRead={canRead("supplier")} />
       {/* Modals */}
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}
@@ -122,7 +117,6 @@ const Suppliers = () => {
         label={deleteModal.selected?.name}
         isDeleting={deleteModal.isDeleting}
       />
-
       {editModal.isOpen && (
         <SuppliersModal
           mode="edit"
@@ -133,7 +127,6 @@ const Suppliers = () => {
           isSubmitting={editModal.isSubmitting}
         />
       )}
-
       {createModal.isOpen && (
         <SuppliersModal
           mode="create"
@@ -145,7 +138,7 @@ const Suppliers = () => {
         />
       )}
     </div>
-  )
+  );
 }
 
 export default Suppliers

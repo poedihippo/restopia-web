@@ -36,6 +36,7 @@ interface ProductConversion {
 export default function ProductConversionsView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("product-conversion.read");
   const canCreate = hasPermission('product-conversion.create')
   const canEdit = hasPermission('product-conversion.update')
   const canDelete = hasPermission('product-conversion.delete')
@@ -88,7 +89,6 @@ export default function ProductConversionsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -122,32 +122,27 @@ export default function ProductConversionsView() {
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Conversion
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Conversion
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
@@ -181,7 +176,6 @@ export default function ProductConversionsView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -317,7 +311,7 @@ export default function ProductConversionsView() {
                       color: 'var(--foreground)',
                     }}
                   >
-                    {item.product?.name ?? '—'}
+                    {canRead ? item.product?.name ?? '—' : "***"}
                   </td>
 
                   {/* From */}
@@ -383,9 +377,9 @@ export default function ProductConversionsView() {
                       fontFamily: 'var(--font-display)',
                     }}
                   >
-                    {(item.amount ?? 0).toLocaleString('id-ID', {
+                    {canRead ? (item.amount ?? 0).toLocaleString('id-ID', {
                       maximumFractionDigits: 4,
-                    })}
+                    }) : "***"}
                   </td>
 
                   {/* Created */}
@@ -396,9 +390,9 @@ export default function ProductConversionsView() {
                       color: 'var(--foreground-muted)',
                     }}
                   >
-                    {item.created_at
+                    {canRead ? item.created_at
                       ? formatDateShort(item.created_at)
-                      : '—'}
+                      : '—' : "***"}
                   </td>
 
                   {/* Actions */}
@@ -425,41 +419,35 @@ export default function ProductConversionsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => {
-                            setEditData(item)
-                            setSheetOpen(true)
-                          }}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => {
+                          setEditData(item)
+                          setSheetOpen(true)
+                        }}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}>
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}>
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -467,7 +455,6 @@ export default function ProductConversionsView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && meta.last_page > 1 && (
         <div
@@ -539,7 +526,6 @@ export default function ProductConversionsView() {
           </div>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -632,7 +618,6 @@ export default function ProductConversionsView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -754,7 +739,6 @@ export default function ProductConversionsView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <ProductConversionSheet
         open={sheetOpen}
@@ -764,7 +748,6 @@ export default function ProductConversionsView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -772,5 +755,5 @@ export default function ProductConversionsView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

@@ -43,6 +43,7 @@ export default function VouchersView() {
   const router = useRouter()
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("voucher.read");
   const canCreate = hasPermission('voucher.create')
   const canEdit = hasPermission('voucher.update')
   const canDelete = hasPermission('voucher.delete')
@@ -178,8 +179,7 @@ export default function VouchersView() {
             Manage discount vouchers
           </p>
         </div>
-        {canCreate && (
-        <button
+        {canCreate && (<button
           onClick={() => {
             setEditData(null)
             setSheetOpen(true)
@@ -196,14 +196,10 @@ export default function VouchersView() {
             fontSize: 13,
             fontWeight: 500,
             cursor: 'pointer',
-          }}
-        >
-          <Plus size={15} />
-          New Voucher
-        </button>
-        )}
+          }}>
+          <Plus size={15} />New Voucher
+                            </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -266,7 +262,6 @@ export default function VouchersView() {
           <option value="fixed">Fixed Amount</option>
         </select>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -366,11 +361,11 @@ export default function VouchersView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      {item.discount_type === 'percent' ? (
+                      {canRead ? item.discount_type === 'percent' ? (
                         <span style={badge('var(--info-bg)', 'var(--info)')}>%</span>
                       ) : (
                         <span style={badge('var(--accent-light-bg)', 'var(--accent)')}>Rp</span>
-                      )}
+                      ) : "***"}
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
@@ -380,13 +375,13 @@ export default function VouchersView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      {item.scope === 'company' ? (
+                      {canRead ? item.scope === 'company' ? (
                         <span style={badge('var(--accent-light-bg)', 'var(--accent)')}>
                           Company
                         </span>
                       ) : (
                         <span style={badge('var(--warning-bg)', 'var(--warning)')}>Branch</span>
-                      )}
+                      ) : "***"}
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -403,13 +398,13 @@ export default function VouchersView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      {isActive ? (
+                      {canRead ? isActive ? (
                         <span style={badge('var(--success-bg)', 'var(--success)')}>Active</span>
                       ) : (
                         <span style={badge('var(--background)', 'var(--foreground-muted)')}>
                           Inactive
                         </span>
-                      )}
+                      ) : "***"}
                     </td>
                     <td style={tdStyle}>
                       <div
@@ -420,29 +415,26 @@ export default function VouchersView() {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        {canEdit && (
-                          <button
-                            onClick={() =>
-                              toggleStatusMutation.mutate({
-                                id: item.id,
-                                status: isActive ? 'inactive' : 'active',
-                              })
-                            }
-                            disabled={toggleStatusMutation.isPending}
-                            title={isActive ? 'Deactivate' : 'Activate'}
-                            style={{
-                              padding: 6,
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              color: isActive ? 'var(--success)' : 'var(--foreground-muted)',
-                              display: 'flex',
-                            }}
-                          >
-                            {isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() =>
+                            toggleStatusMutation.mutate({
+                              id: item.id,
+                              status: isActive ? 'inactive' : 'active',
+                            })
+                          }
+                          disabled={toggleStatusMutation.isPending}
+                          title={isActive ? 'Deactivate' : 'Activate'}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: isActive ? 'var(--success)' : 'var(--foreground-muted)',
+                            display: 'flex',
+                          }}>
+                          {isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                        </button>)}
                         <button
                           onClick={() => router.push(`/sales/vouchers/${item.id}/detail`)}
                           style={actionBtnStyle}
@@ -450,37 +442,30 @@ export default function VouchersView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => {
-                              setEditData(item)
-                              setSheetOpen(true)
-                            }}
-                            style={actionBtnStyle}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() => {
+                            setEditData(item)
+                            setSheetOpen(true)
+                          }}
+                          style={actionBtnStyle}
+                          title="Edit">
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete">
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })
             )}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -537,7 +522,6 @@ export default function VouchersView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -617,7 +601,6 @@ export default function VouchersView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <VoucherSheet
         open={sheetOpen}
@@ -627,7 +610,6 @@ export default function VouchersView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -635,5 +617,5 @@ export default function VouchersView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

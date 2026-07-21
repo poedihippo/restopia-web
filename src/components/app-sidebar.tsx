@@ -65,7 +65,6 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Production',
         icon: Factory,
-        permission: 'production.read',
         children: [
           { label: 'Production', href: '/production', permission: 'production.read' },
           { label: 'Recipes', href: '/production/recipes', permission: 'recipe.read' },
@@ -74,7 +73,6 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Inventory',
         icon: Boxes,
-        permission: 'product.read',
         children: [
           { label: 'Products', href: '/products', permission: 'product.read' },
           { label: 'Product Categories', href: '/products/product-categories', permission: 'product-category.read' },
@@ -94,7 +92,6 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Purchase Orders',
         icon: PackageSearch,
-        permission: 'purchase-order.read',
         children: [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.read' },
           { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-order.read' },
@@ -105,7 +102,6 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Transfer',
         icon: ArrowLeftRight,
-        permission: 'delivery.read',
         children: [
           { label: 'Deliveries', href: '/transfer/deliveries', permission: 'delivery.read' },
           { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.read' },
@@ -120,7 +116,6 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Sales Orders',
         icon: ReceiptText,
-        permission: 'sales-order.read',
         children: [
           { label: 'Sales Orders', href: '/sales/sales-orders', permission: 'sales-order.read' },
           { label: 'Customers', href: '/sales/customers', permission: 'customer.read' },
@@ -138,13 +133,13 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Accounting',
         icon: Calculator,
         children: [
-          { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts' },
-          { label: 'Account Categories', href: '/accounting/account-categories' },
-          { label: 'Account Types', href: '/accounting/account-types' },
-          { label: 'Journals', href: '/accounting/journals' },
-          { label: 'Fiscal Years', href: '/accounting/fiscal-years' },
-          { label: 'Periods', href: '/accounting/periods' },
-          { label: 'Budgets', href: '/accounting/budgets' },
+          { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts', permission: 'chart-of-account.read' },
+          { label: 'Account Categories', href: '/accounting/account-categories', permission: 'account-category.read' },
+          { label: 'Account Types', href: '/accounting/account-types', permission: 'account-type.read' },
+          { label: 'Journals', href: '/accounting/journals', permission: 'journal.read' },
+          { label: 'Fiscal Years', href: '/accounting/fiscal-years', permission: 'fiscal-year.read' },
+          { label: 'Periods', href: '/accounting/periods', permission: 'period.read' },
+          { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.read' },
         ],
       },
     ],
@@ -155,7 +150,6 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Reports',
         icon: BarChart3,
-        permission: 'sales-order.read',
         children: [
           { label: 'Sales Report', href: '/reports/sales-report', permission: 'sales-order.read' },
           { label: 'Sales by Product', href: '/reports/sales-by-product', permission: 'sales-order.read' },
@@ -174,12 +168,17 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Users',
         icon: Users,
-        permission: 'user.read',
         children: [
           { label: 'Users', href: '/users', permission: 'user.read' },
           { label: 'Roles', href: '/users/roles', permission: 'role.read' },
-          { label: 'Branches', href: '/users/branches', permission: 'branch.read' },
+        ],
+      },
+      {
+        label: 'Company',
+        icon: Building2,
+        children: [
           { label: 'Companies', href: '/users/companies', permission: 'company.read' },
+          { label: 'Branches', href: '/users/branches', permission: 'branch.read' },
         ],
       },
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.read' },
@@ -189,10 +188,10 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Store Operations',
         icon: Store,
         children: [
-          { label: 'Operation Rules', href: '/settings/operation-rules' },
-          { label: 'Operations', href: '/settings/operations' },
-          { label: 'Shift Rules', href: '/settings/shift-rules' },
-          { label: 'Shifts', href: '/settings/shifts' },
+          { label: 'Operation Rules', href: '/settings/operation-rules', permission: 'operation-rule.read' },
+          { label: 'Operations', href: '/settings/operations', permission: 'operation.read' },
+          { label: 'Shift Rules', href: '/settings/shift-rules', permission: 'shift-rule.read' },
+          { label: 'Shifts', href: '/settings/shifts', permission: 'shift.read' },
         ],
       },
     ],

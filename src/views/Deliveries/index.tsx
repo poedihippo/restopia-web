@@ -50,6 +50,7 @@ export default function DeliveriesView() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("delivery.read");
   const canCreate = hasPermission('delivery.create')
   const canEdit = hasPermission('delivery.update')
   const canDelete = hasPermission('delivery.delete')
@@ -190,29 +191,24 @@ export default function DeliveriesView() {
             Track outgoing shipments to other branches
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => router.push('/transfer/deliveries/create')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Delivery
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => router.push('/transfer/deliveries/create')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Delivery
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -319,7 +315,6 @@ export default function DeliveriesView() {
           </button>
         )}
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -447,7 +442,7 @@ export default function DeliveriesView() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                         {isInternal
-                          ? ''
+                          ? 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')
                           : 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
@@ -508,34 +503,27 @@ export default function DeliveriesView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => router.push(`/transfer/deliveries/${item.id}/edit`)}
-                            style={actionBtnStyle}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() => router.push(`/transfer/deliveries/${item.id}/edit`)}
+                          style={actionBtnStyle}
+                          title="Edit">
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete">
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })
             )}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -592,7 +580,6 @@ export default function DeliveriesView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -672,7 +659,6 @@ export default function DeliveriesView() {
           </div>
         </div>
       )}
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -680,5 +666,5 @@ export default function DeliveriesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

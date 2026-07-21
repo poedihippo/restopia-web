@@ -20,6 +20,9 @@ export const salesOrdersService = {
   bulkUpdateSettlement: (data: any) =>
     api.post<ApiResponse<unknown>>('/sales-orders/bulk-update-settlement-status', data),
 
+  applyVoucher: (data: any) =>
+    api.post<ApiResponse<unknown>>('/sales-orders/apply-voucher', data),
+
   exportExcel: (params?: {
     'filter[search]'?: string
     'filter[status]'?: string

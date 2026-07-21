@@ -25,6 +25,7 @@ export interface DataTableProps<T = object> {
   actions?: (record: T, index: number) => React.ReactNode
   onRowClick?: (record: T, index: number) => void
   className?: string
+  canRead?: boolean
 }
 
 function DataTable<T extends object>({
@@ -36,6 +37,7 @@ function DataTable<T extends object>({
   actions,
   onRowClick,
   className,
+  canRead = true,
 }: DataTableProps<T>) {
   const getNestedValue = (obj: T, key: string): unknown => {
     return key.split('.').reduce<unknown>((o, k) => {
@@ -117,9 +119,10 @@ function DataTable<T extends object>({
                   >
                     {columns.map((column, colIndex) => {
                       const value = getNestedValue(record, column.key as string)
+                      const cellContent = column.render ? column.render(value, record, rowIndex) : String(value ?? '')
                       return (
                         <td key={`cell-${rowIndex}-${colIndex}`} className="p-4 align-middle">
-                          {column.render ? column.render(value, record, rowIndex) : String(value ?? '')}
+                          {canRead ? cellContent : '***'}
                         </td>
                       )
                     })}
@@ -178,6 +181,7 @@ function DataTable<T extends object>({
               <CardContent className="p-4 space-y-2">
                 {mobileColumns.map((column, colIndex) => {
                   const value = getNestedValue(record, column.key as string)
+                  const cellContent = column.render ? column.render(value, record, rowIndex) : String(value ?? '')
                   return (
                     <div
                       key={`mobile-cell-${rowIndex}-${colIndex}`}
@@ -187,7 +191,7 @@ function DataTable<T extends object>({
                         {column.title}
                       </span>
                       <span className="text-sm text-right">
-                        {column.render ? column.render(value, record, rowIndex) : String(value ?? '')}
+                        {canRead ? cellContent : '***'}
                       </span>
                     </div>
                   )

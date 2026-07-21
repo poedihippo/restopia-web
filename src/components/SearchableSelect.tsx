@@ -5,14 +5,14 @@ import { ChevronDown } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export interface SearchableSelectOption {
-  value: number
+  value: number | string
   label: string
   sublabel?: string
 }
 
 export interface SearchableSelectProps {
-  value: number
-  onChange: (value: number) => void
+  value: number | string
+  onChange: (value: any) => void
   options: SearchableSelectOption[]
   placeholder?: string
   searchPlaceholder?: string

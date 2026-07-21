@@ -29,7 +29,12 @@ const Product = () => {
     editModal,
     setType,
   } = useProduct();
-  const { canCreate, canUpdate, canDelete } = usePermission();
+  const {
+    canCreate,
+    canUpdate,
+    canDelete,
+    canRead
+  } = usePermission();
 
   const options = useMemo(
     () =>
@@ -74,22 +79,18 @@ const Product = () => {
   const renderActions = useCallback(
     (_record: IProduct, _index: number) => (
       <div className="flex gap-2">
-        {canUpdate('product') && (
-          <button
-            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-            onClick={() => editModal.openModal(products[_index])}
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {canDelete('product') && (
-          <button
-            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-            onClick={() => deleteModal.openModal(products[_index])}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        {(<button
+          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+          onClick={() => editModal.openModal(products[_index])}
+          disabled={!canUpdate('product')}>
+          <Pencil className="h-4 w-4" />
+        </button>)}
+        {(<button
+          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          onClick={() => deleteModal.openModal(products[_index])}
+          disabled={!canDelete('product')}>
+          <Trash2 className="h-4 w-4" />
+        </button>)}
       </div>
     ),
     [products, editModal, deleteModal, canUpdate, canDelete],
@@ -103,7 +104,6 @@ const Product = () => {
           Manage your products here
         </p>
       </div>
-
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -142,17 +142,13 @@ const Product = () => {
               </SelectContent>
             </Select>
           </div>
-          {canCreate('product') && (
-            <Button
-              onClick={() => createModal.openModal()}
-              className="w-full sm:w-auto"
-            >
-              Create Product
-            </Button>
-          )}
+          {(<Button
+            onClick={() => createModal.openModal()}
+            className="w-full sm:w-auto"
+            disabled={!canCreate('product')}>Create Product
+                        </Button>)}
         </div>
       </div>
-
       {/* Data Table */}
       <DataTable
         columns={columns}
@@ -166,8 +162,7 @@ const Product = () => {
           onChange: handlePageChange,
         }}
         actions={renderActions}
-      />
-
+        canRead={canRead("product")} />
       {/* Modals */}
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}
@@ -176,7 +171,6 @@ const Product = () => {
         label={deleteModal.selected?.name}
         isDeleting={deleteModal.isDeleting}
       />
-
       {editModal.isOpen && (
         <ProductModal
           mode="edit"
@@ -187,7 +181,6 @@ const Product = () => {
           isSubmitting={editModal.isSubmitting}
         />
       )}
-
       {createModal.isOpen && (
         <ProductModal
           mode="create"

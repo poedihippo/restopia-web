@@ -65,7 +65,12 @@ const ProductInventories = () => {
     deleteModal,
     createStockMovementModal,
   } = useProductInventories();
-  const { canCreate, canUpdate, canDelete } = usePermission();
+  const {
+    canCreate,
+    canUpdate,
+    canDelete,
+    canRead
+  } = usePermission();
   const productOptions = useMemo(
     () =>
       products.map((item) => ({
@@ -163,22 +168,18 @@ const ProductInventories = () => {
         >
           <PackagePlus className="h-4 w-4" />
         </button>
-        {canUpdate('product-inventory') && (
-          <button
-            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-            onClick={() => editModal.openModal(productInventories[_index])}
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {canDelete('product-inventory') && (
-          <button
-            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-            onClick={() => deleteModal.openModal(productInventories[_index])}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        {(<button
+          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+          onClick={() => editModal.openModal(productInventories[_index])}
+          disabled={!canUpdate('product-inventory')}>
+          <Pencil className="h-4 w-4" />
+        </button>)}
+        {(<button
+          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          onClick={() => deleteModal.openModal(productInventories[_index])}
+          disabled={!canDelete('product-inventory')}>
+          <Trash2 className="h-4 w-4" />
+        </button>)}
       </div>
     ),
     [
@@ -200,7 +201,6 @@ const ProductInventories = () => {
           Manage your product inventories here
         </p>
       </div>
-
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -435,17 +435,13 @@ const ProductInventories = () => {
               Stock Movements
             </Button>
           </Link>
-          {canCreate('product-inventory') && (
-            <Button
-              onClick={() => createModal.openModal()}
-              className="w-full sm:w-auto"
-            >
-              Create Product Inventory
-            </Button>
-          )}
+          {(<Button
+            onClick={() => createModal.openModal()}
+            className="w-full sm:w-auto"
+            disabled={!canCreate('product-inventory')}>Create Product Inventory
+                        </Button>)}
         </div>
       </div>
-
       {/* Data Table */}
       <DataTable
         columns={columns}
@@ -459,8 +455,7 @@ const ProductInventories = () => {
           onChange: handlePageChange,
         }}
         actions={renderActions}
-      />
-
+        canRead={canRead("product-inventory")} />
       {/* Modals */}
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}
@@ -469,7 +464,6 @@ const ProductInventories = () => {
         label={deleteModal.selected?.product_uom?.product?.name}
         isDeleting={deleteModal.isDeleting}
       />
-
       <StockMovementModal
         mode="create"
         isOpen={createStockMovementModal.isOpen}
@@ -478,7 +472,6 @@ const ProductInventories = () => {
         form={createStockMovementModal.form}
         isSubmitting={createStockMovementModal.isSubmitting}
       />
-
       {editModal.isOpen && (
         <ProductInventoriesModal
           mode="edit"
@@ -489,7 +482,6 @@ const ProductInventories = () => {
           isSubmitting={editModal.isSubmitting}
         />
       )}
-
       {createModal.isOpen && (
         <ProductInventoriesModal
           mode="create"

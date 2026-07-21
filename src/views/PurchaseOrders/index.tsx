@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { usePrice } from '@/hooks/usePrice'
 import {
   Plus,
   Search,
@@ -70,9 +71,11 @@ export default function PurchaseOrdersView() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("purchase-order.read");
   const canCreate = hasPermission('purchase-order.create')
   const canEdit = hasPermission('purchase-order.update')
   const canDelete = hasPermission('purchase-order.delete')
+  const { canReadPrice } = usePrice()
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -187,29 +190,24 @@ export default function PurchaseOrdersView() {
             Manage procurement orders to suppliers
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => router.push('/purchase/purchase-orders/create')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Order
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => router.push('/purchase/purchase-orders/create')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Order
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -329,7 +327,6 @@ export default function PurchaseOrdersView() {
           </button>
         )}
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -504,7 +501,9 @@ export default function PurchaseOrdersView() {
                       >
                         {isInternal
                           ? ''
-                          : 'Rp ' + item.total_price.toLocaleString('id-ID')}
+                          : canReadPrice
+                            ? 'Rp ' + item.total_price.toLocaleString('id-ID')
+                            : '***'}
                       </span>
                     </td>
                     <td style={tdStyle}>
@@ -572,36 +571,29 @@ export default function PurchaseOrdersView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() =>
-                              router.push(`/purchase/purchase-orders/${item.id}/edit`)
-                            }
-                            style={actionBtnStyle}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() =>
+                            router.push(`/purchase/purchase-orders/${item.id}/edit`)
+                          }
+                          style={actionBtnStyle}
+                          title="Edit">
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete">
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })
             )}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -662,7 +654,6 @@ export default function PurchaseOrdersView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -742,7 +733,6 @@ export default function PurchaseOrdersView() {
           </div>
         </div>
       )}
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -750,5 +740,5 @@ export default function PurchaseOrdersView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

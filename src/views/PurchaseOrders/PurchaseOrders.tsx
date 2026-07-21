@@ -42,7 +42,12 @@ const PurchaseOrders = () => {
     handleSearch,
     deleteModal,
   } = usePurchaseOrders();
-  const { canCreate, canUpdate, canDelete } = usePermission();
+  const {
+    canCreate,
+    canUpdate,
+    canDelete,
+    canRead
+  } = usePermission();
   const options = useMemo(
     () =>
       branches.map((item) => ({
@@ -101,21 +106,23 @@ const PurchaseOrders = () => {
             <Eye className="h-4 w-4" />
           </button>
         </Link>
-        {canUpdate('purchase-order') && (
+        {canUpdate('purchase-order') ? (
           <Link href={`/purchase/purchase-orders/${_record.id}/edit`}>
             <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
               <Pencil className="h-4 w-4" />
             </button>
           </Link>
-        )}
-        {canDelete('purchase-order') && (
-          <button
-            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-            onClick={() => deleteModal.openModal(purchaseOrders[_index])}
-          >
-            <Trash2 className="h-4 w-4" />
+        ) : (
+          <button disabled className="p-2 rounded-md bg-gray-400 text-white cursor-not-allowed">
+            <Pencil className="h-4 w-4" />
           </button>
         )}
+        {(<button
+          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          onClick={() => deleteModal.openModal(purchaseOrders[_index])}
+          disabled={!canDelete('purchase-order')}>
+          <Trash2 className="h-4 w-4" />
+        </button>)}
       </div>
     ),
     [purchaseOrders, deleteModal, canUpdate, canDelete],
@@ -129,7 +136,6 @@ const PurchaseOrders = () => {
           Manage your purchase orders here
         </p>
       </div>
-
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -206,16 +212,19 @@ const PurchaseOrders = () => {
               Clear Filter
             </Button>
           </div>
-          {canCreate('purchase-order') && (
+          {canCreate('purchase-order') ? (
             <Link href={"/purchase/purchase-orders/create"}>
               <Button type="button" className="w-full sm:w-auto cursor-pointer">
                 Create Purchase Order
               </Button>
             </Link>
+          ) : (
+            <Button disabled type="button" className="w-full sm:w-auto cursor-not-allowed">
+              Create Purchase Order
+            </Button>
           )}
         </div>
       </div>
-
       {/* Data Table */}
       <DataTable
         columns={columns}
@@ -229,8 +238,7 @@ const PurchaseOrders = () => {
           onChange: handlePageChange,
         }}
         actions={renderActions}
-      />
-
+        canRead={canRead("purchase-order")} />
       {/* Modals */}
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}

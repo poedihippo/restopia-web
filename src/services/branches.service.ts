@@ -1,5 +1,5 @@
 import api from '@/hooks/useApi'
-import type { ApiResponse, PaginatedData, ListParams, BranchRequest } from '@/types/api'
+import type { ApiResponse, PaginatedData, ListParams, BranchRequest, UpdateBranchRequest } from '@/types/api'
 
 export const branchesService = {
   list: (params?: ListParams) =>
@@ -11,7 +11,7 @@ export const branchesService = {
   create: (data: BranchRequest) =>
     api.post<ApiResponse<unknown>>('/branches', data),
 
-  update: (id: number, data: Partial<BranchRequest>) =>
+  update: (id: number, data: UpdateBranchRequest) =>
     api.patch<ApiResponse<unknown>>(`/branches/${id}`, data),
 
   delete: (id: number) =>

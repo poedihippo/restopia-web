@@ -56,6 +56,7 @@ const STATUS_META: Record<
 export default function BundlesView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("bundle.read");
   const canCreate = hasPermission('bundle.create')
   const canEdit = hasPermission('bundle.update')
   const canDelete = hasPermission('bundle.delete')
@@ -165,32 +166,27 @@ export default function BundlesView() {
             Manage product bundles and packages
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Bundle
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Bundle
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -236,7 +232,6 @@ export default function BundlesView() {
           <option value="inactive">Inactive</option>
         </select>
       </div>
-
       {/* Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {isLoading ? (
@@ -377,27 +372,21 @@ export default function BundlesView() {
                     style={{ display: 'flex', gap: 4 }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {canEdit && (
-                      <button
-                        onClick={() => {
-                          setEditData(item)
-                          setSheetOpen(true)
-                        }}
-                        style={actionBtnStyle}
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                    )}
-                    {canDelete && (
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                        title="Delete"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    {canEdit && (<button
+                      onClick={() => {
+                        setEditData(item)
+                        setSheetOpen(true)
+                      }}
+                      style={actionBtnStyle}
+                      title="Edit">
+                      <Pencil size={14} />
+                    </button>)}
+                    {canDelete && (<button
+                      onClick={() => setDeleteConfirmId(item.id)}
+                      style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                      title="Delete">
+                      <Trash2 size={14} />
+                    </button>)}
                   </div>
 
                   {isExpanded ? (
@@ -406,7 +395,6 @@ export default function BundlesView() {
                     <ChevronDown size={15} color="var(--foreground-muted)" />
                   )}
                 </div>
-
                 {/* Expanded details */}
                 {isExpanded && (
                   <div
@@ -507,11 +495,10 @@ export default function BundlesView() {
                   </div>
                 )}
               </div>
-            )
+            );
           })
         )}
       </div>
-
       {/* Pagination */}
       {meta && lastPage > 1 && (
         <div
@@ -562,7 +549,6 @@ export default function BundlesView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -642,7 +628,6 @@ export default function BundlesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <BundleSheet
         open={sheetOpen}
@@ -652,7 +637,6 @@ export default function BundlesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -660,5 +644,5 @@ export default function BundlesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

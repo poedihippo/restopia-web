@@ -203,18 +203,7 @@ const SalesOrdersDetail = ({
                                                     color: 'var(--foreground-muted)',
                                                 }}
                                             >
-                                                {p.created_at
-                                                    ? new Date(p.created_at).toLocaleString(
-                                                          'id-ID',
-                                                          {
-                                                              day: '2-digit',
-                                                              month: 'short',
-                                                              year: 'numeric',
-                                                              hour: '2-digit',
-                                                              minute: '2-digit',
-                                                          },
-                                                      )
-                                                    : '—'}
+                                                {p.created_at ? p.created_at : '—'}
                                             </td>
                                         </tr>
                                     ))}

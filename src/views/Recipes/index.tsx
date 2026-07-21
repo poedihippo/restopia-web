@@ -45,6 +45,7 @@ interface Recipe {
 export default function RecipesView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("recipe.read");
   const canCreate = hasPermission('recipe.create')
   const canEdit = hasPermission('recipe.update')
   const canDelete = hasPermission('recipe.delete')
@@ -82,7 +83,6 @@ export default function RecipesView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -109,32 +109,27 @@ export default function RecipesView() {
             Define bill of materials for finished products
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Recipe
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Recipe
+                              </button>)}
       </div>
-
       {/* Recipe cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
@@ -274,41 +269,35 @@ export default function RecipesView() {
                   style={{ display: 'flex', gap: 4 }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {canEdit && (
-                    <button
-                      onClick={() => {
-                        setEditData(item)
-                        setSheetOpen(true)
-                      }}
-                      style={{
-                        padding: 6,
-                        background: 'none',
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        color: 'var(--foreground-muted)',
-                        display: 'flex',
-                      }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      onClick={() => setDeleteConfirmId(item.id)}
-                      style={{
-                        padding: 6,
-                        background: 'none',
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        color: 'var(--destructive)',
-                        display: 'flex',
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+                  {canEdit && (<button
+                    onClick={() => {
+                      setEditData(item)
+                      setSheetOpen(true)
+                    }}
+                    style={{
+                      padding: 6,
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      color: 'var(--foreground-muted)',
+                      display: 'flex',
+                    }}>
+                    <Pencil size={14} />
+                  </button>)}
+                  {canDelete && (<button
+                    onClick={() => setDeleteConfirmId(item.id)}
+                    style={{
+                      padding: 6,
+                      background: 'none',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      color: 'var(--destructive)',
+                      display: 'flex',
+                    }}>
+                    <Trash2 size={14} />
+                  </button>)}
                 </div>
               </div>
 
@@ -420,7 +409,6 @@ export default function RecipesView() {
             </div>
           ))}
       </div>
-
       {/* Pagination */}
       {meta && meta.last_page > 1 && (
         <div
@@ -489,7 +477,6 @@ export default function RecipesView() {
           </div>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -579,7 +566,6 @@ export default function RecipesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <RecipeSheet
         open={sheetOpen}
@@ -589,7 +575,6 @@ export default function RecipesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -597,5 +582,5 @@ export default function RecipesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

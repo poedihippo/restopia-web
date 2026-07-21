@@ -11,7 +11,9 @@ const useLoginMutation = () => {
       }),
 
     onSuccess: (res) => {
-      cookies.set("token", res.data.data.access_token, { path: "/" });
+      if (res.data.data.access_token) {
+        cookies.set("token", res.data.data.access_token, { path: "/" });
+      }
     },
   });
 };

@@ -38,6 +38,7 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
       date: parseDate(receipt.date),
       status: 'final',
       description: receipt.description ?? '',
+      total_price: receipt.total_price ?? 0,
       details: rawDetails.length
         ? rawDetails.map((d: any) => ({
           delivery_detail_id: d.delivery_detail_id ?? undefined,

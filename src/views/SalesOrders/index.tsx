@@ -1,5 +1,4 @@
 'use client'
-import { formatDate } from '@/utils/date';
 
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -9,6 +8,7 @@ import { Download, Loader2 } from 'lucide-react'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { PriceDisplay } from '@/components/PriceDisplay'
 
 interface SalesOrder {
   id: number
@@ -42,6 +42,7 @@ export default function SalesOrdersView() {
   const router = useRouter()
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("sales-order.read");
   const canCreate = hasPermission('sales-order.create')
   const canEdit = hasPermission('sales-order.update')
   const canDelete = hasPermission('sales-order.delete')
@@ -223,28 +224,23 @@ export default function SalesOrdersView() {
             )}
             <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
           </button>
-          {canCreate && (
-            <button
-              type="button"
-              onClick={() => router.push('/sales/sales-orders/create')}
-              style={{
-                height: 40,
-                padding: '0 20px',
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              + New Order
-            </button>
-          )}
+          {canCreate && (<button
+            type="button"
+            onClick={() => router.push('/sales/sales-orders/create')}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+            }}>+ New Order
+                                    </button>)}
         </div>
       </div>
-
       {/* Filters toolbar */}
       <div
         style={{
@@ -423,7 +419,6 @@ export default function SalesOrdersView() {
           </button>
         )}
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -491,7 +486,7 @@ export default function SalesOrdersView() {
                   onClick={() => router.push(`/sales/sales-orders/${item.id}/detail`)}
                 >
                   <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--accent)' }}>
-                    {item.code}
+                    {canRead ? item.code : "***"}
                   </td>
                   <td style={tdStyle}>
                     <span
@@ -509,20 +504,20 @@ export default function SalesOrdersView() {
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    {item.customer?.name ?? item.customer_name ?? '—'}
+                    {canRead ? item.customer?.name ?? item.customer_name ?? '—' : "***"}
                   </td>
                   <td style={tdStyle}>
-                    {item.date
-                      ? formatDate(item.date)
-                      : '—'}
+                    {canRead ? item.date
+                      ? item.date
+                      : item.date : "***"}
                   </td>
                   <td style={tdStyle}>
-                    {item.fulfillment_date
-                      ? formatDate(item.fulfillment_date)
-                      : '—'}
+                    {canRead ? item.fulfillment_date
+                      ? item.fulfillment_date
+                      : item.fulfillment_date : "***"}
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>
-                    Rp {Number(item.total_price).toLocaleString('id-ID')}
+                    <PriceDisplay amount={item.total_price} />
                   </td>
                   <td style={tdStyle}>
                     <span
@@ -540,10 +535,10 @@ export default function SalesOrdersView() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                    {(() => {
+                    {canRead ? (() => {
                       const paymentMeta =
                         PAYMENT_STATUS_META[
-                          item.payment_status as keyof typeof PAYMENT_STATUS_META
+                        item.payment_status as keyof typeof PAYMENT_STATUS_META
                         ] ?? PAYMENT_STATUS_META.pending
                       return (
                         <span
@@ -560,13 +555,13 @@ export default function SalesOrdersView() {
                           {paymentMeta.label}
                         </span>
                       )
-                    })()}
+                    })() : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
-                    {(() => {
+                    {canRead ? (() => {
                       const settlementMeta =
                         SETTLEMENT_META[
-                          item.settlement_status as keyof typeof SETTLEMENT_META
+                        item.settlement_status as keyof typeof SETTLEMENT_META
                         ] ?? SETTLEMENT_META.pending
                       return (
                         <span
@@ -583,7 +578,7 @@ export default function SalesOrdersView() {
                           {settlementMeta.label}
                         </span>
                       )
-                    })()}
+                    })() : "***"}
                   </td>
                   <td style={tdStyle} onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -602,32 +597,27 @@ export default function SalesOrdersView() {
                       >
                         View
                       </button>
-                      {canDelete && (
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(item)}
-                          style={{
-                            fontSize: 12,
-                            padding: '4px 10px',
-                            border: '1px solid var(--destructive)',
-                            borderRadius: 'var(--radius-sm)',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                          }}
-                        >
-                          Delete
-                        </button>
-                      )}
+                      {canDelete && (<button
+                        type="button"
+                        onClick={() => setDeleteTarget(item)}
+                        style={{
+                          fontSize: 12,
+                          padding: '4px 10px',
+                          border: '1px solid var(--destructive)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                        }}>Delete
+                                                                        </button>)}
                     </div>
                   </td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta?.last_page ?? meta?.total_pages ?? 1) > 1 && (
         <div
@@ -690,7 +680,6 @@ export default function SalesOrdersView() {
           </div>
         </div>
       )}
-
       {/* Delete dialog */}
       {deleteTarget && (
         <div
@@ -764,7 +753,6 @@ export default function SalesOrdersView() {
           </div>
         </div>
       )}
-
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -772,5 +760,5 @@ export default function SalesOrdersView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

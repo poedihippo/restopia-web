@@ -29,6 +29,7 @@ interface Payment {
 export default function PaymentsView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("payment.read");
   const canCreate = hasPermission('payment.create')
   const canEdit = hasPermission('payment.update')
   const canDelete = hasPermission('payment.delete')
@@ -145,7 +146,6 @@ export default function PaymentsView() {
           </p>
         </div>
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -182,7 +182,6 @@ export default function PaymentsView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -261,7 +260,7 @@ export default function PaymentsView() {
                   }
                 >
                   <td style={tdStyle}>
-                    {item.sales_order?.id ? (
+                    {canRead ? item.sales_order?.id ? (
                       <Link 
                         href={`/sales/sales-orders/${item.sales_order.id}/detail`}
                         style={{
@@ -287,7 +286,7 @@ export default function PaymentsView() {
                       >
                         {item.sales_order?.code ?? '—'}
                       </span>
-                    )}
+                    ) : "***"}
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -347,15 +346,12 @@ export default function PaymentsView() {
                         justifyContent: 'flex-end',
                       }}
                     >
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                        title="Delete">
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -364,7 +360,6 @@ export default function PaymentsView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && lastPage > 1 && (
         <div
@@ -415,7 +410,6 @@ export default function PaymentsView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -495,7 +489,6 @@ export default function PaymentsView() {
           </div>
         </div>
       )}
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -503,5 +496,5 @@ export default function PaymentsView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

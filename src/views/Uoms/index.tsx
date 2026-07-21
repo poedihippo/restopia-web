@@ -30,6 +30,7 @@ interface Uom {
 export default function UomsView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("uom.read");
   const canCreate = hasPermission('uom.create')
   const canEdit = hasPermission('uom.update')
   const canDelete = hasPermission('uom.delete')
@@ -80,7 +81,6 @@ export default function UomsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -108,29 +108,24 @@ export default function UomsView() {
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => { setEditData(null); setSheetOpen(true) }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New UOM
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => { setEditData(null); setSheetOpen(true) }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New UOM
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
@@ -164,7 +159,6 @@ export default function UomsView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -294,12 +288,12 @@ export default function UomsView() {
                       color: 'var(--foreground)',
                     }}
                   >
-                    {item.name}
+                    {canRead ? item.name : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.created_at
+                    {canRead ? item.created_at
                       ? formatDateShort(item.created_at)
-                      : '—'}
+                      : '—' : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
@@ -317,38 +311,32 @@ export default function UomsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => { setEditData(item); setSheetOpen(true) }}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => { setEditData(item); setSheetOpen(true) }}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}>
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}>
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -356,7 +344,6 @@ export default function UomsView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -417,7 +404,6 @@ export default function UomsView() {
           </div>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -493,7 +479,6 @@ export default function UomsView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -603,14 +588,12 @@ export default function UomsView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <UomSheet
         open={sheetOpen}
         onClose={() => { setSheetOpen(false); setEditData(null) }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -618,5 +601,5 @@ export default function UomsView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

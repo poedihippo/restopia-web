@@ -26,13 +26,13 @@ export const useCreateProductCategoriesModal = (onSuccess?: () => void) => {
   });
 
   const openModal = useCallback(() => {
-    form.reset();
+    form.reset({ name: "" });
     setIsOpen(true);
   }, [form]);
 
   const closeModal = useCallback(() => {
     setIsOpen(false);
-    form.reset();
+    form.reset({ name: "" });
   }, [form]);
 
   const handleSubmit = useCallback(

@@ -70,20 +70,18 @@ export default function OperationRulesView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Operation Rules</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Manage operation rules for branches</p>
         </div>
-        {canCreate && (
-          <button onClick={() => { setEditData(null); setSheetOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={15} /> New OperationRule
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => { setEditData(null); setSheetOpen(true); }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+          <Plus size={15} />New OperationRule
+                              </button>)}
       </div>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
         <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(ev) => setSearch(ev.target.value)} placeholder="Search..." style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box' }} />
         </div>
       </div>
-
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -114,8 +112,14 @@ export default function OperationRulesView() {
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                       <button onClick={() => setSelectedItem(item)} style={actionBtnStyle} title="View"><Eye size={14} /></button>
-                      {canEdit && <button onClick={() => { setEditData(item); setSheetOpen(true); }} style={actionBtnStyle} title="Edit"><Pencil size={14} /></button>}
-                      {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ ...actionBtnStyle, color: 'var(--destructive)' }} title="Delete"><Trash2 size={14} /></button>}
+                      {canEdit && <button
+                        onClick={() => { setEditData(item); setSheetOpen(true); }}
+                        style={actionBtnStyle}
+                        title="Edit"><Pencil size={14} /></button>}
+                      {canDelete && <button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                        title="Delete"><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -124,7 +128,6 @@ export default function OperationRulesView() {
           </tbody>
         </table>
       </div>
-
       {meta && lastPage > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
@@ -132,7 +135,6 @@ export default function OperationRulesView() {
           <button onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page === lastPage} style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === lastPage ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === lastPage ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
-
       {deleteConfirmId !== null && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
@@ -146,7 +148,6 @@ export default function OperationRulesView() {
           </div>
         </div>
       )}
-
       {selectedItem && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end' }}>
           <div onClick={() => setSelectedItem(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
@@ -172,7 +173,6 @@ export default function OperationRulesView() {
           </div>
         </div>
       )}
-
       <OperationRuleSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setEditData(null); }} editData={editData} />
     </div>
   );

@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { usePrice } from '@/hooks/usePrice'
 import {
   Plus,
   Search,
@@ -50,9 +51,11 @@ export default function ReceiptsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("receipt.read");
   const canCreate = hasPermission('receipt.create')
   const canEdit = hasPermission('receipt.update')
   const canDelete = hasPermission('receipt.delete')
+  const { canReadPrice } = usePrice()
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -197,29 +200,24 @@ export default function ReceiptsView() {
             Record goods received from deliveries
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => router.push('/transfer/receipts/create')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Receipt
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => router.push('/transfer/receipts/create')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Receipt
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -326,7 +324,6 @@ export default function ReceiptsView() {
           </button>
         )}
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -428,11 +425,11 @@ export default function ReceiptsView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      {item.delivery?.code ? (
+                      {canRead ? item.delivery?.code ? (
                         <span style={deliveryPillStyle}>{item.delivery.code}</span>
                       ) : (
                         <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>—</span>
-                      )}
+                      ) : "***"}
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -443,7 +440,9 @@ export default function ReceiptsView() {
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                         {isInternal
                           ? ''
-                          : 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')}
+                          : canReadPrice
+                            ? 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')
+                            : '***'}
                       </span>
                     </td>
                     <td style={tdStyle}>
@@ -503,34 +502,27 @@ export default function ReceiptsView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
-                            style={actionBtnStyle}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
+                          style={actionBtnStyle}
+                          title="Edit">
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete">
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })
             )}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -587,7 +579,6 @@ export default function ReceiptsView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -667,7 +658,6 @@ export default function ReceiptsView() {
           </div>
         </div>
       )}
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -675,5 +665,5 @@ export default function ReceiptsView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

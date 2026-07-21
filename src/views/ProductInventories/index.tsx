@@ -65,6 +65,7 @@ interface ProductInventory {
 export default function ProductInventoriesView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("product-inventory.read");
   const canCreate = hasPermission('product-inventory.create')
   const canEdit = hasPermission('product-inventory.update')
   const canDelete = hasPermission('product-inventory.delete')
@@ -184,7 +185,6 @@ export default function ProductInventoriesView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -251,7 +251,6 @@ export default function ProductInventoriesView() {
 
         </div>
       </div>
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
@@ -327,7 +326,6 @@ export default function ProductInventoriesView() {
           Hide empty batches
         </button>
       </div>
-
       {/* Summary bar */}
       {meta && (
         <div
@@ -354,7 +352,6 @@ export default function ProductInventoriesView() {
           </span>
         </div>
       )}
-
       {/* Table */}
       <div
         style={{
@@ -476,7 +473,7 @@ export default function ProductInventoriesView() {
                 const isLow =
                   item.min_qty !== undefined &&
                   item.min_qty !== null &&
-                  (item.qty ?? 0) <= (item.min_qty ?? 0)
+                  (item.stock ?? 0) <= (item.min_qty ?? 0)
                 const puFallback = getProductUom(item.product_uom_id)
 
                 return (
@@ -522,7 +519,6 @@ export default function ProductInventoriesView() {
                         </div>
                       </div>
                     </td>
-
                     {/* UOM */}
                     <td style={{ padding: '12px 16px' }}>
                       <span
@@ -543,7 +539,6 @@ export default function ProductInventoriesView() {
                           ?? '—'}
                       </span>
                     </td>
-
                     {/* Branch */}
                     <td
                       style={{
@@ -552,9 +547,8 @@ export default function ProductInventoriesView() {
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.branch?.name ?? '—'}
+                      {canRead ? item.branch?.name ?? '—' : "***"}
                     </td>
-
                     {/* Qty */}
                     <td style={{ padding: '12px 16px' }}>
                       <span
@@ -564,10 +558,9 @@ export default function ProductInventoriesView() {
                           color: isLow ? 'var(--warning)' : 'var(--foreground)',
                         }}
                       >
-                        {(item.qty ?? 0).toLocaleString('id-ID')}
+                        {(item.stock ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
-
                     {/* Min Qty */}
                     <td
                       style={{
@@ -576,11 +569,10 @@ export default function ProductInventoriesView() {
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.min_qty !== undefined && item.min_qty !== null
+                      {canRead ? item.min_qty !== undefined && item.min_qty !== null
                         ? (item.min_qty ?? 0).toLocaleString('id-ID')
-                        : '—'}
+                        : '—' : "***"}
                     </td>
-
                     {/* Status */}
                     <td style={{ padding: '12px 16px' }}>
                       <span
@@ -602,7 +594,6 @@ export default function ProductInventoriesView() {
                         {isLow ? 'Low Stock' : 'OK'}
                       </span>
                     </td>
-
                     {/* Actions */}
                     <td style={{ padding: '12px 16px' }}>
                       <div
@@ -627,50 +618,43 @@ export default function ProductInventoriesView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => {
-                              setEditData(item)
-                              setSheetOpen(true)
-                            }}
-                            style={{
-                              padding: 6,
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              color: 'var(--foreground-muted)',
-                              display: 'flex',
-                            }}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{
-                              padding: 6,
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              color: 'var(--destructive)',
-                              display: 'flex',
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() => {
+                            setEditData(item)
+                            setSheetOpen(true)
+                          }}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--foreground-muted)',
+                            display: 'flex',
+                          }}>
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{
+                            padding: 6,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--destructive)',
+                            display: 'flex',
+                          }}>
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -742,7 +726,6 @@ export default function ProductInventoriesView() {
           </div>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -835,7 +818,6 @@ export default function ProductInventoriesView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -932,7 +914,7 @@ export default function ProductInventoriesView() {
                   { label: 'Branch', value: selectedItem.branch?.name },
                   {
                     label: 'Current Stock',
-                    value: (selectedItem.qty ?? 0).toLocaleString('id-ID'),
+                    value: (selectedItem.stock ?? 0).toLocaleString('id-ID'),
                   },
                   {
                     label: 'Base Price',
@@ -1005,7 +987,6 @@ export default function ProductInventoriesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <ProductInventorySheet
         open={sheetOpen}
@@ -1015,7 +996,6 @@ export default function ProductInventoriesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -1027,5 +1007,5 @@ export default function ProductInventoriesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

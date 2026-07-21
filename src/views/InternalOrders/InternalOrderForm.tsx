@@ -22,7 +22,6 @@ const detailSchema = z.object({
 })
 
 const schema = z.object({
-  code: z.string().min(1, 'Code is required'),
   supplier_branch_id: z.coerce.number().min(1, 'Source branch is required'),
   date: z.string().min(1, 'Date is required'),
   status: z.enum(['pending', 'final']),
@@ -57,7 +56,6 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      code: '',
       supplier_branch_id: 0,
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
@@ -320,19 +318,6 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               gap: 16,
             }}
           >
-            {/* Code */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Order Code
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <input
-                {...register('code')}
-                placeholder="e.g. IO-2026-001"
-                style={errors.code ? inputErrorStyle : inputStyle}
-              />
-              {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
-            </div>
 
             {/* Date */}
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -527,8 +512,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                       loading={productUomsLoading}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
-                          | string
-                          | undefined
+                        | string
+                        | undefined
                       }
                     />
                   )}

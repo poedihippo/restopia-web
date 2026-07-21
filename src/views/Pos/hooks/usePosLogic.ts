@@ -55,7 +55,7 @@ export function usePosLogic() {
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false)
 
   // Voucher State
-  const [voucherCode, setVoucherCode] = useState('')
+  const [voucherCode, setVoucherCode] = useState<number | ''>('')
   const [appliedVoucher, setAppliedVoucher] = useState<{
     code: string
     discount_amount: number
@@ -486,46 +486,59 @@ export function usePosLogic() {
     })
   }, [])
 
-  const handleApplyVoucher = async () => {
-    if (!voucherCode.trim()) return
+  const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
+    if (!selectedVoucher) return
     setVoucherLoading(true)
     try {
-      const res = await vouchersService.list({
-        'filter[code]': voucherCode,
-        'filter[status]': 'active',
-        per_page: 1,
-      } as any)
+      const voucher = selectedVoucher
 
-      const voucher = (res.data as any)?.data?.[0]
-      if (!voucher) {
-        toast.error('Voucher not found or inactive')
-        return
-      }
+      const mergedDetails = [
+        ...cart.map((c: any) => ({
+          product_inventory_id: c.product_inventory_id,
+          bundle_id: null,
+          qty: c.qty,
+          price: c.price,
+          status: 'pending',
+        })),
+        ...bundleCart.map((c: any) => ({
+          product_inventory_id: null,
+          bundle_id: c.bundle_id,
+          qty: c.qty,
+          price: c.price,
+          status: 'pending',
+        })),
+      ]
 
-      // Validasi minimal belanja (berdasarkan subtotal di TODO 4)
-      if (voucher.min_subtotal_price && subtotal < voucher.min_subtotal_price) {
-        toast.error('Minimum purchase not met')
-        return
-      }
-
-      // Hitung diskon (persen atau nominal pas)
-      let calculatedDiscount = 0
-      if (voucher.discount_type === 'percent') {
-        const rawDiscount = (subtotal * Number(voucher.discount_value)) / 100
-        const maxCap = Number(voucher.max_discount_price) > 0 ? Number(voucher.max_discount_price) : Infinity
-        calculatedDiscount = Math.min(rawDiscount, maxCap)
-      } else {
-        calculatedDiscount = Number(voucher.discount_value)
-      }
-
-      setAppliedVoucher({
-        code: voucherCode,
-        discount_amount: calculatedDiscount,
+      const payload = {
+        code: editingOrderCode ?? `POS-${Date.now()}`,
+        type: orderType,
+        customer_id: selectedCustomerId ?? null,
+        date: transactionDate,
+        fulfillment_date: fulfillmentDate.slice(0, 10),
         voucher_id: voucher.id,
-      })
-      toast.success('Voucher applied')
-    } catch {
-      toast.error('Failed to apply voucher')
+        subtotal_price: subtotal,
+        discount_price: 0,
+        total_price: total,
+        status: 'pending',
+        settlement_status: 'pending',
+        details: mergedDetails,
+      }
+
+      const applyRes = await salesOrdersService.applyVoucher(payload)
+      const data = (applyRes.data as any)?.data
+
+      if (data?.discount_price !== undefined) {
+        setAppliedVoucher({
+          code: voucher.code,
+          discount_amount: data.discount_price,
+          voucher_id: voucher.id,
+        })
+        toast.success('Voucher applied')
+      } else {
+        toast.error('Failed to apply voucher')
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to apply voucher')
     } finally {
       setVoucherLoading(false)
     }
@@ -584,7 +597,7 @@ export function usePosLogic() {
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
-      fulfillment_date: new Date(fulfillmentDate).toISOString(),
+      fulfillment_date: fulfillmentDate.slice(0, 10),
       voucher_id: appliedVoucher?.voucher_id ?? undefined,
       subtotal_price: subtotal,
       discount_price: discountAmount,
@@ -661,7 +674,7 @@ export function usePosLogic() {
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
-      fulfillment_date: new Date(fulfillmentDate).toISOString(),
+      fulfillment_date: fulfillmentDate.slice(0, 10),
       voucher_id: appliedVoucher?.voucher_id ?? undefined,
       subtotal_price: subtotal,
       discount_price: discountAmount,

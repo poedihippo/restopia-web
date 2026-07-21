@@ -36,12 +36,14 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
   })
 
   useEffect(() => {
-    if (editData) {
-      reset({ name: editData.name, description: editData.description ?? '' })
-    } else {
-      reset({ name: '', description: '' })
+    if (open) {
+      if (editData) {
+        reset({ name: editData.name, description: editData.description ?? '' })
+      } else {
+        reset({ name: '', description: '' })
+      }
     }
-  }, [editData, reset])
+  }, [editData, reset, open])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => productCategoriesService.create(data as any),

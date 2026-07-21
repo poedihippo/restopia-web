@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 export default function PaymentMethodsView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("payment-method.read");
   const canCreate = hasPermission('payment-method.create')
   const canEdit = hasPermission('payment-method.update')
   const canDelete = hasPermission('payment-method.delete')
@@ -121,31 +122,26 @@ export default function PaymentMethodsView() {
             Manage accepted payment methods for POS checkout
           </p>
         </div>
-        {canCreate && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(null)
-              setName('')
-              setShowForm(true)
-            }}
-            style={{
-              height: 40,
-              padding: '0 20px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: 'pointer',
-            }}
-          >
-            + Add Method
-          </button>
-        )}
+        {canCreate && (<button
+          type="button"
+          onClick={() => {
+            setEditing(null)
+            setName('')
+            setShowForm(true)
+          }}
+          style={{
+            height: 40,
+            padding: '0 20px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: 'pointer',
+          }}>+ Add Method
+                              </button>)}
       </div>
-
       <div style={{ marginBottom: 16, position: 'relative', maxWidth: 280 }}>
         <Search
           size={15}
@@ -176,7 +172,6 @@ export default function PaymentMethodsView() {
           }}
         />
       </div>
-
       <div
         style={{
           background: 'var(--surface)',
@@ -229,11 +224,11 @@ export default function PaymentMethodsView() {
             )}
             {items.map((item: any) => (
               <tr key={item.id}>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{item.name}</td>
+                <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
                 <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
-                  {item.created_at
+                  {canRead ? item.created_at
                     ? formatDateShort(item.created_at)
-                    : '—'}
+                    : '—' : "***"}
                 </td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -253,43 +248,35 @@ export default function PaymentMethodsView() {
                     >
                       <Eye size={14} />
                     </button>
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditing(item)
-                          setName(item.name)
-                          setShowForm(true)
-                        }}
-                        style={{
-                          fontSize: 12,
-                          padding: '4px 10px',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'var(--surface)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Edit
-                      </button>
-                    )}
-                    {canDelete && (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(item)}
-                        style={{
-                          fontSize: 12,
-                          padding: '4px 10px',
-                          border: '1px solid var(--destructive)',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'transparent',
-                          cursor: 'pointer',
-                          color: 'var(--destructive)',
-                        }}
-                      >
-                        Delete
-                      </button>
-                    )}
+                    {canEdit && (<button
+                      type="button"
+                      onClick={() => {
+                        setEditing(item)
+                        setName(item.name)
+                        setShowForm(true)
+                      }}
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 10px',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--surface)',
+                        cursor: 'pointer',
+                      }}>Edit
+                                                                  </button>)}
+                    {canDelete && (<button
+                      type="button"
+                      onClick={() => setDeleteTarget(item)}
+                      style={{
+                        fontSize: 12,
+                        padding: '4px 10px',
+                        border: '1px solid var(--destructive)',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        color: 'var(--destructive)',
+                      }}>Delete
+                                                                  </button>)}
                   </div>
                 </td>
               </tr>
@@ -297,7 +284,6 @@ export default function PaymentMethodsView() {
           </tbody>
         </table>
       </div>
-
       {showForm && (
         <div
           style={{
@@ -442,7 +428,6 @@ export default function PaymentMethodsView() {
           </div>
         </div>
       )}
-
       {selectedItem && (
         <div
           style={{
@@ -551,7 +536,6 @@ export default function PaymentMethodsView() {
           </div>
         </div>
       )}
-
       {deleteTarget && (
         <div
           style={{
@@ -624,5 +608,5 @@ export default function PaymentMethodsView() {
         </div>
       )}
     </div>
-  )
+  );
 }

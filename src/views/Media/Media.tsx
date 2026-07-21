@@ -23,7 +23,10 @@ const Media = ({ media_id, media_type }: Props) => {
         createModal,
         deleteModal
     } = useMedia({ media_type, media_id })
-    const { canDelete } = usePermission();
+    const {
+        canDelete,
+        canRead
+    } = usePermission();
 
     const totalPages = Math.ceil(pagination.total / pagination.pageSize) || 1
     const canPrevious = pagination.current > 1
@@ -37,7 +40,6 @@ const Media = ({ media_id, media_type }: Props) => {
                     Manage your medias here
                 </p>
             </div>
-
             <div className="mb-4 flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -56,7 +58,6 @@ const Media = ({ media_id, media_type }: Props) => {
                     </Button> */}
                 </div>
             </div>
-
             <div className='w-full grid grid-cols-2 lg:grid-cols-4 gap-4'>
                 {medias.map((item, index) => (
                     <div key={index} className='bg-white shadow-xl rounded-2xl overflow-hidden'>
@@ -69,14 +70,12 @@ const Media = ({ media_id, media_type }: Props) => {
                                     alt={item.file_name ?? ''}
                                 />
                             </button>
-                            {canDelete('media') && (
-                                <button
-                                    onClick={() => deleteModal.openModal(medias[index])}
-                                    className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition"
-                                >
-                                    <Trash className='text-red-500' size={18} />
-                                </button>
-                            )}
+                            {(<button
+                                onClick={() => deleteModal.openModal(medias[index])}
+                                className="absolute top-3 right-3 bg-white p-2 rounded-full shadow-lg hover:bg-gray-100 transition"
+                                disabled={!canDelete('media')}>
+                                <Trash className='text-red-500' size={18} />
+                            </button>)}
                         </div>
                         <div className='p-3 space-y-1'>
                             <p className="text-sm font-medium truncate">{item.collection_name}</p>
@@ -86,7 +85,6 @@ const Media = ({ media_id, media_type }: Props) => {
                     </div>
                 ))}
             </div>
-
             {!isLoading && medias.length > 0 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8">
                     <div className="text-sm text-muted-foreground text-center sm:text-left">
@@ -129,7 +127,6 @@ const Media = ({ media_id, media_type }: Props) => {
                     </div>
                 </div>
             )}
-
             {/* Modals */}
             <DeleteConfirmModal
                 isOpen={deleteModal.isOpen}
@@ -138,7 +135,6 @@ const Media = ({ media_id, media_type }: Props) => {
                 label={deleteModal.selectedUser?.file_name}
                 isDeleting={deleteModal.isDeleting}
             />
-
             {createModal.isOpen && (
                 <MediaModal
                     mode="create"
@@ -150,7 +146,7 @@ const Media = ({ media_id, media_type }: Props) => {
                 />
             )}
         </div>
-    )
+    );
 }
 
 export default Media

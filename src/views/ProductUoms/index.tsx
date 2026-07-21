@@ -8,6 +8,7 @@ import api from '@/hooks/useApi'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { usePrice } from '@/hooks/usePrice'
 import ProductUomSheet from './ProductUomSheet'
 import {
   Plus,
@@ -34,12 +35,11 @@ interface ProductUom {
   uom?: { id: number; name: string; code: string }
 }
 
-const formatIDR = (n?: number) =>
-  n == null ? '—' : `Rp ${(n ?? 0).toLocaleString('id-ID')}`
-
 export default function ProductUomsView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("product-uom.read");
+  const { formatPrice } = usePrice()
   const canCreate = hasPermission('product-uom.create')
   const canEdit = hasPermission('product-uom.update')
   const canDelete = hasPermission('product-uom.delete')
@@ -128,7 +128,6 @@ export default function ProductUomsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -156,29 +155,24 @@ export default function ProductUomsView() {
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => { setEditData(null); setSheetOpen(true) }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Product UOM
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => { setEditData(null); setSheetOpen(true) }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Product UOM
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
@@ -319,7 +313,6 @@ export default function ProductUomsView() {
           </span>
         )}
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -443,7 +436,7 @@ export default function ProductUomsView() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
-                    {item.code ? (
+                    {canRead ? item.code ? (
                       <span
                         style={{
                           display: 'inline-block',
@@ -460,13 +453,13 @@ export default function ProductUomsView() {
                       </span>
                     ) : (
                       <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
-                    )}
+                    ) : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                    {formatIDR(item.base_price)}
+                    {canRead ? formatPrice(item.base_price) : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {formatIDR(item.online_price)}
+                    {canRead ? formatPrice(item.online_price) : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={boolPill(item.is_default)}>
@@ -474,9 +467,9 @@ export default function ProductUomsView() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.created_at
+                    {canRead ? item.created_at
                       ? formatDateShort(item.created_at)
-                      : '—'}
+                      : '—' : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
@@ -494,38 +487,32 @@ export default function ProductUomsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => { setEditData(item); setSheetOpen(true) }}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => { setEditData(item); setSheetOpen(true) }}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}>
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}>
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -533,7 +520,6 @@ export default function ProductUomsView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12 }}>
@@ -587,7 +573,6 @@ export default function ProductUomsView() {
           </div>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -663,7 +648,6 @@ export default function ProductUomsView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -742,14 +726,10 @@ export default function ProductUomsView() {
                 { label: 'ID', value: selectedItem.id },
                 { label: 'SKU Code', value: selectedItem.code },
                 { label: 'Product', value: selectedItem.product?.name },
-                {
-                  label: 'UOM',
-                  value: selectedItem.uom
-                    ? `${selectedItem.uom.name} (${selectedItem.uom.code})`
-                    : undefined,
-                },
-                { label: 'Base Price', value: formatIDR(selectedItem.base_price) },
-                { label: 'Online Price', value: formatIDR(selectedItem.online_price) },
+                { label: 'Product Code', value: selectedItem.product?.code },
+                { label: 'UOM Code', value: selectedItem.uom?.code },
+                { label: 'Base Price', value: formatPrice(selectedItem.base_price) },
+                { label: 'Online Price', value: formatPrice(selectedItem.online_price) },
                 {
                   label: 'Price Editable',
                   value: selectedItem.price_editable ? 'Yes' : 'No',
@@ -789,14 +769,12 @@ export default function ProductUomsView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <ProductUomSheet
         open={sheetOpen}
         onClose={() => { setSheetOpen(false); setEditData(null) }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -804,5 +782,5 @@ export default function ProductUomsView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

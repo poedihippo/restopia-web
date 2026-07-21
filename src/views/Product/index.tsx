@@ -35,6 +35,7 @@ interface Product {
 export default function ProductView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("product.read");
   const canCreate = hasPermission('product.create')
   const canEdit = hasPermission('product.update')
   const canDelete = hasPermission('product.delete')
@@ -109,7 +110,6 @@ export default function ProductView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -137,29 +137,24 @@ export default function ProductView() {
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => { setEditData(null); setSheetOpen(true) }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Product
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => { setEditData(null); setSheetOpen(true) }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Product
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
@@ -217,7 +212,6 @@ export default function ProductView() {
           <option value="final">Final</option>
         </select>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -235,7 +229,7 @@ export default function ProductView() {
                 { label: 'Name', width: undefined },
                 { label: 'Code', width: 120 },
                 { label: 'Category', width: 160 },
-                { label: 'Status', width: 100 },
+                { label: 'Type', width: 100 },
                 { label: 'Created', width: 140 },
                 { label: '', width: 80 },
               ].map((col, i) => (
@@ -313,17 +307,17 @@ export default function ProductView() {
                   }}
                 >
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {item.name}
+                    {canRead ? item.name : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
-                    {item.code ? (
+                    {canRead ? item.code ? (
                       <span style={codePill}>{item.code}</span>
                     ) : (
                       <span style={{ color: 'var(--foreground-subtle)', fontSize: 13 }}>—</span>
-                    )}
+                    ) : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {item.product_category?.name ?? '—'}
+                    {canRead ? item.product_category?.name ?? '—' : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={typePillStyle(item.type)}>
@@ -331,9 +325,9 @@ export default function ProductView() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.created_at
+                    {canRead ? item.created_at
                       ? formatDateShort(item.created_at)
-                      : '—'}
+                      : '—' : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
@@ -351,38 +345,32 @@ export default function ProductView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => { setEditData(item); setSheetOpen(true) }}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => { setEditData(item); setSheetOpen(true) }}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}>
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}>
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -390,7 +378,6 @@ export default function ProductView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12 }}>
@@ -444,7 +431,6 @@ export default function ProductView() {
           </div>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -520,7 +506,6 @@ export default function ProductView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -640,14 +625,12 @@ export default function ProductView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <ProductSheet
         open={sheetOpen}
         onClose={() => { setSheetOpen(false); setEditData(null) }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -655,5 +638,5 @@ export default function ProductView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

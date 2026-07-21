@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -36,7 +36,6 @@ const detailSchema = z.object({
 
 const schema = z
   .object({
-    code: z.string().min(1, 'Code required'),
     source_type: z.enum([
       'po_from_supplier',
       'po_from_branch',
@@ -101,7 +100,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      code: '',
       source_type: prefill?.source_type ?? 'po_from_supplier',
       target_branch_id: prefill?.target_branch_id ?? 0,
       purchase_order_id: prefill?.purchase_order_id ?? undefined,
@@ -220,7 +218,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       let totalPages = 1
       do {
         const res = await purchaseOrdersService
-          .list({ page, per_page: 100 } as any)
+          .list({ page, per_page: 100, include: 'supplier,supplier_branch' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allOrders = allOrders.concat(items)
@@ -388,8 +386,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     { value: 0, label: 'No linked PO' },
     ...purchaseOrders.map((po: any) => ({
       value: po.id as number,
-      label: po.code ?? `PO-${po.id}`,
-      sublabel: undefined,
+      label: `${po.code ?? `PO-${po.id}`} - ${po.supplier?.name ?? po.supplier_branch?.name ?? 'Internal / No Supplier'}`,
+      sublabel: po.date ? po.date : undefined,
     })),
   ]
   const salesOrderOptions = [
@@ -635,18 +633,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               gap: 16,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Delivery Code
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <input
-                {...register('code')}
-                placeholder="e.g. DLV-2026-001"
-                style={errors.code ? inputErrorStyle : inputStyle}
-              />
-              {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
-            </div>
+
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>

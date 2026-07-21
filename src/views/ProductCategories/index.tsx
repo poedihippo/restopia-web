@@ -30,6 +30,7 @@ interface Category {
 export default function ProductCategoriesView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("product-category.read");
   const canCreate = hasPermission('product-category.create')
   const canEdit = hasPermission('product-category.update')
   const canDelete = hasPermission('product-category.delete')
@@ -85,7 +86,6 @@ export default function ProductCategoriesView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -119,32 +119,27 @@ export default function ProductCategoriesView() {
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Category
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Category
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
@@ -178,7 +173,6 @@ export default function ProductCategoriesView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -303,7 +297,7 @@ export default function ProductCategoriesView() {
                       color: 'var(--foreground)',
                     }}
                   >
-                    {item.name}
+                    {canRead ? item.name : "***"}
                   </td>
                   <td
                     style={{
@@ -316,7 +310,7 @@ export default function ProductCategoriesView() {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {item.description || '—'}
+                    {canRead ? item.description || '—' : "***"}
                   </td>
                   <td
                     style={{
@@ -325,9 +319,9 @@ export default function ProductCategoriesView() {
                       color: 'var(--foreground-muted)',
                     }}
                   >
-                    {item.created_at
+                    {canRead ? item.created_at
                       ? formatDateShort(item.created_at)
-                      : '—'}
+                      : '—' : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div
@@ -352,41 +346,35 @@ export default function ProductCategoriesView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => {
-                            setEditData(item)
-                            setSheetOpen(true)
-                          }}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => {
+                          setEditData(item)
+                          setSheetOpen(true)
+                        }}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}>
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}>
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -394,7 +382,6 @@ export default function ProductCategoriesView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -466,7 +453,6 @@ export default function ProductCategoriesView() {
           </div>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -559,7 +545,6 @@ export default function ProductCategoriesView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -669,7 +654,6 @@ export default function ProductCategoriesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <CategorySheet
         open={sheetOpen}
@@ -679,7 +663,6 @@ export default function ProductCategoriesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -687,5 +670,5 @@ export default function ProductCategoriesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

@@ -32,7 +32,12 @@ const ProductConversions = () => {
     createModal,
     deleteModal,
   } = useProductConversions();
-  const { canCreate, canUpdate, canDelete } = usePermission();
+  const {
+    canCreate,
+    canUpdate,
+    canDelete,
+    canRead
+  } = usePermission();
 
   const productOptions = useMemo(
     () =>
@@ -96,22 +101,18 @@ const ProductConversions = () => {
   const renderActions = useCallback(
     (_record: IProductConversions, _index: number) => (
       <div className="flex gap-2">
-        {canUpdate('product-conversion') && (
-          <button
-            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-            onClick={() => editModal.openModal(productConversions[_index])}
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {canDelete('product-conversion') && (
-          <button
-            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-            onClick={() => deleteModal.openModal(productConversions[_index])}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        {(<button
+          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+          onClick={() => editModal.openModal(productConversions[_index])}
+          disabled={!canUpdate('product-conversion')}>
+          <Pencil className="h-4 w-4" />
+        </button>)}
+        {(<button
+          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          onClick={() => deleteModal.openModal(productConversions[_index])}
+          disabled={!canDelete('product-conversion')}>
+          <Trash2 className="h-4 w-4" />
+        </button>)}
       </div>
     ),
     [productConversions, editModal, deleteModal, canUpdate, canDelete],
@@ -125,7 +126,6 @@ const ProductConversions = () => {
           Manage your product conversions here
         </p>
       </div>
-
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -169,17 +169,13 @@ const ProductConversions = () => {
               className="w-full sm:w-60"
             />
           </div>
-          {canCreate('product-conversion') && (
-            <Button
-              onClick={() => createModal.openModal()}
-              className="w-full sm:w-auto"
-            >
-              Create Product Conversion
-            </Button>
-          )}
+          {(<Button
+            onClick={() => createModal.openModal()}
+            className="w-full sm:w-auto"
+            disabled={!canCreate('product-conversion')}>Create Product Conversion
+                        </Button>)}
         </div>
       </div>
-
       {/* Data Table */}
       <DataTable
         columns={columns}
@@ -193,8 +189,7 @@ const ProductConversions = () => {
           onChange: handlePageChange,
         }}
         actions={renderActions}
-      />
-
+        canRead={canRead("product-conversion")} />
       {/* Modals */}
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}
@@ -203,7 +198,6 @@ const ProductConversions = () => {
         label={deleteModal.selected?.product?.name}
         isDeleting={deleteModal.isDeleting}
       />
-
       {editModal.isOpen && (
         <ProductConversionsModal
           mode="edit"
@@ -214,7 +208,6 @@ const ProductConversions = () => {
           isSubmitting={editModal.isSubmitting}
         />
       )}
-
       {createModal.isOpen && (
         <ProductConversionsModal
           mode="create"

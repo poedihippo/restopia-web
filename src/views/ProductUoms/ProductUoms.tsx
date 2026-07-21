@@ -48,7 +48,12 @@ const ProductUoms = () => {
     createModal,
     deleteModal,
   } = useProductUoms();
-  const { canCreate, canUpdate, canDelete } = usePermission();
+  const {
+    canCreate,
+    canUpdate,
+    canDelete,
+    canRead
+  } = usePermission();
 
   const productOptions = useMemo(
     () =>
@@ -122,22 +127,18 @@ const ProductUoms = () => {
   const renderActions = useCallback(
     (_record: IProductUom, _index: number) => (
       <div className="flex gap-2">
-        {canUpdate('product-uom') && (
-          <button
-            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-            onClick={() => editModal.openModal(productUom[_index])}
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {canDelete('product-uom') && (
-          <button
-            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-            onClick={() => deleteModal.openModal(productUom[_index])}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        {(<button
+          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+          onClick={() => editModal.openModal(productUom[_index])}
+          disabled={!canUpdate('product-uom')}>
+          <Pencil className="h-4 w-4" />
+        </button>)}
+        {(<button
+          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          onClick={() => deleteModal.openModal(productUom[_index])}
+          disabled={!canDelete('product-uom')}>
+          <Trash2 className="h-4 w-4" />
+        </button>)}
       </div>
     ),
     [productUom, editModal, deleteModal, canUpdate, canDelete],
@@ -151,7 +152,6 @@ const ProductUoms = () => {
           Manage your product uoms here
         </p>
       </div>
-
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -307,17 +307,13 @@ const ProductUoms = () => {
               Clear Filter
             </Button>
           </div>
-          {canCreate('product-uom') && (
-            <Button
-              onClick={() => createModal.openModal()}
-              className="w-full sm:w-auto"
-            >
-              Create Product Uom
-            </Button>
-          )}
+          {(<Button
+            onClick={() => createModal.openModal()}
+            className="w-full sm:w-auto"
+            disabled={!canCreate('product-uom')}>Create Product Uom
+                        </Button>)}
         </div>
       </div>
-
       {/* Data Table */}
       <DataTable
         columns={columns}
@@ -331,8 +327,7 @@ const ProductUoms = () => {
           onChange: handlePageChange,
         }}
         actions={renderActions}
-      />
-
+        canRead={canRead("product-uom")} />
       {/* Modals */}
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}
@@ -341,7 +336,6 @@ const ProductUoms = () => {
         label={deleteModal.selected?.product?.name}
         isDeleting={deleteModal.isDeleting}
       />
-
       {editModal.isOpen && (
         <ProductUomsModal
           mode="edit"
@@ -352,7 +346,6 @@ const ProductUoms = () => {
           isSubmitting={editModal.isSubmitting}
         />
       )}
-
       {createModal.isOpen && (
         <ProductUomsModal
           mode="create"

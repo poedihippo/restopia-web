@@ -1,3 +1,4 @@
+import { components } from './api.d'
 // Generic API envelope
 export interface ApiResponse<T = unknown> {
   success: boolean
@@ -56,11 +57,8 @@ export interface CompanyRequest {
 }
 
 // Branches
-export interface BranchRequest {
-  code: string
-  name: string
-  is_default?: boolean
-}
+export type BranchRequest = components["schemas"]["CreateBranchRequest"]
+export type UpdateBranchRequest = components["schemas"]["UpdateBranchRequest"]
 
 // Roles
 export interface RoleRequest {

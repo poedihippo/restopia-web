@@ -1,4 +1,3 @@
-import { formatDate } from '@/utils/date';
 import React, { useCallback, useMemo } from 'react'
 import useSalesOrders from './useSalesOrders'
 import { Column, DataTable } from '@/components/ui/data-table';
@@ -40,7 +39,12 @@ const SalesOrders = () => {
         handleSearch,
         deleteModal,
     } = useSalesOrders()
-    const { canCreate, canUpdate, canDelete } = usePermission();
+    const {
+        canCreate,
+        canUpdate,
+        canDelete,
+        canRead
+    } = usePermission();
 
     const options = useMemo(
         () =>
@@ -82,7 +86,7 @@ const SalesOrders = () => {
             {
                 title: "Date",
                 key: "date",
-                render: (value) => formatDate(value as string),
+                render: (value) => (value as string) || '—',
             },
             {
                 title: "Status",
@@ -95,7 +99,7 @@ const SalesOrders = () => {
             {
                 title: "Created At",
                 key: "created_at",
-                render: (value) => formatDate(value as string),
+                render: (value) => (value as string) || '—',
             },
         ],
         [],
@@ -109,21 +113,23 @@ const SalesOrders = () => {
                         <Eye className="h-4 w-4" />
                     </button>
                 </Link>
-                {canUpdate('sales-order') && (
+                {canUpdate('sales-order') ? (
                     <Link href={`/sales/sales-orders/${_record.id}/edit`}>
                         <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
                             <Pencil className="h-4 w-4" />
                         </button>
                     </Link>
-                )}
-                {canDelete('sales-order') && (
-                    <button
-                        className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-                        onClick={() => deleteModal.openModal(salesOrders[_index])}
-                    >
-                        <Trash2 className="h-4 w-4" />
+                ) : (
+                    <button disabled className="p-2 rounded-md bg-gray-400 text-white cursor-not-allowed">
+                        <Pencil className="h-4 w-4" />
                     </button>
                 )}
+                {(<button
+                    className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+                    onClick={() => deleteModal.openModal(salesOrders[_index])}
+                    disabled={!canDelete('sales-order')}>
+                    <Trash2 className="h-4 w-4" />
+                </button>)}
             </div>
         ),
         [salesOrders, deleteModal, canUpdate, canDelete],
@@ -136,7 +142,6 @@ const SalesOrders = () => {
                     Manage your sales orders here
                 </p>
             </div>
-
             <div className="mb-4 flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -274,16 +279,19 @@ const SalesOrders = () => {
                             Clear Filter
                         </Button>
                     </div>
-                    {canCreate('sales-order') && (
+                    {canCreate('sales-order') ? (
                         <Link href={"/sales/sales-orders/create"}>
                             <Button type="button" className="w-full sm:w-auto">
                                 Create Sales Order
                             </Button>
                         </Link>
+                    ) : (
+                        <Button disabled type="button" className="w-full sm:w-auto cursor-not-allowed">
+                            Create Sales Order
+                        </Button>
                     )}
                 </div>
             </div>
-
             {/* Data Table */}
             <DataTable
                 columns={columns}
@@ -297,8 +305,7 @@ const SalesOrders = () => {
                     onChange: handlePageChange,
                 }}
                 actions={renderActions}
-            />
-
+                canRead={canRead("sales-order")} />
             {/* Modals */}
             <DeleteConfirmModal
                 isOpen={deleteModal.isOpen}
@@ -308,7 +315,7 @@ const SalesOrders = () => {
                 isDeleting={deleteModal.isDeleting}
             />
         </div>
-    )
+    );
 }
 
 export default SalesOrders

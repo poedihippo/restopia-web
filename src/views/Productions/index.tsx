@@ -47,6 +47,7 @@ export default function ProductionsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("production.read");
   const canCreate = hasPermission('production.create')
   const canEdit = hasPermission('production.update')
   const canDelete = hasPermission('production.delete')
@@ -104,7 +105,6 @@ export default function ProductionsView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* PAGE HEADER */}
       <div
         style={{
@@ -137,29 +137,24 @@ export default function ProductionsView() {
             Manage factory production orders
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => router.push('/production/create')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Production
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => router.push('/production/create')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Production
+                              </button>)}
       </div>
-
       {/* TOOLBAR */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', maxWidth: 280 }}>
@@ -281,7 +276,6 @@ export default function ProductionsView() {
           </button>
         )}
       </div>
-
       {/* TABLE */}
       <div
         style={{
@@ -419,12 +413,12 @@ export default function ProductionsView() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {item.branch?.name ?? '—'}
+                    {canRead ? item.branch?.name ?? '—' : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {item.date
-                      ? formatDate(item.date)
-                      : '—'}
+                    {canRead ? item.date
+                      ? item.date
+                      : item.date : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span
@@ -451,10 +445,10 @@ export default function ProductionsView() {
                       textAlign: 'center',
                     }}
                   >
-                    {item.production_details?.length ?? 0}
+                    {canRead ? item.production_details?.length ?? 0 : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.created_at ? formatDateShort(item.created_at) : '—'}
+                    {canRead ? item.created_at ? item.created_at : item.created_at : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
@@ -472,47 +466,40 @@ export default function ProductionsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => router.push(`/production/${item.id}/edit`)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => router.push(`/production/${item.id}/edit`)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}>
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}>
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
       </div>
-
       {/* PAGINATION */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -580,7 +567,6 @@ export default function ProductionsView() {
           </div>
         </div>
       )}
-
       {/* DELETE CONFIRM */}
       {deleteConfirmId !== null && (
         <div
@@ -670,5 +656,5 @@ export default function ProductionsView() {
         </div>
       )}
     </div>
-  )
+  );
 }

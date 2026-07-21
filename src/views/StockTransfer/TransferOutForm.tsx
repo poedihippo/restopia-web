@@ -13,6 +13,8 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
+import { usePrice } from '@/hooks/usePrice'
+import { PriceDisplay } from '@/components/PriceDisplay'
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Select a product'),
@@ -40,6 +42,7 @@ interface TransferOutFormProps {
 export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormProps) {
   const today = new Date().toISOString().split('T')[0]
   const { user } = useAuth()
+  const { canReadPrice } = usePrice()
   const sourceBranchId = user?.branch?.id
 
   const {
@@ -519,13 +522,22 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={inputStyle}
                 />
-                <input
-                  type="number"
-                  min={0}
-                  step={100}
-                  {...register(`details.${index}.price`, { valueAsNumber: true })}
-                  style={inputStyle}
-                />
+                {canReadPrice ? (
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    {...register(`details.${index}.price`, { valueAsNumber: true })}
+                    style={inputStyle}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value="***"
+                    disabled
+                    style={{ ...inputStyle, background: 'var(--surface)', cursor: 'not-allowed' }}
+                  />
+                )}
                 <span
                   style={{
                     fontSize: 12,
@@ -534,7 +546,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                     paddingTop: 8,
                   }}
                 >
-                  Rp {subtotal.toLocaleString('id-ID')}
+                  <PriceDisplay amount={subtotal} />
                 </span>
                 <input
                   {...register(`details.${index}.description`)}
@@ -580,7 +592,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                 fontFamily: 'var(--font-display)',
               }}
             >
-              Rp {totalPrice.toLocaleString('id-ID')}
+              <PriceDisplay amount={totalPrice} />
             </span>
           </div>
 

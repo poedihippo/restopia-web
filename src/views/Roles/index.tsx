@@ -29,6 +29,7 @@ interface Role {
 export default function RolesView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("role.read");
   const canCreate = hasPermission('role.create')
   const canEdit = hasPermission('role.update')
   const canDelete = hasPermission('role.delete')
@@ -143,32 +144,27 @@ export default function RolesView() {
             Define roles and assign permissions
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Role
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Role
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -205,7 +201,6 @@ export default function RolesView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -310,7 +305,7 @@ export default function RolesView() {
                       </div>
                     </td>
                     <td style={tdStyle}>
-                      {permsList.length === 0 ? (
+                      {canRead ? permsList.length === 0 ? (
                         <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
                           No permissions assigned
                         </span>
@@ -348,7 +343,7 @@ export default function RolesView() {
                             </span>
                           )}
                         </div>
-                      )}
+                      ) : "***"}
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -373,37 +368,30 @@ export default function RolesView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => {
-                              setEditData(item)
-                              setSheetOpen(true)
-                            }}
-                            style={actionBtnStyle}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() => {
+                            setEditData(item)
+                            setSheetOpen(true)
+                          }}
+                          style={actionBtnStyle}
+                          title="Edit">
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete">
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })
             )}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && lastPage > 1 && (
         <div
@@ -454,7 +442,6 @@ export default function RolesView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -534,7 +521,6 @@ export default function RolesView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -706,7 +692,6 @@ export default function RolesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <RoleSheet
         open={sheetOpen}
@@ -716,7 +701,6 @@ export default function RolesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -724,5 +708,5 @@ export default function RolesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

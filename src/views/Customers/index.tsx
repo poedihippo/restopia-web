@@ -12,6 +12,7 @@ import CustomerSheet from './CustomerSheet';
 export default function CustomersView() {
   const qc = useQueryClient();
   const { hasPermission } = useAuth();
+  const canRead = hasPermission("customer.read");
   const canCreate = hasPermission('customer.create');
   const canEdit = hasPermission('customer.update');
   const canDelete = hasPermission('customer.delete');
@@ -68,14 +69,10 @@ export default function CustomersView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Customers</h1>
           <p style={{ color: 'var(--foreground-muted)', fontSize: 14, marginTop: 4 }}>Manage your customer records</p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => { setEditing(null); setSheetOpen(true); }}
-            style={{ height: 40, padding: '0 20px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
-          >+ New Customer</button>
-        )}
+        {canCreate && (<button
+          onClick={() => { setEditing(null); setSheetOpen(true); }}
+          style={{ height: 40, padding: '0 20px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>+ New Customer</button>)}
       </div>
-
       <div style={{ marginBottom: 16 }}>
         <input
           value={search}
@@ -84,7 +81,6 @@ export default function CustomersView() {
           style={{ height: 38, width: 320, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)' }}
         />
       </div>
-
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -108,9 +104,9 @@ export default function CustomersView() {
             )}
             {items.map((item: any) => (
               <tr key={item.id}>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{item.name}</td>
-                <td style={tdStyle}>{item.phone ?? '—'}</td>
-                <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>{formatDate(item.created_at)}</td>
+                <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
+                <td style={tdStyle}>{canRead ? item.phone ?? '—' : "***"}</td>
+                <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>{canRead ? formatDate(item.created_at) : "***"}</td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -118,18 +114,12 @@ export default function CustomersView() {
                       style={{ padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }}
                       title="View"
                     ><Eye size={14} /></button>
-                    {canEdit && (
-                      <button
-                        onClick={() => { setEditing(item); setSheetOpen(true); }}
-                        style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--foreground)' }}
-                      >Edit</button>
-                    )}
-                    {canDelete && (
-                      <button
-                        onClick={() => setDeleteTarget(item)}
-                        style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--destructive)', borderRadius: 'var(--radius-sm)', background: 'transparent', cursor: 'pointer', color: 'var(--destructive)' }}
-                      >Delete</button>
-                    )}
+                    {canEdit && (<button
+                      onClick={() => { setEditing(item); setSheetOpen(true); }}
+                      style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: 'pointer', color: 'var(--foreground)' }}>Edit</button>)}
+                    {canDelete && (<button
+                      onClick={() => setDeleteTarget(item)}
+                      style={{ fontSize: 12, padding: '4px 10px', border: '1px solid var(--destructive)', borderRadius: 'var(--radius-sm)', background: 'transparent', cursor: 'pointer', color: 'var(--destructive)' }}>Delete</button>)}
                   </div>
                 </td>
               </tr>
@@ -137,7 +127,6 @@ export default function CustomersView() {
           </tbody>
         </table>
       </div>
-
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
           <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{meta.total} customers · Page {page} of {meta.last_page ?? meta.total_pages ?? 1}</span>
@@ -147,7 +136,6 @@ export default function CustomersView() {
           </div>
         </div>
       )}
-
       {deleteTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }}>
           <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-xl)', padding: 32, width: 360, boxShadow: 'var(--shadow-lg)' }}>
@@ -160,7 +148,6 @@ export default function CustomersView() {
           </div>
         </div>
       )}
-
       {selectedItem && (
         <div
           style={{
@@ -265,7 +252,6 @@ export default function CustomersView() {
           </div>
         </div>
       )}
-
       <CustomerSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setEditing(null); }} editing={editing} />
     </div>
   );

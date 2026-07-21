@@ -27,7 +27,12 @@ const Recipes = () => {
     createModal,
     deleteModal,
   } = useRecipes();
-  const { canCreate, canUpdate, canDelete } = usePermission();
+  const {
+    canCreate,
+    canUpdate,
+    canDelete,
+    canRead
+  } = usePermission();
 
   const options = useMemo(
     () =>
@@ -72,22 +77,18 @@ const Recipes = () => {
   const renderActions = useCallback(
     (_record: IRecipe, _index: number) => (
       <div className="flex gap-2">
-        {canUpdate('recipe') && (
-          <button
-            className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
-            onClick={() => editModal.openModal(recipes[_index])}
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {canDelete('recipe') && (
-          <button
-            className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
-            onClick={() => deleteModal.openModal(recipes[_index])}
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        {(<button
+          className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer"
+          onClick={() => editModal.openModal(recipes[_index])}
+          disabled={!canUpdate('recipe')}>
+          <Pencil className="h-4 w-4" />
+        </button>)}
+        {(<button
+          className="p-2 rounded-md bg-red-500 hover:bg-red-600 text-white cursor-pointer"
+          onClick={() => deleteModal.openModal(recipes[_index])}
+          disabled={!canDelete('recipe')}>
+          <Trash2 className="h-4 w-4" />
+        </button>)}
       </div>
     ),
     [recipes, editModal, deleteModal, canUpdate, canDelete],
@@ -101,7 +102,6 @@ const Recipes = () => {
           Manage your recipes here
         </p>
       </div>
-
       <div className="mb-4 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 flex flex-col sm:flex-row gap-4">
@@ -123,17 +123,13 @@ const Recipes = () => {
               className="w-full sm:w-60"
             />
           </div>
-          {canCreate('recipe') && (
-            <Button
-              onClick={() => createModal.openModal()}
-              className="w-full sm:w-auto"
-            >
-              Create Recipe
-            </Button>
-          )}
+          {(<Button
+            onClick={() => createModal.openModal()}
+            className="w-full sm:w-auto"
+            disabled={!canCreate('recipe')}>Create Recipe
+                        </Button>)}
         </div>
       </div>
-
       {/* Data Table */}
       <DataTable
         columns={columns}
@@ -147,8 +143,7 @@ const Recipes = () => {
           onChange: handlePageChange,
         }}
         actions={renderActions}
-      />
-
+        canRead={canRead("recipe")} />
       {/* Modals */}
       <DeleteConfirmModal
         isOpen={deleteModal.isOpen}
@@ -157,7 +152,6 @@ const Recipes = () => {
         label={deleteModal.selected?.product?.name}
         isDeleting={deleteModal.isDeleting}
       />
-
       {editModal.isOpen && (
         <RecipesModal
           mode="edit"
@@ -171,7 +165,6 @@ const Recipes = () => {
           remove={editModal.remove}
         />
       )}
-
       {createModal.isOpen && (
         <RecipesModal
           mode="create"

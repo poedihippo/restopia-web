@@ -61,7 +61,9 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function InternalOrdersView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
+  const canRead = hasPermission("internal-order.read");
+  const myBranchId = user?.branch?.id
   const canCreate = hasPermission('internal-order.create')
   const canEdit = hasPermission('internal-order.update')
   const canDelete = hasPermission('internal-order.delete')
@@ -82,7 +84,8 @@ export default function InternalOrdersView() {
   // 'branch' / supplier_branch_id present). The PO endpoint has no null/not-null
   // filter, so we fetch a generous page and client-filter to branch-sourced rows.
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['internal-orders', debouncedSearch, statusFilter, dateFrom, dateTo],
+    queryKey: ['internal-orders', debouncedSearch, statusFilter, dateFrom, dateTo, myBranchId],
+    enabled: !!myBranchId,
     queryFn: () =>
       purchaseOrdersService
         .list({
@@ -90,6 +93,7 @@ export default function InternalOrdersView() {
           per_page: 100,
           include: 'supplier_branch,supplier_branch.company,branch',
           sort: '-created_at',
+          'filter[branch_id]': myBranchId || undefined,
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
           'filter[date_gte]': dateFrom || undefined,
@@ -180,29 +184,24 @@ export default function InternalOrdersView() {
             Manage stock orders sourced from another branch
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => router.push('/purchase/internal-orders/create')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Order
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => router.push('/purchase/internal-orders/create')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Order
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -304,7 +303,6 @@ export default function InternalOrdersView() {
           </button>
         )}
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -426,7 +424,7 @@ export default function InternalOrdersView() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.date
-                          ? formatDate(item.date)
+                          ? item.date
                           : '—'}
                       </span>
                     </td>
@@ -464,36 +462,29 @@ export default function InternalOrdersView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() =>
-                              router.push(`/purchase/internal-orders/${item.id}/edit`)
-                            }
-                            style={actionBtnStyle}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button
+                          onClick={() =>
+                            router.push(`/purchase/internal-orders/${item.id}/edit`)
+                          }
+                          style={actionBtnStyle}
+                          title="Edit">
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete">
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })
             )}
           </tbody>
         </table>
       </div>
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -573,7 +564,6 @@ export default function InternalOrdersView() {
           </div>
         </div>
       )}
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -581,5 +571,5 @@ export default function InternalOrdersView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

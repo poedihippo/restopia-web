@@ -30,6 +30,7 @@ interface Company {
 export default function CompaniesView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("company.read");
   const canCreate = hasPermission('company.create')
   const canEdit = hasPermission('company.update')
   const canDelete = hasPermission('company.delete')
@@ -143,32 +144,27 @@ export default function CompaniesView() {
             Manage companies in the system
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Company
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Company
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -205,7 +201,6 @@ export default function CompaniesView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -357,27 +352,21 @@ export default function CompaniesView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => {
-                            setEditData(item)
-                            setSheetOpen(true)
-                          }}
-                          style={actionBtnStyle}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => {
+                          setEditData(item)
+                          setSheetOpen(true)
+                        }}
+                        style={actionBtnStyle}
+                        title="Edit">
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                        title="Delete">
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -386,7 +375,6 @@ export default function CompaniesView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && lastPage > 1 && (
         <div
@@ -437,7 +425,6 @@ export default function CompaniesView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -517,7 +504,6 @@ export default function CompaniesView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -626,7 +612,6 @@ export default function CompaniesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <CompanySheet
         open={sheetOpen}
@@ -636,7 +621,6 @@ export default function CompaniesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -644,5 +628,5 @@ export default function CompaniesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

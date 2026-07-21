@@ -52,6 +52,7 @@ const TYPE_META = {
 
 export default function StockMovementView() {
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -96,7 +97,6 @@ export default function StockMovementView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
       {/* Page header */}
       <div
         style={{
@@ -130,29 +130,24 @@ export default function StockMovementView() {
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => setSheetOpen(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            Record Movement
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => setSheetOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />Record Movement
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
@@ -210,7 +205,6 @@ export default function StockMovementView() {
           <option value="out">Stock Out</option>
         </select>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -361,7 +355,6 @@ export default function StockMovementView() {
                         {typeMeta.label}
                       </span>
                     </td>
-
                     {/* Product */}
                     <td style={{ padding: '12px 16px' }}>
                       <div>
@@ -386,7 +379,6 @@ export default function StockMovementView() {
                         </div>
                       </div>
                     </td>
-
                     {/* Branch */}
                     <td
                       style={{
@@ -395,9 +387,8 @@ export default function StockMovementView() {
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.branch?.name ?? item.branch_id ?? '—'}
+                      {canRead ? item.branch?.name ?? item.branch_id ?? '—' : "***"}
                     </td>
-
                     {/* Qty */}
                     <td style={{ padding: '12px 16px' }}>
                       <span
@@ -412,7 +403,6 @@ export default function StockMovementView() {
                         {(item.qty ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
-
                     {/* Notes */}
                     <td
                       style={{
@@ -425,9 +415,8 @@ export default function StockMovementView() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {item.description ?? '—'}
+                      {canRead ? item.description ?? '—' : "***"}
                     </td>
-
                     {/* Date */}
                     <td
                       style={{
@@ -436,17 +425,16 @@ export default function StockMovementView() {
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.created_at
+                      {canRead ? item.created_at
                         ? formatDateTime(item.created_at)
-                        : '—'}
+                        : '—' : "***"}
                     </td>
                   </tr>
-                )
+                );
               })}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
         <div
@@ -518,13 +506,11 @@ export default function StockMovementView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <StockMovementSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -532,5 +518,5 @@ export default function StockMovementView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

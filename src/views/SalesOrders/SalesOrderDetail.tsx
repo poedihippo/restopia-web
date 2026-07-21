@@ -10,7 +10,6 @@ import { salesOrdersService as salesOrderService } from '@/services/sales-orders
 import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
-import { formatDateTime } from '@/utils/date';
 import SalesOrdersDetail from './Detail/SalesOrdersDetail';
 
 const sectionStyle: CSSProperties = {
@@ -676,14 +675,14 @@ export default function SalesOrderDetail() {
                   fontWeight: 500,
                   cursor:
                     paymentMethodId === 0 ||
-                    paymentAmount <= 0 ||
-                    createPaymentMutation.isPending
+                      paymentAmount <= 0 ||
+                      createPaymentMutation.isPending
                       ? 'not-allowed'
                       : 'pointer',
                   opacity:
                     paymentMethodId === 0 ||
-                    paymentAmount <= 0 ||
-                    createPaymentMutation.isPending
+                      paymentAmount <= 0 ||
+                      createPaymentMutation.isPending
                       ? 0.7
                       : 1,
                 }}
@@ -740,8 +739,8 @@ export default function SalesOrderDetail() {
                 {payments.map((p: any) => {
                   const dateSrc = p.created_at ?? p.date
                   const dateStr = dateSrc
-                    ? formatDateTime(dateSrc)
-                    : '—'
+                    ? dateSrc
+                    : '-'
                   const isDeleting =
                     deletePaymentMutation.isPending &&
                     (deletePaymentMutation.variables as any) === p.id
@@ -927,153 +926,157 @@ export default function SalesOrderDetail() {
                 )}
                 {!isDetailsLoading &&
                   details.map((d: any, idx: number) => {
-                  const isBundle = !!d.bundle_id
-                  let snap = d.product_inventory_snapshot
-                  if (typeof snap === 'string') {
-                    try { snap = JSON.parse(snap) } catch (e) {}
-                  }
-                  const name =
-                    snap?.product_uom?.product?.name ??
-                    snap?.name ??
-                    d.product_inventory?.product_uom?.product?.name ??
-                    d.product_uom_batch?.product_uom?.product?.name ??
-                    d.bundle?.name ??
-                    (isBundle ? 'Bundle' : `Item ${d.id ?? idx + 1}`)
-                  const code =
-                    snap?.code ??
-                    d.product_inventory?.code ??
-                    d.product_uom_batch?.product_uom?.code ??
-                    d.bundle?.code ??
-                    '—'
-                  const DETAIL_STATUS_META: Record<
-                    string,
-                    { label: string; color: string; bg: string }
-                  > = {
-                    pending: {
-                      label: 'Pending',
-                      color: 'var(--warning)',
-                      bg: 'var(--warning-bg)',
-                    },
-                    process: {
-                      label: 'In Progress',
-                      color: 'var(--info)',
-                      bg: 'var(--info-bg)',
-                    },
-                    completed: {
-                      label: 'Completed',
-                      color: 'var(--success)',
-                      bg: 'var(--success-bg)',
-                    },
-                  }
-                  const statusMeta =
-                    DETAIL_STATUS_META[d.status] ?? {
-                      label: d.status ?? '—',
-                      color: 'var(--foreground-muted)',
-                      bg: 'var(--background)',
+                    const isBundle = !!d.bundle_id
+                    let snap = d.product_inventory_snapshot
+                    if (typeof snap === 'string') {
+                      try { snap = JSON.parse(snap) } catch (e) { }
                     }
-                  return (
-                    <tr key={d.id ?? idx}>
-                      <td
-                        style={{
-                          padding: '12px 12px',
-                          fontSize: 13,
-                          color: 'var(--foreground-muted)',
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        {idx + 1}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 12px',
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        <div
+                    const name =
+                      snap?.product_uom?.product?.name ??
+                      snap?.product_uom_batch?.product_uom?.product?.name ??
+                      snap?.name ??
+                      d.product_inventory?.product_uom?.product?.name ??
+                      d.product_uom_batch?.product_uom?.product?.name ??
+                      d.bundle?.name ??
+                      (isBundle ? 'Bundle' : `Item ${d.id ?? idx + 1}`)
+                    const code =
+                      snap?.product_uom_batch?.product_uom?.product?.code ??
+                      snap?.product_uom?.product?.code ??
+                      snap?.code ??
+                      d.product_inventory?.code ??
+                      d.product_uom_batch?.product_uom?.code ??
+                      d.bundle?.code ??
+                      '—'
+                    const DETAIL_STATUS_META: Record<
+                      string,
+                      { label: string; color: string; bg: string }
+                    > = {
+                      pending: {
+                        label: 'Pending',
+                        color: 'var(--warning)',
+                        bg: 'var(--warning-bg)',
+                      },
+                      process: {
+                        label: 'In Progress',
+                        color: 'var(--info)',
+                        bg: 'var(--info-bg)',
+                      },
+                      completed: {
+                        label: 'Completed',
+                        color: 'var(--success)',
+                        bg: 'var(--success-bg)',
+                      },
+                    }
+                    const statusVal = d.status || snap?.status;
+                    const statusMeta =
+                      DETAIL_STATUS_META[statusVal] ?? {
+                        label: statusVal ?? '—',
+                        color: 'var(--foreground-muted)',
+                        bg: 'var(--background)',
+                      }
+                    return (
+                      <tr key={d.id ?? idx}>
+                        <td
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6,
+                            padding: '12px 12px',
+                            fontSize: 13,
+                            color: 'var(--foreground-muted)',
+                            borderBottom: '1px solid var(--border)',
                           }}
                         >
-                          {isBundle && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: 'var(--accent)',
-                                background: 'var(--accent-light-bg)',
-                                padding: '1px 5px',
-                                borderRadius: 'var(--radius-sm)',
-                              }}
-                            >
-                              Bundle
-                            </span>
-                          )}
-                          <span style={{ fontSize: 14, fontWeight: 500 }}>{name}</span>
-                        </div>
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 12px',
-                          fontSize: 12,
-                          color: 'var(--foreground-muted)',
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        {code}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 12px',
-                          fontSize: 14,
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        {d.qty}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 12px',
-                          fontSize: 14,
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        Rp {Number(d.price).toLocaleString('id-ID')}
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 12px',
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        <span
+                          {idx + 1}
+                        </td>
+                        <td
                           style={{
-                            fontSize: 11,
+                            padding: '12px 12px',
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            {isBundle && (
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: 'var(--accent)',
+                                  background: 'var(--accent-light-bg)',
+                                  padding: '1px 5px',
+                                  borderRadius: 'var(--radius-sm)',
+                                }}
+                              >
+                                Bundle
+                              </span>
+                            )}
+                            <span style={{ fontSize: 14, fontWeight: 500 }}>{name}</span>
+                          </div>
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 12px',
+                            fontSize: 12,
+                            color: 'var(--foreground-muted)',
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          {code}
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 12px',
+                            fontSize: 14,
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          {d.qty}
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 12px',
+                            fontSize: 14,
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          Rp {Number(d.price).toLocaleString('id-ID')}
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 12px',
+                            borderBottom: '1px solid var(--border)',
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: 'var(--radius-xl)',
+                              background: statusMeta.bg,
+                              color: statusMeta.color,
+                            }}
+                          >
+                            {statusMeta.label}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: '12px 12px',
+                            fontSize: 14,
                             fontWeight: 600,
-                            padding: '2px 8px',
-                            borderRadius: 'var(--radius-xl)',
-                            background: statusMeta.bg,
-                            color: statusMeta.color,
+                            color: 'var(--accent)',
+                            borderBottom: '1px solid var(--border)',
                           }}
                         >
-                          {statusMeta.label}
-                        </span>
-                      </td>
-                      <td
-                        style={{
-                          padding: '12px 12px',
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: 'var(--accent)',
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        Rp {(Number(d.price) * Number(d.qty)).toLocaleString('id-ID')}
-                      </td>
-                    </tr>
-                  )
-                })}
+                          Rp {(Number(d.price) * Number(d.qty)).toLocaleString('id-ID')}
+                        </td>
+                      </tr>
+                    )
+                  })}
               </tbody>
             </table>
 

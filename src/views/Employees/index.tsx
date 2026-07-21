@@ -36,6 +36,7 @@ interface Employee {
 export default function EmployeesView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("user.read");
   const canCreate = hasPermission('user.create')
   const canEdit = hasPermission('user.update')
   const canDelete = hasPermission('user.delete')
@@ -196,33 +197,28 @@ export default function EmployeesView() {
             Manage employee accounts and credit limits
           </p>
         </div>
-        {canCreate && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Employee
-          </button>
-        )}
+        {canCreate && (<button
+          type="button"
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Employee
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -259,7 +255,6 @@ export default function EmployeesView() {
           />
         </div>
       </div>
-
       {/* Stats row */}
       <div
         style={{
@@ -338,7 +333,6 @@ export default function EmployeesView() {
           </div>
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -462,7 +456,7 @@ export default function EmployeesView() {
                     </div>
                   </td>
                   <td style={tdStyle}>
-                    {(item.roles?.length ?? 0) === 0 ? (
+                    {canRead ? (item.roles?.length ?? 0) === 0 ? (
                       <span
                         style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}
                       >
@@ -496,7 +490,7 @@ export default function EmployeesView() {
                           </span>
                         )}
                       </div>
-                    )}
+                    ) : "***"}
                   </td>
                   <td style={tdStyle}>
                     <span
@@ -506,7 +500,7 @@ export default function EmployeesView() {
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    {(item.credit ?? 0) > 0 ? (
+                    {canRead ? (item.credit ?? 0) > 0 ? (
                       <div
                         style={{
                           display: 'flex',
@@ -538,7 +532,7 @@ export default function EmployeesView() {
                       >
                         No limit
                       </span>
-                    )}
+                    ) : "***"}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     <div
@@ -549,26 +543,20 @@ export default function EmployeesView() {
                         justifyContent: 'flex-end',
                       }}
                     >
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => openEdit(item)}
-                          style={actionBtnStyle}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          type="button"
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Remove"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        type="button"
+                        onClick={() => openEdit(item)}
+                        style={actionBtnStyle}
+                        title="Edit">
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                        title="Remove">
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -577,7 +565,6 @@ export default function EmployeesView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && lastPage > 1 && (
         <div
@@ -631,7 +618,6 @@ export default function EmployeesView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -725,7 +711,6 @@ export default function EmployeesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <UserSheet
         open={sheetOpen}
@@ -736,7 +721,6 @@ export default function EmployeesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -744,5 +728,5 @@ export default function EmployeesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

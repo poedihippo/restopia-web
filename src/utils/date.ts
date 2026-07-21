@@ -17,14 +17,16 @@
 export function parseApiDate(value: string | null | undefined): Date | null {
   if (!value) return null
 
-  // Detect format: "DD-MM-YYYY HH:mm ZZZ" (e.g. "09-06-2026 14:32 WIB")
+  // Detect format: "DD-MM-YYYY HH:mm ZZZ" or "DD-MM-YYYY"
   const ddmmyyyyMatch = value.match(
-    /^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2})(?:\s+\w+)?$/
+    /^(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{2}):(\d{2})(?:\s+\w+)?)?$/
   )
   if (ddmmyyyyMatch) {
     const [, dd, mm, yyyy, HH, MM] = ddmmyyyyMatch
+    const hr = HH || '00'
+    const min = MM || '00'
     // Reconstruct as ISO string (treat as WIB = UTC+7)
-    const iso = `${yyyy}-${mm}-${dd}T${HH}:${MM}:00+07:00`
+    const iso = `${yyyy}-${mm}-${dd}T${hr}:${min}:00+07:00`
     const d = new Date(iso)
     return isNaN(d.getTime()) ? null : d
   }

@@ -4,9 +4,12 @@ import React, { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import Select from 'react-select'
 import { vouchersService } from '@/services/vouchers.service'
+import { branchesService } from '@/services/branches.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { X, Loader2 } from 'lucide-react'
 
@@ -23,6 +26,8 @@ const schema = z.object({
   quota: z.coerce.number().min(0).optional(),
   status: z.enum(['active', 'inactive']),
   description: z.string().optional(),
+  branches: z.array(z.number()).optional(),
+  product_uoms: z.array(z.number()).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -43,6 +48,8 @@ interface VoucherSheetProps {
     quota?: number
     status: 'active' | 'inactive'
     description?: string
+    branches?: any[]
+    product_uoms?: any[]
   } | null
 }
 
@@ -71,10 +78,13 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
       quota: 0,
       status: 'active',
       description: '',
+      branches: [],
+      product_uoms: [],
     },
   })
 
   const watchDiscountType = watch('discount_type')
+  const watchScope = watch('scope')
 
   useEffect(() => {
     if (editData) {
@@ -91,6 +101,8 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
         quota: editData.quota ?? 0,
         status: editData.status,
         description: editData.description ?? '',
+        branches: editData.branches?.map((b: any) => b.branch_id || b.id) || [],
+        product_uoms: editData.product_uoms?.map((p: any) => p.product_uom_id || p.id) || [],
       })
     } else {
       reset({
@@ -106,12 +118,46 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
         quota: 0,
         status: 'active',
         description: '',
+        branches: [],
+        product_uoms: [],
       })
     }
-  }, [editData, open])
+  }, [editData, open, reset])
+
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-list'],
+    queryFn: async () => {
+      const res = await branchesService.list({ per_page: 100 })
+      return (res.data as any)?.data || []
+    }
+  })
+  
+  const { data: productUomsData } = useQuery({
+    queryKey: ['product-uoms-list'],
+    queryFn: async () => {
+      const res = await productUomsService.list({ per_page: 100 })
+      return (res.data as any)?.data || []
+    }
+  })
+
+  const branchOptions = React.useMemo(() => {
+    return (branchesData || []).map((b: any) => ({ label: b.name, value: b.id }))
+  }, [branchesData])
+
+  const productUomOptions = React.useMemo(() => {
+    return (productUomsData || []).map((p: any) => ({ label: p.code || p.id, value: p.id }))
+  }, [productUomsData])
+
+  const mapPayload = (data: FormValues) => {
+    return {
+      ...data,
+      branches: data.scope === 'branch' ? data.branches?.map(id => ({ branch_id: id })) : [],
+      product_uoms: data.product_uoms?.map(id => ({ product_uom_id: id })) || []
+    }
+  }
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => vouchersService.create(data as any),
+    mutationFn: (data: FormValues) => vouchersService.create(mapPayload(data) as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       toast.success('Voucher created')
@@ -121,7 +167,7 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) => vouchersService.update(editData!.id, data as any),
+    mutationFn: (data: FormValues) => vouchersService.update(editData!.id, mapPayload(data) as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       qc.invalidateQueries({ queryKey: ['voucher-detail'] })
@@ -392,6 +438,62 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
                   )}
                 />
               </div>
+            </div>
+
+            {watchScope === 'branch' && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Branches</label>
+                <Controller
+                  name="branches"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      isMulti
+                      options={branchOptions}
+                      value={branchOptions.filter((o: any) => field.value?.includes(o.value))}
+                      onChange={(selected: any) => field.onChange(selected.map((o: any) => o.value))}
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          fontSize: 13,
+                          borderColor: 'var(--border)',
+                          boxShadow: 'none',
+                          '&:hover': { borderColor: 'var(--border)' }
+                        }),
+                        menu: (base) => ({ ...base, fontSize: 13, zIndex: 100 })
+                      }}
+                      placeholder="Select branches..."
+                    />
+                  )}
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Products</label>
+              <Controller
+                name="product_uoms"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    isMulti
+                    options={productUomOptions}
+                    value={productUomOptions.filter((o: any) => field.value?.includes(o.value))}
+                    onChange={(selected: any) => field.onChange(selected.map((o: any) => o.value))}
+                    styles={{
+                      control: (base) => ({
+                        ...base,
+                        fontSize: 13,
+                        borderColor: 'var(--border)',
+                        boxShadow: 'none',
+                        '&:hover': { borderColor: 'var(--border)' }
+                      }),
+                      menu: (base) => ({ ...base, fontSize: 13, zIndex: 100 })
+                    }}
+                    placeholder="Select products (leave empty for all)"
+                  />
+                )}
+              />
             </div>
 
             {/* Row 3 — discount_value + quota */}

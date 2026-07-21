@@ -22,9 +22,13 @@ import {
   Save,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { usePrice } from '@/hooks/usePrice'
+import { PriceDisplay } from '@/components/PriceDisplay'
+import RecipeImportModal from './RecipeImportModal'
 
-const formatNumber = (n: number | undefined): string => {
+const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
+  if (!canReadPrice) return '***'
   return Number(n).toLocaleString('id-ID')
 }
 
@@ -63,7 +67,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const queryClient = useQueryClient()
 
   const { user } = useAuth()
-  const myBranchId = (user as any)?.branch?.id
+  const { canReadPrice } = usePrice()
+  const currentBranchId = (user as any)?.branch?.id
+
+  const [showRecipeModal, setShowRecipeModal] = useState(false)
 
   // Order source: external Supplier (default) or internal Branch — mutually
   // exclusive.
@@ -134,6 +141,46 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       return { data: allProductUoms }
     },
   })
+
+  const handleImportRecipes = (selectedRecipes: any[]) => {
+    const currentDetails = watch('details')
+    const newItems: Record<number, number> = {}
+
+    selectedRecipes.forEach((recipe) => {
+      recipe.recipe_materials?.forEach((material: any) => {
+        const uomId = material.product_uom_id
+        if (newItems[uomId]) {
+          newItems[uomId] += material.qty
+        } else {
+          newItems[uomId] = material.qty
+        }
+      })
+    })
+
+    const finalDetails = [...currentDetails]
+    Object.entries(newItems).forEach(([productUomId, qty]) => {
+      const id = Number(productUomId)
+      const existingIndex = finalDetails.findIndex((d) => d.product_uom_id === id)
+      
+      if (existingIndex >= 0) {
+        finalDetails[existingIndex].qty += qty
+      } else {
+        const product = productUoms.find((p: any) => p.id === id)
+        const price = product?.base_price ?? 0
+        finalDetails.push({ product_uom_id: id, qty, price, description: '' })
+      }
+    })
+
+    const cleanedDetails = finalDetails.filter(
+      (d) => d.product_uom_id !== 0 || d.qty !== 1 || d.price !== 0 || d.description !== ''
+    )
+    
+    if (cleanedDetails.length === 0) {
+      cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+    }
+
+    setValue('details', cleanedDetails, { shouldDirty: true, shouldValidate: true })
+  }
   const productUoms = (productUomsData as any)?.data ?? []
 
   // Last-purchase-price history for the selected supplier. Reads existing POs;
@@ -177,7 +224,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   }))
   // Internal-source branches: every branch except our own.
   const sourceBranchOptions = branches
-    .filter((b: any) => b.id !== myBranchId)
+    .filter((b: any) => b.id !== currentBranchId)
     .map((b: any) => ({
       value: b.id as number,
       label: (b.name as string) ?? `Branch #${b.id}`,
@@ -394,6 +441,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         </div>
       </div>
 
+      <RecipeImportModal
+        open={showRecipeModal}
+        onClose={() => setShowRecipeModal(false)}
+        onImport={handleImportRecipes}
+      />
+
       {/* Form */}
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -609,29 +662,56 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               justifyContent: 'space-between',
             }}
           >
-            <span style={sectionLabelStyle}>Line Items</span>
-            <button
-              type="button"
-              onClick={() =>
-                append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
-              }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 10px',
-                background: 'var(--accent-light-bg)',
-                color: 'var(--accent)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={13} />
-              Add Item
-            </button>
+            <h3
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                  letterSpacing: '0.5px',
+                  margin: 0,
+                }}
+              >
+                LINE ITEMS
+              </h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRecipeModal(true)}
+                  style={{
+                    padding: '6px 12px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Load from Recipes
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+                  }
+                  style={{
+                    padding: '6px 12px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <Plus size={14} /> Add Item
+                </button>
+              </div>
           </div>
 
           {/* Column headers */}
@@ -720,7 +800,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={formatNumber(watch(`details.${index}.price`))}
+                  value={formatNumber(watch(`details.${index}.price`), canReadPrice)}
+                  disabled={!canReadPrice}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^\d]/g, '')
                     setValue(
@@ -748,7 +829,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         cursor: 'pointer',
                       }}
                     >
-                      {`Last: Rp ${last.price.toLocaleString('id-ID')}`}
+                      {canReadPrice 
+                        ? `Last: Rp ${last.price.toLocaleString('id-ID')}`
+                        : `Last: Rp ***`}
                       {last.date ? ` · ${String(last.date).slice(0, 10)}` : ''}
                     </span>
                   )
@@ -804,7 +887,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 fontFamily: 'var(--font-display)',
               }}
             >
-              {'Rp ' + totalPrice.toLocaleString('id-ID')}
+              <PriceDisplay amount={totalPrice} prefix="Rp " />
             </span>
           </div>
 

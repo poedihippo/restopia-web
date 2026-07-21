@@ -76,7 +76,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           product_category_id: editData.product_category_id ?? 0,
           type: editData.type ?? '',
           description: editData.description ?? '',
-          status: editData.status,
+          status: editData.status ?? 'active',
         })
       } else {
         reset({

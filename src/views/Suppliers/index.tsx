@@ -34,6 +34,7 @@ interface Supplier {
 export default function SuppliersView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("supplier.read");
   const canCreate = hasPermission('supplier.create')
   const canEdit = hasPermission('supplier.update')
   const canDelete = hasPermission('supplier.delete')
@@ -126,29 +127,24 @@ export default function SuppliersView() {
             Manage your supplier directory
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => { setEditData(null); setSheetOpen(true) }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 16px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={16} />
-            New Supplier
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => { setEditData(null); setSheetOpen(true) }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 16px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={16} />New Supplier
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div style={{ marginBottom: 16 }}>
         <div style={{ position: 'relative', width: 280 }}>
@@ -182,7 +178,6 @@ export default function SuppliersView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -322,40 +317,34 @@ export default function SuppliersView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => { setEditData(item); setSheetOpen(true) }}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 6,
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: 6,
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}
-                          title="Delete"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => { setEditData(item); setSheetOpen(true) }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 6,
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}
+                        title="Edit">
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() => setDeleteConfirmId(item.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 6,
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}
+                        title="Delete">
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -364,7 +353,6 @@ export default function SuppliersView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && meta.last_page > 1 && (
         <div
@@ -415,7 +403,6 @@ export default function SuppliersView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -495,7 +482,6 @@ export default function SuppliersView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -609,13 +595,11 @@ export default function SuppliersView() {
           </div>
         </div>
       )}
-
       <SupplierSheet
         open={sheetOpen}
         onClose={() => { setSheetOpen(false); setEditData(null) }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -623,5 +607,5 @@ export default function SuppliersView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

@@ -12,9 +12,11 @@ import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { usePrice } from '@/hooks/usePrice'
 
-const formatNumber = (n: number | undefined): string => {
+const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
+  if (!canReadPrice) return '***'
   return Number(n).toLocaleString('id-ID')
 }
 
@@ -48,6 +50,8 @@ interface ProductUomSheetProps {
 
 export default function ProductUomSheet({ open, onClose, editData }: ProductUomSheetProps) {
   const queryClient = useQueryClient()
+  const { canReadPrice } = usePrice()
+  const isEdit = !!editData
 
   const {
     register,
@@ -394,13 +398,14 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               <input
                 type="text"
                 inputMode="numeric"
-                value={formatNumber(watch('base_price'))}
+                value={formatNumber(watch('base_price'), canReadPrice)}
+                disabled={!canReadPrice}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^\d]/g, '')
                   setValue('base_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
                 }}
                 placeholder="0"
-                style={inputStyle}
+                style={{ ...inputStyle, ...( !canReadPrice ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -410,13 +415,14 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               <input
                 type="text"
                 inputMode="numeric"
-                value={formatNumber(watch('online_price'))}
+                value={formatNumber(watch('online_price'), canReadPrice)}
+                disabled={!canReadPrice}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^\d]/g, '')
                   setValue('online_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
                 }}
                 placeholder="0"
-                style={inputStyle}
+                style={{ ...inputStyle, ...( !canReadPrice ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
               />
             </div>
           </div>

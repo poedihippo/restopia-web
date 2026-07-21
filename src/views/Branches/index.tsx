@@ -31,6 +31,7 @@ interface Branch {
 export default function BranchesView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("branch.read");
   const canCreate = hasPermission('branch.create')
   const canEdit = hasPermission('branch.update')
   const canDelete = hasPermission('branch.delete')
@@ -144,32 +145,27 @@ export default function BranchesView() {
             Manage company branches and locations
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New Branch
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New Branch
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -206,7 +202,6 @@ export default function BranchesView() {
           />
         </div>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -311,7 +306,7 @@ export default function BranchesView() {
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    {item.is_default ? (
+                    {canRead ? item.is_default ? (
                       <span
                         style={{
                           display: 'inline-flex',
@@ -330,7 +325,7 @@ export default function BranchesView() {
                       </span>
                     ) : (
                       <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
-                    )}
+                    ) : "***"}
                   </td>
                   <td style={tdStyle}>
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -355,41 +350,35 @@ export default function BranchesView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
-                        <button
-                          onClick={() => {
-                            setEditData(item)
-                            setSheetOpen(true)
-                          }}
-                          style={actionBtnStyle}
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() =>
-                            !item.is_default && setDeleteConfirmId(item.id)
-                          }
-                          disabled={item.is_default}
-                          style={{
-                            ...actionBtnStyle,
-                            color: item.is_default
-                              ? 'var(--foreground-subtle)'
-                              : 'var(--destructive)',
-                            cursor: item.is_default ? 'not-allowed' : 'pointer',
-                            opacity: item.is_default ? 0.5 : 1,
-                          }}
-                          title={
-                            item.is_default
-                              ? 'Cannot delete the default branch'
-                              : 'Delete'
-                          }
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
+                      {canEdit && (<button
+                        onClick={() => {
+                          setEditData(item)
+                          setSheetOpen(true)
+                        }}
+                        style={actionBtnStyle}
+                        title="Edit">
+                        <Pencil size={14} />
+                      </button>)}
+                      {canDelete && (<button
+                        onClick={() =>
+                          !item.is_default && setDeleteConfirmId(item.id)
+                        }
+                        disabled={item.is_default}
+                        style={{
+                          ...actionBtnStyle,
+                          color: item.is_default
+                            ? 'var(--foreground-subtle)'
+                            : 'var(--destructive)',
+                          cursor: item.is_default ? 'not-allowed' : 'pointer',
+                          opacity: item.is_default ? 0.5 : 1,
+                        }}
+                        title={
+                          item.is_default
+                            ? 'Cannot delete the default branch'
+                            : 'Delete'
+                        }>
+                        <Trash2 size={14} />
+                      </button>)}
                     </div>
                   </td>
                 </tr>
@@ -398,7 +387,6 @@ export default function BranchesView() {
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && lastPage > 1 && (
         <div
@@ -449,7 +437,6 @@ export default function BranchesView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -529,7 +516,6 @@ export default function BranchesView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -640,7 +626,6 @@ export default function BranchesView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <BranchSheet
         open={sheetOpen}
@@ -650,7 +635,6 @@ export default function BranchesView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -658,5 +642,5 @@ export default function BranchesView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

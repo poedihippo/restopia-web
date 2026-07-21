@@ -124,6 +124,22 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
     }
   }
 
+  const togglePermissionGroup = (perms: Permission[]) => {
+    const permIds = perms.map((p) => p.id)
+    const allSelected = permIds.every((id) => watchPermissionIds.includes(id))
+    
+    if (allSelected) {
+      setValue(
+        'permission_ids',
+        watchPermissionIds.filter((id) => !permIds.includes(id)),
+        { shouldDirty: true }
+      )
+    } else {
+      const newIds = Array.from(new Set([...watchPermissionIds, ...permIds]))
+      setValue('permission_ids', newIds, { shouldDirty: true })
+    }
+  }
+
   const selectAll = () => {
     setValue('permission_ids', allPermissions.map((p) => p.id), { shouldDirty: true })
   }
@@ -417,18 +433,59 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
                   Object.entries(permissionGroups).map(([group, perms]) => (
                     <div key={group}>
                       <div
+                        onClick={() => togglePermissionGroup(perms)}
                         style={{
-                          padding: '8px 12px 4px',
+                          padding: '8px 12px',
                           background: 'var(--background)',
                           borderBottom: '1px solid var(--border)',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: 'var(--foreground-muted)',
-                          textTransform: 'uppercase',
-                          letterSpacing: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          cursor: 'pointer',
                         }}
                       >
-                        {group}
+                        <div
+                          style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: 3,
+                            flexShrink: 0,
+                            border: `2px solid ${
+                              perms.every((p) => watchPermissionIds.includes(p.id))
+                                ? 'var(--accent)'
+                                : perms.some((p) => watchPermissionIds.includes(p.id))
+                                  ? 'var(--accent)'
+                                  : 'var(--border)'
+                            }`,
+                            background: perms.every((p) => watchPermissionIds.includes(p.id))
+                              ? 'var(--accent)'
+                              : perms.some((p) => watchPermissionIds.includes(p.id))
+                                ? 'var(--accent)'
+                                : 'transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {perms.every((p) => watchPermissionIds.includes(p.id)) && (
+                            <span style={{ color: 'white', fontSize: 10, lineHeight: 1 }}>✓</span>
+                          )}
+                          {!perms.every((p) => watchPermissionIds.includes(p.id)) &&
+                            perms.some((p) => watchPermissionIds.includes(p.id)) && (
+                              <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>-</span>
+                            )}
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: 'var(--foreground-muted)',
+                            textTransform: 'uppercase',
+                            letterSpacing: 1,
+                          }}
+                        >
+                          {group}
+                        </span>
                       </div>
                       {perms.map((perm, i) =>
                         renderPermissionRow(perm, i < perms.length - 1)

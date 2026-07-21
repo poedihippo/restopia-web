@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { ShoppingCart, ChevronUp, ChevronDown } from 'lucide-react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { ShoppingCart, ChevronUp, ChevronDown, Loader2 } from 'lucide-react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
+import useGetVoucherList from '@/hooks/voucher/useGetVoucherList'
+import SearchableSelect from '@/components/SearchableSelect'
 
 // Some styling constants for the sidebar
 const inputStyle: React.CSSProperties = {
@@ -54,10 +56,10 @@ interface PosCartSidebarProps {
   total: number
   discountAmount: number
   appliedVoucher: any
-  voucherCode: string
-  setVoucherCode: (val: string) => void
+  voucherCode: number | ''
+  setVoucherCode: (val: number | '') => void
   voucherLoading: boolean
-  handleApplyVoucher: () => void
+  handleApplyVoucher: (selectedVoucher?: any) => void
   customerSearch: string
   setCustomerSearch: (val: string) => void
   selectedCustomerId: number | null
@@ -130,6 +132,19 @@ export default function PosCartSidebar({
   const [orderDetailsOpen, setOrderDetailsOpen] = useState(false)
   const [lotPickerFor, setLotPickerFor] = useState<number | null>(null)
   const customerDropdownRef = useRef<HTMLDivElement>(null)
+
+  const { data: vouchersData, isLoading: vouchersLoadingQuery } = useGetVoucherList({
+    per_page: 100,
+    'filter[status]': 'active',
+  } as any)
+
+  const voucherOptions = useMemo(() => {
+    return (vouchersData?.data || []).map((v: any) => ({
+      label: v.code,
+      value: v.id,
+      sublabel: v.description || '',
+    }))
+  }, [vouchersData])
 
   // Local effect to close customer dropdown
   useEffect(() => {
@@ -369,7 +384,104 @@ export default function PosCartSidebar({
           ))
         )}
 
-        {/* bundle cart logic skipped for brevity, you can add it similarly to index.tsx */}
+        {bundleCart.map((item: any) => (
+          <div
+            key={`bundle-${item.bundle_id}`}
+            style={{
+              background: 'var(--background)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              position: 'relative',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: 'var(--accent)',
+                    background: 'var(--accent-light-bg)',
+                    padding: '1px 5px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                >
+                  Bundle
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                  {item.name}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  style={qtyBtnStyle}
+                  onClick={() =>
+                    setBundleCart((prev: any) =>
+                      prev
+                        .map((c: any) =>
+                          c.bundle_id === item.bundle_id
+                            ? { ...c, qty: c.qty - 1 }
+                            : c
+                        )
+                        .filter((c: any) => c.qty > 0)
+                    )
+                  }
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  value={item.qty}
+                  onChange={(e) => {
+                    const val = Math.max(1, Number(e.target.value))
+                    setBundleCart((prev: any) =>
+                      prev.map((c: any) =>
+                        c.bundle_id === item.bundle_id ? { ...c, qty: val } : c
+                      )
+                    )
+                  }}
+                  style={{
+                    width: 48,
+                    height: 28,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    textAlign: 'center',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: 'var(--foreground)',
+                    background: 'var(--surface)',
+                  }}
+                />
+                <button
+                  type="button"
+                  style={qtyBtnStyle}
+                  onClick={() =>
+                    setBundleCart((prev: any) =>
+                      prev.map((c: any) =>
+                        c.bundle_id === item.bundle_id ? { ...c, qty: c.qty + 1 } : c
+                      )
+                    )
+                  }
+                >
+                  +
+                </button>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                Rp {(item.price * item.qty).toLocaleString('id-ID')}
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div
@@ -449,8 +561,47 @@ export default function PosCartSidebar({
             flexShrink: 0,
           }}
         >
-          {/* Implement Customer Dropdown & Order Note fields here similar to index.tsx */}
-          <div style={{ padding: '0 16px 8px', flexShrink: 0, marginTop: 10 }}>
+          {/* Voucher field */}
+          <div style={{ padding: '0 16px', flexShrink: 0, marginTop: 10 }}>
+            <span style={labelStyle}>Voucher</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ flex: 1 }}>
+                <SearchableSelect
+                  options={voucherOptions}
+                  value={voucherCode}
+                  onChange={(val) => setVoucherCode(val as number)}
+                  placeholder="Select voucher..."
+                  searchPlaceholder="Search voucher..."
+                  loading={vouchersLoadingQuery}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const selectedVoucher = vouchersData?.data?.find((v: any) => v.id === voucherCode)
+                  handleApplyVoucher(selectedVoucher)
+                }}
+                disabled={voucherLoading || !voucherCode}
+                style={{
+                  padding: '0 12px',
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: voucherLoading || !voucherCode ? 'not-allowed' : 'pointer',
+                  opacity: voucherLoading || !voucherCode ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                {voucherLoading ? <Loader2 size={14} className="animate-spin" /> : 'Apply'}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ padding: '8px 16px', flexShrink: 0 }}>
             <textarea
               value={orderNote}
               onChange={(e) => setOrderNote(e.target.value)}

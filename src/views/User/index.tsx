@@ -48,6 +48,7 @@ const TYPE_META: Record<
 export default function UsersView() {
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
+  const canRead = hasPermission("user.read");
   const canCreate = hasPermission('user.create')
   const canEdit = hasPermission('user.update')
   const canDelete = hasPermission('user.delete')
@@ -188,32 +189,27 @@ export default function UsersView() {
             Manage system users and their access
           </p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditData(null)
-              setSheetOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            <Plus size={15} />
-            New User
-          </button>
-        )}
+        {canCreate && (<button
+          onClick={() => {
+            setEditData(null)
+            setSheetOpen(true)
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}>
+          <Plus size={15} />New User
+                              </button>)}
       </div>
-
       {/* Toolbar */}
       <div
         style={{
@@ -260,7 +256,6 @@ export default function UsersView() {
           <option value="superadmin">Superadmin</option>
         </select>
       </div>
-
       {/* Table */}
       <div
         style={{
@@ -382,11 +377,11 @@ export default function UsersView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      {typeMeta ? (
+                      {canRead ? typeMeta ? (
                         <span style={badge(typeMeta.bg, typeMeta.color)}>{typeMeta.label}</span>
                       ) : (
                         <span style={badge('var(--background)', 'var(--foreground-muted)')}>—</span>
-                      )}
+                      ) : "***"}
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -394,7 +389,7 @@ export default function UsersView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      {rolesList.length === 0 ? (
+                      {canRead ? rolesList.length === 0 ? (
                         <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>—</span>
                       ) : (
                         <div
@@ -428,7 +423,7 @@ export default function UsersView() {
                             </span>
                           )}
                         </div>
-                      )}
+                      ) : "***"}
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -467,34 +462,24 @@ export default function UsersView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (
-                          <button
-                            onClick={() => openEdit(item)}
-                            style={actionBtnStyle}
-                            title="Edit"
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => setDeleteConfirmId(item.id)}
-                            style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                        {canEdit && (<button onClick={() => openEdit(item)} style={actionBtnStyle} title="Edit">
+                          <Pencil size={14} />
+                        </button>)}
+                        {canDelete && (<button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          title="Delete">
+                          <Trash2 size={14} />
+                        </button>)}
                       </div>
                     </td>
                   </tr>
-                )
+                );
               })
             )}
           </tbody>
         </table>
       </div>
-
       {/* Pagination */}
       {meta && lastPage > 1 && (
         <div
@@ -545,7 +530,6 @@ export default function UsersView() {
           </button>
         </div>
       )}
-
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
@@ -625,7 +609,6 @@ export default function UsersView() {
           </div>
         </div>
       )}
-
       {/* Detail panel */}
       {selectedItem && (
         <div
@@ -787,7 +770,6 @@ export default function UsersView() {
           </div>
         </div>
       )}
-
       {/* Sheet */}
       <UserSheet
         open={sheetOpen}
@@ -797,7 +779,6 @@ export default function UsersView() {
         }}
         editData={editData}
       />
-
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -805,5 +786,5 @@ export default function UsersView() {
         }
       `}</style>
     </div>
-  )
+  );
 }

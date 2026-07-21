@@ -11,6 +11,7 @@ import { receiptsService } from '@/services/receipts.service'
 import { deliveriesService } from '@/services/deliveries.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { usePrice } from '@/hooks/usePrice'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
@@ -31,7 +32,6 @@ const detailSchema = z.object({
 })
 
 const schema = z.object({
-  code: z.string().min(1, 'Code required'),
   delivery_id: z.coerce.number().min(0, 'Delivery is required'),
   date: z.string().min(1, 'Date required'),
   status: z.literal('final'),
@@ -50,6 +50,7 @@ interface ReceiptFormProps {
 
 export default function ReceiptForm(props: ReceiptFormProps) {
   const { mode, initialData, receiptId } = props
+  const { canReadPrice } = usePrice()
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -64,7 +65,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      code: '',
       delivery_id: 0,
       date: new Date().toISOString().split('T')[0],
       status: 'final',
@@ -101,7 +101,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       let totalPages = 1
       do {
         const res = await deliveriesService
-          .list({ page, per_page: 100, 'filter[status]': 'final' } as any)
+          .list({ page, per_page: 100, 'filter[status]': 'final', include: 'branch' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allDeliveries = allDeliveries.concat(items)
@@ -213,11 +213,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const deliveryOptions = deliveries.map((d: any) => ({
     value: d.id as number,
-    label: d.code ?? `DEL-${d.id}`,
-    sublabel:
-      (d.total_price ?? 0) > 0
-        ? 'Rp ' + (d.total_price ?? 0).toLocaleString('id-ID')
-        : '',
+    label: `${d.code ?? `DEL-${d.id}`} - ${d.branch?.name ?? 'Unknown Branch'}`,
+    sublabel: d.date ? d.date : undefined,
   }))
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
@@ -242,7 +239,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     ...values,
     status: 'final',
     // Internal receipts are price-free — never submit prices.
-    total_price: isInternalReceipt ? 0 : (values.total_price ?? totalPrice),
+    total_price: isInternalReceipt ? 0 : (values.total_price || totalPrice),
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
@@ -469,18 +466,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               gap: 16,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Receipt Code
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <input
-                {...register('code')}
-                placeholder="e.g. RCP-2026-001"
-                style={errors.code ? inputErrorStyle : inputStyle}
-              />
-              {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
-            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -657,8 +642,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                       loading={productUomsLoading}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
-                          | string
-                          | undefined
+                        | string
+                        | undefined
                       }
                     />
                   )}
@@ -762,7 +747,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   fontFamily: 'var(--font-display)',
                 }}
               >
-                {'Rp ' + totalPrice.toLocaleString('id-ID')}
+                {canReadPrice
+                  ? 'Rp ' + totalPrice.toLocaleString('id-ID')
+                  : '***'}
               </span>
             </div>
           )}
@@ -834,10 +821,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 ? 'Saving...'
                 : 'Save Changes'
               : deliveryLinesPending
-              ? 'Loading items...'
-              : isPending
-              ? 'Creating...'
-              : 'Create Receipt'}
+                ? 'Loading items...'
+                : isPending
+                  ? 'Creating...'
+                  : 'Create Receipt'}
           </button>
         </div>
       </form>
