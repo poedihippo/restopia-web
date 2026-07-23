@@ -18,6 +18,18 @@ import { salesOrdersService as salesOrderService } from '@/services/sales-orders
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
 
+const getApiErrorMessage = (err: any, fallback = 'An error occurred'): string => {
+  const data = err?.response?.data
+  if (data?.errors && typeof data.errors === 'object') {
+    for (const key in data.errors) {
+      if (Array.isArray(data.errors[key]) && data.errors[key].length > 0) {
+        return data.errors[key][0]
+      }
+    }
+  }
+  return data?.message || fallback
+}
+
 export function usePosLogic() {
   const { user } = useAuth()
   const printer = usePrinter()
@@ -231,7 +243,7 @@ export function usePosLogic() {
           per_page: 60,
           'filter[status]': 'active',
           'filter[search]': bundleSearchDebounced || undefined,
-          include: 'bundle_details',
+          include: 'bundle_details,bundle_details.product_uom,bundle_details.product_uom.product,bundle_details.product_uom.product_inventories',
         } as any)
         .then((r) => r.data),
   })
@@ -480,7 +492,7 @@ export function usePosLogic() {
           code: bundle.code,
           price: bundle.price ?? 0,
           qty: 1,
-          bundle_details: bundle.details,
+          bundle_details: bundle.bundle_details || bundle.details || [],
         }
       ]
     })
@@ -506,6 +518,10 @@ export function usePosLogic() {
           qty: c.qty,
           price: c.price,
           status: 'pending',
+          bundle_details: c.bundle_details?.map((bd: any) => ({
+            product_inventory_id: bd.product_inventory_id || bd.product_uom?.product_inventories?.[0]?.id || items.find((i: any) => i.product_uom_id === bd.product_uom_id)?.id || bd.product_uom_id, // fallback
+            qty: bd.qty,
+          })) || [],
         })),
       ]
 
@@ -538,7 +554,7 @@ export function usePosLogic() {
         toast.error('Failed to apply voucher')
       }
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to apply voucher')
+      toast.error(getApiErrorMessage(err, 'Failed to apply voucher'))
     } finally {
       setVoucherLoading(false)
     }
@@ -564,7 +580,7 @@ export function usePosLogic() {
       resetCart()
     },
     onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Failed to hold order'),
+      toast.error(getApiErrorMessage(err, 'Failed to hold order')),
   })
 
   const handleHold = () => {
@@ -587,6 +603,10 @@ export function usePosLogic() {
         qty: c.qty,
         price: c.price,
         status: 'pending',
+        bundle_details: c.bundle_details?.map((bd: any) => ({
+          product_inventory_id: bd.product_inventory_id || bd.product_uom?.product_inventories?.[0]?.id || items.find((i: any) => i.product_uom_id === bd.product_uom_id)?.id || bd.product_uom_id || 0,
+          qty: bd.qty,
+        })) || [],
       })),
     ]
 
@@ -645,7 +665,7 @@ export function usePosLogic() {
       resetCart()
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Failed to place order')
+      toast.error(getApiErrorMessage(err, 'Failed to place order'))
     },
   })
 
@@ -664,6 +684,10 @@ export function usePosLogic() {
         qty: c.qty,
         price: c.price,
         status: 'completed',
+        bundle_details: c.bundle_details?.map((bd: any) => ({
+          product_inventory_id: bd.product_inventory_id || bd.product_uom?.product_inventories?.[0]?.id || items.find((i: any) => i.product_uom_id === bd.product_uom_id)?.id || bd.product_uom_id || 0,
+          qty: bd.qty,
+        })) || [],
       })),
     ]
 

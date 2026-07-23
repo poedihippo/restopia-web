@@ -37,6 +37,8 @@ interface Voucher {
   status: 'active' | 'inactive'
   description?: string
   created_at?: string
+  voucher_branches?: any[]
+  voucher_product_uoms?: any[]
 }
 
 export default function VouchersView() {
@@ -74,6 +76,7 @@ export default function VouchersView() {
           page,
           per_page: 15,
           sort: '-created_at',
+          include: 'voucher_branches,voucher_product_uoms',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
           'filter[discount_type]': discountTypeFilter || undefined,

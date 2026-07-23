@@ -51,7 +51,15 @@ export const cookies = {
     document.cookie = cookieString;
   },
 
-  remove(name: string, options: { path?: string; domain?: string } = {}): void {
+  remove(
+    name: string,
+    options: {
+      path?: string;
+      domain?: string;
+      secure?: boolean;
+      sameSite?: "strict" | "lax" | "none";
+    } = {}
+  ): void {
     if (typeof window === "undefined") return;
 
     this.set(name, "", {

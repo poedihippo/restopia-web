@@ -58,7 +58,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,delivery_details.product_uom.product,delivery_details.product_uom.uom',
+            'branch,target_branch,delivery_details,delivery_details.product_uom,delivery_details.product_uom.product,delivery_details.product_uom.uom',
         } as any)
         .then((r) => r.data),
   })
@@ -290,7 +290,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 800,
+        maxWidth: 1100,
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
@@ -681,8 +681,8 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                       loading={productUomsLoading}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
-                          | string
-                          | undefined
+                        | string
+                        | undefined
                       }
                     />
                   )}

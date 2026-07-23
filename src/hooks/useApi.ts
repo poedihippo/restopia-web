@@ -27,11 +27,17 @@ function processQueue(error: unknown, token: string | null) {
 }
 
 function clearAuthAndRedirect() {
-  cookies.remove('token', { path: '/' })
-  cookies.remove('refresh_token', { path: '/' })
-  cookies.remove('session_start', { path: '/' })
-  if (typeof window !== 'undefined') {
-    window.location.href = '/'
+  const cookieOpts = {
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+  };
+
+  cookies.remove("token", cookieOpts);
+  cookies.remove("refresh_token", cookieOpts);
+  cookies.remove("session_start", cookieOpts);
+  if (typeof window !== "undefined") {
+    window.location.href = "/";
   }
 }
 

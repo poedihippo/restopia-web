@@ -48,8 +48,8 @@ interface VoucherSheetProps {
     quota?: number
     status: 'active' | 'inactive'
     description?: string
-    branches?: any[]
-    product_uoms?: any[]
+    voucher_branches?: any[]
+    voucher_product_uoms?: any[]
   } | null
 }
 
@@ -101,8 +101,8 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
         quota: editData.quota ?? 0,
         status: editData.status,
         description: editData.description ?? '',
-        branches: editData.branches?.map((b: any) => b.branch_id || b.id) || [],
-        product_uoms: editData.product_uoms?.map((p: any) => p.product_uom_id || p.id) || [],
+        branches: editData.voucher_branches?.map((b: any) => b.branch_id || b.id) || [],
+        product_uoms: editData.voucher_product_uoms?.map((p: any) => p.product_uom_id || p.id) || [],
       })
     } else {
       reset({

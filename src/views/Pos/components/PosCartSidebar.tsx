@@ -417,6 +417,23 @@ export default function PosCartSidebar({
                 </span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</div>
+              
+              {/* Bundle items breakdown */}
+              {item.bundle_details && item.bundle_details.length > 0 && (
+                <div style={{ marginTop: 8, padding: '6px 8px', background: 'rgba(0,0,0,0.02)', borderRadius: 'var(--radius-sm)' }}>
+                  {item.bundle_details.map((bd: any, idx: number) => {
+                    const prodName = bd.product_uom?.product?.name || bd.product_inventory?.product_uom?.product?.name || `Item`
+                    return (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--foreground-subtle)', marginBottom: idx === item.bundle_details.length - 1 ? 0 : 4 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                          • {prodName}
+                        </span>
+                        <span>x{bd.qty}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

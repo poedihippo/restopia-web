@@ -10,6 +10,7 @@ import React, {
 import { toast } from "sonner";
 import { queryClient } from "./query";
 import api from "./useApi";
+import { authService } from "@/services/auth.service";
 
 type AuthContextType = {
   user: IUserMe | null;
@@ -37,10 +38,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<IUserMe | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
-  const logout = useCallback((reason?: "expired" | "manual") => {
-    cookies.remove("token", { path: "/" });
-    cookies.remove("refresh_token", { path: "/" });
-    cookies.remove("session_start", { path: "/" });
+  const logout = useCallback(async (reason?: "expired" | "manual") => {
+    try {
+      const token = cookies.get("token");
+      if (token) {
+        await authService.revoke();
+      }
+    } catch (e) {
+      console.error("Failed to revoke token:", e);
+    }
+
+    const cookieOpts = {
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+    };
+
+    cookies.remove("token", cookieOpts);
+    cookies.remove("refresh_token", cookieOpts);
+    cookies.remove("session_start", cookieOpts);
 
     setUser(null);
     setIsLoggedIn(false);
@@ -115,9 +131,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user, logout, isLoggedIn]);
 
   const login = async (token: string, refreshToken: string) => {
-    cookies.remove("token", { path: "/" });
-    cookies.remove("refresh_token", { path: "/" });
-    cookies.remove("session_start", { path: "/" });
+    const cookieOpts = {
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+    };
+
+    cookies.remove("token", cookieOpts);
+    cookies.remove("refresh_token", cookieOpts);
+    cookies.remove("session_start", cookieOpts);
 
     cookies.set("token", token, {
       expires: 1,

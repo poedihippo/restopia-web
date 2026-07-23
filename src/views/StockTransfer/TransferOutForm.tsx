@@ -25,7 +25,6 @@ const detailSchema = z.object({
 })
 
 const schema = z.object({
-  code: z.string().min(1, 'Code required'),
   target_branch_id: z.coerce.number().min(1, 'Select target branch'),
   date: z.string().min(1, 'Date required'),
   description: z.string().optional(),
@@ -50,11 +49,11 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      code: '',
       target_branch_id: 0,
       date: today,
       description: '',
@@ -195,7 +194,6 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   const createMutation = useMutation({
     mutationFn: (values: FormValues) => {
       const payload = {
-        code: values.code,
         source_type: 'transfer_to_branch',
         target_branch_id: values.target_branch_id,
         date: values.date,
@@ -331,20 +329,6 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
           <div>
             <label style={labelStyle}>
-              Transfer Code <span style={{ color: 'var(--destructive)' }}>*</span>
-            </label>
-            <input
-              {...register('code')}
-              placeholder="e.g. TRF-2026-001"
-              style={{
-                ...inputStyle,
-                ...(errors.code ? { border: '1px solid var(--destructive)' } : {}),
-              }}
-            />
-            {errors.code && <span style={errorStyle}>{errors.code.message}</span>}
-          </div>
-          <div>
-            <label style={labelStyle}>
               Date <span style={{ color: 'var(--destructive)' }}>*</span>
             </label>
             <input
@@ -432,7 +416,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '2fr 90px 110px 90px 130px',
+              gridTemplateColumns: '2fr 90px 110px 90px 1fr 32px',
               gap: 8,
               padding: '6px 0',
               borderBottom: '1px solid var(--border)',
@@ -447,9 +431,8 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
             <span>Qty</span>
             <span>Unit Price</span>
             <span>Subtotal</span>
-            <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Notes</span>
-            </span>
+            <span>Notes</span>
+            <span></span>
           </div>
 
           {fields.map((field, index) => {
@@ -475,15 +458,21 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                     render={({ field: f }) => (
                       <SearchableSelect
                         value={f.value ?? 0}
-                        onChange={f.onChange}
+                        onChange={(val) => {
+                          f.onChange(val)
+                          const selectedPu = productUoms.find((pu: any) => pu.id === Number(val))
+                          if (selectedPu && selectedPu.base_price !== undefined) {
+                            setValue(`details.${index}.price`, Number(selectedPu.base_price))
+                          }
+                        }}
                         options={productUomOptions}
                         placeholder="Select product..."
                         searchPlaceholder="Search products..."
                         loading={productUomsLoading}
                         error={
                           errors.details?.[index]?.product_uom_id?.message as
-                            | string
-                            | undefined
+                          | string
+                          | undefined
                         }
                       />
                     )}

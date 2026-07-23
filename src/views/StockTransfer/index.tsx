@@ -3,7 +3,8 @@ import { formatDate } from '@/utils/date';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -13,6 +14,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
+  Pencil,
+  Trash2,
+  CheckCircle,
+  RotateCcw,
 } from 'lucide-react'
 import TransferOutForm from './TransferOutForm'
 
@@ -32,12 +37,41 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function StockTransferView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const myBranchId = user?.branch?.id
+  const canEdit = hasPermission ? hasPermission('delivery.update') : true
+  const canDelete = hasPermission ? hasPermission('delivery.delete') : true
 
   const [activeTab, setActiveTab] = useState<'out' | 'in'>('out')
   const [showOutForm, setShowOutForm] = useState(false)
   const [page, setPage] = useState(1)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deliveriesService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries-transfer-out'] })
+      toast.success('Transfer deleted')
+      setDeleteConfirmId(null)
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message ?? 'Failed to delete transfer'
+      toast.error(msg)
+    },
+  })
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: 'pending' | 'final' }) =>
+      deliveriesService.update(id, { status } as any),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliveries-transfer-out'] })
+      toast.success('Status updated')
+    },
+    onError: (error: any) => {
+      const msg = error?.response?.data?.message ?? 'Failed to update status'
+      toast.error(msg)
+    },
+  })
 
   // ── Outgoing transfers ──────────────────────────────────────────────────
   const { data: outData, isLoading: outLoading } = useQuery({
@@ -94,6 +128,16 @@ export default function StockTransferView() {
     padding: '12px 16px',
     borderBottom: '1px solid var(--border)',
     verticalAlign: 'middle',
+  }
+
+  const actionBtnStyle: React.CSSProperties = {
+    padding: 6,
+    background: 'none',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    cursor: 'pointer',
+    color: 'var(--foreground-muted)',
+    display: 'flex',
   }
 
   const tabBtn = (tab: 'out' | 'in'): React.CSSProperties => ({
@@ -411,24 +455,68 @@ export default function StockTransferView() {
                             </span>
                           </td>
                           <td style={tdStyle}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                router.push(`/transfer/deliveries/${item.id}/detail`)
-                              }
-                              title="View"
+                            <div
                               style={{
-                                padding: 6,
-                                background: 'none',
-                                border: 'none',
-                                borderRadius: 'var(--radius-sm)',
-                                cursor: 'pointer',
-                                color: 'var(--foreground-muted)',
                                 display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                justifyContent: 'flex-end',
                               }}
                             >
-                              <Eye size={14} />
-                            </button>
+                              {canEdit && (item.status === 'pending' ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    toggleStatusMutation.mutate({ id: item.id, status: 'final' })
+                                  }
+                                  disabled={toggleStatusMutation.isPending}
+                                  title="Finalize"
+                                  style={{ ...actionBtnStyle, color: 'var(--success)' }}
+                                >
+                                  <CheckCircle size={14} />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
+                                  }
+                                  disabled={toggleStatusMutation.isPending}
+                                  title="Revert to Pending"
+                                  style={{ ...actionBtnStyle, color: 'var(--warning)' }}
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(`/transfer/deliveries/${item.id}/detail`)
+                                }
+                                title="View"
+                                style={actionBtnStyle}
+                              >
+                                <Eye size={14} />
+                              </button>
+                              {canEdit && (
+                                <button
+                                  onClick={() => router.push(`/transfer/deliveries/${item.id}/edit`)}
+                                  style={actionBtnStyle}
+                                  title="Edit"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button
+                                  onClick={() => setDeleteConfirmId(item.id)}
+                                  style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                                  title="Delete"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       )
@@ -627,6 +715,86 @@ export default function StockTransferView() {
           </div>
 
           {renderPagination(inMeta)}
+        </div>
+      )}
+
+      {/* Delete confirm dialog */}
+      {deleteConfirmId !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={() => setDeleteConfirmId(null)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 70,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '28px 28px 24px',
+              width: 360,
+              boxShadow: 'var(--shadow-lg)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 17,
+                fontWeight: 600,
+                margin: '0 0 8px',
+                color: 'var(--foreground)',
+              }}
+            >
+              Delete Transfer
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>
+              This will permanently remove the transfer and its details.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(deleteConfirmId)}
+                disabled={deleteMutation.isPending}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--destructive)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'white',
+                  cursor: 'pointer',
+                  opacity: deleteMutation.isPending ? 0.7 : 1,
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
