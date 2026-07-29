@@ -1,6 +1,11 @@
 import { formatDate } from '@/utils/date';
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
+import { formatCurrency } from '@/utils/price';
+
 
 interface PosProductGridProps {
   activeTab: 'products' | 'bundles'
@@ -20,13 +25,18 @@ interface PosProductGridProps {
   isLoading: boolean
   hoveredCard: string | null
   setHoveredCard: (val: string | null) => void
-  addGroupToCart: (group: any) => void
+  addLotToCart: (lot: any) => void
+  batchPickerGroup: any | null
+  setBatchPickerGroup: (group: any | null) => void
   orderType: 'online' | 'offline'
   bundleSearch: string
   setBundleSearch: (val: string) => void
   isBundleLoading: boolean
   bundles: any[]
   addBundleToCart: (bundle: any) => void
+  addConfiguredBundleToCart: (bundle: any, selectedBatches: Record<number, any>) => void
+  bundlePickerGroup: any | null
+  setBundlePickerGroup: (group: any | null) => void
 }
 
 export default function PosProductGrid({
@@ -47,13 +57,18 @@ export default function PosProductGrid({
   isLoading,
   hoveredCard,
   setHoveredCard,
-  addGroupToCart,
+  addLotToCart,
+  batchPickerGroup,
+  setBatchPickerGroup,
   orderType,
   bundleSearch,
   setBundleSearch,
   isBundleLoading,
   bundles,
   addBundleToCart,
+  addConfiguredBundleToCart,
+  bundlePickerGroup,
+  setBundlePickerGroup,
 }: PosProductGridProps) {
   return (
     <>
@@ -259,7 +274,13 @@ export default function PosProductGrid({
                   return (
                     <div
                       key={group.key}
-                      onClick={() => addGroupToCart(group)}
+                      onClick={() => {
+                        if (lotCount > 1) {
+                          setBatchPickerGroup(group)
+                        } else {
+                          addLotToCart(group.defaultLot)
+                        }
+                      }}
                       onMouseEnter={() => setHoveredCard(group.key)}
                       onMouseLeave={() => setHoveredCard(null)}
                       style={{
@@ -356,11 +377,11 @@ export default function PosProductGrid({
                             marginTop: 4,
                           }}
                         >
-                          Rp{' '}
-                          {(orderType === 'online'
-                            ? (item.online_price ?? item.base_price ?? 0)
-                            : (item.base_price ?? 0)
-                          ).toLocaleString('id-ID')}
+                          {formatCurrency(
+                            orderType === 'online'
+                              ? (item.online_price ?? item.base_price ?? 0)
+                              : (item.base_price ?? 0)
+                          )}
                         </span>
                       </div>
                     </div>
@@ -438,6 +459,88 @@ export default function PosProductGrid({
                 </div>
               )}
           </div>
+          
+          {/* Batch Picker Modal */}
+          {batchPickerGroup && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 100,
+              }}
+              onClick={() => setBatchPickerGroup(null)}
+            >
+              <div
+                style={{
+                  background: 'var(--background)',
+                  padding: 24,
+                  borderRadius: 'var(--radius-lg)',
+                  width: '90%',
+                  maxWidth: 500,
+                  maxHeight: '80vh',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ margin: 0, fontSize: 18, color: 'var(--foreground)' }}>Select Batch / Exp Date</h3>
+                  <button
+                    onClick={() => setBatchPickerGroup(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--foreground-muted)' }}
+                  >
+                    ×
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {batchPickerGroup.lots.map((lot: any) => (
+                    <div
+                      key={lot.id}
+                      onClick={() => addLotToCart(lot)}
+                      style={{
+                        padding: 16,
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--surface)',
+                        cursor: (lot.stock ?? 0) > 0 ? 'pointer' : 'not-allowed',
+                        opacity: (lot.stock ?? 0) > 0 ? 1 : 0.5,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>
+                           Batch: {lot.product_uom_batch?.batch_code ?? 'N/A'}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                          Exp: {lot.product_uom_batch?.expiry_date ? formatDate(lot.product_uom_batch.expiry_date) : 'No Exp Date'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
+                          {formatCurrency(orderType === 'online' ? (lot.online_price ?? lot.base_price) : lot.base_price)}
+                        </span>
+                        <span style={{ fontSize: 12, color: (lot.stock ?? 0) > 0 ? 'var(--success)' : 'var(--destructive)' }}>
+                          Stock: {lot.stock ?? 0}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -568,7 +671,7 @@ export default function PosProductGrid({
                       marginTop: 4,
                     }}
                   >
-                    Rp {Number(bundle.price).toLocaleString('id-ID')}
+                    {formatCurrency(Number(bundle.price))}
                   </span>
                 </div>
               ))}
@@ -576,6 +679,245 @@ export default function PosProductGrid({
           </div>
         </div>
       )}
+
+      {/* Bundle Batch Picker Modal */}
+      {bundlePickerGroup && (
+        <BundleBatchPickerModal
+          bundle={bundlePickerGroup}
+          onClose={() => setBundlePickerGroup(null)}
+          onAdd={addConfiguredBundleToCart}
+        />
+      )}
     </>
+  )
+}
+
+function BundleBatchPickerModal({
+  bundle,
+  onClose,
+  onAdd,
+}: {
+  bundle: any
+  onClose: () => void
+  onAdd: (bundle: any, selectedBatches: Record<number, any>) => void
+}) {
+  const [selectedBatches, setSelectedBatches] = useState<Record<number, any>>({})
+
+  const handleAdd = () => {
+    // Validate that all items have a selected batch
+    const details = bundle.bundle_details || bundle.details || []
+    for (const detail of details) {
+      if (!selectedBatches[detail.id]) {
+        alert('Please select a batch for all items.')
+        return
+      }
+    }
+    onAdd(bundle, selectedBatches)
+  }
+
+  const details = bundle.bundle_details || bundle.details || []
+
+  const { data: inventoriesData, isLoading } = useQuery({
+    queryKey: ['bundle-inventories', bundle.id],
+    queryFn: async () => {
+      const promises = details.map(async (d: any) => {
+        // First get batches for this product_uom_id
+        const batchRes = await productUomBatchesService.list({
+          'filter[product_uom_id]': d.product_uom_id,
+          per_page: 100,
+        } as any)
+        const batches = (batchRes.data as any)?.data || []
+        
+        let allInventories: any[] = []
+        
+        if (batches.length > 0) {
+          // Then get inventories for these batches
+          // Try to use a comma-separated list if backend supports it, otherwise fallback to first few
+          const batchIds = batches.map((b: any) => b.id).join(',')
+          const invRes = await productInventoriesService.list({
+            'filter[product_uom_batch_id]': batchIds,
+            include: 'product_uom_batch',
+            per_page: 100,
+          } as any)
+          allInventories = (invRes.data as any)?.data || []
+          
+          // If comma separated didn't work (returned 0), fetch one by one
+          if (allInventories.length === 0 && batches.length > 0) {
+             for (const b of batches) {
+               const singleInvRes = await productInventoriesService.list({
+                 'filter[product_uom_batch_id]': b.id,
+                 include: 'product_uom_batch',
+                 per_page: 100,
+               } as any)
+               const invs = (singleInvRes.data as any)?.data || []
+               allInventories.push(...invs)
+             }
+          }
+        }
+        
+        return {
+          detailId: d.id,
+          inventories: allInventories,
+        }
+      })
+      return Promise.all(promises)
+    },
+  })
+
+  // Group fetched inventories by detailId
+  const inventoriesByDetailId = (inventoriesData || []).reduce((acc: any, curr: any) => {
+    acc[curr.detailId] = curr.inventories
+    return acc
+  }, {})
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 100,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: 'var(--background)',
+          padding: 24,
+          borderRadius: 'var(--radius-lg)',
+          width: '90%',
+          maxWidth: 600,
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 20,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18, color: 'var(--foreground)' }}>Configure Bundle</h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--foreground-muted)' }}>
+              {bundle.name} ({bundle.code})
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 24, color: 'var(--foreground-muted)' }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--foreground-muted)' }}>
+              Loading batches...
+            </div>
+          ) : (
+            details.map((detail: any) => {
+              const productName = detail.product_uom?.product?.name ?? 'Unknown Product'
+              const qty = detail.qty
+              const inventories = inventoriesByDetailId[detail.id] || []
+              // Filter only positive stock
+              const availableInventories = inventories.filter((i: any) => (i.stock ?? i.qty ?? 0) > 0)
+              
+              return (
+              <div
+                key={detail.id}
+                style={{
+                  padding: 16,
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 15, fontWeight: 600 }}>{productName}</span>
+                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Qty: {qty}</span>
+                </div>
+                
+                <select
+                  value={selectedBatches[detail.id] || ''}
+                  onChange={(e) =>
+                    setSelectedBatches((prev) => ({
+                      ...prev,
+                      [detail.id]: e.target.value ? Number(e.target.value) : undefined,
+                    }))
+                  }
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 14,
+                    background: 'var(--background)',
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  <option value="">-- Select Batch --</option>
+                  {availableInventories.map((inv: any) => {
+                    const batchCode = inv.product_uom_batch?.batch_code ?? inv.product_uom_batch?.code ?? 'N/A'
+                    const exp = inv.product_uom_batch?.expiry_date ? formatDate(inv.product_uom_batch.expiry_date) : 'No Exp Date'
+                    const stock = inv.stock ?? inv.qty ?? 0
+                    return (
+                      <option key={inv.id} value={inv.id}>
+                        Batch: {batchCode} | Exp: {exp} | Stock: {stock}
+                      </option>
+                    )
+                  })}
+                </select>
+                {availableInventories.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--destructive)' }}>Out of stock</div>
+                )}
+              </div>
+            )
+          })
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 20px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleAdd}
+            style={{
+              padding: '10px 20px',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent)',
+              color: 'white',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Add to Cart
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

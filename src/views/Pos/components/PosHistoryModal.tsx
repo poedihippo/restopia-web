@@ -1,4 +1,5 @@
 import React from 'react'
+import { formatCurrency } from '@/utils/price';
 
 interface PosHistoryModalProps {
   showHistory: boolean
@@ -200,7 +201,7 @@ export default function PosHistoryModal({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Total</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
-                  Rp {Number(order.total_price).toLocaleString('id-ID')}
+                  {formatCurrency(Number(order.total_price))}
                 </span>
               </div>
             </div>

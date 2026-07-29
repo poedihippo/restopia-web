@@ -31,19 +31,11 @@ export interface ListParams {
 }
 
 // Auth
-export interface TokenRequest {
-  email: string
-  password: string
-}
+export type TokenRequest = components["schemas"]["TokenRequest"]
 export interface RefreshTokenRequest {
   refresh_token: string
 }
-export interface TokenResponse {
-  access_token: string
-  refresh_token: string
-  token_type: string
-  expires_in: number
-}
+export type TokenResponse = components["schemas"]["TokenResponse"]
 export interface ChangeActiveBranchRequest {
   branch_id: number
 }

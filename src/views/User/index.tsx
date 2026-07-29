@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -442,7 +443,7 @@ export default function UsersView() {
                         }}
                       >
                         {item.credit
-                          ? 'Rp ' + item.credit.toLocaleString('id-ID')
+                          ? formatCurrency(item.credit)
                           : '—'}
                       </span>
                     </td>

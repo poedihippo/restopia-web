@@ -1,5 +1,6 @@
 import React from 'react'
 import { formatDateTime } from '@/utils/date'
+import { formatCurrency } from '@/utils/price';
 
 interface PosPreordersModalProps {
   showPreorders: boolean
@@ -137,7 +138,7 @@ export default function PosPreordersModal({
                     {order.sales_order_details?.length ?? 0} item(s)
                   </span>
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
-                    Rp {Number(order.total_price).toLocaleString('id-ID')}
+                    {formatCurrency(Number(order.total_price))}
                   </span>
                 </div>
 

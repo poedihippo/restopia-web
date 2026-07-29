@@ -16,4 +16,13 @@ export const operationsService = {
 
   rollover: (data: any) =>
     api.post<ApiResponse<any>>('/operations/rollover', data),
+    
+  create: (data: any) =>
+    api.post<ApiResponse<any>>('/operations', data),
+
+  update: (id: number, data: any) =>
+    api.patch<ApiResponse<any>>(`/operations/${id}`, data),
+
+  delete: (id: number) =>
+    api.delete<ApiResponse<any>>(`/operations/${id}`),
 }

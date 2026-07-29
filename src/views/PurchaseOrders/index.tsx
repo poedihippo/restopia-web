@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -8,7 +9,6 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
-import { usePrice } from '@/hooks/usePrice'
 import {
   Plus,
   Search,
@@ -75,8 +75,6 @@ export default function PurchaseOrdersView() {
   const canCreate = hasPermission('purchase-order.create')
   const canEdit = hasPermission('purchase-order.update')
   const canDelete = hasPermission('purchase-order.delete')
-  const { canReadPrice } = usePrice()
-
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -501,8 +499,8 @@ export default function PurchaseOrdersView() {
                       >
                         {isInternal
                           ? ''
-                          : canReadPrice
-                            ? 'Rp ' + item.total_price.toLocaleString('id-ID')
+                          : getCanReadPrice()
+                            ? formatCurrency(item.total_price)
                             : '***'}
                       </span>
                     </td>

@@ -18,8 +18,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
+import { getCanReadPrice } from '@/utils/price'
+
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
+  if (!getCanReadPrice()) return '***'
   return Number(n).toLocaleString('id-ID')
 }
 
@@ -988,6 +991,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   type="text"
                   inputMode="numeric"
                   value={formatNumber(watch(`details.${index}.price`))}
+                  disabled={!getCanReadPrice()}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^\d]/g, '')
                     setValue(
@@ -995,7 +999,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       raw === '' ? 0 : parseInt(raw, 10) || 0,
                     )
                   }}
-                  style={lineInputStyle}
+                  style={{
+                    ...lineInputStyle,
+                    ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
+                  }}
                 />
               )}
 

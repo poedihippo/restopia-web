@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect } from 'react'
+import { getCanReadPrice } from '@/utils/price'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -17,6 +18,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
+  if (!getCanReadPrice()) return '***'
   return Number(n).toLocaleString('id-ID')
 }
 
@@ -663,6 +665,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   type="text"
                   inputMode="numeric"
                   value={formatNumber(watch(`details.${index}.price`))}
+                  disabled={!getCanReadPrice()}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^\d]/g, '')
                     setValue(
@@ -670,7 +673,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                       raw === '' ? 0 : parseInt(raw, 10) || 0,
                     )
                   }}
-                  style={lineInputStyle}
+                  style={{
+                    ...lineInputStyle,
+                    ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
+                  }}
                 />
               )}
 

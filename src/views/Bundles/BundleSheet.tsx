@@ -11,8 +11,11 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
+import { getCanReadPrice } from '@/utils/price'
+
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
+  if (!getCanReadPrice()) return '***'
   return Number(n).toLocaleString('id-ID')
 }
 
@@ -391,12 +394,13 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                   type="text"
                   inputMode="numeric"
                   value={formatNumber(watch('price'))}
+                  disabled={!getCanReadPrice()}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^\d]/g, '')
                     setValue('price', raw === '' ? 0 : parseInt(raw, 10) || 0)
                   }}
                   placeholder="0"
-                  style={errors.price ? inputErrorStyle : inputStyle}
+                  style={{...(errors.price ? inputErrorStyle : inputStyle), ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )}}
                 />
                 {errors.price && <div style={errorStyle}>{errors.price.message}</div>}
               </div>

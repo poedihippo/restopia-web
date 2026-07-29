@@ -18,10 +18,12 @@ export default function PaymentMethodsView() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [name, setName] = useState('')
+  const [type, setType] = useState('all')
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
   const [selectedItem, setSelectedItem] = useState<{
     id: number
     name: string
+    type?: string
     created_at?: string
   } | null>(null)
   const [search, setSearch] = useState('')
@@ -48,8 +50,8 @@ export default function PaymentMethodsView() {
   const { mutate: save, isPending: saving } = useMutation({
     mutationFn: () =>
       editing
-        ? paymentMethodService.update(editing.id, { name })
-        : paymentMethodService.create({ name }),
+        ? paymentMethodService.update(editing.id, { name, type })
+        : paymentMethodService.create({ name, type }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payment-methods'] })
       qc.invalidateQueries({ queryKey: ['payment-methods-all'] })
@@ -57,6 +59,7 @@ export default function PaymentMethodsView() {
       setShowForm(false)
       setEditing(null)
       setName('')
+      setType('all')
     },
     onError: (err: any) => {
       const errData = err?.response?.data
@@ -127,6 +130,7 @@ export default function PaymentMethodsView() {
           onClick={() => {
             setEditing(null)
             setName('')
+            setType('all')
             setShowForm(true)
           }}
           style={{
@@ -185,6 +189,7 @@ export default function PaymentMethodsView() {
           <thead>
             <tr>
               <th style={thStyle}>Name</th>
+              <th style={thStyle}>Type</th>
               <th style={thStyle}>Created</th>
               <th style={{ ...thStyle, width: 120 }}>Actions</th>
             </tr>
@@ -193,7 +198,7 @@ export default function PaymentMethodsView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3].map((j) => (
+                  {[1, 2, 3, 4].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -210,7 +215,7 @@ export default function PaymentMethodsView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -225,6 +230,7 @@ export default function PaymentMethodsView() {
             {items.map((item: any) => (
               <tr key={item.id}>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
+                <td style={tdStyle}>{canRead ? (item.type || '—') : "***"}</td>
                 <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
                   {canRead ? item.created_at
                     ? formatDateShort(item.created_at)
@@ -253,6 +259,7 @@ export default function PaymentMethodsView() {
                       onClick={() => {
                         setEditing(item)
                         setName(item.name)
+                        setType(item.type || 'all')
                         setShowForm(true)
                       }}
                       style={{
@@ -375,6 +382,18 @@ export default function PaymentMethodsView() {
                 Tip: include &quot;cash&quot; in the name (e.g. &quot;Cash&quot;) to enable change
                 calculation in POS.
               </p>
+              <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6, marginTop: 16 }}>
+                Type *
+              </label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box' }}
+              >
+                <option value="all">All</option>
+                <option value="sales_orders">Sales Orders</option>
+                <option value="purchase_orders">Purchase Orders</option>
+              </select>
             </div>
             <div
               style={{
@@ -505,6 +524,7 @@ export default function PaymentMethodsView() {
               {[
                 { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
+                { label: 'Type', value: selectedItem.type },
                 {
                   label: 'Created At',
                   value: selectedItem.created_at

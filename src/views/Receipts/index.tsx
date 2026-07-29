@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -8,7 +9,6 @@ import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
-import { usePrice } from '@/hooks/usePrice'
 import {
   Plus,
   Search,
@@ -55,8 +55,6 @@ export default function ReceiptsView() {
   const canCreate = hasPermission('receipt.create')
   const canEdit = hasPermission('receipt.update')
   const canDelete = hasPermission('receipt.delete')
-  const { canReadPrice } = usePrice()
-
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -440,8 +438,8 @@ export default function ReceiptsView() {
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                         {isInternal
                           ? ''
-                          : canReadPrice
-                            ? 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')
+                          : getCanReadPrice()
+                            ? formatCurrency((item.total_price ?? 0))
                             : '***'}
                       </span>
                     </td>

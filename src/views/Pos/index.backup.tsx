@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime, parseApiDate } from '@/utils/date';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
@@ -1078,7 +1079,7 @@ export default function PosView() {
         subtotal < voucher.min_subtotal_price
       ) {
         toast.error(
-          `Minimum purchase Rp ${Number(voucher.min_subtotal_price).toLocaleString('id-ID')} required`,
+          `Minimum purchase Rp ${formatCurrency(Number(voucher.min_subtotal_price), '')} required`,
         )
         return
       }
@@ -1660,8 +1661,8 @@ export default function PosView() {
                             Rp{' '}
                             {(orderType === 'online'
                               ? (item.online_price ?? item.base_price ?? 0)
-                              : (item.base_price ?? 0)
-                            ).toLocaleString('id-ID')}
+                              :formatCurrency((item.base_price ?? 0)
+                            ), '')}
                           </span>
                         </div>
                       </div>
@@ -1873,7 +1874,7 @@ export default function PosView() {
                         marginTop: 4,
                       }}
                     >
-                      Rp {Number(bundle.price).toLocaleString('id-ID')}
+                      {formatCurrency(Number(bundle.price))}
                     </span>
                   </div>
                 ))}
@@ -2180,7 +2181,7 @@ export default function PosView() {
                               }}
                             >
                               Stock {opt.stock} · Rp{' '}
-                              {Number(optPrice).toLocaleString('id-ID')}
+                              {formatCurrency(Number(optPrice), '')}
                             </span>
                           </button>
                         )
@@ -2251,7 +2252,7 @@ export default function PosView() {
                     </button>
                   </div>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
-                    Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                    {formatCurrency((item.price * item.qty))}
                   </span>
                 </div>
                 {item.price_editable && (
@@ -2339,7 +2340,7 @@ export default function PosView() {
                   </span>
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
-                  Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                  {formatCurrency((item.price * item.qty))}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -2450,7 +2451,7 @@ export default function PosView() {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
             <span>Subtotal</span>
-            <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+            <span>{formatCurrency(subtotal)}</span>
           </div>
 
           {appliedVoucher && discountAmount > 0 && (
@@ -2464,7 +2465,7 @@ export default function PosView() {
               }}
             >
               <span>Diskon ({appliedVoucher.code})</span>
-              <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
+              <span>- {formatCurrency(discountAmount)}</span>
             </div>
           )}
 
@@ -2473,7 +2474,7 @@ export default function PosView() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
             <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
-              Rp {total.toLocaleString('id-ID')}
+              {formatCurrency(total)}
             </span>
           </div>
         </div>
@@ -2917,7 +2918,7 @@ export default function PosView() {
             >
               <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>Total Due</span>
               <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
-                Rp {total.toLocaleString('id-ID')}
+                {formatCurrency(total)}
               </span>
             </div>
 
@@ -2977,7 +2978,7 @@ export default function PosView() {
                   color: 'var(--info)',
                 }}
               >
-                Confirm receipt of Rp {total.toLocaleString('id-ID')} via {selectedMethod?.name}.
+                Confirm receipt of {formatCurrency(total)} via {selectedMethod?.name}.
               </div>
             )}
 
@@ -3001,7 +3002,7 @@ export default function PosView() {
                     placeholder="Enter amount..."
                     value={
                       cashTendered
-                        ? `Rp ${Number(cashTendered.replace(/\D/g, '')).toLocaleString('id-ID')}`
+                        ? formatCurrency(Number(cashTendered.replace(/\D/g, '')))
                         : ''
                     }
                     onChange={(e) => {
@@ -3045,7 +3046,7 @@ export default function PosView() {
                         cursor: 'pointer',
                       }}
                     >
-                      Rp {amt.toLocaleString('id-ID')}
+                      {formatCurrency(amt)}
                     </button>
                   ))}
                 </div>
@@ -3067,7 +3068,7 @@ export default function PosView() {
                       Change
                     </span>
                     <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--success)' }}>
-                      Rp {change.toLocaleString('id-ID')}
+                      {formatCurrency(change)}
                     </span>
                   </div>
                 )}
@@ -3138,7 +3139,7 @@ export default function PosView() {
                 </div>
                 <div className="row">
                   <span />
-                  <span>Rp {(item.price * item.qty).toLocaleString('id-ID')}</span>
+                  <span>{formatCurrency((item.price * item.qty))}</span>
                 </div>
               </div>
             ))}
@@ -3146,12 +3147,12 @@ export default function PosView() {
             {receiptData.discount > 0 && (
               <div className="row">
                 <span>Discount</span>
-                <span>- Rp {receiptData.discount.toLocaleString('id-ID')}</span>
+                <span>- {formatCurrency(receiptData.discount)}</span>
               </div>
             )}
             <div className="row total-row">
               <span>TOTAL</span>
-              <span>Rp {receiptData.total.toLocaleString('id-ID')}</span>
+              <span>{formatCurrency(receiptData.total)}</span>
             </div>
             <div className="divider" />
             <div className="row">
@@ -3162,11 +3163,11 @@ export default function PosView() {
               <>
                 <div className="row">
                   <span>Cash</span>
-                  <span>Rp {receiptData.cashTendered.toLocaleString('id-ID')}</span>
+                  <span>{formatCurrency(receiptData.cashTendered)}</span>
                 </div>
                 <div className="row">
                   <span>Change</span>
-                  <span>Rp {receiptData.change.toLocaleString('id-ID')}</span>
+                  <span>{formatCurrency(receiptData.change)}</span>
                 </div>
               </>
             )}
@@ -3235,7 +3236,7 @@ export default function PosView() {
                 <span>
                   {item.name} × {item.qty}
                 </span>
-                <span>Rp {(item.price * item.qty).toLocaleString('id-ID')}</span>
+                <span>{formatCurrency((item.price * item.qty))}</span>
               </div>
             ))}
 
@@ -3252,7 +3253,7 @@ export default function PosView() {
                 }}
               >
                 <span>Discount</span>
-                <span>- Rp {receiptData.discount.toLocaleString('id-ID')}</span>
+                <span>- {formatCurrency(receiptData.discount)}</span>
               </div>
             )}
 
@@ -3267,7 +3268,7 @@ export default function PosView() {
             >
               <span>Total</span>
               <span style={{ color: 'var(--accent)' }}>
-                Rp {receiptData.total.toLocaleString('id-ID')}
+                {formatCurrency(receiptData.total)}
               </span>
             </div>
 
@@ -3284,7 +3285,7 @@ export default function PosView() {
                     style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}
                   >
                     <span>Cash</span>
-                    <span>Rp {receiptData.cashTendered.toLocaleString('id-ID')}</span>
+                    <span>{formatCurrency(receiptData.cashTendered)}</span>
                   </div>
                   <div
                     style={{
@@ -3295,7 +3296,7 @@ export default function PosView() {
                     }}
                   >
                     <span>Change</span>
-                    <span>Rp {receiptData.change.toLocaleString('id-ID')}</span>
+                    <span>{formatCurrency(receiptData.change)}</span>
                   </div>
                 </>
               )}
@@ -3526,7 +3527,7 @@ export default function PosView() {
                                 <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{p.code}</div>
                               </div>
                               <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
-                                Rp {Number(p.base_price).toLocaleString('id-ID')}
+                                {formatCurrency(Number(p.base_price))}
                               </span>
                             </div>
                           ))}
@@ -3567,7 +3568,7 @@ export default function PosView() {
                           style={{ width: 48, height: 30, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', textAlign: 'center', fontSize: 13 }}
                         />
                         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', minWidth: 90, textAlign: 'right' }}>
-                          Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                          {formatCurrency((item.price * item.qty))}
                         </span>
                         <button
                           type="button"
@@ -3785,7 +3786,7 @@ export default function PosView() {
                       {order.sales_order_details?.length ?? 0} item(s)
                     </span>
                     <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
-                      Rp {Number(order.total_price).toLocaleString('id-ID')}
+                      {formatCurrency(Number(order.total_price))}
                     </span>
                   </div>
 
@@ -4093,7 +4094,7 @@ export default function PosView() {
                   >
                     <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Total</span>
                     <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
-                      Rp {Number(order.total_price).toLocaleString('id-ID')}
+                      {formatCurrency(Number(order.total_price))}
                     </span>
                   </div>
                 </div>

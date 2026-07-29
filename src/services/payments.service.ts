@@ -9,6 +9,10 @@ export const paymentsService = {
     api.post('/payments', data),
   update: (id: number, data: any) =>
     api.patch(`/payments/${id}`, data),
+  allocate: (id: number, data: any) =>
+    api.post(`/payments/${id}/allocate`, data),
+  void: (id: number) =>
+    api.post(`/payments/${id}/void`),
   delete: (id: number) =>
     api.delete(`/payments/${id}`),
 }

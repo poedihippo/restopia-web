@@ -6,6 +6,8 @@ import Image from 'next/image'
 import { useRouter } from 'next/router'
 import useSalesOrdersDetail from './useSalesOrdersDetail'
 import { formatterIDR } from '@/helper/convertCurrency'
+import { formatCurrency } from '@/utils/price';
+
 
 interface Props {
     id: number
@@ -183,7 +185,7 @@ const SalesOrdersDetail = ({
                                                     fontWeight: 600,
                                                 }}
                                             >
-                                                Rp {Number(p.amount).toLocaleString('id-ID')}
+                                                {formatCurrency(Number(p.amount))}
                                             </td>
                                             <td
                                                 style={{
@@ -225,7 +227,7 @@ const SalesOrdersDetail = ({
                                         </span>
                                         <span>
                                             Rp{' '}
-                                            {Number(data.total_price ?? 0).toLocaleString('id-ID')}
+                                            {formatCurrency(Number(data.total_price ?? 0), '')}
                                         </span>
                                     </div>
                                     <div
@@ -242,7 +244,7 @@ const SalesOrdersDetail = ({
                                         <span
                                             style={{ color: 'var(--success)', fontWeight: 600 }}
                                         >
-                                            Rp {totalPaid.toLocaleString('id-ID')}
+                                            {formatCurrency(totalPaid)}
                                         </span>
                                     </div>
                                     {totalPaid < Number(data.total_price ?? 0) && (
@@ -264,9 +266,8 @@ const SalesOrdersDetail = ({
                                                 style={{ color: 'var(--destructive)', fontWeight: 700 }}
                                             >
                                                 Rp{' '}
-                                                {(
-                                                    Number(data.total_price ?? 0) - totalPaid
-                                                ).toLocaleString('id-ID')}
+                                                {formatCurrency(
+                                                    Number(data.total_price ?? 0) - totalPaid, '')}
                                             </span>
                                         </div>
                                     )}
@@ -293,9 +294,8 @@ const SalesOrdersDetail = ({
                                                     }}
                                                 >
                                                     Change: Rp{' '}
-                                                    {(
-                                                        totalPaid - Number(data.total_price ?? 0)
-                                                    ).toLocaleString('id-ID')}
+                                                    {formatCurrency(
+                                                        totalPaid - Number(data.total_price ?? 0), '')}
                                                 </span>
                                             )}
                                         </div>

@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -374,7 +375,7 @@ export default function VouchersView() {
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                         {item.discount_type === 'percent'
                           ? `${item.discount_value}%`
-                          : 'Rp ' + (item.discount_value ?? 0).toLocaleString('id-ID')}
+                          : formatCurrency((item.discount_value ?? 0))}
                       </span>
                     </td>
                     <td style={tdStyle}>

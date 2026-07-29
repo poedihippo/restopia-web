@@ -11,17 +11,16 @@ import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settin
 export default function ShiftsView() {
   const qc = useQueryClient();
   const { hasPermission } = useAuth();
-  const canStart = true;
-  const canRollover = true;
-  const [sheetMode, setSheetMode] = useState<"start" | "rollover">("start");
-  
-  
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editData, setEditData] = useState<any | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   useEffect(() => {
@@ -47,6 +46,15 @@ export default function ShiftsView() {
   const items: any[] = (data as any)?.data ?? [];
   const meta = (data as any)?.meta;
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => shiftsService.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shifts'] });
+      toast.success('Shift deleted');
+      setDeleteConfirmId(null);
+    },
+    onError: () => toast.error('Failed to delete Shift'),
+  });
 
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1;
 
@@ -62,20 +70,11 @@ export default function ShiftsView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Shifts</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Manage daily shifts</p>
         </div>
-        
-        <div style={{ display: 'flex', gap: 10 }}>
-          {canStart && (
-            <button onClick={() => { setSheetMode('start'); setSheetOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-              <Plus size={15} /> Start Shift
-            </button>
-          )}
-          {canRollover && (
-            <button onClick={() => { setSheetMode('rollover'); setSheetOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--surface)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-              <Plus size={15} /> Rollover
-            </button>
-          )}
-        </div>
-
+        {canCreate && (
+          <button onClick={() => { setEditData(null); setSheetOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            <Plus size={15} /> New Shift
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -111,8 +110,8 @@ export default function ShiftsView() {
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                       <button onClick={() => setSelectedItem(item)} style={actionBtnStyle} title="View"><Eye size={14} /></button>
-                      
-                      
+                      {canEdit && <button onClick={() => { setEditData(item); setSheetOpen(true); }} style={actionBtnStyle} title="Edit"><Pencil size={14} /></button>}
+                      {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ ...actionBtnStyle, color: 'var(--destructive)' }} title="Delete"><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -130,6 +129,19 @@ export default function ShiftsView() {
         </div>
       )}
 
+      {deleteConfirmId !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 380, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Shift</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedItem && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end' }}>
@@ -155,7 +167,7 @@ export default function ShiftsView() {
         </div>
       )}
 
-      <ShiftSheet open={sheetOpen} onClose={() => setSheetOpen(false)} mode={sheetMode} />
+      <ShiftSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setEditData(null); }} editData={editData} />
     </div>
   );
 }

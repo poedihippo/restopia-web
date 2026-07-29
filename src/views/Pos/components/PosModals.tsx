@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { ReceiptData } from '@/components/PosReceipt'
 import PosPreordersModal from './PosPreordersModal'
 import PosHistoryModal from './PosHistoryModal'
+import { formatCurrency } from '@/utils/price';
 
 interface PosModalsProps {
   showPayment: boolean
@@ -116,7 +117,6 @@ export default function PosModals({
   historyMeta,
   isHistoryLoading,
 }: PosModalsProps) {
-  
   return (
     <>
       {showPayment && !showReceipt && (
@@ -188,7 +188,7 @@ export default function PosModals({
             >
               <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>Total Due</span>
               <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
-                Rp {total.toLocaleString('id-ID')}
+                {formatCurrency(total)}
               </span>
             </div>
 
@@ -248,7 +248,7 @@ export default function PosModals({
                   color: 'var(--info)',
                 }}
               >
-                Confirm receipt of Rp {total.toLocaleString('id-ID')} via {selectedMethod?.name}.
+                Confirm receipt of {formatCurrency(total)} via {selectedMethod?.name}.
               </div>
             )}
 
@@ -272,7 +272,7 @@ export default function PosModals({
                     placeholder="Enter amount..."
                     value={
                       cashTendered
-                        ? `Rp ${Number(cashTendered.replace(/\D/g, '')).toLocaleString('id-ID')}`
+                        ? `${formatCurrency(Number(cashTendered.replace(/\D/g, '')))}`
                         : ''
                     }
                     onChange={(e) => {
@@ -316,7 +316,7 @@ export default function PosModals({
                         cursor: 'pointer',
                       }}
                     >
-                      Rp {amt.toLocaleString('id-ID')}
+                      {formatCurrency(amt)}
                     </button>
                   ))}
                 </div>
@@ -338,7 +338,7 @@ export default function PosModals({
                       Change
                     </span>
                     <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--success)' }}>
-                      Rp {change.toLocaleString('id-ID')}
+                      {formatCurrency(change)}
                     </span>
                   </div>
                 )}

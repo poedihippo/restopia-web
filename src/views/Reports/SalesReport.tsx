@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -6,10 +7,7 @@ import { useRouter } from 'next/router'
 import { useAuth } from '@/hooks/useAuth'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { ArrowLeft, Printer } from 'lucide-react'
-
 const today = () => new Date().toISOString().split('T')[0]
-
-const idr = (n: number) => Number(n ?? 0).toLocaleString('id-ID')
 
 export default function SalesReport() {
   const { user, isSuperadmin } = useAuth()
@@ -267,7 +265,7 @@ export default function SalesReport() {
               : 'inherit',
         }}
       >
-        {'Rp ' + idr(value)}
+        {formatCurrency(value)}
       </td>
     </tr>
   )
@@ -277,7 +275,7 @@ export default function SalesReport() {
     <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
       <td style={{ padding: '5px 8px' }}>{label}</td>
       <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-        {'Rp ' + idr(value)}
+        {formatCurrency(value)}
       </td>
     </tr>
   )
@@ -497,7 +495,7 @@ export default function SalesReport() {
                         {item.qty.toLocaleString('id-ID')}
                       </td>
                       <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                        {item.price.toLocaleString('id-ID')}
+                        {formatCurrency(item.price)}
                       </td>
                       <td
                         style={{
@@ -506,7 +504,7 @@ export default function SalesReport() {
                           fontWeight: 500,
                         }}
                       >
-                        {item.amount.toLocaleString('id-ID')}
+                        {formatCurrency(item.amount)}
                       </td>
                     </tr>
                   ))}
@@ -525,7 +523,7 @@ export default function SalesReport() {
                       {'TOTAL ' + catName.toUpperCase()}
                     </td>
                     <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                      {cat.totalQty.toLocaleString('id-ID')}
+                      {formatCurrency(cat.totalQty, '')}
                     </td>
                     <td></td>
                     <td
@@ -535,7 +533,7 @@ export default function SalesReport() {
                         color: 'var(--accent)',
                       }}
                     >
-                      {cat.totalAmount.toLocaleString('id-ID')}
+                      {formatCurrency(cat.totalAmount)}
                     </td>
                   </tr>
                 </tfoot>
@@ -593,10 +591,10 @@ export default function SalesReport() {
                       {'TOTAL ' + catName.toUpperCase()}
                     </td>
                     <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                      {cat.totalQty.toLocaleString('id-ID')}
+                      {formatCurrency(cat.totalQty, '')}
                     </td>
                     <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                      {cat.totalAmount.toLocaleString('id-ID')}
+                      {formatCurrency(cat.totalAmount)}
                     </td>
                   </tr>
                 ))}
@@ -611,7 +609,7 @@ export default function SalesReport() {
                 >
                   <td style={{ padding: 8, fontSize: 13 }}>TOTAL GROSS SALES</td>
                   <td style={{ padding: 8, textAlign: 'right', fontSize: 13 }}>
-                    {aggregated.totalGrossQty.toLocaleString('id-ID')}
+                    {formatCurrency(aggregated.totalGrossQty, '')}
                   </td>
                   <td
                     style={{
@@ -621,7 +619,7 @@ export default function SalesReport() {
                       color: 'var(--accent)',
                     }}
                   >
-                    {aggregated.grossSales.toLocaleString('id-ID')}
+                    {formatCurrency(aggregated.grossSales)}
                   </td>
                 </tr>
                 <tr>
@@ -680,7 +678,7 @@ export default function SalesReport() {
                         color: 'var(--accent)',
                       }}
                     >
-                      {'Rp ' + aggregated.netSales.toLocaleString('id-ID')}
+                      {formatCurrency(aggregated.netSales)}
                     </td>
                   </tr>
                 </tbody>
@@ -715,7 +713,7 @@ export default function SalesReport() {
                         color: 'var(--accent)',
                       }}
                     >
-                      {'Rp ' + aggregated.totalBanking.toLocaleString('id-ID')}
+                      {formatCurrency(aggregated.totalBanking)}
                     </td>
                   </tr>
                 </tfoot>

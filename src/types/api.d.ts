@@ -41,6 +41,41 @@ export interface paths {
         patch: operations["updateAccountCategory"];
         trace?: never;
     };
+    "/v1/account-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Account Settings */
+        get: operations["listAccountSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/account-settings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Find Account Setting */
+        get: operations["findAccountSetting"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Account Setting */
+        patch: operations["updateAccountSetting"];
+        trace?: never;
+    };
     "/v1/account-types": {
         parameters: {
             query?: never;
@@ -263,6 +298,26 @@ export interface paths {
         put?: never;
         /** Create Budget */
         post: operations["createBudget"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/budgets/actual/{period_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Budget vs Actual Comparison
+         * @description Compare budgeted amounts against actual journal balances for a given period
+         */
+        get: operations["budgetVsActual"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -544,6 +599,26 @@ export interface paths {
         patch: operations["updateFiscalYear"];
         trace?: never;
     };
+    "/v1/fiscal-years/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Fiscal Year
+         * @description Close a fiscal year. All periods must be closed first. Creates closing journal entries automatically.
+         */
+        post: operations["closeFiscalYear"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/journals": {
         parameters: {
             query?: never;
@@ -556,6 +631,46 @@ export interface paths {
         put?: never;
         /** Create Journal */
         post: operations["createJournal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journals/account-balances/{period_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Account Balances by Period
+         * @description Returns sum of debit and credit per chart of accounts for a specific period (posted journals only)
+         */
+        get: operations["accountBalances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journals/trial-balance/{period_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trial Balance by Period
+         * @description Returns all chart of accounts with their debit and credit balances for a specific period
+         */
+        get: operations["trialBalance"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -592,6 +707,26 @@ export interface paths {
         put?: never;
         /** Post Journal */
         post: operations["postJournal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/journals/{id}/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reverse Journal
+         * @description Create a reversing journal entry. Original journal must be posted and not already reversed.
+         */
+        post: operations["reverseJournal"];
         delete?: never;
         options?: never;
         head?: never;
@@ -826,8 +961,41 @@ export interface paths {
         delete: operations["deletePayment"];
         options?: never;
         head?: never;
-        /** Update Payment */
-        patch: operations["updatePayment"];
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payments/{id}/allocate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Allocate Payment to Orders */
+        post: operations["allocatePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/payments/{id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Payment */
+        post: operations["voidPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/periods": {
@@ -865,6 +1033,26 @@ export interface paths {
         head?: never;
         /** Update Period */
         patch: operations["updatePeriod"];
+        trace?: never;
+    };
+    "/v1/periods/{id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Period
+         * @description Close an accounting period. All journals in the period must be posted before closing.
+         */
+        post: operations["closePeriod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/permissions": {
@@ -1789,6 +1977,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountBalanceResponse: {
+            /** @example 200000 */
+            balance?: number;
+            chart_of_account?: components["schemas"]["ChartOfAccountSimpleResponse"];
+            /** @example 1 */
+            chart_of_account_id?: number;
+            /** @example 1101 */
+            code?: string;
+            /** @example Kas */
+            name?: string;
+            /** @example debit */
+            normal_balance?: string;
+            /** @example 300000 */
+            total_credit?: number;
+            /** @example 500000 */
+            total_debit?: number;
+        };
         AccountCategoryResponse: {
             /** @example ASSET */
             code?: string;
@@ -1833,6 +2038,49 @@ export interface components {
              */
             normal_balance?: "debit" | "credit";
             updated_by?: components["schemas"]["UserAuditResponse"];
+        };
+        AccountSettingKeyResponse: {
+            /** @example DEBIT */
+            expected_normal_balance?: string;
+            /** @example 1 */
+            id?: number;
+            /** @example ar_trade */
+            key?: string;
+            /** @example Accounts Receivable - Trade */
+            label?: string;
+            /** @example SALES */
+            module?: string;
+        };
+        AccountSettingResponse: {
+            /**
+             * @example ar_trade
+             * @enum {string}
+             */
+            account_setting_key?: "ar_trade" | "ap_trade" | "customer_deposits" | "supplier_advances" | "sales_revenue" | "sales_discount" | "vat_output" | "purchase_expense" | "purchase_discount" | "vat_input" | "rounding" | "retained_earnings";
+            account_setting_key_entity?: components["schemas"]["AccountSettingKeyResponse"];
+            /** @example 1 */
+            account_setting_key_id?: number;
+            chart_of_account?: components["schemas"]["ChartOfAccountSimpleResponse"];
+            /** @example 1 */
+            chart_of_account_id?: number;
+            /** @example 2026-06-03 09:00:00 */
+            created_at?: string;
+            created_by?: components["schemas"]["UserAuditResponse"];
+            /** @example 1 */
+            created_by_id?: number;
+            /** @example 2026-06-03 11:00:00 */
+            deleted_at?: string;
+            /** @example 1 */
+            deleted_by_id?: number;
+            /** @example Cash on hand */
+            description?: string;
+            /** @example 1 */
+            id?: number;
+            /** @example 2026-06-03 10:00:00 */
+            updated_at?: string;
+            updated_by?: components["schemas"]["UserAuditResponse"];
+            /** @example 1 */
+            updated_by_id?: number;
         };
         AccountTypeResponse: {
             account_category?: components["schemas"]["AccountCategorySimpleResponse"];
@@ -1884,6 +2132,9 @@ export interface components {
             /** @example Recommended product: Premium dark chocolate. */
             text?: string;
         };
+        AllocatePaymentRequest: {
+            allocations: components["schemas"]["CreateAllocationRequest"][];
+        };
         AuditLogMeta: {
             ip_address?: string;
             user_agent?: string;
@@ -1915,7 +2166,7 @@ export interface components {
              * @example company
              * @enum {string}
              */
-            reference_type?: "companies" | "branches" | "roles" | "users" | "media" | "operation_rules" | "operations" | "shift_rules" | "shifts" | "product_categories" | "products" | "uoms" | "product_conversions" | "product_uoms" | "product_uom_batches" | "bundles" | "product_inventories" | "stock_movements" | "recipes" | "productions" | "suppliers" | "purchase_orders" | "deliveries" | "receipts" | "customers" | "vouchers" | "sales_orders" | "payment_methods" | "payments" | "account_categories" | "account_types" | "chart_of_accounts" | "fiscal_years" | "periods" | "journals" | "budgets";
+            reference_type?: "companies" | "branches" | "roles" | "users" | "media" | "operation_rules" | "operations" | "shift_rules" | "shifts" | "product_categories" | "products" | "uoms" | "product_conversions" | "product_uoms" | "product_uom_batches" | "bundles" | "product_inventories" | "stock_movements" | "recipes" | "productions" | "suppliers" | "purchase_orders" | "deliveries" | "receipts" | "customers" | "vouchers" | "sales_orders" | "payment_methods" | "payments" | "account_categories" | "account_types" | "chart_of_accounts" | "account_settings" | "fiscal_years" | "periods" | "journals" | "budgets";
         };
         BranchResponse: {
             /** @example BR-001 */
@@ -1995,6 +2246,27 @@ export interface components {
             updated_by?: components["schemas"]["UserAuditResponse"];
             /** @example 1 */
             updated_by_id?: number;
+        };
+        BudgetVsActualItem: {
+            /** @example 600000 */
+            actual_balance?: number;
+            /** @example 200000 */
+            actual_credit?: number;
+            /** @example 800000 */
+            actual_debit?: number;
+            /** @example 1000000 */
+            budget_amount?: number;
+            /** @example 1 */
+            chart_of_account_id?: number;
+            /** @example 1101 */
+            code?: string;
+            /** @example Kas */
+            name?: string;
+            /** @example -400000 */
+            variance?: number;
+        };
+        BudgetVsActualResponse: {
+            items?: components["schemas"]["BudgetVsActualItem"][];
         };
         BulkUpdateSettlementStatusItem: {
             /** @example 1 */
@@ -2176,6 +2448,14 @@ export interface components {
             /** @example Current Asset */
             name: string;
         };
+        CreateAllocationRequest: {
+            /** @example 50000 */
+            amount: number;
+            /** @example 1 */
+            purchase_order_id?: number;
+            /** @example 1 */
+            sales_order_id?: number;
+        };
         CreateBranchRequest: {
             /** @example BR-001 */
             code: string;
@@ -2343,9 +2623,9 @@ export interface components {
         };
         CreateMediaRequest: Record<string, never>;
         CreateOperationRuleRequest: {
-            /** @example 18:00 */
+            /** @example 1 10 10 * * * */
             auto_close_cron?: string;
-            /** @example 09:00 */
+            /** @example 0 10 10 * * * */
             auto_open_cron?: string;
             /**
              * @example open
@@ -2359,18 +2639,34 @@ export interface components {
             shift_mode: "auto" | "manual";
         };
         CreatePaymentMethodRequest: {
+            /** @example 1 */
+            chart_of_account_id?: number;
             /** @example Credit Card */
             name: string;
+            /**
+             * @example all
+             * @enum {string}
+             */
+            type: "sales_orders" | "purchase_orders" | "all";
         };
         CreatePaymentRequest: {
+            allocations?: components["schemas"]["CreateAllocationRequest"][];
             /** @example 50000 */
             amount: number;
-            /** @example Payment for sales order SO-001 */
+            /**
+             * Format: date
+             * @example 2026-07-01
+             */
+            date: string;
+            /** @example Payment for sales order */
             description?: string;
             /** @example 1 */
             payment_method_id: number;
-            /** @example 1 */
-            sales_order_id: number;
+            /**
+             * @example RECEIVE
+             * @enum {string}
+             */
+            type: "receive" | "disburse";
         };
         CreatePeriodRequest: {
             /**
@@ -2521,7 +2817,7 @@ export interface components {
              * @example pending
              * @enum {string}
              */
-            status: "pending" | "final" | "accepted" | "rejected";
+            status: "pending" | "final" | "accepted" | "rejected" | "partially_delivered" | "delivered";
             /** @example 1 */
             supplier_branch_id?: number;
             /** @example 1 */
@@ -2715,8 +3011,14 @@ export interface components {
         CreateSupplierRequest: {
             /** @example SUP-001 */
             code: string;
+            /** @example user@example.com */
+            email?: string;
             /** @example Supplier A */
             name: string;
+            /** @example 81234567890 */
+            phone?: string;
+            /** @example John Doe */
+            pic?: string;
         };
         CreateUomRequest: {
             /** @example KG */
@@ -3100,7 +3402,7 @@ export interface components {
             reference_type?: string;
             reversing_id?: number;
             /**
-             * @example manuals
+             * @example manual
              * @enum {string}
              */
             type?: "manual" | "sales" | "purchase" | "receipt" | "payment" | "adjustment" | "closing";
@@ -3278,6 +3580,18 @@ export interface components {
             /** @example 1 */
             updated_by_id?: number;
         };
+        PaymentAllocationResponse: {
+            /** @example 50000 */
+            amount?: number;
+            /** @example 1 */
+            id?: number;
+            /** @example 1 */
+            payment_id?: number;
+            /** @example 1 */
+            purchase_order_id?: number;
+            /** @example 1 */
+            sales_order_id?: number;
+        };
         PaymentMethodResponse: {
             /** @example 2026-06-02 15:16:51 */
             created_at?: string;
@@ -3292,6 +3606,11 @@ export interface components {
             id?: number;
             /** @example Credit Card */
             name?: string;
+            /**
+             * @example all
+             * @enum {string}
+             */
+            type?: "sales_orders" | "purchase_orders" | "all";
             /** @example 2026-06-02 15:16:51 */
             updated_at?: string;
             updated_by?: components["schemas"]["UserAuditResponse"];
@@ -3303,39 +3622,54 @@ export interface components {
             id?: number;
             /** @example Credit Card */
             name?: string;
+            /**
+             * @example all
+             * @enum {string}
+             */
+            type?: "sales_orders" | "purchase_orders" | "all";
         };
         PaymentResponse: {
+            allocations?: components["schemas"]["PaymentAllocationResponse"][];
             /** @example 50000 */
             amount?: number;
-            /** @example {...} */
             branch?: components["schemas"]["BranchSimpleResponse"];
             /** @example 1 */
             branch_id?: number;
-            /** @example 2026-06-03 09:00:00 */
+            /** @example 2026-07-01 09:00:00 WIB */
             created_at?: string;
-            /** @example {...} */
             created_by?: components["schemas"]["UserAuditResponse"];
             /** @example 1 */
             created_by_id?: number;
-            /** @example 2026-06-03 11:00:00 */
+            /** @example 01-07-2026 */
+            date?: string;
+            /** @example 2026-07-01 11:00:00 WIB */
             deleted_at?: string;
             /** @example 1 */
             deleted_by_id?: number;
-            /** @example Payment for sales order SO-001 */
+            /** @example Payment for sales order */
             description?: string;
             /** @example 1 */
             id?: number;
-            /** @example {...} */
+            /** @example false */
+            is_reversed?: boolean;
+            /** @example 1 */
+            journal_id?: number;
             payment_method?: components["schemas"]["PaymentMethodSimpleResponse"];
             /** @example 1 */
             payment_method_id?: number;
-            /** @example {...} */
-            sales_order?: components["schemas"]["SalesOrderSimpleResponse"];
+            /** @example PAY-20260701-00001 */
+            payment_number?: string;
             /** @example 1 */
-            sales_order_id?: number;
-            /** @example 2026-06-03 10:00:00 */
+            reversing_id?: number;
+            /**
+             * @example receive
+             * @enum {string}
+             */
+            type?: "receive" | "disburse";
+            /** @example 0 */
+            unallocated_amount?: number;
+            /** @example 2026-07-01 10:00:00 WIB */
             updated_at?: string;
-            /** @example {...} */
             updated_by?: components["schemas"]["UserAuditResponse"];
             /** @example 1 */
             updated_by_id?: number;
@@ -3575,6 +3909,8 @@ export interface components {
             type?: "raw" | "wip" | "final";
         };
         ProductUomBatchResponse: {
+            /** @example BH-0014 */
+            batch_code?: string;
             /** @example 2026-06-02 15:16:51 */
             created_at?: string;
             created_by?: components["schemas"]["UserAuditResponse"];
@@ -3584,10 +3920,7 @@ export interface components {
             deleted_at?: string;
             /** @example 1 */
             deleted_by_id?: number;
-            /**
-             * Format: date-time
-             * @example 2026-12-31T00:00:00Z
-             */
+            /** @example 2026-06-04 */
             expiry_date?: string;
             /** @example 1 */
             id?: number;
@@ -3601,6 +3934,8 @@ export interface components {
              * @enum {string}
              */
             reference_type?: "productions" | "receipts";
+            /** @example 100 */
+            stock?: number;
             /** @example 2026-06-02 15:16:51 */
             updated_at?: string;
             updated_by?: components["schemas"]["UserAuditResponse"];
@@ -3608,10 +3943,9 @@ export interface components {
             updated_by_id?: number;
         };
         ProductUomBatchSimpleResponse: {
-            /**
-             * Format: date-time
-             * @example 2026-12-31T00:00:00Z
-             */
+            /** @example BH-0014 */
+            batch_code?: string;
+            /** @example 2026-06-04 */
             expiry_date?: string;
             /** @example 1 */
             id?: number;
@@ -3652,6 +3986,8 @@ export interface components {
             product?: components["schemas"]["ProductSimpleResponse"];
             /** @example 1 */
             product_id?: number;
+            /** @example 100 */
+            stock?: number;
             uom?: components["schemas"]["UomSimpleResponse"];
             /** @example 1 */
             uom_id?: number;
@@ -3814,7 +4150,7 @@ export interface components {
              * @example pending
              * @enum {string}
              */
-            status?: "pending" | "final" | "accepted" | "rejected";
+            status?: "pending" | "final" | "accepted" | "rejected" | "partially_delivered" | "delivered";
             /** @example {...} */
             supplier?: components["schemas"]["SupplierSimpleResponse"];
             /** @example {...} */
@@ -3860,7 +4196,7 @@ export interface components {
              * @example pending
              * @enum {string}
              */
-            status?: "pending" | "final" | "accepted" | "rejected";
+            status?: "pending" | "final" | "accepted" | "rejected" | "partially_delivered" | "delivered";
             /** @example {...} */
             supplier?: components["schemas"]["SupplierSimpleResponse"];
             /** @example {...} */
@@ -4372,10 +4708,16 @@ export interface components {
             deleted_at?: string;
             /** @example 1 */
             deleted_by_id?: number;
+            /** @example user@example.com */
+            email?: string;
             /** @example 1 */
             id?: number;
             /** @example Supplier A */
             name?: string;
+            /** @example 81234567890 */
+            phone?: string;
+            /** @example John Doe */
+            pic?: string;
             /** @example 2026-06-03 10:00:00 */
             updated_at?: string;
             /** @example {...} */
@@ -4386,10 +4728,16 @@ export interface components {
         SupplierSimpleResponse: {
             /** @example SUP-001 */
             code?: string;
+            /** @example user@example.com */
+            email?: string;
             /** @example 1 */
             id?: number;
             /** @example Supplier A */
             name?: string;
+            /** @example 81234567890 */
+            phone?: string;
+            /** @example John Doe */
+            pic?: string;
         };
         TokenRequest: {
             /** @example user@example.com */
@@ -4412,6 +4760,13 @@ export interface components {
              * @example 2026-06-10T10:00:00Z
              */
             refresh_token_expiration?: string;
+        };
+        TrialBalanceResponse: {
+            account_balances?: components["schemas"]["AccountBalanceResponse"][];
+            /** @example 500000 */
+            total_credit?: number;
+            /** @example 500000 */
+            total_debit?: number;
         };
         UomResponse: {
             /** @example KG */
@@ -4457,6 +4812,14 @@ export interface components {
              * @enum {string}
              */
             normal_balance?: "debit" | "credit";
+        };
+        UpdateAccountSettingRequest: {
+            /** @example 1 */
+            account_setting_key_id?: number;
+            /** @example 1 */
+            chart_of_account_id?: number;
+            /** @example Cash on hand */
+            description?: string;
         };
         UpdateAccountTypeRequest: {
             /** @example 1 */
@@ -4631,9 +4994,9 @@ export interface components {
             type?: "manual" | "sales" | "purchase" | "receipt" | "payment" | "adjustment" | "closing";
         };
         UpdateOperationRuleRequest: {
-            /** @example 18:00 */
+            /** @example 1 10 10 * * * */
             auto_close_cron?: string;
-            /** @example 09:00 */
+            /** @example 0 10 10 * * * */
             auto_open_cron?: string;
             /**
              * @example open
@@ -4647,16 +5010,15 @@ export interface components {
             shift_mode?: "auto" | "manual";
         };
         UpdatePaymentMethodRequest: {
+            /** @example 1 */
+            chart_of_account_id?: number;
             /** @example Credit Card */
             name?: string;
-        };
-        UpdatePaymentRequest: {
-            /** @example 50000 */
-            amount?: number;
-            /** @example Updated payment note */
-            description?: string;
-            /** @example 1 */
-            payment_method_id?: number;
+            /**
+             * @example all
+             * @enum {string}
+             */
+            type?: "sales_orders" | "purchase_orders" | "all";
         };
         UpdatePeriodRequest: {
             /**
@@ -4824,7 +5186,7 @@ export interface components {
              * @example approved
              * @enum {string}
              */
-            status?: "pending" | "final" | "accepted" | "rejected";
+            status?: "pending" | "final" | "accepted" | "rejected" | "partially_delivered" | "delivered";
             /** @example 1 */
             supplier_branch_id?: number;
             /** @example 1 */
@@ -5002,8 +5364,14 @@ export interface components {
         UpdateSupplierRequest: {
             /** @example SUP-001 */
             code?: string;
+            /** @example user@example.com */
+            email?: string;
             /** @example Supplier A */
             name?: string;
+            /** @example 81234567890 */
+            phone?: string;
+            /** @example John Doe */
+            pic?: string;
         };
         UpdateUomRequest: {
             /** @example KG */
@@ -5557,6 +5925,184 @@ export interface operations {
             };
         };
     };
+    listAccountSettings: {
+        parameters: {
+            query?: {
+                /** @description Page number */
+                page?: number;
+                /** @description Items per page */
+                per_page?: number;
+                /** @description Comma-separated relations: created_by, updated_by, chart_of_account, account_setting_key */
+                include?: string;
+                /** @description Sort by field (prefix - for desc): id, account_setting_keys.key, created_at */
+                sort?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["AccountSettingResponse"][];
+                        meta?: components["schemas"]["Meta"];
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    findAccountSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["AccountSettingResponse"];
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateAccountSetting: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAccountSettingRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example Data updated successfully */
+                        message?: string;
+                    };
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listAccountTypes: {
         parameters: {
             query?: {
@@ -5922,8 +6468,6 @@ export interface operations {
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, action, reference_type, reference_id, old_data, new_data, meta, created_at */
                 sort?: string;
-                /** @description Filter by reference_id */
-                "filter[reference_id]"?: string;
                 /** @description Filter by created_at_gte */
                 "filter[created_at_gte]"?: string;
                 /** @description Filter by created_at_lte */
@@ -5936,6 +6480,8 @@ export interface operations {
                 "filter[action]"?: string;
                 /** @description Filter by reference_type */
                 "filter[reference_type]"?: string;
+                /** @description Filter by reference_id */
+                "filter[reference_id]"?: string;
             };
             header?: never;
             path?: never;
@@ -6095,7 +6641,7 @@ export interface operations {
     getCurrentUser: {
         parameters: {
             query?: {
-                /** @description Comma-separated relations: updated_by, roles, permissions, branches, created_by */
+                /** @description Comma-separated relations: roles, permissions, branches, created_by, updated_by */
                 include?: string;
             };
             header?: never;
@@ -6283,10 +6829,10 @@ export interface operations {
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, code, name, timezone, is_default, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
                 /** @description Filter by company_id */
                 "filter[company_id]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
             };
             header?: never;
             path?: never;
@@ -6574,16 +7120,16 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, period, chart_of_account, created_by */
+                /** @description Comma-separated relations: period, chart_of_account, created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, amount, created_at */
                 sort?: string;
+                /** @description Filter by chart_of_account_id */
+                "filter[chart_of_account_id]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
                 /** @description Filter by period_id */
                 "filter[period_id]"?: string;
-                /** @description Filter by chart_of_account_id */
-                "filter[chart_of_account_id]"?: string;
             };
             header?: never;
             path?: never;
@@ -6674,6 +7220,58 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    budgetVsActual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                period_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["BudgetVsActualResponse"];
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7166,14 +7764,10 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, account_type, parent, children, created_by */
+                /** @description Comma-separated relations: created_by, updated_by, account_type, parent, children */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, code, name, created_at */
                 sort?: string;
-                /** @description Filter by parent_id */
-                "filter[parent_id]"?: string;
-                /** @description Filter by is_header */
-                "filter[is_header]"?: string;
                 /** @description Filter by is_active */
                 "filter[is_active]"?: string;
                 /** @description Filter by normal_balance */
@@ -7184,6 +7778,10 @@ export interface operations {
                 "filter[search]"?: string;
                 /** @description Filter by account_type_id */
                 "filter[account_type_id]"?: string;
+                /** @description Filter by parent_id */
+                "filter[parent_id]"?: string;
+                /** @description Filter by is_header */
+                "filter[is_header]"?: string;
             };
             header?: never;
             path?: never;
@@ -7767,7 +8365,7 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, created_by */
+                /** @description Comma-separated relations: created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, name, phone, created_at, updated_at */
                 sort?: string;
@@ -8142,28 +8740,28 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, target_branch, purchase_order, sales_order, media, delivery_details */
+                /** @description Comma-separated relations: sales_order, media, delivery_details, created_by, updated_by, target_branch, purchase_order */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, code, source_type, target_branch_id, purchase_order_id, sales_order_id, date, total_price, status, description, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by purchase_order_id */
-                "filter[purchase_order_id]"?: string;
+                /** @description Filter by branch_id */
+                "filter[branch_id]"?: string;
                 /** @description Filter by sales_order_id */
                 "filter[sales_order_id]"?: string;
-                /** @description Filter by date_gte */
-                "filter[date_gte]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
                 /** @description Filter by source_type */
                 "filter[source_type]"?: string;
                 /** @description Filter by target_branch_id */
                 "filter[target_branch_id]"?: string;
+                /** @description Filter by purchase_order_id */
+                "filter[purchase_order_id]"?: string;
+                /** @description Filter by date_gte */
+                "filter[date_gte]"?: string;
                 /** @description Filter by date_lte */
                 "filter[date_lte]"?: string;
                 /** @description Filter by status */
                 "filter[status]"?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
-                /** @description Filter by branch_id */
-                "filter[branch_id]"?: string;
             };
             header?: never;
             path?: never;
@@ -8451,16 +9049,16 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, company */
+                /** @description Comma-separated relations: company, created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, name, start_date, end_date, created_at */
                 sort?: string;
+                /** @description Filter by is_active */
+                "filter[is_active]"?: string;
                 /** @description Filter by is_closed */
                 "filter[is_closed]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
-                /** @description Filter by is_active */
-                "filter[is_active]"?: string;
             };
             header?: never;
             path?: never;
@@ -8741,6 +9339,59 @@ export interface operations {
             };
         };
     };
+    closeFiscalYear: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example Data updated successfully */
+                        message?: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listJournals: {
         parameters: {
             query?: {
@@ -8748,7 +9399,7 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: posted_by, period, journal_details, created_by, updated_by */
+                /** @description Comma-separated relations: journal_details, created_by, updated_by, posted_by, period */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, journal_number, date, created_at */
                 sort?: string;
@@ -8854,6 +9505,110 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    accountBalances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                period_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["TrialBalanceResponse"];
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    trialBalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                period_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data?: components["schemas"]["TrialBalanceResponse"];
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9097,6 +9852,59 @@ export interface operations {
             };
         };
     };
+    reverseJournal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example Data created successfully */
+                        message?: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listMedia: {
         parameters: {
             query?: {
@@ -9108,14 +9916,14 @@ export interface operations {
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, uuid, media_type, media_id, collection_name, file_name, disk, path, size, mime_type, status, created_at, updated_at */
                 sort?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
                 /** @description Filter by media_type */
                 "filter[media_type]"?: string;
                 /** @description Filter by collection_name */
                 "filter[collection_name]"?: string;
                 /** @description Filter by disk */
                 "filter[disk]"?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
             };
             header?: never;
             path?: never;
@@ -9631,16 +10439,16 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, created_by */
+                /** @description Comma-separated relations: created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, operation_rule_id, operation_rule_snapshot, opened_at, opened_by_id, open_trigger, closed_at, closed_by_id, close_trigger, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
                 /** @description Filter by branch_id */
                 "filter[branch_id]"?: string;
                 /** @description Filter by operation_rule_id */
                 "filter[operation_rule_id]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
             };
             header?: never;
             path?: never;
@@ -9882,6 +10690,8 @@ export interface operations {
                 sort?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
+                /** @description Filter by type */
+                "filter[type]"?: string;
             };
             header?: never;
             path?: never;
@@ -10169,20 +10979,34 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, sales_order, payment_method */
+                /** @description Comma-separated relations: payment_method, allocations, created_by, updated_by, branch */
                 include?: string;
-                /** @description Sort by field (prefix - for desc): id, branch_id, sales_order_id, payment_method_id, amount, created_at, updated_at */
+                /** @description Sort by field (prefix - for desc): id, branch_id, payment_method_id, amount, date, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by sales_order_id */
-                "filter[sales_order_id]"?: string;
-                /** @description Filter by payment_method_id */
-                "filter[payment_method_id]"?: string;
-                /** @description Filter by sales_order_type */
-                "filter[sales_order_type]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
+                /** @description Filter by type */
+                "filter[type]"?: string;
+                /** @description Filter by date_gte */
+                "filter[date_gte]"?: string;
+                /** @description Filter by date_lte */
+                "filter[date_lte]"?: string;
+                /** @description Filter by payment_method_id */
+                "filter[payment_method_id]"?: string;
+                /** @description Filter by unallocated_amount */
+                "filter[unallocated_amount]"?: string;
+                /** @description Filter by journal_id */
+                "filter[journal_id]"?: string;
                 /** @description Filter by branch_id */
                 "filter[branch_id]"?: string;
+                /** @description Filter by amount */
+                "filter[amount]"?: string;
+                /** @description Filter by description */
+                "filter[description]"?: string;
+                /** @description Filter by is_reversed */
+                "filter[is_reversed]"?: string;
+                /** @description Filter by reversing_id */
+                "filter[reversing_id]"?: string;
             };
             header?: never;
             path?: never;
@@ -10392,7 +11216,7 @@ export interface operations {
             };
         };
     };
-    updatePayment: {
+    allocatePayment: {
         parameters: {
             query?: never;
             header?: never;
@@ -10403,7 +11227,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdatePaymentRequest"];
+                "application/json": components["schemas"]["AllocatePaymentRequest"];
             };
         };
         responses: {
@@ -10463,6 +11287,59 @@ export interface operations {
             };
         };
     };
+    voidPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example Data updated successfully */
+                        message?: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     listPeriods: {
         parameters: {
             query?: {
@@ -10470,18 +11347,18 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, closed_by, fiscal_year, company, created_by */
+                /** @description Comma-separated relations: company, created_by, updated_by, closed_by, fiscal_year */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, name, start_date, end_date, created_at */
                 sort?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
                 /** @description Filter by fiscal_year_id */
                 "filter[fiscal_year_id]"?: string;
                 /** @description Filter by is_active */
                 "filter[is_active]"?: string;
                 /** @description Filter by is_closed */
                 "filter[is_closed]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
             };
             header?: never;
             path?: never;
@@ -10748,6 +11625,59 @@ export interface operations {
             };
             /** @description Unprocessable Entity */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    closePeriod: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example Data updated successfully */
+                        message?: string;
+                    };
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11103,18 +12033,18 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, product, uom, target_uom, created_by */
+                /** @description Comma-separated relations: created_by, updated_by, product, uom, target_uom */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, amount, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
                 /** @description Filter by product_id */
                 "filter[product_id]"?: string;
                 /** @description Filter by uom */
                 "filter[uom]"?: string;
                 /** @description Filter by target_uom */
                 "filter[target_uom]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
             };
             header?: never;
             path?: never;
@@ -11405,40 +12335,42 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, product_uom_batch */
+                /** @description Comma-separated relations: product_uom_batch, created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, product_uom_batch_id, base_price, online_price, price_editable, stock, status, created_at, updated_at */
                 sort?: string;
+                /** @description Filter by price_editable */
+                "filter[price_editable]"?: string;
+                /** @description Filter by status */
+                "filter[status]"?: string;
+                /** @description Filter by expiry_date_gte */
+                "filter[expiry_date_gte]"?: string;
+                /** @description Filter by branch_id */
+                "filter[branch_id]"?: string;
+                /** @description Filter by stock_gte */
+                "filter[stock_gte]"?: string;
+                /** @description Filter by product_type */
+                "filter[product_type]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
+                /** @description Filter by product_uom_batch_id_in */
+                "filter[product_uom_batch_id_in]"?: string;
+                /** @description Filter by stock_lte */
+                "filter[stock_lte]"?: string;
+                /** @description Filter by expiry_date_lte */
+                "filter[expiry_date_lte]"?: string;
+                /** @description Filter by base_price_lte */
+                "filter[base_price_lte]"?: string;
+                /** @description Filter by product_category_id */
+                "filter[product_category_id]"?: string;
                 /** @description Filter by product_uom_batch_id */
                 "filter[product_uom_batch_id]"?: string;
                 /** @description Filter by base_price_gte */
                 "filter[base_price_gte]"?: string;
-                /** @description Filter by online_price_lte */
-                "filter[online_price_lte]"?: string;
-                /** @description Filter by expiry_date_lte */
-                "filter[expiry_date_lte]"?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
-                /** @description Filter by branch_id */
-                "filter[branch_id]"?: string;
                 /** @description Filter by online_price_gte */
                 "filter[online_price_gte]"?: string;
-                /** @description Filter by stock_gte */
-                "filter[stock_gte]"?: string;
-                /** @description Filter by status */
-                "filter[status]"?: string;
-                /** @description Filter by stock_lte */
-                "filter[stock_lte]"?: string;
-                /** @description Filter by base_price_lte */
-                "filter[base_price_lte]"?: string;
-                /** @description Filter by price_editable */
-                "filter[price_editable]"?: string;
-                /** @description Filter by expiry_date_gte */
-                "filter[expiry_date_gte]"?: string;
-                /** @description Filter by product_type */
-                "filter[product_type]"?: string;
-                /** @description Filter by product_category_id */
-                "filter[product_category_id]"?: string;
+                /** @description Filter by online_price_lte */
+                "filter[online_price_lte]"?: string;
             };
             header?: never;
             path?: never;
@@ -11664,14 +12596,10 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, product_uom */
+                /** @description Comma-separated relations: product_uom, created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, product_uom_id, batch_code, expiry_date, reference_type, reference_id, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
-                /** @description Filter by product_uom_id */
-                "filter[product_uom_id]"?: string;
                 /** @description Filter by expiry_date_gte */
                 "filter[expiry_date_gte]"?: string;
                 /** @description Filter by expiry_date_lte */
@@ -11680,6 +12608,10 @@ export interface operations {
                 "filter[reference_type]"?: string;
                 /** @description Filter by reference_id */
                 "filter[reference_id]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
+                /** @description Filter by product_uom_id */
+                "filter[product_uom_id]"?: string;
             };
             header?: never;
             path?: never;
@@ -11787,7 +12719,7 @@ export interface operations {
     findProductUomBatch: {
         parameters: {
             query?: {
-                /** @description Comma-separated relations: created_by, updated_by, product_uom */
+                /** @description Comma-separated relations: product_uom, created_by, updated_by */
                 include?: string;
             };
             header?: never;
@@ -11974,24 +12906,26 @@ export interface operations {
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, product_id, uom_id, base_price, online_price, price_editable, is_default, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by uom_id */
-                "filter[uom_id]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
                 /** @description Filter by base_price_gte */
                 "filter[base_price_gte]"?: string;
+                /** @description Filter by base_price_lte */
+                "filter[base_price_lte]"?: string;
                 /** @description Filter by online_price_gte */
                 "filter[online_price_gte]"?: string;
                 /** @description Filter by online_price_lte */
                 "filter[online_price_lte]"?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
                 /** @description Filter by product_id */
                 "filter[product_id]"?: string;
-                /** @description Filter by base_price_lte */
-                "filter[base_price_lte]"?: string;
+                /** @description Filter by uom_id */
+                "filter[uom_id]"?: string;
                 /** @description Filter by price_editable */
                 "filter[price_editable]"?: string;
                 /** @description Filter by is_default */
                 "filter[is_default]"?: string;
+                /** @description Filter by product_type */
+                "filter[product_type]"?: string;
             };
             header?: never;
             path?: never;
@@ -12099,7 +13033,7 @@ export interface operations {
     findProductUom: {
         parameters: {
             query?: {
-                /** @description Comma-separated relations: product, uom, default_recipe, created_by, updated_by */
+                /** @description Comma-separated relations: updated_by, product, uom, default_recipe, created_by */
                 include?: string;
             };
             header?: never;
@@ -12282,12 +13216,10 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, media, production_details, created_by */
+                /** @description Comma-separated relations: created_by, updated_by, media, production_details */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, code, date, status, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by status */
-                "filter[status]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
                 /** @description Filter by branch_id */
@@ -12296,6 +13228,8 @@ export interface operations {
                 "filter[date_gte]"?: string;
                 /** @description Filter by date_lte */
                 "filter[date_lte]"?: string;
+                /** @description Filter by status */
+                "filter[status]"?: string;
             };
             header?: never;
             path?: never;
@@ -12880,14 +13814,10 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: supplier_branch, supplier_branch.company, media, purchase_order_details, created_by, updated_by, supplier */
+                /** @description Comma-separated relations: updated_by, supplier, supplier_branch, supplier_branch.company, media, purchase_order_details, created_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, code, type, supplier_id, supplier_branch_id, date, total_price, status, description, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by date_gte */
-                "filter[date_gte]"?: string;
-                /** @description Filter by date_lte */
-                "filter[date_lte]"?: string;
                 /** @description Filter by status */
                 "filter[status]"?: string;
                 /** @description Filter by search */
@@ -12900,6 +13830,10 @@ export interface operations {
                 "filter[supplier_id]"?: string;
                 /** @description Filter by supplier_branch_id */
                 "filter[supplier_branch_id]"?: string;
+                /** @description Filter by date_gte */
+                "filter[date_gte]"?: string;
+                /** @description Filter by date_lte */
+                "filter[date_lte]"?: string;
             };
             header?: never;
             path?: never;
@@ -13290,12 +14224,10 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: media, receipt_details, created_by, updated_by, delivery */
+                /** @description Comma-separated relations: created_by, updated_by, delivery, media, receipt_details */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, code, target_branch_id, delivery_id, date, total_price, status, description, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by date_gte */
-                "filter[date_gte]"?: string;
                 /** @description Filter by date_lte */
                 "filter[date_lte]"?: string;
                 /** @description Filter by status */
@@ -13308,6 +14240,8 @@ export interface operations {
                 "filter[target_branch_id]"?: string;
                 /** @description Filter by delivery_id */
                 "filter[delivery_id]"?: string;
+                /** @description Filter by date_gte */
+                "filter[date_gte]"?: string;
             };
             header?: never;
             path?: never;
@@ -13595,7 +14529,7 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, product_uom, recipe_materials */
+                /** @description Comma-separated relations: product_uom, recipe_materials, created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, product_uom_id, qty, is_default, created_at, updated_at */
                 sort?: string;
@@ -14064,7 +14998,7 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, permissions */
+                /** @description Comma-separated relations: updated_by, permissions, created_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, code, created_at, updated_at */
                 sort?: string;
@@ -14179,7 +15113,7 @@ export interface operations {
     findRole: {
         parameters: {
             query?: {
-                /** @description Comma-separated relations: created_by, updated_by, permissions */
+                /** @description Comma-separated relations: permissions, created_by, updated_by */
                 include?: string;
             };
             header?: never;
@@ -14362,42 +15296,42 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, shift, customer, credit_by, media, sales_order_details */
+                /** @description Comma-separated relations: customer, credit_by, media, sales_order_details, created_by, updated_by, shift */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, shift_id, code, type, customer_id, customer_name, customer_phone, date, fulfillment_date, voucher_id, voucher_snapshot, subtotal_price, discount_price, total_price, status, payment_status, settlement_status, settlement_at, credit_by_id, description, created_at, updated_at */
                 sort?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
-                /** @description Filter by date_gte */
-                "filter[date_gte]"?: string;
-                /** @description Filter by fulfillment_date_gte */
-                "filter[fulfillment_date_gte]"?: string;
-                /** @description Filter by fulfillment_date_lte */
-                "filter[fulfillment_date_lte]"?: string;
-                /** @description Filter by payment_status */
-                "filter[payment_status]"?: string;
-                /** @description Filter by shift_id */
-                "filter[shift_id]"?: string;
-                /** @description Filter by type */
-                "filter[type]"?: string;
-                /** @description Filter by status */
-                "filter[status]"?: string;
-                /** @description Filter by settlement_status */
-                "filter[settlement_status]"?: string;
-                /** @description Filter by settlement_at_gte */
-                "filter[settlement_at_gte]"?: string;
-                /** @description Filter by settlement_at_lte */
-                "filter[settlement_at_lte]"?: string;
-                /** @description Filter by branch_id */
-                "filter[branch_id]"?: string;
                 /** @description Filter by customer_id */
                 "filter[customer_id]"?: string;
                 /** @description Filter by date_lte */
                 "filter[date_lte]"?: string;
-                /** @description Filter by credit_by_id */
-                "filter[credit_by_id]"?: string;
+                /** @description Filter by fulfillment_date_lte */
+                "filter[fulfillment_date_lte]"?: string;
+                /** @description Filter by settlement_status */
+                "filter[settlement_status]"?: string;
+                /** @description Filter by shift_id */
+                "filter[shift_id]"?: string;
+                /** @description Filter by type */
+                "filter[type]"?: string;
                 /** @description Filter by voucher_id */
                 "filter[voucher_id]"?: string;
+                /** @description Filter by fulfillment_date_gte */
+                "filter[fulfillment_date_gte]"?: string;
+                /** @description Filter by settlement_at_lte */
+                "filter[settlement_at_lte]"?: string;
+                /** @description Filter by status */
+                "filter[status]"?: string;
+                /** @description Filter by payment_status */
+                "filter[payment_status]"?: string;
+                /** @description Filter by credit_by_id */
+                "filter[credit_by_id]"?: string;
+                /** @description Filter by branch_id */
+                "filter[branch_id]"?: string;
+                /** @description Filter by date_gte */
+                "filter[date_gte]"?: string;
+                /** @description Filter by settlement_at_gte */
+                "filter[settlement_at_gte]"?: string;
             };
             header?: never;
             path?: never;
@@ -15105,18 +16039,18 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, created_by */
+                /** @description Comma-separated relations: created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, operation_id, shift_rule_id, shift_rule_snapshot, started_at, started_by_id, start_trigger, ended_at, ended_by_id, end_trigger, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by shift_rule_id */
-                "filter[shift_rule_id]"?: string;
-                /** @description Filter by search */
-                "filter[search]"?: string;
                 /** @description Filter by branch_id */
                 "filter[branch_id]"?: string;
                 /** @description Filter by operation_id */
                 "filter[operation_id]"?: string;
+                /** @description Filter by shift_rule_id */
+                "filter[shift_rule_id]"?: string;
+                /** @description Filter by search */
+                "filter[search]"?: string;
             };
             header?: never;
             path?: never;
@@ -15349,7 +16283,7 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, product_inventory */
+                /** @description Comma-separated relations: product_inventory, created_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, branch_id, product_inventory_id, reference_type, reference_id, qty, stock_before, stock_after, direction, description, created_at */
                 sort?: string;
@@ -15530,9 +16464,9 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by */
+                /** @description Comma-separated relations: updated_by, created_by */
                 include?: string;
-                /** @description Sort by field (prefix - for desc): id, code, name, created_at, updated_at */
+                /** @description Sort by field (prefix - for desc): id, code, name, pic, phone, email, created_at, updated_at */
                 sort?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
@@ -15826,7 +16760,7 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: updated_by, created_by */
+                /** @description Comma-separated relations: created_by, updated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, code, name, created_at, updated_at */
                 sort?: string;
@@ -16119,16 +17053,16 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: branches, created_by, updated_by, roles, permissions */
+                /** @description Comma-separated relations: updated_by, roles, permissions, branches, created_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, nik, name, email, type, credit, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by branch_id */
-                "filter[branch_id]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
                 /** @description Filter by type */
                 "filter[type]"?: string;
+                /** @description Filter by branch_id */
+                "filter[branch_id]"?: string;
             };
             header?: never;
             path?: never;
@@ -16236,7 +17170,7 @@ export interface operations {
     findUser: {
         parameters: {
             query?: {
-                /** @description Comma-separated relations: permissions, branches, created_by, updated_by, roles */
+                /** @description Comma-separated relations: roles, permissions, branches, created_by, updated_by */
                 include?: string;
             };
             header?: never;
@@ -16419,32 +17353,32 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 per_page?: number;
-                /** @description Comma-separated relations: created_by, updated_by, activated_by, voucher_branches, voucher_product_uoms */
+                /** @description Comma-separated relations: voucher_branches, voucher_product_uoms, created_by, updated_by, activated_by */
                 include?: string;
                 /** @description Sort by field (prefix - for desc): id, company_id, code, name, discount_type, discount_value, min_subtotal_price, scope, valid_from, valid_until, quota, used_quota, status, activated_at, activated_by_id, description, created_at, updated_at */
                 sort?: string;
-                /** @description Filter by discount_type */
-                "filter[discount_type]"?: string;
-                /** @description Filter by valid_until_gte */
-                "filter[valid_until_gte]"?: string;
-                /** @description Filter by valid_until_lte */
-                "filter[valid_until_lte]"?: string;
-                /** @description Filter by activated_at_lte */
-                "filter[activated_at_lte]"?: string;
-                /** @description Filter by scope */
-                "filter[scope]"?: string;
-                /** @description Filter by valid_from_gte */
-                "filter[valid_from_gte]"?: string;
-                /** @description Filter by valid_from_lte */
-                "filter[valid_from_lte]"?: string;
-                /** @description Filter by activated_at_gte */
-                "filter[activated_at_gte]"?: string;
-                /** @description Filter by status */
-                "filter[status]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
                 /** @description Filter by company_id */
                 "filter[company_id]"?: string;
+                /** @description Filter by discount_type */
+                "filter[discount_type]"?: string;
+                /** @description Filter by valid_from_gte */
+                "filter[valid_from_gte]"?: string;
+                /** @description Filter by status */
+                "filter[status]"?: string;
+                /** @description Filter by scope */
+                "filter[scope]"?: string;
+                /** @description Filter by valid_from_lte */
+                "filter[valid_from_lte]"?: string;
+                /** @description Filter by valid_until_gte */
+                "filter[valid_until_gte]"?: string;
+                /** @description Filter by valid_until_lte */
+                "filter[valid_until_lte]"?: string;
+                /** @description Filter by activated_at_gte */
+                "filter[activated_at_gte]"?: string;
+                /** @description Filter by activated_at_lte */
+                "filter[activated_at_lte]"?: string;
             };
             header?: never;
             path?: never;
@@ -16552,7 +17486,7 @@ export interface operations {
     findVoucher: {
         parameters: {
             query?: {
-                /** @description Comma-separated relations: voucher_product_uoms, created_by, updated_by, activated_by, voucher_branches */
+                /** @description Comma-separated relations: activated_by, voucher_branches, voucher_product_uoms, created_by, updated_by */
                 include?: string;
             };
             header?: never;

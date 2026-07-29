@@ -14,6 +14,7 @@ import { paymentsService } from '@/services/payments.service'
 import { vouchersService } from '@/services/vouchers.service'
 import api from '@/hooks/useApi'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
+import { productUomBatchesService } from '@/services/product-uom-batches.service'
 
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
@@ -58,6 +59,8 @@ export function usePosLogic() {
   const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
   const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null)
+  const [batchPickerGroup, setBatchPickerGroup] = useState<any | null>(null)
+  const [bundlePickerGroup, setBundlePickerGroup] = useState<any | null>(null)
 
   // Customer State
   const [customerSearch, setCustomerSearch] = useState('')
@@ -243,7 +246,7 @@ export function usePosLogic() {
           per_page: 60,
           'filter[status]': 'active',
           'filter[search]': bundleSearchDebounced || undefined,
-          include: 'bundle_details,bundle_details.product_uom,bundle_details.product_uom.product,bundle_details.product_uom.product_inventories',
+          include: 'bundle_details,bundle_details.product_uom,bundle_details.product_uom.product,bundle_details.product_uom.product_inventories,bundle_details.product_uom.product_inventories.product_uom_batch',
         } as any)
         .then((r) => r.data),
   })
@@ -440,9 +443,7 @@ export function usePosLogic() {
     // setReceiptData(null)
   }, [])
 
-  const addGroupToCart = useCallback((group: any) => {
-    // group.defaultLot adalah item dengan kadaluarsa paling dekat (FEFO) yang kita hitung di TODO 3
-    const lot = group.defaultLot
+  const addLotToCart = useCallback((lot: any) => {
     if (!lot) return
 
     if ((lot.stock ?? 0) <= 0) {
@@ -472,30 +473,46 @@ export function usePosLogic() {
         },
       ]
     })
-  }, [orderType]) // orderType masuk dependency karena dipakai di dalam fungsi
+    
+    // Close the picker if it's open
+    setBatchPickerGroup(null)
+  }, [orderType])
 
 
 
   const addBundleToCart = useCallback((bundle: any) => {
-    // TODO: Add logic to add a bundle to cart
-    setBundleCart((prev: any[]) => {
-      const existing = prev.find((c) => c.bundle_id === bundle.id)
-      if (existing) {
-        return prev.map((c) =>
-          c.bundle_id === bundle.id ? { ...c, qty: c.qty + 1 } : c)
-      }
-      return [
-        ...prev,
-        {
-          bundle_id: bundle.id,
-          name: bundle.name,
-          code: bundle.code,
-          price: bundle.price ?? 0,
-          qty: 1,
-          bundle_details: bundle.bundle_details || bundle.details || [],
+    setBundlePickerGroup(bundle)
+  }, [])
+
+  const addConfiguredBundleToCart = useCallback((bundle: any, selectedBatches: Record<number, any>) => {
+    try {
+      const details = bundle.bundle_details || bundle.details || []
+      const processedDetails = details.map((bd: any) => {
+        const inventoryId = selectedBatches[bd.id]
+        return {
+          ...bd,
+          product_inventory_id: inventoryId,
         }
-      ]
-    })
+      })
+
+      setBundleCart((prev: any[]) => {
+        return [
+          ...prev,
+          {
+            bundle_id: bundle.id,
+            name: bundle.name,
+            code: bundle.code,
+            price: bundle.price ?? 0,
+            qty: 1,
+            bundle_details: processedDetails,
+          },
+        ]
+      })
+      toast.success('Bundle added')
+      setBundlePickerGroup(null)
+    } catch (error) {
+      toast.error('Failed to add bundle')
+    }
   }, [])
 
   const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
@@ -646,7 +663,9 @@ export function usePosLogic() {
       if (salesOrderId && paymentMethodId) {
         try {
           await paymentsService.create({
-            sales_order_id: salesOrderId,
+            type: 'receive',
+            date: new Date().toISOString().split('T')[0],
+            allocations: [{ sales_order_id: salesOrderId, amount: paidAmount }],
             payment_method_id: paymentMethodId,
             amount: paidAmount,
             description: orderNote || undefined,
@@ -762,13 +781,16 @@ export function usePosLogic() {
     selectedMethod, isCashMethod,
     isPending, isHoldPending,
 
-    // Handlers
+    // Handlers & Methods
     resetCart,
-    addGroupToCart,
+    addLotToCart,
     addBundleToCart,
+    addConfiguredBundleToCart,
     handleApplyVoucher,
     handleHold,
     handleCharge,
     handleConfirmPayment,
+    batchPickerGroup, setBatchPickerGroup,
+    bundlePickerGroup, setBundlePickerGroup,
   }
 }

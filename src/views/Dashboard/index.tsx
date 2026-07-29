@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -24,7 +25,7 @@ const todayStr = () => new Date().toISOString().split('T')[0]
 
 const formatRp = (n: number | undefined | null): string => {
   if (n === undefined || n === null) return 'Rp 0'
-  return 'Rp ' + Number(n).toLocaleString('id-ID')
+  return formatCurrency(Number(n))
 }
 const formatNum = (n: number | undefined | null): string => {
   if (n === undefined || n === null) return '0'
@@ -472,11 +473,11 @@ export default function DashboardView() {
                       if (typeof o.stock === 'number')
                         return `Stock ${o.stock.toLocaleString('id-ID')}`
                       if (typeof o.total_sold === 'number')
-                        return `Sold ${o.total_sold.toLocaleString('id-ID')}`
+                        return `Sold ${formatCurrency(o.total_sold, '')}`
                       if (typeof o.total_price === 'number')
-                        return `Rp ${o.total_price.toLocaleString('id-ID')}`
+                        return formatCurrency(o.total_price)
                       if (typeof o.amount === 'number')
-                        return `Rp ${o.amount.toLocaleString('id-ID')}`
+                        return formatCurrency(o.amount)
                       if (typeof o.count === 'number')
                         return o.count.toLocaleString('id-ID')
                       if (o.expiry_date) return `Exp ${String(o.expiry_date).slice(0, 10)}`

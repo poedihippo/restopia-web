@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDateShort } from '@/utils/date';
 
 import React, { useMemo, useState, useEffect } from 'react'
@@ -7,7 +8,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer, ChevronLeft, ChevronRight } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
-
 const firstOfMonth = () =>
   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     .toISOString()
@@ -132,7 +132,6 @@ const Badge: React.FC<{ meta: { label: string; color: string; bg: string } }> = 
 export default function SalesByInvoiceReport() {
   const router = useRouter()
   const { user, isSuperadmin } = useAuth()
-
   const [dateFrom, setDateFrom] = useState<string>(firstOfMonth())
   const [dateTo, setDateTo] = useState<string>(today())
   const [branchFilter, setBranchFilter] = useState<string>('')
@@ -359,13 +358,13 @@ export default function SalesByInvoiceReport() {
         <div style={statCardStyle}>
           <div style={labelStyle}>Total Invoices</div>
           <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>
-            {(meta?.total ?? orders.length).toLocaleString('id-ID')}
+            {formatCurrency((meta?.total ?? orders.length), '')}
           </div>
         </div>
         <div style={statCardStyle}>
           <div style={labelStyle}>Total Bruto</div>
           <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
-            {'Rp ' + pageTotals.bruto.toLocaleString('id-ID')}
+            {formatCurrency(pageTotals.bruto)}
           </div>
         </div>
         <div style={statCardStyle}>
@@ -378,7 +377,7 @@ export default function SalesByInvoiceReport() {
               color: 'var(--destructive)',
             }}
           >
-            {'Rp ' + pageTotals.discount.toLocaleString('id-ID')}
+            {formatCurrency(pageTotals.discount)}
           </div>
         </div>
         <div style={statCardStyle}>
@@ -391,7 +390,7 @@ export default function SalesByInvoiceReport() {
               color: 'var(--accent)',
             }}
           >
-            {'Rp ' + pageTotals.netto.toLocaleString('id-ID')}
+            {formatCurrency(pageTotals.netto)}
           </div>
         </div>
       </div>
@@ -508,8 +507,7 @@ export default function SalesByInvoiceReport() {
                     {order.customer?.name ?? order.customer_name ?? '—'}
                   </td>
                   <td style={{ ...tdBase, textAlign: 'right' }}>
-                    {'Rp ' +
-                      (order.subtotal_price ?? 0).toLocaleString('id-ID')}
+                    {formatCurrency(order.subtotal_price ?? 0)}
                   </td>
                   <td
                     style={{
@@ -519,8 +517,7 @@ export default function SalesByInvoiceReport() {
                     }}
                   >
                     {(order.discount_price ?? 0) > 0
-                      ? '- Rp ' +
-                        (order.discount_price ?? 0).toLocaleString('id-ID')
+                      ? '- ' + formatCurrency(order.discount_price ?? 0)
                       : '—'}
                   </td>
                   <td
@@ -530,7 +527,7 @@ export default function SalesByInvoiceReport() {
                       fontWeight: 600,
                     }}
                   >
-                    {'Rp ' + (order.total_price ?? 0).toLocaleString('id-ID')}
+                    {formatCurrency(order.total_price ?? 0)}
                   </td>
                   <td style={{ ...tdBase, textAlign: 'center' }}>
                     <Badge meta={paymentMeta} />
@@ -559,7 +556,7 @@ export default function SalesByInvoiceReport() {
                 <td
                   style={{ ...tdBase, textAlign: 'right', padding: '10px 12px' }}
                 >
-                  {'Rp ' + pageTotals.bruto.toLocaleString('id-ID')}
+                  {formatCurrency(pageTotals.bruto)}
                 </td>
                 <td
                   style={{
@@ -569,12 +566,12 @@ export default function SalesByInvoiceReport() {
                     color: 'var(--destructive)',
                   }}
                 >
-                  {'- Rp ' + pageTotals.discount.toLocaleString('id-ID')}
+                  {'- ' + formatCurrency(pageTotals.discount)}
                 </td>
                 <td
                   style={{ ...tdBase, textAlign: 'right', padding: '10px 12px' }}
                 >
-                  {'Rp ' + pageTotals.netto.toLocaleString('id-ID')}
+                  {formatCurrency(pageTotals.netto)}
                 </td>
                 <td colSpan={2} style={tdBase}></td>
               </tr>

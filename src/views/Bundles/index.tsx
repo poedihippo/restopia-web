@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -360,7 +361,7 @@ export default function BundlesView() {
                           fontFamily: 'var(--font-display)',
                         }}
                       >
-                        Rp {(item.price ?? 0).toLocaleString('id-ID')}
+                        {formatCurrency((item.price ?? 0))}
                       </span>
                       <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
                         {details.length} item(s)

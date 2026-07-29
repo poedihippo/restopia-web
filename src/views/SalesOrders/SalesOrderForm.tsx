@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { parseApiDate } from '@/utils/date';
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -14,7 +15,6 @@ import { branchesService } from '@/services/branches.service'
 import { usersService } from '@/services/users.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import api from '@/hooks/useApi'
-import { usePrice } from '@/hooks/usePrice'
 import { PriceDisplay } from '@/components/PriceDisplay'
 
 const generateKey = () =>
@@ -44,7 +44,6 @@ interface LineItem {
 export default function SalesOrderForm({ editingOrder }: { editingOrder?: any }): React.ReactElement {
   const router = useRouter()
   const qc = useQueryClient()
-  const { canReadPrice, formatPrice } = usePrice()
   const isEdit = !!editingOrder
 
   // ── Header state ───────────────────────────────────────────────────────────
@@ -548,7 +547,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             <input
               type="text"
               inputMode="numeric"
-              value={formatNumber(discountPrice, canReadPrice)}
+              value={formatNumber(discountPrice, getCanReadPrice())}
               onChange={(e) => {
                 const raw = e.target.value.replace(/[^\d]/g, '')
                 setDiscountPrice(raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -862,11 +861,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                           style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}
                         >
                           Rp{' '}
-                          {Number(
+                          {formatCurrency(
                             type === 'online'
                               ? (p.online_price ?? p.base_price)
                               : p.base_price
-                          ).toLocaleString('id-ID')}
+                          )}
                         </span>
                       </div>
                     ))}
@@ -900,7 +899,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                         <span
                           style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}
                         >
-                          Rp {Number(b.price).toLocaleString('id-ID')}
+                          {formatCurrency(Number(b.price))}
                         </span>
                       </div>
                     ))}
@@ -1014,8 +1013,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={formatNumber(item.price, canReadPrice)}
-                      disabled={!canReadPrice}
+                      value={formatNumber(item.price, getCanReadPrice())}
+                      disabled={!getCanReadPrice()}
                       onChange={(e) => {
                         const raw = e.target.value.replace(/[^\d]/g, '')
                         updateItem(idx, 'price', raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -1027,8 +1026,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                         borderRadius: 'var(--radius-sm)',
                         padding: '0 8px',
                         fontSize: 13,
-                        background: !canReadPrice ? 'var(--surface)' : undefined,
-                        cursor: !canReadPrice ? 'not-allowed' : undefined,
+                        background: !getCanReadPrice() ? 'var(--surface)' : undefined,
+                        cursor: !getCanReadPrice() ? 'not-allowed' : undefined,
                       }}
                     />
                   </td>

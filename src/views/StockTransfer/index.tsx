@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState } from 'react'
@@ -436,7 +437,7 @@ export default function StockTransferView() {
                                 color: 'var(--foreground)',
                               }}
                             >
-                              Rp {Number(item.total_price ?? 0).toLocaleString('id-ID')}
+                              {formatCurrency(item.total_price)}
                             </span>
                           </td>
                           <td style={tdStyle}>
@@ -635,7 +636,7 @@ export default function StockTransferView() {
                               color: 'var(--foreground)',
                             }}
                           >
-                            Rp {Number(item.total_price ?? 0).toLocaleString('id-ID')}
+                            {formatCurrency(item.total_price)}
                           </span>
                         </td>
                         <td style={tdStyle}>

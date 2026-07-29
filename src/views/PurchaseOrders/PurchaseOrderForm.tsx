@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency, getCanReadPrice } from '@/utils/price';
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
@@ -22,7 +23,6 @@ import {
   Save,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
-import { usePrice } from '@/hooks/usePrice'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import RecipeImportModal from './RecipeImportModal'
 
@@ -67,7 +67,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const queryClient = useQueryClient()
 
   const { user } = useAuth()
-  const { canReadPrice } = usePrice()
   const currentBranchId = (user as any)?.branch?.id
 
   const [showRecipeModal, setShowRecipeModal] = useState(false)
@@ -800,8 +799,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 <input
                   type="text"
                   inputMode="numeric"
-                  value={formatNumber(watch(`details.${index}.price`), canReadPrice)}
-                  disabled={!canReadPrice}
+                  value={formatNumber(watch(`details.${index}.price`), getCanReadPrice())}
+                  disabled={!getCanReadPrice()}
                   onChange={(e) => {
                     const raw = e.target.value.replace(/[^\d]/g, '')
                     setValue(
@@ -829,8 +828,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         cursor: 'pointer',
                       }}
                     >
-                      {canReadPrice 
-                        ? `Last: Rp ${last.price.toLocaleString('id-ID')}`
+                      {getCanReadPrice() 
+                        ? `Last: Rp ${formatCurrency(last.price, '')}`
                         : `Last: Rp ***`}
                       {last.date ? ` · ${String(last.date).slice(0, 10)}` : ''}
                     </span>

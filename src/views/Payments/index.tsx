@@ -1,5 +1,6 @@
 'use client'
 import { formatDateTime } from '@/utils/date';
+import { formatCurrency } from '@/utils/price';
 import Link from 'next/link';
 
 import React, { useState, useEffect } from 'react'
@@ -13,7 +14,10 @@ import {
   ChevronRight,
   Trash2,
   CreditCard,
+  Ban,
+  SplitSquareHorizontal
 } from 'lucide-react'
+import AllocateModal from './AllocateModal'
 
 interface Payment {
   id: number
@@ -24,6 +28,8 @@ interface Payment {
   payment_method?: { id: number; name: string }
   branch?: { id: number; name: string }
   created_by?: { id: number; name: string }
+  allocations?: { sales_order_id?: number, purchase_order_id?: number, amount: number }[]
+  is_reversed?: boolean
 }
 
 export default function PaymentsView() {
@@ -42,6 +48,8 @@ export default function PaymentsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [voidConfirmId, setVoidConfirmId] = useState<number | null>(null)
+  const [allocatePayment, setAllocatePayment] = useState<any>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -77,6 +85,16 @@ export default function PaymentsView() {
       setDeleteConfirmId(null)
     },
     onError: () => toast.error('Failed to delete payment'),
+  })
+
+  const voidMutation = useMutation({
+    mutationFn: (id: number) => paymentsService.void(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payments'] })
+      toast.success('Payment voided')
+      setVoidConfirmId(null)
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to void payment'),
   })
 
   const thStyle: React.CSSProperties = {
@@ -194,7 +212,7 @@ export default function PaymentsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: 160 }}>Sales Order</th>
+              <th style={{ ...thStyle, width: 160 }}>Allocated Orders</th>
               <th style={{ ...thStyle, width: 140 }}>Method</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 140 }}>Amount</th>
@@ -260,32 +278,35 @@ export default function PaymentsView() {
                   }
                 >
                   <td style={tdStyle}>
-                    {canRead ? item.sales_order?.id ? (
-                      <Link 
-                        href={`/sales/sales-orders/${item.sales_order.id}/detail`}
-                        style={{
-                          fontFamily: 'monospace',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: 'var(--accent)',
-                          textDecoration: 'none'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                        onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                      >
-                        {item.sales_order?.code ?? `SO-${item.sales_order.id}`}
-                      </Link>
+                    {canRead ? item.allocations && item.allocations.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {item.allocations.map((alloc, idx) => (
+                          <div key={idx}>
+                            {alloc.sales_order_id && (
+                              <Link 
+                                href={`/sales/sales-orders/${alloc.sales_order_id}/detail`}
+                                style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}
+                                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                              >
+                                SO-{alloc.sales_order_id} ({formatCurrency(alloc.amount || 0)})
+                              </Link>
+                            )}
+                            {alloc.purchase_order_id && (
+                              <Link 
+                                href={`/purchase/purchase-orders/${alloc.purchase_order_id}/detail`}
+                                style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}
+                                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                              >
+                                PO-{alloc.purchase_order_id} ({formatCurrency(alloc.amount || 0)})
+                              </Link>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     ) : (
-                      <span
-                        style={{
-                          fontFamily: 'monospace',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        {item.sales_order?.code ?? '—'}
-                      </span>
+                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Unallocated</span>
                     ) : "***"}
                   </td>
                   <td style={tdStyle}>
@@ -320,6 +341,7 @@ export default function PaymentsView() {
                         fontSize: 13,
                         fontWeight: 600,
                         color: 'var(--foreground)',
+                        textDecoration: item.is_reversed ? 'line-through' : 'none'
                       }}
                     >
                       Rp {(item.amount ?? 0).toLocaleString('id-ID')}
@@ -346,6 +368,22 @@ export default function PaymentsView() {
                         justifyContent: 'flex-end',
                       }}
                     >
+                      {!item.is_reversed && canEdit && (
+                        <button
+                          onClick={() => setAllocatePayment(item)}
+                          style={actionBtnStyle}
+                          title="Allocate">
+                          <SplitSquareHorizontal size={14} />
+                        </button>
+                      )}
+                      {!item.is_reversed && canEdit && (
+                        <button
+                          onClick={() => setVoidConfirmId(item.id)}
+                          style={{ ...actionBtnStyle, color: 'var(--foreground-muted)' }}
+                          title="Void">
+                          <Ban size={14} />
+                        </button>
+                      )}
                       {canDelete && (<button
                         onClick={() => setDeleteConfirmId(item.id)}
                         style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
@@ -488,6 +526,92 @@ export default function PaymentsView() {
             </div>
           </div>
         </div>
+      )}
+      {/* Void confirm */}
+      {voidConfirmId !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={() => setVoidConfirmId(null)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 70,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '28px 28px 24px',
+              width: 380,
+              boxShadow: 'var(--shadow-lg)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 17,
+                fontWeight: 600,
+                margin: '0 0 8px',
+                color: 'var(--foreground)',
+              }}
+            >
+              Void Payment
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>
+              Are you sure you want to void this payment? This will reverse the journal entries.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setVoidConfirmId(null)}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => voidMutation.mutate(voidConfirmId)}
+                disabled={voidMutation.isPending}
+                style={{
+                  padding: '7px 16px',
+                  background: 'var(--destructive)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'white',
+                  cursor: 'pointer',
+                  opacity: voidMutation.isPending ? 0.7 : 1,
+                }}
+              >
+                Void
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Allocate Modal */}
+      {allocatePayment && (
+        <AllocateModal
+          payment={allocatePayment}
+          onClose={() => setAllocatePayment(null)}
+        />
       )}
       <style>{`
         @keyframes pulse {

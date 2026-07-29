@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -312,8 +313,7 @@ export default function CompaniesView() {
                         }}
                       >
                         {item.credit_reset_amount
-                          ? 'Rp ' +
-                            Number(item.credit_reset_amount).toLocaleString('id-ID')
+                          ? formatCurrency(Number(item.credit_reset_amount))
                           : '—'}
                       </span>
                       {item.credit_reset_cron && (

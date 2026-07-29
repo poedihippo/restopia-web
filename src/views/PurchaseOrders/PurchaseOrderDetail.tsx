@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState } from 'react'
@@ -620,7 +621,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                   </span>
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  {'Rp ' + detail.price.toLocaleString('id-ID')}
+                  {formatCurrency(detail.price)}
                 </td>
                 <td
                   style={{
@@ -630,7 +631,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                     color: 'var(--foreground)',
                   }}
                 >
-                  {'Rp ' + (detail.qty * detail.price).toLocaleString('id-ID')}
+                  {formatCurrency(detail.qty * detail.price)}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   {detail.description || '—'}
@@ -661,7 +662,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                     fontFamily: 'var(--font-display)',
                   }}
                 >
-                  {'Rp ' + order.total_price.toLocaleString('id-ID')}
+                  {formatCurrency(order.total_price)}
                 </span>
               </td>
               <td style={{ padding: '14px 16px' }} />

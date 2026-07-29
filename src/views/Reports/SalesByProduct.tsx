@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
@@ -6,7 +7,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
-
 const firstOfMonth = () =>
   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     .toISOString()
@@ -86,7 +86,6 @@ const ghostBtnStyle: React.CSSProperties = {
 export default function SalesByProductReport() {
   const router = useRouter()
   const { user, isSuperadmin } = useAuth()
-
   const [dateFrom, setDateFrom] = useState<string>(firstOfMonth())
   const [dateTo, setDateTo] = useState<string>(today())
   const [branchFilter, setBranchFilter] = useState<string>('')
@@ -331,7 +330,7 @@ export default function SalesByProductReport() {
               color: 'var(--accent)',
             }}
           >
-            {'Rp ' + grandTotal.toLocaleString('id-ID')}
+            {formatCurrency(grandTotal)}
           </div>
         </div>
       </div>
@@ -424,8 +423,7 @@ export default function SalesByProductReport() {
                 </td>
                 <td style={{ ...tdBase, textAlign: 'right' }}>
                   {p.qty > 0
-                    ? 'Rp ' +
-                      Math.round(p.totalAmount / p.qty).toLocaleString('id-ID')
+                    ? formatCurrency(Math.round(p.totalAmount / p.qty))
                     : '—'}
                 </td>
                 <td
@@ -436,7 +434,7 @@ export default function SalesByProductReport() {
                     color: 'var(--accent)',
                   }}
                 >
-                  {'Rp ' + p.totalAmount.toLocaleString('id-ID')}
+                  {formatCurrency(p.totalAmount)}
                 </td>
               </tr>
             ))}
@@ -470,7 +468,7 @@ export default function SalesByProductReport() {
                     color: 'var(--accent)',
                   }}
                 >
-                  {'Rp ' + grandTotal.toLocaleString('id-ID')}
+                  {formatCurrency(grandTotal)}
                 </td>
               </tr>
             </tfoot>

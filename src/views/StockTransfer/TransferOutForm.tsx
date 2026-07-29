@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency, getCanReadPrice } from '@/utils/price';
 
 import React from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
@@ -13,7 +14,6 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
-import { usePrice } from '@/hooks/usePrice'
 import { PriceDisplay } from '@/components/PriceDisplay'
 
 const detailSchema = z.object({
@@ -41,7 +41,6 @@ interface TransferOutFormProps {
 export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormProps) {
   const today = new Date().toISOString().split('T')[0]
   const { user } = useAuth()
-  const { canReadPrice } = usePrice()
   const sourceBranchId = user?.branch?.id
 
   const {
@@ -511,7 +510,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={inputStyle}
                 />
-                {canReadPrice ? (
+                {getCanReadPrice() ? (
                   <input
                     type="number"
                     min={0}

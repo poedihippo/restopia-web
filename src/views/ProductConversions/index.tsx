@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDateShort, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -377,9 +378,7 @@ export default function ProductConversionsView() {
                       fontFamily: 'var(--font-display)',
                     }}
                   >
-                    {canRead ? (item.amount ?? 0).toLocaleString('id-ID', {
-                      maximumFractionDigits: 4,
-                    }) : "***"}
+                    {canRead ? formatCurrency(item.amount ?? 0, '') : "***"}
                   </td>
 
                   {/* Created */}

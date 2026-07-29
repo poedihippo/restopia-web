@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -442,8 +443,8 @@ export default function DeliveriesView() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                         {isInternal
-                          ? 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')
-                          : 'Rp ' + (item.total_price ?? 0).toLocaleString('id-ID')}
+                          ? formatCurrency(item.total_price)
+                          : formatCurrency(item.total_price)}
                       </span>
                     </td>
                     <td style={tdStyle}>

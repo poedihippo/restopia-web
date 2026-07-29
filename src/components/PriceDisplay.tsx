@@ -1,5 +1,5 @@
 import React from 'react'
-import { usePrice } from '@/hooks/usePrice'
+import { formatCurrency } from '@/utils/price';
 
 interface PriceDisplayProps extends React.HTMLAttributes<HTMLSpanElement> {
   amount: number | null | undefined
@@ -7,7 +7,5 @@ interface PriceDisplayProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 export const PriceDisplay: React.FC<PriceDisplayProps> = ({ amount, prefix = 'Rp ', ...props }) => {
-  const { formatPrice } = usePrice()
-  
-  return <span {...props}>{formatPrice(amount, prefix)}</span>
+  return <span {...props}>{formatCurrency(amount, prefix)}</span>
 }

@@ -65,7 +65,7 @@ export default function ProductUomBatchSheet({
   // Create mode — product UOMs for the picker (paginate all pages)
   const { data: puData, isLoading: puLoading } = useQuery({
     queryKey: ['product-uoms-all'],
-    enabled: open && !isEdit,
+    enabled: open,
     queryFn: async () => {
       let all: any[] = []
       let p = 1
@@ -136,6 +136,7 @@ export default function ProductUomBatchSheet({
   const updateMutation = useMutation({
     mutationFn: (values: FormValues) => {
       const body: any = {
+        product_uom_id: values.product_uom_id,
         expiry_date: values.expiry_date || null,
       }
       if (values.batch_code?.trim()) body.batch_code = values.batch_code.trim()
@@ -294,63 +295,22 @@ export default function ProductUomBatchSheet({
                   }}
                 >
                   Product UOM
-                  {!isEdit && (
-                    <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>
-                      *
-                    </span>
-                  )}
                 </label>
-
-                {isEdit ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 2,
-                      padding: '10px 12px',
-                      background: 'var(--background)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: 'var(--foreground)',
-                      }}
-                    >
-                      {editProductName} — {editUomName}
-                    </span>
-                    {editPuCode && (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: 'var(--foreground-muted)',
-                        }}
-                      >
-                        {editPuCode}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <Controller
-                    name="product_uom_id"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 0}
-                        onChange={(v) => field.onChange(v)}
-                        options={productUomOptions}
-                        placeholder="Select product UOM"
-                        searchPlaceholder="Search product UOM..."
-                        loading={puLoading}
-                        error={errors.product_uom_id?.message}
-                      />
-                    )}
-                  />
-                )}
+                <Controller
+                  name="product_uom_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 0}
+                      onChange={(v) => field.onChange(v)}
+                      options={productUomOptions}
+                      placeholder="Select product UOM"
+                      searchPlaceholder="Search product UOM..."
+                      loading={puLoading}
+                      error={errors.product_uom_id?.message}
+                    />
+                  )}
+                />
               </div>
 
               {/* Batch Code */}

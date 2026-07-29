@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency, getCanReadPrice } from '@/utils/price';
 
 import React, { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
@@ -12,8 +13,6 @@ import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
-import { usePrice } from '@/hooks/usePrice'
-
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
@@ -50,7 +49,6 @@ interface ProductUomSheetProps {
 
 export default function ProductUomSheet({ open, onClose, editData }: ProductUomSheetProps) {
   const queryClient = useQueryClient()
-  const { canReadPrice } = usePrice()
   const isEdit = !!editData
 
   const {
@@ -398,14 +396,14 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               <input
                 type="text"
                 inputMode="numeric"
-                value={formatNumber(watch('base_price'), canReadPrice)}
-                disabled={!canReadPrice}
+                value={formatNumber(watch('base_price'), getCanReadPrice())}
+                disabled={!getCanReadPrice()}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^\d]/g, '')
                   setValue('base_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
                 }}
                 placeholder="0"
-                style={{ ...inputStyle, ...( !canReadPrice ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
+                style={{ ...inputStyle, ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -415,14 +413,14 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               <input
                 type="text"
                 inputMode="numeric"
-                value={formatNumber(watch('online_price'), canReadPrice)}
-                disabled={!canReadPrice}
+                value={formatNumber(watch('online_price'), getCanReadPrice())}
+                disabled={!getCanReadPrice()}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^\d]/g, '')
                   setValue('online_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
                 }}
                 placeholder="0"
-                style={{ ...inputStyle, ...( !canReadPrice ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
+                style={{ ...inputStyle, ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
               />
             </div>
           </div>

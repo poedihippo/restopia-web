@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -325,7 +326,7 @@ export default function EmployeesView() {
                 lineHeight: 1.1,
               }}
             >
-              Rp {totalCreditPool.toLocaleString('id-ID')}
+              {formatCurrency(totalCreditPool)}
             </span>
             <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
               Total Credit Pool
@@ -515,7 +516,7 @@ export default function EmployeesView() {
                             color: 'var(--success)',
                           }}
                         >
-                          Rp {(item.credit ?? 0).toLocaleString('id-ID')}
+                          {formatCurrency((item.credit ?? 0))}
                         </span>
                         <span
                           style={{

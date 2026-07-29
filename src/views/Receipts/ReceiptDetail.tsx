@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState } from 'react'
@@ -562,7 +563,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                   </td>
                   {!isInternal && (
                     <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {'Rp ' + detail.price.toLocaleString('id-ID')}
+                      {formatCurrency(detail.price)}
                     </td>
                   )}
                   {!isInternal && (
@@ -574,7 +575,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                         color: 'var(--foreground)',
                       }}
                     >
-                      {'Rp ' + (detail.qty * detail.price).toLocaleString('id-ID')}
+                      {formatCurrency(detail.qty * detail.price)}
                     </td>
                   )}
                   <td style={{ padding: '12px 16px' }}>
@@ -623,7 +624,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                       fontFamily: 'var(--font-display)',
                     }}
                   >
-                    {'Rp ' + receipt.total_price.toLocaleString('id-ID')}
+                    {formatCurrency(receipt.total_price)}
                   </span>
                 </td>
                 <td style={{ padding: '14px 16px' }} />

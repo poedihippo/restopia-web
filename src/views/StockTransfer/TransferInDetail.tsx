@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useEffect } from 'react'
@@ -13,7 +14,6 @@ import { receiptsService } from '@/services/receipts.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
 import { ArrowLeft, Package, Check, Loader2 } from 'lucide-react'
-import { usePrice } from '@/hooks/usePrice'
 import { PriceDisplay } from '@/components/PriceDisplay'
 
 const detailSchema = z.object({
@@ -48,7 +48,6 @@ interface TransferInDetailProps {
 export default function TransferInDetail({ id }: TransferInDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { canReadPrice } = usePrice()
   const today = new Date().toISOString().split('T')[0]
 
   const { data, isLoading } = useQuery({
@@ -526,7 +525,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                         textAlign: 'right',
                       }}
                     >
-                      Rp {Number(r.total_price ?? 0).toLocaleString('id-ID')}
+                      <PriceDisplay amount={r.total_price ?? 0} />
                     </td>
                   </tr>
                 ))}
@@ -694,7 +693,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={inputStyle}
                 />
-                {canReadPrice ? (
+                {getCanReadPrice() ? (
                   <input
                     type="number"
                     min={0}
@@ -789,7 +788,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                   fontFamily: 'var(--font-display)',
                 }}
               >
-                Rp {totalPrice.toLocaleString('id-ID')}
+                <PriceDisplay amount={totalPrice} />
               </span>
             </div>
           </div>

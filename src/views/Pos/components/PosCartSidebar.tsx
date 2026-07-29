@@ -3,6 +3,7 @@ import { ShoppingCart, ChevronUp, ChevronDown, Loader2 } from 'lucide-react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import useGetVoucherList from '@/hooks/voucher/useGetVoucherList'
 import SearchableSelect from '@/components/SearchableSelect'
+import { formatCurrency } from '@/utils/price';
 
 // Some styling constants for the sidebar
 const inputStyle: React.CSSProperties = {
@@ -377,7 +378,7 @@ export default function PosCartSidebar({
                   </button>
                 </div>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
-                  Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                  {formatCurrency(item.price * item.qty)}
                 </span>
               </div>
             </div>
@@ -494,7 +495,7 @@ export default function PosCartSidebar({
                 </button>
               </div>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
-                Rp {(item.price * item.qty).toLocaleString('id-ID')}
+                {formatCurrency(item.price * item.qty)}
               </span>
             </div>
           </div>
@@ -513,22 +514,14 @@ export default function PosCartSidebar({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
           <span>Subtotal</span>
-          <span>Rp {subtotal.toLocaleString('id-ID')}</span>
+          <span>{formatCurrency(subtotal)}</span>
         </div>
 
         {appliedVoucher && discountAmount > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: 13,
-              color: 'var(--destructive)',
-              padding: '2px 0',
-            }}
-          >
-            <span>Diskon ({appliedVoucher.code})</span>
-            <span>- Rp {discountAmount.toLocaleString('id-ID')}</span>
-          </div>
+            <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--destructive)', padding: '2px 0' }}>
+              <span>Diskon ({appliedVoucher.code})</span>
+              <span>- {formatCurrency(discountAmount)}</span>
+            </span>
         )}
 
         <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
@@ -536,7 +529,7 @@ export default function PosCartSidebar({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
           <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
-            Rp {total.toLocaleString('id-ID')}
+            {formatCurrency(total)}
           </span>
         </div>
       </div>
@@ -690,7 +683,7 @@ export default function PosCartSidebar({
               opacity: isPending ? 0.7 : 1,
             }}
           >
-            {isPending ? 'Processing...' : `Charge Rp ${total.toLocaleString('id-ID')}`}
+            {isPending ? 'Processing...' : `Charge ${formatCurrency(total)}`}
           </button>
         </div>
       </div>

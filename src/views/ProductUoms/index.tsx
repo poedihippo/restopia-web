@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDateShort, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -8,7 +9,6 @@ import api from '@/hooks/useApi'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
-import { usePrice } from '@/hooks/usePrice'
 import ProductUomSheet from './ProductUomSheet'
 import {
   Plus,
@@ -39,7 +39,6 @@ export default function ProductUomsView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canRead = hasPermission("product-uom.read");
-  const { formatPrice } = usePrice()
   const canCreate = hasPermission('product-uom.create')
   const canEdit = hasPermission('product-uom.update')
   const canDelete = hasPermission('product-uom.delete')
@@ -456,10 +455,10 @@ export default function ProductUomsView() {
                     ) : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                    {canRead ? formatPrice(item.base_price) : "***"}
+                    {canRead ? formatCurrency(item.base_price) : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {canRead ? formatPrice(item.online_price) : "***"}
+                    {canRead ? formatCurrency(item.online_price) : "***"}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={boolPill(item.is_default)}>
@@ -728,8 +727,8 @@ export default function ProductUomsView() {
                 { label: 'Product', value: selectedItem.product?.name },
                 { label: 'Product Code', value: selectedItem.product?.code },
                 { label: 'UOM Code', value: selectedItem.uom?.code },
-                { label: 'Base Price', value: formatPrice(selectedItem.base_price) },
-                { label: 'Online Price', value: formatPrice(selectedItem.online_price) },
+                { label: 'Base Price', value: formatCurrency(selectedItem.base_price) },
+                { label: 'Online Price', value: formatCurrency(selectedItem.online_price) },
                 {
                   label: 'Price Editable',
                   value: selectedItem.price_editable ? 'Yes' : 'No',

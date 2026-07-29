@@ -8,7 +8,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
@@ -22,8 +22,8 @@ const formatExpiry = (v?: string) => {
 }
 
 const schema = z.object({
-  product_inventory_id: z.coerce.number()
-    .min(1, 'Inventory item is required'),
+  product_uom_batch_id: z.coerce.number()
+    .min(1, 'Product UOM Batch is required'),
   qty: z.coerce.number()
     .min(0.0001, 'Must be greater than 0'),
   direction: z.enum(['in', 'out']),
@@ -73,70 +73,66 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      product_inventory_id: 0,
+      product_uom_batch_id: 0,
       qty: 0,
       direction: 'in' as const,
       description: '',
     },
   })
 
-  const { data: inventoryData } = useQuery({
-    queryKey: ['product-inventories-all', activeBranchId],
-    enabled: !!activeBranchId,
+  const { data: batchesData } = useQuery({
+    queryKey: ['product-uom-batches-all'],
     queryFn: async () => {
-      let allInventories: any[] = []
+      let allBatches: any[] = []
       let page = 1
       let totalPages = 1
       do {
-        const res = await productInventoriesService
+        const res = await productUomBatchesService
           .list({
             page,
             per_page: 100,
-            include: 'branch,product_uom_batch',
-            'filter[branch_id]': activeBranchId,
+            include: 'product_uom,product_uom.product,product_uom.uom',
           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
-        allInventories = allInventories.concat(items)
+        allBatches = allBatches.concat(items)
         totalPages =
           (res as any)?.meta?.last_page ??
           (res as any)?.meta?.total_pages ??
           1
         page += 1
       } while (page <= totalPages)
-      return { data: allInventories }
+      return { data: allBatches }
     },
   })
-  const inventoryItems = (inventoryData as any)?.data ?? []
+  const batchesItems = (batchesData as any)?.data ?? []
 
   const watchDirection = watch('direction')
   const watchQty = watch('qty')
-  const watchInvId = watch('product_inventory_id')
+  const watchBatchId = watch('product_uom_batch_id')
   //trigger
-  const inventoryOptions = inventoryItems.map((inv: any) => {
+  const batchOptions = batchesItems.map((batch: any) => {
     const name =
-      inv.product_uom_batch?.product_uom?.product?.name ??
-      inv.product_uom?.product?.name ??
-      inv.code ??
-      `INV-${inv.id}`
+      batch.product_uom?.product?.name ??
+      batch.code ??
+      `BATCH-${batch.id}`
     const uomCode =
-      inv.product_uom_batch?.product_uom?.uom?.code ??
-      inv.product_uom_batch?.product_uom?.uom?.name ??
-      inv.product_uom?.uom?.code ??
+      batch.product_uom?.uom?.code ??
+      batch.product_uom?.uom?.name ??
       ''
-    const expiryDate = inv.product_uom_batch?.expiry_date?.substring(0, 10) ?? 'No expiry';
+    const expiryDate = batch.expiry_date?.substring(0, 10) ?? 'No expiry';
     return {
-      value: inv.id as number,
-      label: `${name} — ${uomCode} — Stock: ${inv.stock}-Exp Date:${expiryDate}`,
-      sublabel: inv.product_uom_batch?.batch_code ?? undefined,
+      value: batch.id as number,
+      label: `${name} — ${uomCode} — Stock: ${batch.stock}-Exp Date:${expiryDate}`,
+      sublabel: batch.batch_code ?? undefined,
     }
   })
 
-  const selectedInv = inventoryItems.find((inv: any) => inv.id === watchInvId)
+  const selectedBatch = batchesItems.find((batch: any) => batch.id === watchBatchId)
   const negativeStock =
     watchDirection === 'out' &&
-    selectedInv &&
-    Number(watchQty) > Number(selectedInv.stock)
+    selectedBatch &&
+    Number(watchQty) > Number(selectedBatch.stock)
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => stockMovementsService.create(data as any),
@@ -152,16 +148,14 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   })
 
   const onSubmit = (values: FormValues) => {
-    // Backend mengharapkan product_uom_batch_id, bukan product_inventory_id
-    // Cari product_uom_batch_id dari item inventory yang dipilih
-    const selectedInventory = inventoryItems.find((inv: any) => inv.id === values.product_inventory_id)
-    if (!selectedInventory) {
-      toast.error('Invalid inventory item selected')
+    const selectedBatch = batchesItems.find((batch: any) => batch.id === values.product_uom_batch_id)
+    if (!selectedBatch) {
+      toast.error('Invalid batch selected')
       return
     }
 
     const payload = {
-      product_uom_batch_id: selectedInventory.product_uom_batch_id,
+      product_uom_batch_id: values.product_uom_batch_id,
       qty: values.qty,
       direction: values.direction,
       description: values.description,
@@ -375,7 +369,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
             />
           </div>
 
-          {/* Inventory Item */}
+          {/* Batch Item */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label
               style={{
@@ -387,24 +381,24 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                 gap: 2,
               }}
             >
-              Inventory Item
+              Product UOM Batch
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
             <Controller
-              name="product_inventory_id"
+              name="product_uom_batch_id"
               control={control}
               render={({ field }) => (
                 <SearchableSelect
                   value={field.value ?? 0}
                   onChange={(v) => field.onChange(v)}
-                  options={inventoryOptions}
-                  placeholder="Select inventory item"
-                  searchPlaceholder="Search inventory..."
-                  error={errors.product_inventory_id?.message}
+                  options={batchOptions}
+                  placeholder="Select batch"
+                  searchPlaceholder="Search batch..."
+                  error={errors.product_uom_batch_id?.message}
                 />
               )}
             />
-            {selectedInv && (
+            {selectedBatch && (
               <div
                 style={{
                   display: 'flex',
@@ -421,18 +415,16 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                 <span>
                   Current stock:{' '}
                   <strong style={{ color: 'var(--foreground)' }}>
-                    {selectedInv.stock}
+                    {selectedBatch.stock}
                   </strong>
                 </span>
                 <span>
                   Batch:{' '}
-                  {selectedInv.product_uom_batch
-                    ? `${selectedInv.product_uom_batch.reference_type ?? ''} #${selectedInv.product_uom_batch.reference_id ?? selectedInv.product_uom_batch.id}`
-                    : '—'}
+                  {selectedBatch.batch_code ?? '—'}
                 </span>
                 <span>
                   Expiry:{' '}
-                  {formatExpiry(selectedInv.product_uom_batch?.expiry_date)}
+                  {formatExpiry(selectedBatch.expiry_date)}
                 </span>
               </div>
             )}

@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState } from 'react'
@@ -319,7 +320,7 @@ export default function VoucherDetail({ id }: VoucherDetailProps) {
           >
             {voucher.discount_type === 'percent'
               ? voucher.discount_value + '%'
-              : 'Rp ' + (voucher.discount_value ?? 0).toLocaleString('id-ID')}
+              : formatCurrency((voucher.discount_value ?? 0))}
           </div>
         </div>
 
@@ -420,7 +421,7 @@ export default function VoucherDetail({ id }: VoucherDetailProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={sectionLabelStyle}>Min. Purchase</span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
-                  {'Rp ' + voucher.min_subtotal_price.toLocaleString('id-ID')}
+                  {formatCurrency(voucher.min_subtotal_price)}
                 </span>
               </div>
             )}
@@ -428,7 +429,7 @@ export default function VoucherDetail({ id }: VoucherDetailProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={sectionLabelStyle}>Max. Discount</span>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--destructive)' }}>
-                  {'Rp ' + voucher.max_discount_price.toLocaleString('id-ID')}
+                  {formatCurrency(voucher.max_discount_price)}
                 </span>
               </div>
             )}

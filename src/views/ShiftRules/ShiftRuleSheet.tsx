@@ -1,15 +1,13 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { shiftRulesService } from '@/services/shift-rules.service'
 import { X, Loader2 } from 'lucide-react'
-import SearchableSelect from '@/components/SearchableSelect'
-import { branchesService } from '@/services/branches.service'
 
 const schema = z.object({
   branch_id: z.coerce.number().optional(),
@@ -28,19 +26,8 @@ interface ShiftRuleSheetProps {
 export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleSheetProps) {
   const qc = useQueryClient()
 
-  const { data: branchData, isLoading: isLoadingBranches } = useQuery({
-    queryKey: ['branches-select'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-  })
-  const branchOptions = ((branchData as any)?.data ?? []).map((b: any) => ({
-    value: b.id,
-    label: b.name,
-  }))
-
-
   const {
     register,
-    control,
     handleSubmit,
     reset,
     formState: { errors },
@@ -118,21 +105,10 @@ export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleShe
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch ID</label>
-              
-              <Controller
-                name="branch_id"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? 0}
-                    onChange={field.onChange}
-                    options={branchOptions}
-                    placeholder="Select branch..."
-                    loading={isLoadingBranches}
-                  />
-                )}
+              <input
+                {...register('branch_id')}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
               />
-    
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -146,7 +122,7 @@ export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleShe
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Start Time (HH:mm)</label>
               <input
-                {...register('start_time')} type="time"
+                {...register('start_time')}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
               />
               {errors.start_time && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.start_time.message as string}</span>}
@@ -154,7 +130,7 @@ export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleShe
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>End Time (HH:mm)</label>
               <input
-                {...register('end_time')} type="time"
+                {...register('end_time')}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
               />
               {errors.end_time && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.end_time.message as string}</span>}

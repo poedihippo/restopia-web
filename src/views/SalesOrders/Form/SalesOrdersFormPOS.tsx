@@ -23,6 +23,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Control, Controller, FormProvider, useFormContext, useWatch, } from "react-hook-form";
 import { toast } from "sonner";
 import { SalesOrderFormValues, useCreateSalesOrders } from "./useCreateSalesOrders";
+import { formatCurrency } from '@/utils/price';
+
 
 interface CartItemProps {
   index: number;
@@ -95,7 +97,7 @@ const CartItem = ({ control, index, onRemove, productName, priceEditable }: Cart
               )}
             />
           ) : (
-            <p className="text-sm font-semibold">Rp {((qty ?? 0) * (price ?? 0)).toLocaleString('id-ID')}</p>
+            <p className="text-sm font-semibold">{formatCurrency(((qty ?? 0) * (price ?? 0)))}</p>
           )}
         </div>
       </div>
@@ -303,8 +305,8 @@ const SalesOrdersFormPOS = () => {
                   >
                     <p className="font-medium text-sm">{item.product_uom?.product?.name}</p>
                     <p className="text-xs text-muted-foreground">{item.product_uom?.uom?.code}</p>
-                    <p className="text-sm font-semibold mt-1">Base: Rp {item.base_price?.toLocaleString('id-ID')}</p>
-                    <p className="text-sm font-semibold mt-1">Online: Rp {item.online_price?.toLocaleString('id-ID')}</p>
+                    <p className="text-sm font-semibold mt-1">Base: {formatCurrency(item.base_price ?? 0)}</p>
+                    <p className="text-sm font-semibold mt-1">Online: {formatCurrency(item.online_price ?? 0)}</p>
                     <p className="text-xs text-muted-foreground">Stock: {item.stock}</p>
                   </button>
                 ))}
@@ -729,13 +731,13 @@ const SalesOrdersFormPOS = () => {
                             {d.status && <span>&bull; {d.status}</span>}
                             {d.description && <span>&bull; {d.description}</span>}
                           </div>
-                          <span>Rp {((d.qty ?? 0) * (d.price ?? 0)).toLocaleString('id-ID')}</span>
+                          <span>{formatCurrency(((d.qty ?? 0) * (d.price ?? 0)))}</span>
                         </div>
                       )
                     })}
                     <div className="flex justify-between font-semibold border-t pt-2">
                       <span>Total</span>
-                      <span>Rp {watchAll.total_price?.toLocaleString('id-ID')}</span>
+                      <span>{formatCurrency(watchAll.total_price ?? 0)}</span>
                     </div>
                   </div>
 

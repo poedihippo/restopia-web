@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDateShort } from '@/utils/date';
 
 import React, { useMemo, useState, useEffect } from 'react'
@@ -7,7 +8,6 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
-
 const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
   credit: { label: 'Credit', color: 'var(--warning)', bg: 'var(--warning-bg)' },
@@ -24,8 +24,6 @@ const firstOfMonth = () => {
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
 }
 const today = () => new Date().toISOString().split('T')[0]
-const fmtRp = (v: number | null | undefined) =>
-  'Rp ' + Number(v ?? 0).toLocaleString('id-ID')
 
 const inputStyle: React.CSSProperties = {
   padding: '7px 10px',
@@ -87,6 +85,7 @@ const getAging = (dateStr: string) => {
 export default function CreditReport() {
   const router = useRouter()
   const { user, isSuperadmin } = useAuth()
+  const fmtRp = (v: number | null | undefined) => formatCurrency(v ?? 0)
 
   const [dateFrom, setDateFrom] = useState(firstOfMonth())
   const [dateTo, setDateTo] = useState(today())

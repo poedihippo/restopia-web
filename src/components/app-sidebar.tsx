@@ -134,6 +134,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Calculator,
         children: [
           { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts', permission: 'chart-of-account.read' },
+          { label: 'Account Settings', href: '/accounting/account-settings', permission: 'account-setting.read' },
           { label: 'Account Categories', href: '/accounting/account-categories', permission: 'account-category.read' },
           { label: 'Account Types', href: '/accounting/account-types', permission: 'account-type.read' },
           { label: 'Journals', href: '/accounting/journals', permission: 'journal.read' },

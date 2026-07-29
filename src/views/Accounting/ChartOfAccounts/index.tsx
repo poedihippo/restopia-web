@@ -72,13 +72,15 @@ export default function ChartOfAccountsView() {
   const [editData, setEditData] = useState<CoA | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<number>(0)
+  const [filterType, setFilterType] = useState<string>('')
+  const [filterParent, setFilterParent] = useState<string>('')
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['chart-of-accounts', page, debouncedSearch],
-    queryFn: () => chartOfAccountsService.list({ page, per_page: 20, sort: 'code', include: 'account_category,account_type', 'filter[search]': debouncedSearch || undefined }).then((r) => r.data),
+    queryKey: ['chart-of-accounts', page, debouncedSearch, filterType, filterParent],
+    queryFn: () => chartOfAccountsService.list({ page, per_page: 20, sort: 'code', include: 'account_category,account_type', 'filter[search]': debouncedSearch || undefined, 'filter[account_type_id]': filterType || undefined, 'filter[parent_id]': filterParent || undefined }).then((r) => r.data),
   })
 
   const { data: categoriesData } = useQuery({
@@ -161,12 +163,20 @@ export default function ChartOfAccountsView() {
         )}
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
         <div style={{ position: 'relative', width: 320 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account code or name..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none' }}>
+          <option value="">All Types</option>
+          {allTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <select value={filterParent} onChange={(e) => setFilterParent(e.target.value)} style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none' }}>
+          <option value="">All Parents</option>
+          {items.filter(i => i.is_header).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>

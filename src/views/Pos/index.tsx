@@ -58,13 +58,18 @@ export default function PosView() {
           isLoading={logic.isLoading}
           hoveredCard={logic.hoveredCard}
           setHoveredCard={logic.setHoveredCard}
-          addGroupToCart={logic.addGroupToCart}
+          addLotToCart={logic.addLotToCart}
+          batchPickerGroup={logic.batchPickerGroup}
+          setBatchPickerGroup={logic.setBatchPickerGroup}
           orderType={logic.orderType}
           bundleSearch={logic.bundleSearch}
           setBundleSearch={logic.setBundleSearch}
           isBundleLoading={logic.isBundleLoading}
           bundles={logic.bundles}
           addBundleToCart={logic.addBundleToCart}
+          addConfiguredBundleToCart={logic.addConfiguredBundleToCart}
+          bundlePickerGroup={logic.bundlePickerGroup}
+          setBundlePickerGroup={logic.setBundlePickerGroup}
         />
       </div>
 

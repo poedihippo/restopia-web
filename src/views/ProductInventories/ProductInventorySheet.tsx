@@ -12,8 +12,11 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
+import { getCanReadPrice } from '@/utils/price'
+
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
+  if (!getCanReadPrice()) return '***'
   return Number(n).toLocaleString('id-ID')
 }
 
@@ -411,6 +414,7 @@ export default function ProductInventorySheet({
                 type="text"
                 inputMode="numeric"
                 value={formatNumber(watch('base_price'))}
+                disabled={!getCanReadPrice()}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^\d]/g, '')
                   setValue('base_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -419,6 +423,7 @@ export default function ProductInventorySheet({
                 style={{
                   ...inputStyle,
                   border: `1px solid ${errors.base_price ? 'var(--destructive)' : 'var(--border)'}`,
+                  ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
                 }}
               />
               {errors.base_price && (
@@ -436,6 +441,7 @@ export default function ProductInventorySheet({
                 type="text"
                 inputMode="numeric"
                 value={formatNumber(watch('online_price'))}
+                disabled={!getCanReadPrice()}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^\d]/g, '')
                   setValue('online_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -444,6 +450,7 @@ export default function ProductInventorySheet({
                 style={{
                   ...inputStyle,
                   border: `1px solid ${errors.online_price ? 'var(--destructive)' : 'var(--border)'}`,
+                  ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
                 }}
               />
               {errors.online_price && (

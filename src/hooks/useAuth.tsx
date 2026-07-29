@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { queryClient } from "./query";
 import api from "./useApi";
 import { authService } from "@/services/auth.service";
+import { setPricePermission } from "@/utils/price";
 
 type AuthContextType = {
   user: IUserMe | null;
@@ -60,6 +61,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     setUser(null);
     setIsLoggedIn(false);
+    setPricePermission(false);
 
     queryClient.clear();
     queryClient.removeQueries();
@@ -91,7 +93,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           );
           if (ignore) return;
           if (response.data && response.data.data) {
-            setUser(response.data.data);
+            const userData = response.data.data;
+            setUser(userData);
+            setPricePermission(
+              userData.type === "superadmin" || 
+              (userData.permissions?.some((p: any) => p.name === "common.price.read") ?? false)
+            );
           } else {
             logout();
           }
@@ -165,7 +172,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const response = await api.get("auth/me?include=client");
       if (response.data && response.data.data) {
-        setUser(response.data.data);
+        const userData = response.data.data;
+        setUser(userData);
+        setPricePermission(
+          userData.type === "superadmin" || 
+          (userData.permissions?.some((p: any) => p.name === "common.price.read") ?? false)
+        );
       }
     } catch (error) {
       console.error("Failed to fetch user after login:", error);
@@ -180,7 +192,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         "auth/me?include=created_by,updated_by,branch,branch.company,roles,permissions,branches"
       );
       if (response.data && response.data.data) {
-        setUser(response.data.data);
+        const userData = response.data.data;
+        setUser(userData);
+        setPricePermission(
+          userData.type === "superadmin" || 
+          (userData.permissions?.some((p: any) => p.name === "common.price.read") ?? false)
+        );
       }
     } catch (error) {
       console.error("Failed to refresh user:", error);

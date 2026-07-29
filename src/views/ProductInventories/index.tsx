@@ -1,4 +1,5 @@
 'use client'
+import { formatCurrency } from '@/utils/price';
 import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -920,14 +921,14 @@ export default function ProductInventoriesView() {
                     label: 'Base Price',
                     value:
                       selectedItem.base_price != null
-                        ? `Rp ${selectedItem.base_price.toLocaleString('id-ID')}`
+                        ? formatCurrency(selectedItem.base_price)
                         : undefined,
                   },
                   {
                     label: 'Online Price',
                     value:
                       selectedItem.online_price != null
-                        ? `Rp ${selectedItem.online_price.toLocaleString('id-ID')}`
+                        ? formatCurrency(selectedItem.online_price)
                         : undefined,
                   },
                   { label: 'Status', value: selectedItem.status },
