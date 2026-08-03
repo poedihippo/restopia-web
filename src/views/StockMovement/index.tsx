@@ -399,9 +399,9 @@ export default function StockMovementView() {
                       if (!refType) {
                         return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
                       }
-                      const code = item.reference?.code
+                      const code = item.reference_code
                       const label =
-                        code ??
+                        code ||
                         (refId != null
                           ? `${REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' ')} #${refId}`
                           : REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' '))
@@ -410,7 +410,14 @@ export default function StockMovementView() {
                         return (
                           <Link
                             href={buildHref(refId)}
+                            title={label}
                             style={{
+                              display: 'inline-block',
+                              maxWidth: 160,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              verticalAlign: 'bottom',
                               fontSize: 13,
                               fontWeight: 500,
                               color: 'var(--accent)',
@@ -421,7 +428,23 @@ export default function StockMovementView() {
                           </Link>
                         )
                       }
-                      return <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{label}</span>
+                      return (
+                        <span
+                          title={label}
+                          style={{
+                            display: 'inline-block',
+                            maxWidth: 160,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            verticalAlign: 'bottom',
+                            fontSize: 13,
+                            color: 'var(--foreground)',
+                          }}
+                        >
+                          {label}
+                        </span>
+                      )
                     })()}
                   </td>
                   {/* Product */}
