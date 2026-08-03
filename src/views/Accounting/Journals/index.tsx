@@ -194,8 +194,19 @@ export default function JournalsView() {
   const numInputStyle: React.CSSProperties = { ...inputStyle, textAlign: 'right' }
   const smallInputStyle: React.CSSProperties = { ...inputStyle, padding: '7px 10px', fontSize: 13 }
 
+  // Detail modal: fetch the journal by id for its lines — the list query is kept light and doesn't include them.
+  const { data: detailData, isLoading: detailLoading } = useQuery({
+    queryKey: ['journal-detail', detailItem?.id],
+    enabled: !!detailItem?.id,
+    queryFn: () =>
+      journalsService
+        .findById(detailItem!.id, { include: 'period,journal_details,journal_details.chart_of_account' })
+        .then((r) => r.data),
+  })
+  const fetchedJournal: Journal | undefined = (detailData as any)?.data ?? (detailData as any)
+
   // Detail modal: debit/credit lines, standard journal presentation (debits first, then credits).
-  const detailLines = detailItem?.journal_details ?? []
+  const detailLines = fetchedJournal?.journal_details ?? []
   const sortedDetailLines = [...detailLines].sort((a, b) => {
     const aIsDebit = Number(a.debit) > 0 ? 0 : 1
     const bIsDebit = Number(b.debit) > 0 ? 0 : 1
@@ -474,7 +485,13 @@ export default function JournalsView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedDetailLines.length === 0 ? (
+                  {detailLoading ? (
+                    <tr>
+                      <td colSpan={3} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : sortedDetailLines.length === 0 ? (
                     <tr>
                       <td colSpan={3} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
                         No journal lines
