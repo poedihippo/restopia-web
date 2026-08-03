@@ -11,8 +11,8 @@ export const paymentsService = {
     api.patch(`/payments/${id}`, data),
   allocate: (id: number, data: any) =>
     api.post(`/payments/${id}/allocate`, data),
-  void: (id: number) =>
-    api.post(`/payments/${id}/void`),
+  void: (id: number, payload?: any) =>
+    api.post(`/payments/${id}/void`, payload),
   delete: (id: number) =>
     api.delete(`/payments/${id}`),
 }

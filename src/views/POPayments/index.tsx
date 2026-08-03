@@ -98,6 +98,7 @@ export default function POPaymentsView() {
   const [date, setDate] = useState<string>(todayInputDate())
   const [description, setDescription] = useState('')
   const [voidConfirmId, setVoidConfirmId] = useState<number | null>(null)
+  const [voidReason, setVoidReason] = useState('')
 
   // ── Dropdown sources ──────────────────────────────────────────────────────
   const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
@@ -276,11 +277,13 @@ export default function POPaymentsView() {
   const history: DisbursePayment[] = (historyData as any)?.data ?? []
 
   const voidMutation = useMutation({
-    mutationFn: (id: number) => paymentsService.void(id),
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      paymentsService.void(id, { reason }),
     onSuccess: () => {
       invalidateAll()
       toast.success('Payment voided')
       setVoidConfirmId(null)
+      setVoidReason('')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to void payment'),
   })
@@ -583,7 +586,7 @@ export default function POPaymentsView() {
               </thead>
               <tbody>
                 {history.map((p) => {
-                  const isVoiding = voidMutation.isPending && voidMutation.variables === p.id
+                  const isVoiding = voidMutation.isPending && voidMutation.variables?.id === p.id
                   return (
                     <tr key={p.id}>
                       <td style={{ ...tdStyle, fontFamily: 'monospace', fontWeight: 600 }}>
@@ -660,7 +663,10 @@ export default function POPaymentsView() {
           }}
         >
           <div
-            onClick={() => setVoidConfirmId(null)}
+            onClick={() => {
+              setVoidConfirmId(null)
+              setVoidReason('')
+            }}
             style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
           />
           <div
@@ -686,14 +692,28 @@ export default function POPaymentsView() {
             >
               Void Payment
             </h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 16px' }}>
               Are you sure you want to void this payment? This will reverse the journal entries and free up the
               purchase order&apos;s outstanding balance.
             </p>
+            <div style={{ marginBottom: 24 }}>
+              <span style={labelStyle}>Reason for voiding</span>
+              <input
+                type="text"
+                value={voidReason}
+                onChange={(e) => setVoidReason(e.target.value)}
+                placeholder="e.g. Duplicate payment, wrong amount"
+                autoFocus
+                style={inputBase}
+              />
+            </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
                 type="button"
-                onClick={() => setVoidConfirmId(null)}
+                onClick={() => {
+                  setVoidConfirmId(null)
+                  setVoidReason('')
+                }}
                 style={{
                   padding: '7px 16px',
                   background: 'var(--surface)',
@@ -709,8 +729,12 @@ export default function POPaymentsView() {
               </button>
               <button
                 type="button"
-                onClick={() => voidConfirmId !== null && voidMutation.mutate(voidConfirmId)}
-                disabled={voidMutation.isPending}
+                onClick={() =>
+                  voidConfirmId !== null &&
+                  voidReason.trim() &&
+                  voidMutation.mutate({ id: voidConfirmId, reason: voidReason.trim() })
+                }
+                disabled={voidMutation.isPending || voidReason.trim().length === 0}
                 style={{
                   padding: '7px 16px',
                   background: 'var(--destructive)',
@@ -719,8 +743,9 @@ export default function POPaymentsView() {
                   fontSize: 13,
                   fontWeight: 500,
                   color: 'white',
-                  cursor: 'pointer',
-                  opacity: voidMutation.isPending ? 0.7 : 1,
+                  cursor:
+                    voidMutation.isPending || voidReason.trim().length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: voidMutation.isPending || voidReason.trim().length === 0 ? 0.6 : 1,
                 }}
               >
                 {voidMutation.isPending ? 'Voiding...' : 'Void'}
