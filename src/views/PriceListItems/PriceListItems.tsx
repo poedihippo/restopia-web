@@ -39,7 +39,7 @@ export default function PriceListItemsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['price-list-items', priceListId, page, debouncedSearch],
-    queryFn: () => priceListsService.listItems(priceListId, { page, search: debouncedSearch, include: 'product_uom' }),
+    queryFn: () => priceListsService.listItems(priceListId, { page, 'filter[search]': debouncedSearch, include: 'product_uom' }),
     enabled: !!priceListId
   })
 

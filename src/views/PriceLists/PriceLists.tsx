@@ -29,7 +29,7 @@ export default function PriceListsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['price-lists', page, debouncedSearch],
-    queryFn: () => priceListsService.list({ page, search: debouncedSearch }),
+    queryFn: () => priceListsService.list({ page, 'filter[search]': debouncedSearch }),
   })
 
   const deleteMutation = useMutation({
