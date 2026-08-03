@@ -143,6 +143,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Fiscal Years', href: '/accounting/fiscal-years', permission: 'fiscal-year.read' },
           { label: 'Periods', href: '/accounting/periods', permission: 'period.read' },
           { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.read' },
+          { label: 'Trial Balance', href: '/accounting/reports/trial-balance', permission: 'journal.read' },
         ],
       },
     ],
