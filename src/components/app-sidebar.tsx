@@ -98,6 +98,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.read' },
           { label: 'Requested PO', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
           { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.read' },
+          { label: 'Payment PO', href: '/purchase/po-payments', permission: 'payment.create' },
         ],
       },
       {
