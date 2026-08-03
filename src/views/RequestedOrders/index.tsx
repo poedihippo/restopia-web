@@ -41,6 +41,7 @@ interface RequestedPO {
       code?: string
       product?: { name: string }
       uom?: { name: string }
+      franchise_price?: number
     }
   }>
 }
@@ -85,8 +86,9 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 
 export default function RequestedOrdersView() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const myBranchId = user?.branch?.id
+  const canSeeFranchisePrice = hasPermission('common.franchise-price.read')
   const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
@@ -113,7 +115,7 @@ export default function RequestedOrdersView() {
           page,
           per_page: 15,
           include:
-            'branch,supplier_branch,purchase_order_details',
+            'branch,supplier_branch,purchase_order_details,purchase_order_details.product_uom',
           sort: '-created_at',
           'filter[supplier_branch_id]': myBranchId || undefined,
           'filter[type]': 'branch',
@@ -634,6 +636,19 @@ export default function RequestedOrdersView() {
                             >
                               {(d.qty ?? 0).toLocaleString('id-ID')}
                             </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: 'var(--accent)',
+                                minWidth: 90,
+                                textAlign: 'right',
+                              }}
+                            >
+                              {canSeeFranchisePrice
+                                ? `Rp ${(d.product_uom?.franchise_price ?? 0).toLocaleString('id-ID')}`
+                                : '***'}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -642,6 +657,40 @@ export default function RequestedOrdersView() {
                         No items loaded
                       </span>
                     )}
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginTop: 10,
+                        padding: '8px 12px',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: 'var(--foreground-muted)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.6px',
+                        }}
+                      >
+                        Franchise Total
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 700,
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {canSeeFranchisePrice
+                          ? `Rp ${(item.total_price ?? 0).toLocaleString('id-ID')}`
+                          : '***'}
+                      </span>
+                    </div>
 
                     {item.description && (
                       <div
