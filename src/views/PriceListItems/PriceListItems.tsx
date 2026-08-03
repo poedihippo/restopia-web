@@ -155,7 +155,13 @@ export default function PriceListItemsView() {
                 items.map((item: any) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
-                      {item.product_uom?.product?.name} - {item.product_uom?.uom?.code}
+                      {(() => {
+                        const pu = item.product_uom
+                        const label = pu
+                          ? `${pu.product?.name ?? 'Unknown'} — ${pu.uom?.name ?? pu.uom?.code ?? ''}`.trim()
+                          : '-'
+                        return label
+                      })()}
                     </td>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
                       {formatCurrency(item.base_price)}
