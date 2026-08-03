@@ -54,7 +54,7 @@ export default function PriceListItemsView() {
       toastMutationApiError(err, 'Failed to delete price list item'),
   })
 
-  const items = data?.data?.data?.data ?? []
+  const items = (data as any)?.data?.data ?? []
   const canReadFranchisePrice = hasPermission('common.franchise-price.read')
 
   return (
@@ -148,7 +148,7 @@ export default function PriceListItemsView() {
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
+                items.map((item: any) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
                       {item.product_uom?.product?.name} - {item.product_uom?.uom?.code}

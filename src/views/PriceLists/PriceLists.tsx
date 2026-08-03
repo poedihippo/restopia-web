@@ -43,7 +43,7 @@ export default function PriceListsView() {
       toastMutationApiError(err, 'Failed to delete price list'),
   })
 
-  const lists = data?.data?.data?.data ?? []
+  const lists = (data as any)?.data?.data ?? []
 
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -123,7 +123,7 @@ export default function PriceListsView() {
                   </td>
                 </tr>
               ) : (
-                lists.map((item) => (
+                lists.map((item: any) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
                       {item.name}
