@@ -12,7 +12,6 @@ import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  description: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -32,15 +31,15 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { name: '', description: '' },
+    defaultValues: { name: '' },
   })
 
   useEffect(() => {
     if (open) {
       if (editData) {
-        reset({ name: editData.name, description: editData.description ?? '' })
+        reset({ name: editData.name })
       } else {
-        reset({ name: '', description: '' })
+        reset({ name: '' })
       }
     }
   }, [editData, reset, open])
@@ -205,38 +204,6 @@ export default function CategorySheet({ open, onClose, editData }: CategorySheet
                 {errors.name.message}
               </span>
             )}
-          </div>
-
-          {/* Description field */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-              }}
-            >
-              Description
-            </label>
-            <textarea
-              {...register('description')}
-              rows={3}
-              placeholder="Optional description"
-              style={{
-                width: '100%',
-                padding: '9px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
-                color: 'var(--foreground)',
-                background: 'var(--surface)',
-                outline: 'none',
-                fontFamily: 'var(--font-sans)',
-                resize: 'vertical',
-                minHeight: 80,
-                boxSizing: 'border-box',
-              }}
-            />
           </div>
         </form>
 

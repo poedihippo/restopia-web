@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { operationsService } from '@/services/operations.service'
 import { X, Loader2 } from 'lucide-react'
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   branch_id: z.coerce.number().optional(),
@@ -62,7 +63,7 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
       toast.success('Operation created')
       onClose()
     },
-    onError: () => toast.error('Failed to create Operation'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create Operation'),
   })
 
   const updateMutation = useMutation({
@@ -72,7 +73,7 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
       toast.success('Operation updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update Operation'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update Operation'),
   })
 
   const onSubmit = (data: FormValues) => {

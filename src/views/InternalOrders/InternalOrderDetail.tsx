@@ -47,7 +47,7 @@ interface InternalOrderFull {
   }>
 }
 
-const STATUS_META = {
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: {
     label: 'Pending',
     color: 'var(--warning)',
@@ -55,6 +55,31 @@ const STATUS_META = {
   },
   final: {
     label: 'Final',
+    color: 'var(--accent)',
+    bg: 'var(--accent-bg)',
+  },
+  accepted: {
+    label: 'Accepted',
+    color: 'var(--success)',
+    bg: 'var(--success-bg)',
+  },
+  rejected: {
+    label: 'Rejected',
+    color: 'var(--destructive)',
+    bg: 'var(--destructive-bg)',
+  },
+  fulfilled: {
+    label: 'Fulfilled',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  partially_delivered: {
+    label: 'Partially Delivered',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  delivered: {
+    label: 'Delivered',
     color: 'var(--success)',
     bg: 'var(--success-bg)',
   },

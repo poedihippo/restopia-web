@@ -19,6 +19,7 @@ import {
   FileText,
   Hash,
   ChevronRight,
+  ShoppingCart,
 } from 'lucide-react'
 
 interface PurchaseOrderDetailProps {
@@ -55,7 +56,7 @@ interface PurchaseOrderFull {
   }>
 }
 
-const STATUS_META = {
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: {
     label: 'Pending',
     color: 'var(--warning)',
@@ -63,6 +64,31 @@ const STATUS_META = {
   },
   final: {
     label: 'Final',
+    color: 'var(--accent)',
+    bg: 'var(--accent-bg)',
+  },
+  accepted: {
+    label: 'Accepted',
+    color: 'var(--success)',
+    bg: 'var(--success-bg)',
+  },
+  rejected: {
+    label: 'Rejected',
+    color: 'var(--destructive)',
+    bg: 'var(--destructive-bg)',
+  },
+  fulfilled: {
+    label: 'Fulfilled',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  partially_delivered: {
+    label: 'Partially Delivered',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  delivered: {
+    label: 'Delivered',
     color: 'var(--success)',
     bg: 'var(--success-bg)',
   },
@@ -269,6 +295,28 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
 
         {/* Right */}
         <div style={{ display: 'flex', gap: 8 }}>
+          {order?.status === 'final' && (
+            <button
+              type="button"
+              onClick={() => router.push(`/sales/sales-orders/create?po_id=${id}`)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'white',
+                cursor: 'pointer',
+              }}
+            >
+              <ShoppingCart size={13} />
+              Create Sales Order
+            </button>
+          )}
           <button
             type="button"
             onClick={() => router.push(`/purchase/purchase-orders/${id}/edit`)}

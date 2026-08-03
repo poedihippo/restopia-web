@@ -15,6 +15,8 @@ import {
   Pencil,
   Trash2,
   PackageSearch,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 
 interface InternalOrder {
@@ -36,6 +38,11 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
     color: 'var(--warning)',
     bg: 'var(--warning-bg)',
   },
+  final: {
+    label: 'Final',
+    color: 'var(--accent)',
+    bg: 'var(--accent-bg)',
+  },
   accepted: {
     label: 'Accepted',
     color: 'var(--success)',
@@ -51,8 +58,13 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
     color: 'var(--info)',
     bg: 'var(--info-bg)',
   },
-  final: {
-    label: 'Final',
+  partially_delivered: {
+    label: 'Partially Delivered',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  delivered: {
+    label: 'Delivered',
     color: 'var(--success)',
     bg: 'var(--success-bg)',
   },
@@ -62,11 +74,11 @@ export default function InternalOrdersView() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission, user } = useAuth()
-  const canRead = hasPermission("internal-order.read");
+  const canRead = hasPermission("internal-purchase-order.read");
   const myBranchId = user?.branch?.id
-  const canCreate = hasPermission('internal-order.create')
-  const canEdit = hasPermission('internal-order.update')
-  const canDelete = hasPermission('internal-order.delete')
+  const canCreate = hasPermission('internal-purchase-order.create')
+  const canEdit = hasPermission('internal-purchase-order.update')
+  const canDelete = hasPermission('internal-purchase-order.delete')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -74,6 +86,11 @@ export default function InternalOrdersView() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -81,19 +98,19 @@ export default function InternalOrdersView() {
   }, [search])
 
   // Internal orders are purchase orders sourced from another branch (type
-  // 'branch' / supplier_branch_id present). The PO endpoint has no null/not-null
-  // filter, so we fetch a generous page and client-filter to branch-sourced rows.
+  // 'branch' / supplier_branch_id present).
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['internal-orders', debouncedSearch, statusFilter, dateFrom, dateTo, myBranchId],
+    queryKey: ['internal-orders', page, debouncedSearch, statusFilter, dateFrom, dateTo, myBranchId],
     enabled: !!myBranchId,
     queryFn: () =>
       purchaseOrdersService
         .list({
-          page: 1,
-          per_page: 100,
+          page,
+          per_page: 15,
           include: 'supplier_branch,supplier_branch.company,branch',
           sort: '-created_at',
           'filter[branch_id]': myBranchId || undefined,
+          'filter[type]': 'branch',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
           'filter[date_gte]': dateFrom || undefined,
@@ -102,11 +119,9 @@ export default function InternalOrdersView() {
         .then((r) => r.data),
   })
 
-  const allItems: InternalOrder[] = (data as any)?.data ?? []
-  const items = allItems.filter((o: any) => {
-    const po = o as any
-    return po.type === 'branch' || !!po.supplier_branch_id || !!po.supplier_branch
-  })
+  const items: InternalOrder[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
+  const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => purchaseOrdersService.delete(id),
@@ -200,7 +215,7 @@ export default function InternalOrdersView() {
             cursor: 'pointer',
           }}>
           <Plus size={15} />New Order
-                              </button>)}
+        </button>)}
       </div>
       {/* Toolbar */}
       <div
@@ -485,6 +500,58 @@ export default function InternalOrdersView() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {meta && lastPage > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 8,
+            marginTop: 16,
+          }}
+        >
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
+              cursor: page === 1 ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+            }}
+          >
+            <ChevronLeft size={15} />
+          </button>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+            Page {page} of {lastPage}
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
+            disabled={page === lastPage}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+              color: page === lastPage ? 'var(--foreground-subtle)' : 'var(--foreground)',
+              cursor: page === lastPage ? 'not-allowed' : 'pointer',
+              fontSize: 13,
+            }}
+          >
+            <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
+
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div

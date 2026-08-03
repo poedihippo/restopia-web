@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { companiesService } from '@/services/companies.service'
 import { X, Loader2 } from 'lucide-react'
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   name: z.string().min(1, 'Company name is required'),
@@ -77,7 +78,7 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
       toast.success('Company created')
       onClose()
     },
-    onError: () => toast.error('Failed to create company'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create company'),
   })
 
   const updateMutation = useMutation({
@@ -87,7 +88,7 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
       toast.success('Company updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update company'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update company'),
   })
 
   const onSubmit = (data: FormValues) => {

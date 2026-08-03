@@ -91,7 +91,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
           .list({
             page,
             per_page: 100,
-            include: 'product_uom,product_uom.product,product_uom.uom',
+            include: 'product_uom',
           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []

@@ -1,13 +1,17 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { operationRulesService } from '@/services/operation-rules.service'
+import { branchesService } from '@/services/branches.service'
 import { X, Loader2 } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
+import { useAuth } from '@/hooks/useAuth'
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   branch_id: z.coerce.number().optional(),
@@ -25,12 +29,25 @@ interface OperationRuleSheetProps {
 }
 
 export default function OperationRuleSheet({ open, onClose, editData }: OperationRuleSheetProps) {
+  const { user } = useAuth()
   const qc = useQueryClient()
+
+  const { data: branchesData, isLoading: branchesLoading } = useQuery({
+    queryKey: ['branches', 'list-all'],
+    queryFn: () => branchesService.list({ limit: 1000 }).then((r) => r.data),
+  })
+  const branches = (branchesData as any)?.data ?? []
+  const branchOptions = branches.map((b: any) => ({
+    value: b.id as number,
+    label: (b.name as string) ?? '',
+    sublabel: b.code as string | undefined,
+  }))
 
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -46,7 +63,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
   useEffect(() => {
     if (editData) {
       reset({
-        branch_id: editData.branch_id ?? 0,
+        branch_id: editData.branch_id ?? (user as any)?.employee?.branch_id ?? 0,
         operation_mode: editData.operation_mode ?? '',
         shift_mode: editData.shift_mode ?? '',
         auto_open_cron: editData.auto_open_cron ?? '',
@@ -54,14 +71,14 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
       })
     } else {
       reset({
-        branch_id: 0,
+        branch_id: (user as any)?.employee?.branch_id ?? 0,
         operation_mode: '',
         shift_mode: '',
         auto_open_cron: '',
         auto_close_cron: '',
       })
     }
-  }, [editData, open, reset])
+  }, [editData, open, reset, user])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => operationRulesService.create(data as any),
@@ -70,7 +87,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
       toast.success('OperationRule created')
       onClose()
     },
-    onError: () => toast.error('Failed to create OperationRule'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create OperationRule'),
   })
 
   const updateMutation = useMutation({
@@ -80,7 +97,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
       toast.success('OperationRule updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update OperationRule'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update OperationRule'),
   })
 
   const onSubmit = (data: FormValues) => {
@@ -109,9 +126,20 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch ID</label>
-              <input
-                {...register('branch_id')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              <Controller
+                name="branch_id"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? 0}
+                    onChange={field.onChange}
+                    options={branchOptions}
+                    placeholder="Select branch..."
+                    searchPlaceholder="Search branch..."
+                    loading={branchesLoading}
+                    error={errors.branch_id?.message as string | undefined}
+                  />
+                )}
               />
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}
             </div>

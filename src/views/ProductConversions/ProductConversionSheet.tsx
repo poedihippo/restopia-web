@@ -383,7 +383,7 @@ export default function ProductConversionSheet({
                   <SearchableSelect
                     value={field.value ?? 0}
                     onChange={field.onChange}
-                    options={uomOptions}
+                    options={uomOptions.filter((uom: any) => uom.value !== watch('uom_id'))}
                     placeholder="To UOM"
                     searchPlaceholder="Search UOMs..."
                     loading={uomsLoading}

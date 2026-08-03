@@ -72,6 +72,8 @@ export interface UserRequest {
   role_ids?: number[]
 }
 
+
+
 // Product Categories
 export interface ProductCategoryRequest {
   name: string
@@ -108,6 +110,7 @@ export interface ProductUomRequest {
   code?: string
   base_price: number
   online_price?: number
+  franchise_price?: number
   price_editable?: boolean
   is_default?: boolean
 }
@@ -116,18 +119,21 @@ export interface ProductUomRequest {
 export interface ProductInventoryRequest {
   product_uom_id: number
   code: string
-  base_price: number
-  online_price: number
-  price_editable?: boolean
   expiry_date?: string
   status: 'active' | 'inactive'
 }
 
+export interface BulkUpdateProductInventoryItem {
+  id: number
+  stock?: number
+}
+
+export interface BulkUpdateProductInventoryRequest {
+  items: BulkUpdateProductInventoryItem[]
+}
+
 export interface ProductInventoryUpdateRequest {
   code?: string
-  base_price?: number
-  online_price?: number
-  price_editable?: boolean
   expiry_date?: string
   status?: 'active' | 'inactive'
 }
@@ -140,9 +146,6 @@ export interface ProductInventory {
   stock?: number
   qty?: number
   min_qty?: number
-  base_price?: number
-  online_price?: number
-  price_editable?: boolean
   expiry_date?: string
   status?: 'active' | 'inactive'
   created_at?: string
@@ -231,6 +234,7 @@ export interface PurchaseOrderRequest {
   branch_id?: number
   date: string
   total_price: number
+  type: 'offline' | 'online' | 'franchise'
   status: 'pending' | 'final'
   description?: string
   details: PurchaseOrderDetail[]
@@ -340,7 +344,7 @@ export interface SalesOrderDetail {
 }
 export interface SalesOrderRequest {
   code?: string
-  type: 'offline' | 'online'
+  type: 'offline' | 'online' | 'franchise'
   customer_id?: number | null
   customer_name?: string
   customer_phone?: string
@@ -420,4 +424,51 @@ export interface PaymentUpdateRequest {
   payment_method_id: number
   amount: number
   description?: string
+}
+
+// Bulk Product Inventories
+export interface BulkUpdateProductInventoryItem {
+  id: number
+  stock?: number
+  min_qty?: number
+}
+
+export interface BulkUpdateProductInventoryRequest {
+  items: BulkUpdateProductInventoryItem[]
+}
+
+// Price Lists
+export interface PriceList {
+  id: number
+  company_id: number
+  name: string
+  is_active: boolean
+}
+
+export interface PriceListRequest {
+  name: string
+  is_active?: boolean
+}
+
+export interface PriceListItem {
+  id: number
+  price_list_id: number
+  product_uom_id: number
+  base_price: number
+  online_price: number
+  franchise_price: number
+  product_uom?: any
+}
+
+export interface BulkUpsertPriceListItem {
+  id?: number
+  price_list_id?: number
+  product_uom_id: number
+  base_price: number
+  online_price: number
+  franchise_price: number
+}
+
+export interface BulkUpsertPriceListItemRequest {
+  items: BulkUpsertPriceListItem[]
 }

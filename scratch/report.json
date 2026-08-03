@@ -1,0 +1,211 @@
+[
+  {
+    "file": "src\\views\\AccountSettings\\index.tsx",
+    "invalidIncludes": [
+      "account_setting_key_entity"
+    ],
+    "fullIncludeString": "account_setting_key_entity,chart_of_account"
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryForm.tsx",
+    "invalidIncludes": [
+      "product_uom_batch.product_uom"
+    ],
+    "fullIncludeString": "product_uom_batch,product_uom_batch.product_uom"
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryForm.tsx",
+    "invalidIncludes": [
+      "buyer_branch"
+    ],
+    "fullIncludeString": "buyer_branch,sales_order_details"
+  },
+  {
+    "file": "src\\views\\Media\\useMedia.ts",
+    "invalidIncludes": [
+      "material_product",
+      "material_uom"
+    ],
+    "fullIncludeString": "created_by,updated_by,material_product,material_uom"
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "invalidIncludes": [
+      "sales_order_details.product_inventory",
+      "sales_order_details.product_inventory.product_uom",
+      "sales_order_details.product_inventory.product_uom.product"
+    ],
+    "fullIncludeString": "sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer"
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "invalidIncludes": [
+      "sales_order_details.product_inventory",
+      "sales_order_details.product_inventory.product_uom",
+      "sales_order_details.product_inventory.product_uom.product"
+    ],
+    "fullIncludeString": "sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer"
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "invalidIncludes": [
+      "bundle_details.product_uom",
+      "bundle_details.product_uom.product",
+      "bundle_details.product_uom.product_inventories",
+      "bundle_details.product_uom.product_inventories.product_uom_batch"
+    ],
+    "fullIncludeString": "bundle_details,bundle_details.product_uom,bundle_details.product_uom.product,bundle_details.product_uom.product_inventories,bundle_details.product_uom.product_inventories.product_uom_batch"
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "invalidIncludes": [
+      "product.product_category"
+    ],
+    "fullIncludeString": "product,product.product_category,uom"
+  },
+  {
+    "file": "src\\views\\Pos\\index.backup.tsx",
+    "invalidIncludes": [
+      "product.product_category"
+    ],
+    "fullIncludeString": "product,product.product_category,uom"
+  },
+  {
+    "file": "src\\views\\PriceListItems\\PriceListItems.tsx",
+    "invalidIncludes": [
+      "product_uom.product"
+    ],
+    "fullIncludeString": "product_uom,product_uom.product"
+  },
+  {
+    "file": "src\\views\\Productions\\ProductionForm.tsx",
+    "invalidIncludes": [
+      "product_uom.product",
+      "product_uom.uom",
+      "product_uom_batch.product_uom",
+      "product_uom_batch.product_uom.product",
+      "product_uom_batch.product_uom.uom"
+    ],
+    "fullIncludeString": "branch,product_uom,product_uom.product,product_uom.uom,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom"
+  },
+  {
+    "file": "src\\views\\Productions\\ProductionForm.tsx",
+    "invalidIncludes": [
+      "recipe_materials.product_uom",
+      "recipe_materials.product_uom.product",
+      "recipe_materials.product_uom.uom"
+    ],
+    "fullIncludeString": "recipe_materials,recipe_materials.product_uom,recipe_materials.product_uom.product,recipe_materials.product_uom.uom"
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\PurchaseOrderEdit.tsx",
+    "invalidIncludes": [
+      "purchase_order_details.product_uom",
+      "deliveries"
+    ],
+    "fullIncludeString": "branch,supplier,created_by,updated_by,purchase_order_details.product_uom,deliveries"
+  },
+  {
+    "file": "src\\views\\Receipts\\ReceiptDetail.tsx",
+    "invalidIncludes": [
+      "delivery.delivery_details"
+    ],
+    "fullIncludeString": "branch,delivery,delivery.delivery_details,receipt_details,created_by"
+  },
+  {
+    "file": "src\\views\\Receipts\\ReceiptEdit.tsx",
+    "invalidIncludes": [
+      "delivery.delivery_details"
+    ],
+    "fullIncludeString": "branch,delivery,delivery.delivery_details,receipt_details"
+  },
+  {
+    "file": "src\\views\\Recipes\\RecipeSheet.tsx",
+    "invalidIncludes": [
+      "product_uoms",
+      "product_uoms.uom"
+    ],
+    "fullIncludeString": "product_uoms,product_uoms.uom"
+  },
+  {
+    "file": "src\\views\\Recipes\\useRecipes.ts",
+    "invalidIncludes": [
+      "material_product",
+      "material_uom"
+    ],
+    "fullIncludeString": "created_by,updated_by,material_product,material_uom,product"
+  },
+  {
+    "file": "src\\views\\Reports\\SalesReport.tsx",
+    "invalidIncludes": [
+      "payments.payment_method"
+    ],
+    "fullIncludeString": "sales_order_details,payments.payment_method,branch"
+  },
+  {
+    "file": "src\\views\\SalesOrders\\Detail\\useSalesOrdersDetail.ts",
+    "invalidIncludes": [
+      "sales_order_details.product_inventory",
+      "sales_order_details.product_inventory.product_uom",
+      "sales_order_details.product_inventory.product_uom.product"
+    ],
+    "fullIncludeString": "branch,customer,sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product"
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderDetail.tsx",
+    "invalidIncludes": [
+      "buyer_branch"
+    ],
+    "fullIncludeString": "branch,customer,created_by,purchase_order,buyer_branch,credit_by,sales_order_details"
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderEdit.tsx",
+    "invalidIncludes": [
+      "buyer_branch"
+    ],
+    "fullIncludeString": "customer,purchase_order,buyer_branch,"
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderForm.tsx",
+    "invalidIncludes": [
+      "product_uom_batch.product_uom.product",
+      "product_uom.product"
+    ],
+    "fullIncludeString": "product_uom_batch.product_uom.product,product_uom.product"
+  },
+  {
+    "file": "src\\views\\StockMovement\\StockMovementSheet.tsx",
+    "invalidIncludes": [
+      "product_uom.product",
+      "product_uom.uom"
+    ],
+    "fullIncludeString": "product_uom,product_uom.product,product_uom.uom"
+  },
+  {
+    "file": "src\\views\\StockMovement\\useStockMovement.ts",
+    "invalidIncludes": [
+      "product_inventory.product_uom.product",
+      "product_inventory.product_uom.uom",
+      "product_inventory.product_uom_batch.product_uom.product",
+      "product_inventory.product_uom_batch.product_uom.uom",
+      "reference"
+    ],
+    "fullIncludeString": "created_by,branch,product_inventory,product_inventory.product_uom.product,product_inventory.product_uom.uom,product_inventory.product_uom_batch.product_uom.product,product_inventory.product_uom_batch.product_uom.uom,reference"
+  },
+  {
+    "file": "src\\views\\StockTransfer\\TransferInDetail.tsx",
+    "invalidIncludes": [
+      "delivery_details.product_uom",
+      "delivery_details.product_uom.product",
+      "delivery_details.product_uom.uom"
+    ],
+    "fullIncludeString": "branch,target_branch,delivery_details,delivery_details.product_uom,delivery_details.product_uom.product,delivery_details.product_uom.uom"
+  },
+  {
+    "file": "src\\views\\StockTransfer\\TransferOutForm.tsx",
+    "invalidIncludes": [
+      "product_uom_batch.product_uom"
+    ],
+    "fullIncludeString": "branch,product_uom_batch,product_uom_batch.product_uom"
+  }
+]

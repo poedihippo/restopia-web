@@ -16,6 +16,7 @@ const usePurchaseOrders = () => {
 
   const extraParams = useMemo(() => {
     const filter: Record<string, unknown> = {
+      type: 'supplier',
       branch_id: branchId,
       supplier_id: supplierId,
       supplier_branch_id: supplierBranchId,

@@ -1,0 +1,1083 @@
+[
+  {
+    "file": "src\\components\\top-bar.tsx",
+    "includeString": "company",
+    "includes": [
+      "company"
+    ]
+  },
+  {
+    "file": "src\\views\\Accounting\\AccountTypes\\index.tsx",
+    "includeString": "account_category",
+    "includes": [
+      "account_category"
+    ]
+  },
+  {
+    "file": "src\\views\\Accounting\\Budgets\\index.tsx",
+    "includeString": "chart_of_account,period",
+    "includes": [
+      "chart_of_account",
+      "period"
+    ]
+  },
+  {
+    "file": "src\\views\\Accounting\\ChartOfAccounts\\index.tsx",
+    "includeString": "account_category,account_type",
+    "includes": [
+      "account_category",
+      "account_type"
+    ]
+  },
+  {
+    "file": "src\\views\\Accounting\\Journals\\index.tsx",
+    "includeString": "period,journal_details",
+    "includes": [
+      "period",
+      "journal_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Accounting\\Periods\\index.tsx",
+    "includeString": "fiscal_year",
+    "includes": [
+      "fiscal_year"
+    ]
+  },
+  {
+    "file": "src\\views\\AccountSettings\\index.tsx",
+    "includeString": "account_setting_key_entity,chart_of_account",
+    "includes": [
+      "account_setting_key_entity",
+      "chart_of_account"
+    ]
+  },
+  {
+    "file": "src\\views\\Branches\\BranchSheet.tsx",
+    "includeString": "",
+    "includes": []
+  },
+  {
+    "file": "src\\views\\Bundles\\BundleSheet.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Bundles\\index.tsx",
+    "includeString": "bundle_details",
+    "includes": [
+      "bundle_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryDetail.tsx",
+    "includeString": "branch,target_branch,purchase_order,sales_order,created_by,delivery_details,",
+    "includes": [
+      "branch",
+      "target_branch",
+      "purchase_order",
+      "sales_order",
+      "created_by",
+      "delivery_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryDetail.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryEdit.tsx",
+    "includeString": "branch,target_branch,purchase_order,sales_order,delivery_details",
+    "includes": [
+      "branch",
+      "target_branch",
+      "purchase_order",
+      "sales_order",
+      "delivery_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryForm.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryForm.tsx",
+    "includeString": "product_uom_batch,product_uom_batch.product_uom",
+    "includes": [
+      "product_uom_batch",
+      "product_uom_batch.product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryForm.tsx",
+    "includeString": "supplier,supplier_branch",
+    "includes": [
+      "supplier",
+      "supplier_branch"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryForm.tsx",
+    "includeString": "supplier,supplier_branch,purchase_order_details",
+    "includes": [
+      "supplier",
+      "supplier_branch",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\DeliveryForm.tsx",
+    "includeString": "buyer_branch,sales_order_details",
+    "includes": [
+      "buyer_branch",
+      "sales_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Deliveries\\index.tsx",
+    "includeString": "branch,target_branch,purchase_order",
+    "includes": [
+      "branch",
+      "target_branch",
+      "purchase_order"
+    ]
+  },
+  {
+    "file": "src\\views\\Employees\\index.tsx",
+    "includeString": "branch,roles",
+    "includes": [
+      "branch",
+      "roles"
+    ]
+  },
+  {
+    "file": "src\\views\\InternalOrders\\index.tsx",
+    "includeString": "supplier_branch,supplier_branch.company,branch",
+    "includes": [
+      "supplier_branch",
+      "supplier_branch.company",
+      "branch"
+    ]
+  },
+  {
+    "file": "src\\views\\InternalOrders\\InternalOrderDetail.tsx",
+    "includeString": "branch,supplier_branch,created_by,updated_by,purchase_order_details",
+    "includes": [
+      "branch",
+      "supplier_branch",
+      "created_by",
+      "updated_by",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\InternalOrders\\InternalOrderEdit.tsx",
+    "includeString": "branch,supplier_branch,created_by,updated_by,purchase_order_details",
+    "includes": [
+      "branch",
+      "supplier_branch",
+      "created_by",
+      "updated_by",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\InternalOrders\\InternalOrderForm.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Media\\useMedia.ts",
+    "includeString": "created_by,updated_by,material_product,material_uom",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "material_product",
+      "material_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Payments\\index.tsx",
+    "includeString": "sales_order,payment_method,branch,created_by",
+    "includes": [
+      "sales_order",
+      "payment_method",
+      "branch",
+      "created_by"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\components\\PosProductGrid.tsx",
+    "includeString": "product_uom_batch",
+    "includes": [
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\components\\PosProductGrid.tsx",
+    "includeString": "product_uom_batch",
+    "includes": [
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "includeString": "sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer",
+    "includes": [
+      "sales_order_details",
+      "sales_order_details.product_inventory",
+      "sales_order_details.product_inventory.product_uom",
+      "sales_order_details.product_inventory.product_uom.product",
+      "customer"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "includeString": "sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer",
+    "includes": [
+      "sales_order_details",
+      "sales_order_details.product_inventory",
+      "sales_order_details.product_inventory.product_uom",
+      "sales_order_details.product_inventory.product_uom.product",
+      "customer"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "includeString": "bundle_details,bundle_details.product_uom,bundle_details.product_uom.product,bundle_details.product_uom.product_inventories,bundle_details.product_uom.product_inventories.product_uom_batch",
+    "includes": [
+      "bundle_details",
+      "bundle_details.product_uom",
+      "bundle_details.product_uom.product",
+      "bundle_details.product_uom.product_inventories",
+      "bundle_details.product_uom.product_inventories.product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "includeString": "product,product.product_category,uom",
+    "includes": [
+      "product",
+      "product.product_category",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\hooks\\usePosLogic.ts",
+    "includeString": "branch,product_uom_batch",
+    "includes": [
+      "branch",
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\index.backup.tsx",
+    "includeString": "product,product.product_category,uom",
+    "includes": [
+      "product",
+      "product.product_category",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\index.backup.tsx",
+    "includeString": "branch,product_uom_batch",
+    "includes": [
+      "branch",
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\index.backup.tsx",
+    "includeString": "bundle_details",
+    "includes": [
+      "bundle_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\index.backup.tsx",
+    "includeString": "branch,product_uom_batch",
+    "includes": [
+      "branch",
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\index.backup.tsx",
+    "includeString": "sales_order_details,customer",
+    "includes": [
+      "sales_order_details",
+      "customer"
+    ]
+  },
+  {
+    "file": "src\\views\\Pos\\index.backup.tsx",
+    "includeString": "sales_order_details",
+    "includes": [
+      "sales_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\PriceListItems\\PriceListItems.tsx",
+    "includeString": "product_uom,product_uom.product",
+    "includes": [
+      "product_uom",
+      "product_uom.product"
+    ]
+  },
+  {
+    "file": "src\\views\\PriceListItems\\PriceListItemSheet.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Product\\index.tsx",
+    "includeString": "product_category",
+    "includes": [
+      "product_category"
+    ]
+  },
+  {
+    "file": "src\\views\\Product\\useProduct.ts",
+    "includeString": "product_category",
+    "includes": [
+      "product_category"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductConversions\\index.tsx",
+    "includeString": "product,uom,target_uom",
+    "includes": [
+      "product",
+      "uom",
+      "target_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductConversions\\useProductConversions.ts",
+    "includeString": "created_by,updated_by,product,uom,target_uom",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "product",
+      "uom",
+      "target_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductInventories\\index.tsx",
+    "includeString": "branch,product_uom_batch",
+    "includes": [
+      "branch",
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductInventories\\index.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductInventories\\Modal\\ProductInventoriesModal.tsx",
+    "includeString": "created_by,updated_by,product,uom",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductInventories\\ProductInventorySheet.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductInventories\\useProductInventories.ts",
+    "includeString": "created_by,updated_by,branch,product_uom",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "branch",
+      "product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductInventories\\useProductInventories.ts",
+    "includeString": "created_by,updated_by,product,uom",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Productions\\index.tsx",
+    "includeString": "branch,production_details",
+    "includes": [
+      "branch",
+      "production_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Productions\\ProductionForm.tsx",
+    "includeString": "uom,product",
+    "includes": [
+      "uom",
+      "product"
+    ]
+  },
+  {
+    "file": "src\\views\\Productions\\ProductionForm.tsx",
+    "includeString": "branch,product_uom,product_uom.product,product_uom.uom,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom",
+    "includes": [
+      "branch",
+      "product_uom",
+      "product_uom.product",
+      "product_uom.uom",
+      "product_uom_batch",
+      "product_uom_batch.product_uom",
+      "product_uom_batch.product_uom.product",
+      "product_uom_batch.product_uom.uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Productions\\ProductionForm.tsx",
+    "includeString": "uom",
+    "includes": [
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Productions\\ProductionForm.tsx",
+    "includeString": "product_uom_batch",
+    "includes": [
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Productions\\ProductionForm.tsx",
+    "includeString": "recipe_materials,recipe_materials.product_uom,recipe_materials.product_uom.product,recipe_materials.product_uom.uom",
+    "includes": [
+      "recipe_materials",
+      "recipe_materials.product_uom",
+      "recipe_materials.product_uom.product",
+      "recipe_materials.product_uom.uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductUomBatches\\index.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductUomBatches\\ProductUomBatchSheet.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductUoms\\index.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\ProductUoms\\useProductUoms.ts",
+    "includeString": "created_by,updated_by,product,uom",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\Detail\\usePurchaseOrderDetail.ts",
+    "includeString": "created_by,updated_by,branch,supplier,supplier_branch,media,purchase_order_details",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "branch",
+      "supplier",
+      "supplier_branch",
+      "media",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\Form\\PurchaseOrdersEditForm.tsx",
+    "includeString": "branch,product_uom",
+    "includes": [
+      "branch",
+      "product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\Form\\PurchaseOrdersForm.tsx",
+    "includeString": "branch,product_uom",
+    "includes": [
+      "branch",
+      "product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\Form\\useEditPurchaseOrders.ts",
+    "includeString": "created_by,updated_by,branch,supplier,supplier_branch,media,purchase_order_details",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "branch",
+      "supplier",
+      "supplier_branch",
+      "media",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\index.tsx",
+    "includeString": "supplier,supplier_branch,supplier_branch.company,branch,purchase_order_details",
+    "includes": [
+      "supplier",
+      "supplier_branch",
+      "supplier_branch.company",
+      "branch",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\PurchaseOrderDetail.tsx",
+    "includeString": "branch,supplier,created_by,updated_by,purchase_order_details",
+    "includes": [
+      "branch",
+      "supplier",
+      "created_by",
+      "updated_by",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\PurchaseOrderEdit.tsx",
+    "includeString": "branch,supplier,created_by,updated_by,purchase_order_details.product_uom,deliveries",
+    "includes": [
+      "branch",
+      "supplier",
+      "created_by",
+      "updated_by",
+      "purchase_order_details.product_uom",
+      "deliveries"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\PurchaseOrderForm.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\PurchaseOrderForm.tsx",
+    "includeString": "purchase_order_details",
+    "includes": [
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\RecipeImportModal.tsx",
+    "includeString": "product_uom,recipe_materials",
+    "includes": [
+      "product_uom",
+      "recipe_materials"
+    ]
+  },
+  {
+    "file": "src\\views\\PurchaseOrders\\usePurchaseOrders.ts",
+    "includeString": "created_by,updated_by,branch,media,production_details",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "branch",
+      "media",
+      "production_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Receipts\\index.tsx",
+    "includeString": "branch,delivery",
+    "includes": [
+      "branch",
+      "delivery"
+    ]
+  },
+  {
+    "file": "src\\views\\Receipts\\ReceiptDetail.tsx",
+    "includeString": "branch,delivery,delivery.delivery_details,receipt_details,created_by",
+    "includes": [
+      "branch",
+      "delivery",
+      "delivery.delivery_details",
+      "receipt_details",
+      "created_by"
+    ]
+  },
+  {
+    "file": "src\\views\\Receipts\\ReceiptEdit.tsx",
+    "includeString": "branch,delivery,delivery.delivery_details,receipt_details",
+    "includes": [
+      "branch",
+      "delivery",
+      "delivery.delivery_details",
+      "receipt_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Receipts\\ReceiptForm.tsx",
+    "includeString": "branch",
+    "includes": [
+      "branch"
+    ]
+  },
+  {
+    "file": "src\\views\\Receipts\\ReceiptForm.tsx",
+    "includeString": "delivery_details",
+    "includes": [
+      "delivery_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\index.tsx",
+    "includeString": "product_uom,recipe_materials",
+    "includes": [
+      "product_uom",
+      "recipe_materials"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\Modal\\RecipesModal.tsx",
+    "includeString": "created_by,updated_by,product_category",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "product_category"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\Modal\\RecipesModal.tsx",
+    "includeString": "created_by,updated_by",
+    "includes": [
+      "created_by",
+      "updated_by"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\RecipeSheet.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\RecipeSheet.tsx",
+    "includeString": "product_category",
+    "includes": [
+      "product_category"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\RecipeSheet.tsx",
+    "includeString": "product_uoms,product_uoms.uom",
+    "includes": [
+      "product_uoms",
+      "product_uoms.uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\RecipeSheet.tsx",
+    "includeString": "uom",
+    "includes": [
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\RecipeSheet.tsx",
+    "includeString": "uom",
+    "includes": [
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\Recipes\\useRecipes.ts",
+    "includeString": "created_by,updated_by,material_product,material_uom,product",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "material_product",
+      "material_uom",
+      "product"
+    ]
+  },
+  {
+    "file": "src\\views\\Reports\\CreditReport.tsx",
+    "includeString": "branch,customer,credit_by",
+    "includes": [
+      "branch",
+      "customer",
+      "credit_by"
+    ]
+  },
+  {
+    "file": "src\\views\\Reports\\DiscountVoucher.tsx",
+    "includeString": "branch,customer",
+    "includes": [
+      "branch",
+      "customer"
+    ]
+  },
+  {
+    "file": "src\\views\\Reports\\SalesByInvoice.tsx",
+    "includeString": "branch,customer,credit_by",
+    "includes": [
+      "branch",
+      "customer",
+      "credit_by"
+    ]
+  },
+  {
+    "file": "src\\views\\Reports\\SalesByProduct.tsx",
+    "includeString": "sales_order_details,branch",
+    "includes": [
+      "sales_order_details",
+      "branch"
+    ]
+  },
+  {
+    "file": "src\\views\\Reports\\SalesReport.tsx",
+    "includeString": "sales_order_details,payments.payment_method,branch",
+    "includes": [
+      "sales_order_details",
+      "payments.payment_method",
+      "branch"
+    ]
+  },
+  {
+    "file": "src\\views\\Reports\\StockPosition.tsx",
+    "includeString": "branch,product_uom_batch",
+    "includes": [
+      "branch",
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\Reports\\TransactionHistory.tsx",
+    "includeString": "branch,customer,credit_by,created_by",
+    "includes": [
+      "branch",
+      "customer",
+      "credit_by",
+      "created_by"
+    ]
+  },
+  {
+    "file": "src\\views\\RequestedOrders\\index.tsx",
+    "includeString": "branch,supplier_branch,purchase_order_details",
+    "includes": [
+      "branch",
+      "supplier_branch",
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\Roles\\index.tsx",
+    "includeString": "permissions",
+    "includes": [
+      "permissions"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\Detail\\useSalesOrdersDetail.ts",
+    "includeString": "branch,customer,sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product",
+    "includes": [
+      "branch",
+      "customer",
+      "sales_order_details",
+      "sales_order_details.product_inventory",
+      "sales_order_details.product_inventory.product_uom",
+      "sales_order_details.product_inventory.product_uom.product"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\Form\\SalesOrdersFormEditPOS.tsx",
+    "includeString": "branch,product_uom",
+    "includes": [
+      "branch",
+      "product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\Form\\SalesOrdersFormPOS.tsx",
+    "includeString": "branch,product_uom",
+    "includes": [
+      "branch",
+      "product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\Form\\useEditSalesOrders.ts",
+    "includeString": "created_by,updated_by,branch,customer,media,sales_order_details",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "branch",
+      "customer",
+      "media",
+      "sales_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\index.tsx",
+    "includeString": "branch,customer",
+    "includes": [
+      "branch",
+      "customer"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderDetail.tsx",
+    "includeString": "branch,customer,created_by,purchase_order,buyer_branch,credit_by,sales_order_details",
+    "includes": [
+      "branch",
+      "customer",
+      "created_by",
+      "purchase_order",
+      "buyer_branch",
+      "credit_by",
+      "sales_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderDetail.tsx",
+    "includeString": "payment_method,allocations",
+    "includes": [
+      "payment_method",
+      "allocations"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderEdit.tsx",
+    "includeString": "customer,purchase_order,buyer_branch,",
+    "includes": [
+      "customer",
+      "purchase_order",
+      "buyer_branch"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderForm.tsx",
+    "includeString": "branch,product_uom_batch",
+    "includes": [
+      "branch",
+      "product_uom_batch"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderForm.tsx",
+    "includeString": "bundle_details",
+    "includes": [
+      "bundle_details"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderForm.tsx",
+    "includeString": "purchase_order_details",
+    "includes": [
+      "purchase_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\SalesOrderForm.tsx",
+    "includeString": "product_uom_batch.product_uom.product,product_uom.product",
+    "includes": [
+      "product_uom_batch.product_uom.product",
+      "product_uom.product"
+    ]
+  },
+  {
+    "file": "src\\views\\SalesOrders\\useSalesOrders.ts",
+    "includeString": "created_by,updated_by,branch,customer,media,sales_order_details",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "branch",
+      "customer",
+      "media",
+      "sales_order_details"
+    ]
+  },
+  {
+    "file": "src\\views\\StockMovement\\index.tsx",
+    "includeString": "branch,product_inventory,",
+    "includes": [
+      "branch",
+      "product_inventory"
+    ]
+  },
+  {
+    "file": "src\\views\\StockMovement\\StockMovementSheet.tsx",
+    "includeString": "product_uom,product_uom.product,product_uom.uom",
+    "includes": [
+      "product_uom",
+      "product_uom.product",
+      "product_uom.uom"
+    ]
+  },
+  {
+    "file": "src\\views\\StockMovement\\useStockMovement.ts",
+    "includeString": "created_by,branch,product_inventory,product_inventory.product_uom.product,product_inventory.product_uom.uom,product_inventory.product_uom_batch.product_uom.product,product_inventory.product_uom_batch.product_uom.uom,reference",
+    "includes": [
+      "created_by",
+      "branch",
+      "product_inventory",
+      "product_inventory.product_uom.product",
+      "product_inventory.product_uom.uom",
+      "product_inventory.product_uom_batch.product_uom.product",
+      "product_inventory.product_uom_batch.product_uom.uom",
+      "reference"
+    ]
+  },
+  {
+    "file": "src\\views\\StockMovement\\useStockMovement.ts",
+    "includeString": "created_by,updated_by,branch,product_uom",
+    "includes": [
+      "created_by",
+      "updated_by",
+      "branch",
+      "product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\StockTransfer\\index.tsx",
+    "includeString": "target_branch,delivery_details",
+    "includes": [
+      "target_branch",
+      "delivery_details"
+    ]
+  },
+  {
+    "file": "src\\views\\StockTransfer\\index.tsx",
+    "includeString": "branch,delivery_details",
+    "includes": [
+      "branch",
+      "delivery_details"
+    ]
+  },
+  {
+    "file": "src\\views\\StockTransfer\\TransferInDetail.tsx",
+    "includeString": "branch,target_branch,delivery_details,delivery_details.product_uom,delivery_details.product_uom.product,delivery_details.product_uom.uom",
+    "includes": [
+      "branch",
+      "target_branch",
+      "delivery_details",
+      "delivery_details.product_uom",
+      "delivery_details.product_uom.product",
+      "delivery_details.product_uom.uom"
+    ]
+  },
+  {
+    "file": "src\\views\\StockTransfer\\TransferInDetail.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\StockTransfer\\TransferOutForm.tsx",
+    "includeString": "company",
+    "includes": [
+      "company"
+    ]
+  },
+  {
+    "file": "src\\views\\StockTransfer\\TransferOutForm.tsx",
+    "includeString": "product,uom",
+    "includes": [
+      "product",
+      "uom"
+    ]
+  },
+  {
+    "file": "src\\views\\StockTransfer\\TransferOutForm.tsx",
+    "includeString": "branch,product_uom_batch,product_uom_batch.product_uom",
+    "includes": [
+      "branch",
+      "product_uom_batch",
+      "product_uom_batch.product_uom"
+    ]
+  },
+  {
+    "file": "src\\views\\User\\index.tsx",
+    "includeString": "branch,branches,roles",
+    "includes": [
+      "branch",
+      "branches",
+      "roles"
+    ]
+  },
+  {
+    "file": "src\\views\\User\\UserSheet.tsx",
+    "includeString": "company",
+    "includes": [
+      "company"
+    ]
+  },
+  {
+    "file": "src\\views\\Vouchers\\index.tsx",
+    "includeString": "voucher_branches,voucher_product_uoms",
+    "includes": [
+      "voucher_branches",
+      "voucher_product_uoms"
+    ]
+  },
+  {
+    "file": "src\\views\\Vouchers\\VoucherDetail.tsx",
+    "includeString": "activated_by,voucher_branches,voucher_product_uoms",
+    "includes": [
+      "activated_by",
+      "voucher_branches",
+      "voucher_product_uoms"
+    ]
+  }
+]

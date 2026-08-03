@@ -1,5 +1,6 @@
 'use client'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
+import { useAuth } from '@/hooks/useAuth'
 
 import React, { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
@@ -25,6 +26,7 @@ const schema = z.object({
   code: z.string().min(1, 'Code is required'),
   base_price: z.coerce.number().min(0).optional(),
   online_price: z.coerce.number().min(0).optional(),
+  franchise_price: z.coerce.number().min(0).optional(),
   price_editable: z.boolean().optional(),
   is_default: z.boolean().optional(),
 })
@@ -40,6 +42,7 @@ interface ProductUomSheetProps {
     code?: string
     base_price?: number
     online_price?: number
+    franchise_price?: number
     price_editable?: boolean
     is_default?: boolean
     product?: { id?: number; name?: string; code?: string }
@@ -49,6 +52,8 @@ interface ProductUomSheetProps {
 
 export default function ProductUomSheet({ open, onClose, editData }: ProductUomSheetProps) {
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canReadFranchisePrice = hasPermission('common.franchise-price.read')
   const isEdit = !!editData
 
   const {
@@ -67,6 +72,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       code: '',
       base_price: 0,
       online_price: 0,
+      franchise_price: 0,
       price_editable: false,
       is_default: false,
     },
@@ -169,6 +175,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         code: editData.code ?? '',
         base_price: editData.base_price ?? 0,
         online_price: editData.online_price ?? 0,
+        franchise_price: editData.franchise_price ?? 0,
         price_editable: editData.price_editable ?? false,
         is_default: editData.is_default ?? false,
       })
@@ -179,6 +186,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         code: '',
         base_price: 0,
         online_price: 0,
+        franchise_price: 0,
         price_editable: false,
         is_default: false,
       })
@@ -196,6 +204,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         code: '',
         base_price: 0,
         online_price: 0,
+        franchise_price: 0,
         price_editable: false,
         is_default: false,
       })
@@ -341,6 +350,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                   loading={productsLoading}
                   onSearchChange={setProductSearch}
                   error={errors.product_id?.message as string | undefined}
+                  disabled={isEdit}
                 />
               )}
             />
@@ -387,8 +397,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
             )}
           </div>
 
-          {/* Base Price / Online Price */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Base Price / Online Price / Franchise Price */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                 Base Price
@@ -421,6 +431,23 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                 }}
                 placeholder="0"
                 style={{ ...inputStyle, ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                Franchise Price
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatNumber(watch('franchise_price'), canReadFranchisePrice)}
+                disabled={!canReadFranchisePrice}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '')
+                  setValue('franchise_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
+                }}
+                placeholder="0"
+                style={{ ...inputStyle, ...( !canReadFranchisePrice ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} ) }}
               />
             </div>
           </div>

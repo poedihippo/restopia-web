@@ -10,7 +10,7 @@ interface Props {
   id: number
 }
 
-const INCLUDE = 'branch,created_by,updated_by,production_details,media'
+const INCLUDE = 'branch,created_by,updated_by,production_details'
 
 const DETAIL_STATUS_META: Record<
   string,
@@ -264,7 +264,7 @@ export default function ProductionDetail({ id }: Props) {
                         </p>
                       </div>
                     </div>
-                    {detail.product_detail_materials && detail.product_detail_materials.length > 0 ? (
+                    {detail.production_detail_materials && detail.production_detail_materials.length > 0 ? (
                       <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                           <thead>
@@ -277,7 +277,7 @@ export default function ProductionDetail({ id }: Props) {
                             </tr>
                           </thead>
                           <tbody>
-                            {detail.product_detail_materials.map((mat: any, mi: number) => {
+                            {detail.production_detail_materials.map((mat: any, mi: number) => {
                               const mp = mat.product_inventory?.product_uom_batch?.product_uom?.product
                               const mu = mat.product_inventory?.product_uom_batch?.product_uom?.uom
                               return (

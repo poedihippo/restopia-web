@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { rolesService } from '@/services/roles.service'
 import { useAuth } from '@/hooks/useAuth'
 import RoleSheet from './RoleSheet'
+import { toastMutationApiError } from '@/utils/apiError';
 import {
   Plus,
   Search,
@@ -75,7 +76,7 @@ export default function RolesView() {
       toast.success('Role deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete role'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete role'),
   })
 
   const thStyle: React.CSSProperties = {

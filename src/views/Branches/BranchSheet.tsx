@@ -4,15 +4,18 @@ import React, { useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { branchesService } from '@/services/branches.service'
+import { priceListsService } from '@/services/price-lists.service'
 import { X, Loader2 } from 'lucide-react'
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
   timezone: z.string().optional(),
+  price_list_id: z.number().optional().nullable(),
   is_default: z.boolean().default(false),
 })
 type FormValues = z.infer<typeof schema>
@@ -25,11 +28,19 @@ interface BranchSheetProps {
     code: string
     name: string
     is_default?: boolean
+    timezone?: string
+    price_list_id?: number | null
   } | null
 }
 
 export default function BranchSheet({ open, onClose, editData }: BranchSheetProps) {
   const qc = useQueryClient()
+  
+  const { data: priceListsData, isLoading: isLoadingPriceLists } = useQuery({
+    queryKey: ['price-lists'],
+    queryFn: () => priceListsService.list({ include: '' }),
+    enabled: open
+  })
 
   const {
     register,
@@ -48,11 +59,14 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
       reset({
         code: editData.code,
         name: editData.name,
+        timezone: editData.timezone ?? 'Asia/Jakarta',
+        price_list_id: editData.price_list_id ?? null,
         is_default: editData.is_default ?? false,
       })
     } else {
       reset({ code: '', name: '',
         timezone: 'Asia/Jakarta',
+        price_list_id: null,
         is_default: false })
     }
   }, [editData, open, reset])
@@ -64,7 +78,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
       toast.success('Branch created')
       onClose()
     },
-    onError: () => toast.error('Failed to create branch'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create branch'),
   })
 
   const updateMutation = useMutation({
@@ -74,7 +88,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
       toast.success('Branch updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update branch'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update branch'),
   })
 
   const onSubmit = (data: FormValues) => {
@@ -244,6 +258,31 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
                 <option value="Asia/Jayapura">Asia/Jayapura</option>
               </select>
               {errors.timezone && <div style={errorStyle}>{errors.timezone.message}</div>}
+            </div>
+
+            {/* Price List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={labelStyle}>Price List</label>
+              <Controller
+                control={control}
+                name="price_list_id"
+                render={({ field }) => (
+                  <select
+                    disabled={isLoadingPriceLists}
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                    style={inputStyle}
+                  >
+                    <option value="">No Price List</option>
+                    {priceListsData?.data?.data?.data?.map((pl: any) => (
+                      <option key={pl.id} value={pl.id}>
+                        {pl.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              />
+              {errors.price_list_id && <div style={errorStyle}>{errors.price_list_id.message}</div>}
             </div>
 
             {/* is_default */}

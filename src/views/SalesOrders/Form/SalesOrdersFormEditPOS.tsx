@@ -161,7 +161,7 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
 
   const [search, setSearch] = useState('')
   const [debounceSearch, setDebounceSearch] = useState('')
-  const [priceMap, setPriceMap] = useState<Map<number, { base_price: number, online_price: number, price_editable: boolean }>>(new Map())
+  const [priceMap, setPriceMap] = useState<Map<number, { base_price: number, online_price: number, franchise_price: number, price_editable: boolean }>>(new Map())
   const [isNewCustomer, setIsNewCustomer] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [page, setPage] = useState(1)
@@ -226,14 +226,15 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
       }
     } else {
       setPriceMap(prev => new Map(prev).set(item.id, {
-        base_price: item.base_price ?? 0,
-        online_price: item.online_price ?? 0,
-        price_editable: item.price_editable ?? false
+        base_price: item.product_uom?.base_price ?? 0,
+        online_price: item.product_uom?.online_price ?? 0,
+        franchise_price: item.product_uom?.franchise_price ?? 0,
+        price_editable: item.product_uom?.price_editable ?? false
       }))
       appendDetail({
         product_inventory_id: item.id,
         qty: 1,
-        price: item.base_price ?? 0,
+        price: (watchAll.type === 'offline' ? item.product_uom?.base_price : (watchAll.type === 'online' ? item.product_uom?.online_price : item.product_uom?.franchise_price)) ?? 0,
         status: '',
         description: ""
       }, { shouldFocus: false })
@@ -249,7 +250,7 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
       const prices = priceMap.get(field.product_inventory_id)
       if (!prices) return;
 
-      const newPrice = watchAll.type === 'offline' ? prices.base_price : prices.online_price
+      const newPrice = watchAll.type === 'offline' ? prices.base_price : (watchAll.type === 'online' ? prices.online_price : prices.franchise_price)
       form.setValue(`details.${index}.price`, newPrice)
     })
   }, [watchAll.type])
@@ -281,8 +282,9 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
                   >
                     <p className="font-medium text-sm">{item.product_uom?.product?.name}</p>
                     <p className="text-xs text-muted-foreground">{item.product_uom?.uom?.code}</p>
-                    <p className="text-sm font-semibold mt-1">Base: {formatCurrency(item.base_price ?? 0)}</p>
-                    <p className="text-sm font-semibold mt-1">Online: {formatCurrency(item.online_price ?? 0)}</p>
+                    <p className="text-sm font-semibold mt-1">Base: {formatCurrency(item.product_uom?.base_price ?? 0)}</p>
+                    <p className="text-sm font-semibold mt-1">Online: {formatCurrency(item.product_uom?.online_price ?? 0)}</p>
+                    <p className="text-sm font-semibold mt-1">Franchise: {formatCurrency(item.product_uom?.franchise_price ?? 0)}</p>
                     <p className="text-xs text-muted-foreground">Stock: {item.stock}</p>
                   </button>
                 ))}

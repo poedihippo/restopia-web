@@ -1,5 +1,5 @@
 import api from '@/hooks/useApi'
-import type { ApiResponse, PaginatedData, ListParams, ProductInventoryRequest } from '@/types/api'
+import type { ApiResponse, PaginatedData, ListParams, ProductInventoryRequest, BulkUpdateProductInventoryRequest } from '@/types/api'
 
 export const productInventoriesService = {
   list: (params?: ListParams) =>
@@ -27,6 +27,9 @@ export const productInventoriesService = {
 
   update: (id: number, data: Partial<ProductInventoryRequest>) =>
     api.patch<ApiResponse<unknown>>(`/product-inventories/${id}`, data),
+    
+  bulkUpdate: (data: BulkUpdateProductInventoryRequest) =>
+    api.put<ApiResponse<unknown>>('/product-inventories/bulk', data),
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/product-inventories/${id}`),

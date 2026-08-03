@@ -1,0 +1,275 @@
+{
+  "GET /v1/account-categories": [
+    "updated_by",
+    "created_by"
+  ],
+  "GET /v1/account-settings": [
+    "created_by",
+    "updated_by",
+    "chart_of_account",
+    "account_setting_key",
+    "company"
+  ],
+  "GET /v1/account-types": [
+    "created_by",
+    "updated_by",
+    "account_category"
+  ],
+  "GET /v1/audit-logs": [
+    "created_by"
+  ],
+  "GET /v1/auth/me": [
+    "created_by",
+    "updated_by",
+    "roles",
+    "permissions",
+    "branches"
+  ],
+  "GET /v1/branches": [
+    "created_by",
+    "updated_by",
+    "company",
+    "price_list"
+  ],
+  "GET /v1/budgets": [
+    "chart_of_account",
+    "created_by",
+    "updated_by",
+    "period"
+  ],
+  "GET /v1/bundles": [
+    "created_by",
+    "updated_by",
+    "media",
+    "bundle_details"
+  ],
+  "GET /v1/chart-of-accounts": [
+    "children",
+    "created_by",
+    "updated_by",
+    "account_type",
+    "parent"
+  ],
+  "GET /v1/companies": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/companies/{id}": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/customers": [
+    "updated_by",
+    "created_by"
+  ],
+  "GET /v1/deliveries": [
+    "created_by",
+    "updated_by",
+    "target_branch",
+    "purchase_order",
+    "sales_order",
+    "media",
+    "delivery_details"
+  ],
+  "GET /v1/fiscal-years": [
+    "company",
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/journals": [
+    "period",
+    "journal_details",
+    "created_by",
+    "updated_by",
+    "posted_by"
+  ],
+  "GET /v1/media": [
+    "updated_by",
+    "created_by"
+  ],
+  "GET /v1/operation-rules": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/operations": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/operations/{id}": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/payment-methods": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/payments": [
+    "created_by",
+    "updated_by",
+    "branch",
+    "payment_method",
+    "allocations"
+  ],
+  "GET /v1/periods": [
+    "created_by",
+    "updated_by",
+    "closed_by",
+    "fiscal_year",
+    "company"
+  ],
+  "GET /v1/price-lists": [
+    "updated_by",
+    "created_by"
+  ],
+  "GET /v1/product-categories": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/product-conversions": [
+    "created_by",
+    "updated_by",
+    "product",
+    "uom",
+    "target_uom"
+  ],
+  "GET /v1/product-conversions/{id}": [
+    "target_uom",
+    "created_by",
+    "updated_by",
+    "product",
+    "uom"
+  ],
+  "GET /v1/product-inventories": [
+    "updated_by",
+    "product_uom_batch",
+    "created_by"
+  ],
+  "GET /v1/product-uom-batches": [
+    "created_by",
+    "updated_by",
+    "product_uom"
+  ],
+  "GET /v1/product-uom-batches/{id}": [
+    "created_by",
+    "updated_by",
+    "product_uom"
+  ],
+  "GET /v1/product-uoms": [
+    "created_by",
+    "updated_by",
+    "product",
+    "uom",
+    "default_recipe"
+  ],
+  "GET /v1/product-uoms/{id}": [
+    "product",
+    "uom",
+    "default_recipe",
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/productions": [
+    "production_details",
+    "created_by",
+    "updated_by",
+    "media"
+  ],
+  "GET /v1/products": [
+    "created_by",
+    "updated_by",
+    "product_category"
+  ],
+  "GET /v1/purchase-orders": [
+    "supplier_branch.company",
+    "media",
+    "purchase_order_details",
+    "created_by",
+    "updated_by",
+    "supplier",
+    "supplier_branch"
+  ],
+  "GET /v1/receipts": [
+    "created_by",
+    "updated_by",
+    "delivery",
+    "media",
+    "receipt_details"
+  ],
+  "GET /v1/recipes": [
+    "created_by",
+    "updated_by",
+    "product_uom",
+    "recipe_materials"
+  ],
+  "GET /v1/roles": [
+    "updated_by",
+    "permissions",
+    "created_by"
+  ],
+  "GET /v1/roles/{id}": [
+    "created_by",
+    "updated_by",
+    "permissions"
+  ],
+  "GET /v1/sales-orders": [
+    "created_by",
+    "updated_by",
+    "shift",
+    "customer",
+    "credit_by",
+    "media",
+    "sales_order_details"
+  ],
+  "GET /v1/shift-rules": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/shifts": [
+    "updated_by",
+    "created_by"
+  ],
+  "GET /v1/stock-movements": [
+    "created_by",
+    "product_inventory"
+  ],
+  "GET /v1/suppliers": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/suppliers/{id}": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/uoms": [
+    "created_by",
+    "updated_by"
+  ],
+  "GET /v1/users": [
+    "created_by",
+    "updated_by",
+    "roles",
+    "permissions",
+    "branches"
+  ],
+  "GET /v1/users/{id}": [
+    "permissions",
+    "branches",
+    "created_by",
+    "updated_by",
+    "roles"
+  ],
+  "GET /v1/vouchers": [
+    "created_by",
+    "updated_by",
+    "activated_by",
+    "voucher_branches",
+    "voucher_product_uoms"
+  ],
+  "GET /v1/vouchers/{id}": [
+    "created_by",
+    "updated_by",
+    "activated_by",
+    "voucher_branches",
+    "voucher_product_uoms"
+  ]
+}

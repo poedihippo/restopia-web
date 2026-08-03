@@ -56,6 +56,7 @@ interface ProductionFormProps {
   mode: 'create' | 'edit'
   initialData?: any
   productionId?: number
+  initialMaterialLabels?: Record<string, string>
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
@@ -457,6 +458,7 @@ export default function ProductionForm({
   mode,
   initialData,
   productionId,
+  initialMaterialLabels,
 }: ProductionFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -591,7 +593,8 @@ export default function ProductionForm({
           .list({
             page,
             per_page: 100,
-            include: 'branch,product_uom_batch',
+            include:
+              'branch,product_uom,product_uom_batch',
             'filter[branch_id]': activeBranchId,
           } as any)
           .then((r) => r.data)
@@ -690,6 +693,10 @@ export default function ProductionForm({
       reset(initialData)
       const indices = (initialData.details ?? []).map((_: any, i: number) => i)
       setExpandedDetails(indices)
+      // Seed labels from API response immediately (no need to wait for inventories)
+      if (initialMaterialLabels && Object.keys(initialMaterialLabels).length > 0) {
+        setMaterialLabels(initialMaterialLabels)
+      }
     }
   }, [mode, initialData, reset])
 
@@ -712,7 +719,7 @@ export default function ProductionForm({
         const res = await recipesService.list({
           per_page: 200,
           include:
-            'recipe_materials,recipe_materials.product_uom,recipe_materials.product_uom.product,recipe_materials.product_uom.uom',
+            'recipe_materials',
           'filter[product_uom_id]': productUomId,
         } as any)
         const recipes = unwrapList(res.data)
@@ -1196,7 +1203,10 @@ export default function ProductionForm({
                           <SearchableSelect
                             value={(field.value as number) ?? 0}
                             onChange={field.onChange}
-                            options={productUomOptions}
+                            options={productUomOptions.filter((o: any) => {
+                              const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                              return !selectedIds.includes(o.value) || o.value === field.value
+                            })}
                             placeholder="Search finished product..."
                             searchPlaceholder="Search products..."
                             loading={productUomsLoading}
@@ -1358,7 +1368,7 @@ export default function ProductionForm({
                         setSharedMaterialProductName={setSharedMaterialProductName}
                         setSharedShowMaterialUomPicker={setSharedShowMaterialUomPicker}
                         onSelectMaterialInventory={handleSelectMaterialInventory}
-                        materialLabels={materialLabels}
+                        materialLabels={mergedMaterialLabels}
                         setValue={setValue}
                       />
                     </div>

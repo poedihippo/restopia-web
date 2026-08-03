@@ -336,8 +336,9 @@ export default function StockMovementView() {
                         hoveredRow === item.id ? 'var(--background)' : 'transparent',
                     }}
                   >
-                    {/* Type */}
-                    <td style={{ padding: '12px 16px' }}>
+                  {/* Type */}
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                       <span
                         style={{
                           display: 'inline-flex',
@@ -354,31 +355,54 @@ export default function StockMovementView() {
                         <Icon size={11} />
                         {typeMeta.label}
                       </span>
-                    </td>
-                    {/* Product */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <div>
-                        <div
-                          style={{
-                            fontWeight: 500,
-                            fontSize: 14,
-                            color: 'var(--foreground)',
-                          }}
-                        >
-                          {item.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
-                            item.product_inventory?.code ??
-                            `INV-${item.product_inventory_id ?? '?'}`}
+                      {item.reference_type && (
+                        <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                          <span style={{ textTransform: 'capitalize' }}>
+                            {item.reference_type.replace(/_/g, ' ')}
+                          </span>
+                          {item.reference?.code && (
+                            <>
+                              {' · '}
+                              <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>
+                                {item.reference.code}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: 'var(--foreground-muted)',
-                          }}
-                        >
-                          {item.product_inventory?.code ?? ''}
-                        </div>
+                      )}
+                    </div>
+                  </td>
+                  {/* Product */}
+                  <td style={{ padding: '12px 16px' }}>
+                    <div>
+                      <div
+                        style={{
+                          fontWeight: 500,
+                          fontSize: 14,
+                          color: 'var(--foreground)',
+                        }}
+                      >
+                        {item.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
+                          item.product_inventory?.product_uom?.product?.name ??
+                          item.product_inventory?.code ??
+                          `INV-${item.product_inventory_id ?? '?'}`}
                       </div>
-                    </td>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--foreground-muted)',
+                        }}
+                      >
+                        {item.product_inventory?.code ?? ''}
+                        {item.product_inventory?.product_uom_batch?.product_uom?.uom?.code || item.product_inventory?.product_uom?.uom?.code ? (
+                          <>
+                            {item.product_inventory?.code ? ' · ' : ''}
+                            {item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ?? item.product_inventory?.product_uom?.uom?.code}
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  </td>
                     {/* Branch */}
                     <td
                       style={{

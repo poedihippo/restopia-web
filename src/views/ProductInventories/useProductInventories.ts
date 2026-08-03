@@ -18,11 +18,7 @@ const useProductInventories = () => {
   const [stockGte, setStockGte] = useState<number | null>();
   const [stockLte, setStockLte] = useState<number | null>();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [priceEditable, setPriceEditable] = useState<number | null>();
-  const [basePriceGte, setBasePriceGte] = useState<number | null>();
-  const [basePriceLte, setBasePriceLte] = useState<number | null>();
-  const [onlinePriceGte, setOnlinePriceGte] = useState<number | null>();
-  const [onlinePriceLte, setOnlinePriceLte] = useState<number | null>();
+
   const [filterKey, setFilterKey] = useState(0);
 
   const extraParams = useMemo(() => {
@@ -30,11 +26,7 @@ const useProductInventories = () => {
       product_id: productId,
       branch_id: branchId,
       is_default: isDefault,
-      price_editable: priceEditable,
-      base_price_qte: basePriceGte,
-      base_price_lte: basePriceLte,
-      online_price_qte: onlinePriceGte,
-      online_price_lte: onlinePriceLte,
+
       status: status,
       expiry_date_gte: expiryDateGte,
       expiry_date_lte: expiryDateLte,
@@ -54,11 +46,7 @@ const useProductInventories = () => {
     productId,
     branchId,
     isDefault,
-    basePriceGte,
-    basePriceLte,
-    priceEditable,
-    onlinePriceGte,
-    onlinePriceLte,
+
     status,
     expiryDateGte,
     expiryDateLte,
@@ -108,20 +96,13 @@ const useProductInventories = () => {
     setIsDefault(id);
   }, []);
 
-  const handlePriceEditableChange = useCallback((id?: number) => {
-    setPriceEditable(id);
-  }, []);
 
   const handleClearFilter = useCallback(() => {
     setProductId(null);
     setBranchId(null);
     setIsDefault(null);
     setStatus(null);
-    setPriceEditable(null);
-    setBasePriceGte(null);
-    setBasePriceLte(null);
-    setOnlinePriceGte(null);
-    setOnlinePriceLte(null);
+
     setExpiryDateGte(null);
     setExpiryDateLte(null);
     setStockGte(null);
@@ -146,11 +127,7 @@ const useProductInventories = () => {
     handleBranchChange,
     handleDefaultChange,
     handleClearFilter,
-    handlePriceEditableChange,
-    setBasePriceGte,
-    setBasePriceLte,
-    setOnlinePriceGte,
-    setOnlinePriceLte,
+
     setExpiryDateGte,
     setExpiryDateLte,
     setStatus,

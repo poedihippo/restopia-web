@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { shiftsService } from '@/services/shifts.service'
 import { operationsService } from '@/services/operations.service'
 import { Loader2, Clock, ArrowLeft } from 'lucide-react'
+import { toastMutationApiError } from '@/utils/apiError';
 
 export default function PosShiftBlockerModal() {
   const qc = useQueryClient()
@@ -39,7 +40,7 @@ export default function PosShiftBlockerModal() {
       qc.invalidateQueries({ queryKey: ['operations-current'] })
       toast.success('Operation started successfully')
     },
-    onError: () => toast.error('Failed to start operation')
+    onError: (err: any) => toastMutationApiError(err, 'Failed to start operation')
   })
 
   const startShiftMutation = useMutation({
@@ -48,7 +49,7 @@ export default function PosShiftBlockerModal() {
       qc.invalidateQueries({ queryKey: ['shifts-current'] })
       toast.success('Shift started successfully')
     },
-    onError: () => toast.error('Failed to start shift')
+    onError: (err: any) => toastMutationApiError(err, 'Failed to start shift')
   })
 
   const isLoading = isOperationLoading || (!!operationData?.data && isShiftLoading)

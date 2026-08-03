@@ -12,7 +12,7 @@ export default function AccountSettingsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-settings'],
-    queryFn: () => accountSettingsService.list({ per_page: 100, include: 'account_setting_key_entity,chart_of_account' } as any).then(r => r.data),
+    queryFn: () => accountSettingsService.list({ per_page: 100, include: 'chart_of_account' } as any).then(r => r.data),
   })
 
   const items: any[] = (data as any)?.data ?? []

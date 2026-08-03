@@ -119,7 +119,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
             per_page: 100,
             'filter[branch_id]': sourceBranchId,
             'filter[status]': 'active',
-            include: 'branch,product_uom_batch,product_uom_batch.product_uom',
+            include: 'branch,product_uom_batch',
           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
@@ -178,7 +178,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       : `${code} — No expiry`
   }
 
-  const branchOptions = branches.map((b: any) => ({
+  const branchOptions = branches
+    .filter((b: any) => b.id !== (user as any)?.employee?.branch_id)
+    .map((b: any) => ({
     value: b.id as number,
     label: (b.name as string) ?? '',
     sublabel: (b.company?.name as string) ?? '',
@@ -464,7 +466,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                             setValue(`details.${index}.price`, Number(selectedPu.base_price))
                           }
                         }}
-                        options={productUomOptions}
+                        options={productUomOptions.filter((o: any) => {
+                          const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                          return !selectedIds.includes(o.value) || o.value === f.value
+                        })}
                         placeholder="Select product..."
                         searchPlaceholder="Search products..."
                         loading={productUomsLoading}

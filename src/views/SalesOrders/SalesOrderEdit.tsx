@@ -16,7 +16,7 @@ export default function SalesOrderEdit() {
       salesOrderService
         .findById(id, {
           include:
-            'customer,purchase_order,buyer_branch,' +
+            'customer,purchase_order' +
             'sales_order_details,sales_order_details.product_inventory,sales_order_details.bundle',
         })
         .then((r) => r.data),

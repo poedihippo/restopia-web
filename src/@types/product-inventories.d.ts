@@ -34,6 +34,10 @@ export interface ProductUom {
   product_id?: number;
   uom_id?: number;
   price?: number;
+  base_price?: number;
+  online_price?: number;
+  franchise_price?: number;
+  price_editable?: boolean;
   is_default?: boolean;
   product?: Product;
   uom?: Branch;

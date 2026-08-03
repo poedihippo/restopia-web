@@ -21,7 +21,7 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,purchase_order,sales_order,delivery_details.product_uom',
+            'branch,target_branch,purchase_order,sales_order,delivery_details',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -48,6 +48,8 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
         ? rawDetails.map((d: any) => ({
           product_uom_id:
             d.product_uom_id ?? d.product_uom?.id ?? 0,
+          product_uom_batch_id:
+            d.product_uom_batch_id ?? undefined,
           purchase_order_detail_id:
             d.purchase_order_detail_id ?? undefined,
           sales_order_detail_id:

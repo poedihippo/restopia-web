@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { usersService } from '@/services/users.service'
 import { useAuth } from '@/hooks/useAuth'
 import UserSheet from './UserSheet'
+import { toastMutationApiError } from '@/utils/apiError';
 import {
   Plus,
   Search,
@@ -97,7 +98,7 @@ export default function UsersView() {
       toast.success('User deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete user'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete user'),
   })
 
   const openEdit = (item: User) => {

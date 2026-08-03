@@ -97,6 +97,7 @@ export default function DeliveriesView() {
     mutationFn: (id: number) => deliveriesService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success('Delivery deleted')
       setDeleteConfirmId(null)
     },

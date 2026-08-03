@@ -9,6 +9,7 @@ export interface IPurchaseOrder {
     code?: string;
     supplier_id?: number | null;
     supplier_branch_id?: number | null;
+    type?: string;
     date?: string;
     total_price?: number;
     description?: string;
@@ -104,6 +105,7 @@ export interface IPurchaseOrderDTO {
     code: string;
     supplier_id?: number;
     supplier_branch_id?: number;
+    type: string;
     date: string;
     total_price: number;
     status: string;

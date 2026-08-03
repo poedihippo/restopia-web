@@ -51,6 +51,11 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
     color: 'var(--warning)',
     bg: 'var(--warning-bg)',
   },
+  final: {
+    label: 'Final',
+    color: 'var(--accent)',
+    bg: 'var(--accent-bg)',
+  },
   accepted: {
     label: 'Accepted',
     color: 'var(--success)',
@@ -66,8 +71,13 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
     color: 'var(--info)',
     bg: 'var(--info-bg)',
   },
-  final: {
-    label: 'Fulfilled',
+  partially_delivered: {
+    label: 'Partially Delivered',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  delivered: {
+    label: 'Delivered',
     color: 'var(--success)',
     bg: 'var(--success-bg)',
   },
@@ -103,11 +113,10 @@ export default function RequestedOrdersView() {
           page,
           per_page: 15,
           include:
-            'branch,supplier_branch,purchase_order_details,' +
-            'purchase_order_details.product_uom.product,' +
-            'purchase_order_details.product_uom.uom',
+            'branch,supplier_branch,purchase_order_details',
           sort: '-created_at',
-          'filter[target_branch_id]': myBranchId || undefined,
+          'filter[supplier_branch_id]': myBranchId || undefined,
+          'filter[type]': 'branch',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
         } as any)

@@ -10,13 +10,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { statusProduction } from "@/constants/global";
+import { statusProduction, SalesOrderType } from "@/constants/global";
 import useGetProductInventoriesList from "@/hooks/product-inventories/useGetProductInventoriesList";
 import { ArrowLeft, Trash, X } from "lucide-react";
 import { useRouter } from "next/router";
 import { Control, Controller, FormProvider, useFormContext, useWatch } from "react-hook-form";
 import Image from "next/image";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { PurchaseOrdersFormValues, useEditPurchaseOrders } from "./useEditPurchaseOrders";
 import useGetSupplierList from "@/hooks/suppliers/useGetSupplierList";
 import useGetBranchList from "@/hooks/branches/useGetBranchList";
@@ -24,10 +25,11 @@ import useGetBranchList from "@/hooks/branches/useGetBranchList";
 interface DetailRowProps {
   index: number;
   control: Control<PurchaseOrdersFormValues>;
+  watchedType: string;
   onRemove: () => void;
 }
 
-const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
+const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) => {
   const { setValue } = useFormContext<PurchaseOrdersFormValues>();
   const { data: productInventoryData, isLoading: isLoadingProductInventory } =
     useGetProductInventoriesList(
@@ -38,6 +40,13 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
         enabled: true,
       },
     );
+  const { hasPermission } = useAuth()
+  const canReadFranchisePrice = hasPermission('common.franchise-price.read')
+
+  const qty = useWatch({ control, name: `details.${index}.qty` }) || 0
+  const price = useWatch({ control, name: `details.${index}.price` }) || 0
+  const totalPrice = qty * price
+
   const selectedProductId = useWatch({ control, name: `details.${index}.product_inventory_id` });
   const selectedProduct = productInventoryData?.data?.find(item => item.id === selectedProductId);
 
@@ -74,7 +83,8 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
                   const id = selected ? (selected as { value: number }).value : null;
                   field.onChange(id)
                   const product = productInventoryData?.data?.find(item => item.id === id);
-                  setValue(`details.${index}.price`, product?.base_price ?? 0)
+                  const price = watchedType === 'offline' ? (product?.product_uom?.base_price ?? 0) : watchedType === 'online' ? (product?.product_uom?.online_price ?? 0) : (product?.product_uom?.franchise_price ?? 0);
+                  setValue(`details.${index}.price`, price);
                 }}
               />
               {fieldState.error && (
@@ -133,6 +143,16 @@ const DetailRow = ({ control, index, onRemove }: DetailRowProps) => {
           )}
         />
       </td>
+      <td className="py-2 px-3 align-top">
+        <div className="flex flex-col">
+          <Input
+            value={totalPrice}
+            readOnly
+            className="w-full bg-muted"
+            type="number"
+          />
+        </div>
+      </td>
       <td className="py-2 px-3">
         <Controller
           control={control}
@@ -189,6 +209,7 @@ const PurchaseOrdersEditForm = ({ id }: Props) => {
   } = useEditPurchaseOrders({ id });
   const watchedSupplierId = form.watch('supplier_id');
   const watchedSupplierBranchId = form.watch('supplier_branch_id');
+  const watchedType = form.watch('type');
 
   const { data: suppliersData, isLoading: isLoadingSupplier } =
     useGetSupplierList(
@@ -369,6 +390,53 @@ const PurchaseOrdersEditForm = ({ id }: Props) => {
             </div>
 
             <div className="flex flex-col gap-2">
+              <Label>Type</Label>
+              <Controller
+                control={form.control}
+                name="type"
+                render={({ field, fieldState }) => (
+                  <>
+                    <div className="flex gap-2">
+                      <Select
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                        }}
+                        value={field.value}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SalesOrderType?.map((item) => (
+                            <SelectItem key={item.key} value={item.key}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {field.value && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => field.onChange("")}
+                          className="shrink-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </>
+                )}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
               <Label>Status</Label>
               <Controller
                 control={form.control}
@@ -509,13 +577,14 @@ const PurchaseOrdersEditForm = ({ id }: Props) => {
                     <th className="py-2 px-3 text-left font-medium text-muted-foreground">Product</th>
                     <th className="py-2 px-3 text-left font-medium text-muted-foreground w-32">Qty</th>
                     <th className="py-2 px-3 text-left font-medium text-muted-foreground w-36">Price</th>
+                    <th className="py-2 px-3 text-left font-medium text-muted-foreground w-36">Total Price</th>
                     <th className="py-2 px-3 text-left font-medium text-muted-foreground">Description</th>
                     <th className="py-2 px-3 text-left font-medium text-muted-foreground w-16">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detailFields?.map((field, index) => (
-                    <DetailRow key={field.id} index={index} control={form.control} onRemove={() => removeDetail(index)} />
+                    <DetailRow key={field.id} index={index} control={form.control} watchedType={watchedType} onRemove={() => removeDetail(index)} />
                   ))}
                   {detailFields.length === 0 && (
                     <tr>

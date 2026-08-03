@@ -198,7 +198,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     queryFn: () => {
       const params: Record<string, any> = {
         per_page: 500,
-        include: 'product_uoms,product_uoms.uom',
+        include: '',
         sort: 'name',
       }
       if (materialSearchDebounced) params['filter[search]'] = materialSearchDebounced
@@ -1061,12 +1061,11 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         fontSize: 13,
                       }}
                     >
-                      <div style={{ fontWeight: 500, color: 'var(--foreground)' }}>
-                        {displayName}
-                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                        {displayName !== `Item #${puId}` ? displayName : `Material #${index + 1}`}
+                      </span>
                       <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                        {uomCode}
-                        {sku ? ` · ${sku}` : ''}
+                        {displayName !== `Item #${puId}` ? '' : displayName} {uomCode ? `(${uomCode})` : ''} {sku ? `· SKU: ${sku}` : ''}
                       </div>
                     </div>
                     {errors.materials?.[index]?.product_uom_id && (

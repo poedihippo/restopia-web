@@ -32,7 +32,7 @@ export default function SalesReport() {
       salesOrdersService
         .list({
           per_page: 500,
-          include: 'sales_order_details,payments.payment_method,branch',
+          include: 'sales_order_details,branch',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,
           'filter[date_lte]': dateTo,

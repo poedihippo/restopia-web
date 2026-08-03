@@ -25,6 +25,7 @@ import {
 import SearchableSelect from '@/components/SearchableSelect'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import RecipeImportModal from './RecipeImportModal'
+import { SalesOrderType } from '@/constants/global'
 
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
@@ -41,7 +42,7 @@ const detailSchema = z.object({
 
 const schema = z.object({
   // supplier_id / supplier_branch_id are mutually exclusive — required-ness is
-  // enforced in onSubmit based on the poSourceType toggle, so both stay optional
+  // enforced in onSubmit based on the watchType toggle, so both stay optional
   // at the schema level.
   supplier_id: z.coerce.number().optional(),
   supplier_branch_id: z.coerce.number().optional(),
@@ -49,7 +50,7 @@ const schema = z.object({
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
-  type: z.string().optional(),
+  type: z.string().min(1, 'Type is required'),
   total_price: z.coerce.number().optional(),
 })
 
@@ -71,10 +72,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   const [showRecipeModal, setShowRecipeModal] = useState(false)
 
-  // Order source: external Supplier (default) or internal Branch — mutually
-  // exclusive.
-  const [poSourceType, setPoSourceType] = useState<'supplier' | 'branch'>('supplier')
-
   const {
     register,
     handleSubmit,
@@ -93,10 +90,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       status: 'pending',
       description: '',
       details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
-      type: 'standard',
+      type: 'supplier',
       total_price: 0,
     },
   })
+
+  const watchType = watch('type')
 
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
 
@@ -160,7 +159,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     Object.entries(newItems).forEach(([productUomId, qty]) => {
       const id = Number(productUomId)
       const existingIndex = finalDetails.findIndex((d) => d.product_uom_id === id)
-      
+
       if (existingIndex >= 0) {
         finalDetails[existingIndex].qty += qty
       } else {
@@ -173,7 +172,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     const cleanedDetails = finalDetails.filter(
       (d) => d.product_uom_id !== 0 || d.qty !== 1 || d.price !== 0 || d.description !== ''
     )
-    
+
     if (cleanedDetails.length === 0) {
       cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '' })
     }
@@ -187,12 +186,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const { data: historyData } = useQuery({
     queryKey: ['po-supplier-history', watchSupplierId],
     enabled:
-      poSourceType === 'supplier' && !!watchSupplierId && watchSupplierId > 0,
+      watchType === 'supplier' && !!watchSupplierId && watchSupplierId > 0,
     queryFn: () =>
       purchaseOrdersService
         .list({
           'filter[supplier_id]': watchSupplierId,
-          include: 'purchase_order_details,purchase_order_details.product_uom',
+          include: 'purchase_order_details',
           sort: '-date',
           per_page: 50,
         } as any)
@@ -233,25 +232,34 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
     sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
+    base_price: pu.base_price ?? 0,
   }))
+
+  const hasFinalDelivery = initialData?.deliveries?.some((d: any) => d.status === 'final')
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
       // branch_id (the old destination-branch field) is intentionally dropped
       // here so it never re-enters the form / payload.
       reset({ ...initialData, branch_id: undefined })
-      if (initialData.supplier_branch_id) setPoSourceType('branch')
+      if (initialData.type) {
+        setValue('type', initialData.type)
+      } else if (initialData.supplier_branch_id) {
+        setValue('type', 'branch')
+      } else {
+        setValue('type', 'supplier')
+      }
     }
   }, [initialData, mode])
 
   const buildPayload = (values: FormValues) => ({
     ...values,
     total_price: totalPrice,
-    type: poSourceType === 'branch' ? 'branch' : 'supplier',
+    type: values.type,
     supplier_id:
-      poSourceType === 'supplier' ? values.supplier_id || undefined : undefined,
+      values.type === 'supplier' ? values.supplier_id || undefined : undefined,
     supplier_branch_id:
-      poSourceType === 'branch' ? values.supplier_branch_id || undefined : undefined,
+      values.type === 'branch' ? values.supplier_branch_id || undefined : undefined,
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
@@ -288,11 +296,11 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
 
   const onSubmit = (values: FormValues) => {
-    if (poSourceType === 'supplier' && !values.supplier_id) {
+    if (values.type === 'supplier' && !values.supplier_id) {
       setError('supplier_id', { message: 'Supplier is required' })
       return
     }
-    if (poSourceType === 'branch' && !values.supplier_branch_id) {
+    if (values.type === 'branch' && !values.supplier_branch_id) {
       setError('supplier_branch_id', { message: 'Source branch is required' })
       return
     }
@@ -500,19 +508,19 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   marginRight: 8,
                 }}
               >
-                Order From:
+                Type:
               </label>
               {([
                 { key: 'supplier', label: 'Supplier' },
                 { key: 'branch', label: 'Internal Branch' },
               ] as const).map(({ key, label }) => {
-                const selected = poSourceType === key
+                const selected = watchType === key
                 return (
                   <button
                     key={key}
                     type="button"
                     onClick={() => {
-                      setPoSourceType(key)
+                      setValue('type', key)
                       setValue('supplier_id', undefined)
                       setValue('supplier_branch_id', undefined)
                     }}
@@ -536,7 +544,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             </div>
 
             {/* Supplier (external) — only when source is "supplier" */}
-            {poSourceType === 'supplier' && (
+            {watchType === 'supplier' && (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                   Supplier
@@ -562,7 +570,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
             {/* Source Branch (internal) — only when source is "branch"; spans
                 the full row now that the destination "Branch" field is gone. */}
-            {poSourceType === 'branch' && (
+            {watchType === 'branch' && (
               <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
                 <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                   Source Branch
@@ -637,6 +645,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               />
             </div>
 
+
             {/* Notes — full width */}
             <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
               <label style={labelStyle}>Notes</label>
@@ -662,55 +671,55 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             }}
           >
             <h3
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--foreground-muted)',
+                letterSpacing: '0.5px',
+                margin: 0,
+              }}
+            >
+              LINE ITEMS
+            </h3>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowRecipeModal(true)}
                 style={{
+                  padding: '6px 12px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
                   fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                  letterSpacing: '0.5px',
-                  margin: 0,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
                 }}
               >
-                LINE ITEMS
-              </h3>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowRecipeModal(true)}
-                  style={{
-                    padding: '6px 12px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: 'var(--foreground)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Load from Recipes
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
-                  }
-                  style={{
-                    padding: '6px 12px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: 'var(--foreground)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <Plus size={14} /> Add Item
-                </button>
-              </div>
+                Load from Recipes
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+                }
+                style={{
+                  padding: '6px 12px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Plus size={14} /> Add Item
+              </button>
+            </div>
           </div>
 
           {/* Column headers */}
@@ -769,7 +778,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                           setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
                         }
                       }}
-                      options={productUomOptions}
+                      options={productUomOptions.filter((o: any) => {
+                        const selectedIds = watch('details').map(d => d.product_uom_id).filter(id => id > 0)
+                        return !selectedIds.includes(o.value) || o.value === f.value
+                      })}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={productUomsLoading}
@@ -790,7 +802,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   min={0.01}
                   step={0.01}
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                  style={lineInputStyle}
+                  style={{
+                    ...lineInputStyle,
+                    ...(hasFinalDelivery ? { background: 'var(--surface)', cursor: 'not-allowed' } : {})
+                  }}
+                  disabled={hasFinalDelivery}
+                  onWheel={(e) => (e.target as HTMLElement).blur()}
                 />
               </div>
 
@@ -811,7 +828,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   style={lineInputStyle}
                 />
                 {(() => {
-                  if (poSourceType !== 'supplier') return null
+                  if (watchType !== 'supplier') return null
                   const uomId = Number(watch(`details.${index}.product_uom_id`))
                   const last = uomId ? lastPriceByUom.get(uomId) : undefined
                   if (!last) return null
@@ -828,7 +845,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         cursor: 'pointer',
                       }}
                     >
-                      {getCanReadPrice() 
+                      {getCanReadPrice()
                         ? `Last: Rp ${formatCurrency(last.price, '')}`
                         : `Last: Rp ***`}
                       {last.date ? ` · ${String(last.date).slice(0, 10)}` : ''}

@@ -384,6 +384,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
     sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
+    base_price: pu.base_price ?? 0,
   }))
   const purchaseOrderOptions = [
     { value: 0, label: 'No linked PO' },
@@ -418,7 +419,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     ...values,
     status: 'final',
     // Internal deliveries/transfers are price-free — never submit prices.
-    total_price: isInternal ? 0 : totalPrice,
+    total_price: totalPrice,
     purchase_order_id: values.purchase_order_id || undefined,
     sales_order_id: values.sales_order_id || undefined,
     details: values.details
@@ -432,7 +433,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         purchase_order_detail_id: d.purchase_order_detail_id || undefined,
         sales_order_detail_id: d.sales_order_detail_id || undefined,
         qty: d.qty,
-        price: isInternal ? 0 : d.price,
+        price: d.price,
         status: d.status,
         description: d.description || undefined,
       })),
@@ -841,12 +842,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             style={{
               display: 'grid',
               gridTemplateColumns: requiresBatch
-                ? isInternal
-                  ? '2fr 1fr 90px 120px 1fr 40px'
-                  : '2fr 1fr 90px 120px 110px 1fr 40px'
-                : isInternal
-                  ? '2fr 90px 110px 1fr 40px'
-                  : '2fr 90px 130px 110px 1fr 40px',
+                ? '2fr 1fr 90px 120px 110px 1fr 40px'
+                : '2fr 90px 130px 110px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
@@ -854,12 +851,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             }}
           >
             {(requiresBatch
-              ? isInternal
-                ? ['Product', 'Batch', 'Qty', 'Status', 'Notes', '']
-                : ['Product', 'Batch', 'Qty', 'Unit Price', 'Status', 'Notes', '']
-              : isInternal
-                ? ['Product', 'Qty', 'Status', 'Notes', '']
-                : ['Product', 'Qty', 'Unit Price', 'Status', 'Notes', '']
+              ? ['Product', 'Batch', 'Qty', 'Unit Price', 'Status', 'Notes', '']
+              : ['Product', 'Qty', 'Unit Price', 'Status', 'Notes', '']
             ).map((h, i) => (
               <span
                 key={i}
@@ -882,12 +875,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               style={{
                 display: 'grid',
                 gridTemplateColumns: requiresBatch
-                  ? isInternal
-                    ? '2fr 1fr 90px 120px 1fr 40px'
-                    : '2fr 1fr 90px 120px 110px 1fr 40px'
-                  : isInternal
-                    ? '2fr 90px 110px 1fr 40px'
-                    : '2fr 90px 130px 110px 1fr 40px',
+                ? '2fr 1fr 90px 120px 110px 1fr 40px'
+                : '2fr 90px 130px 110px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -907,6 +896,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                           `details.${index}.product_uom_batch_id`,
                           undefined,
                         )
+                        const opt = productUomOptions.find((o: any) => o.value === v)
+                        if (opt && opt.base_price) setValue(`details.${index}.price`, opt.base_price)
                       }}
                       options={productUomOptions}
                       placeholder="Select product..."

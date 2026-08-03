@@ -10,6 +10,7 @@ import { usersService } from '@/services/users.service'
 import { rolesService } from '@/services/roles.service'
 import { branchesService } from '@/services/branches.service'
 import { X, Loader2 } from 'lucide-react'
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -139,7 +140,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
       toast.success('User created')
       onClose()
     },
-    onError: () => toast.error('Failed to create user'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create user'),
   })
 
   const updateMutation = useMutation({
@@ -149,7 +150,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
       toast.success('User updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update user'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update user'),
   })
 
   const onSubmit = (values: FormValues) => {

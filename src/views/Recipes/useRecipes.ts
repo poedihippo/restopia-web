@@ -11,7 +11,7 @@ const useRecipes = () => {
 
   const extraParams = useMemo(
     () => ({
-      include: "created_by,updated_by,material_product,material_uom,product",
+      include: "created_by,updated_by,product",
       filter: {
         product_id: productId,
       },

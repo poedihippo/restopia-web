@@ -133,4 +133,8 @@ export const SalesOrderType = [
     label: "Online",
     key: "online",
   },
+  {
+    label: "Franchise",
+    key: "franchise",
+  },
 ];

@@ -81,6 +81,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Product UOM Batches', href: '/products/product-uom-batches', permission: 'product-uom-batch.read' },
           { label: 'Product Conversions', href: '/products/product-conversions', permission: 'product-conversion.read' },
           { label: 'Product Inventory', href: '/products/product-inventory', permission: 'product-inventory.read' },
+          { label: 'Price Lists', href: '/products/price-lists', permission: 'price-list.read' },
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.read' },
         ],
       },
@@ -94,7 +95,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: PackageSearch,
         children: [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.read' },
-          { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-order.read' },
+          { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.read' },
           { label: 'Requested PO', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
           { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.read' },
         ],

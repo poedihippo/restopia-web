@@ -1,5 +1,4 @@
 'use client'
-import { formatCurrency } from '@/utils/price';
 import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
@@ -31,9 +30,6 @@ interface ProductInventory {
   stock?: number
   min_qty?: number
   code?: string
-  base_price?: number
-  online_price?: number
-  price_editable?: boolean
   expiry_date?: string
   status?: 'active' | 'inactive'
   created_at?: string
@@ -74,7 +70,12 @@ export default function ProductInventoriesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [lowStockOnly, setLowStockOnly] = useState(false)
+  const [stockGte, setStockGte] = useState<string>('')
+  const [stockLte, setStockLte] = useState<string>('')
+  const [expiryDateGte, setExpiryDateGte] = useState<string>('')
+  const [debouncedStockGte, setDebouncedStockGte] = useState<string>('')
+  const [debouncedStockLte, setDebouncedStockLte] = useState<string>('')
+  const [debouncedExpiryDateGte, setDebouncedExpiryDateGte] = useState<string>('')
   const [hideEmpty, setHideEmpty] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
@@ -84,11 +85,14 @@ export default function ProductInventoriesView() {
   const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       setDebouncedSearch(search)
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [search])
+      setDebouncedStockGte(stockGte)
+      setDebouncedStockLte(stockLte)
+      setDebouncedExpiryDateGte(expiryDateGte)
+    }, 500)
+    return () => clearTimeout(t)
+  }, [search, stockGte, stockLte, expiryDateGte])
 
   const handleExport = async () => {
     try {
@@ -120,10 +124,10 @@ export default function ProductInventoriesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, lowStockOnly])
+  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, debouncedSearch, lowStockOnly],
+    queryKey: ['product-inventories', page, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -132,6 +136,9 @@ export default function ProductInventoriesView() {
           sort: '-id',
           include: 'branch,product_uom_batch',
           'filter[search]': debouncedSearch || undefined,
+          'filter[stock_gte]': debouncedStockGte || undefined,
+          'filter[stock_lte]': debouncedStockLte || undefined,
+          'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
         })
         .then((r) => r.data),
   })
@@ -151,28 +158,10 @@ export default function ProductInventoriesView() {
     productUomsAll.find((pu: any) => pu.id === id)
 
   const filteredItems = items.filter((i) => {
-    if (
-      lowStockOnly &&
-      !(
-        i.min_qty !== undefined &&
-        i.min_qty !== null &&
-        (i.qty ?? 0) <= (i.min_qty ?? 0)
-      )
-    ) {
-      return false
-    }
-    if (hideEmpty && (i.qty ?? 0) === 0) {
-      return false
-    }
+    if (hideEmpty && (!i.qty || i.qty <= 0)) return false
     return true
   })
 
-  const lowCount = items.filter(
-    (i) =>
-      i.min_qty !== undefined &&
-      i.min_qty !== null &&
-      (i.qty ?? 0) <= (i.min_qty ?? 0)
-  ).length
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productInventoriesService.delete(id),
@@ -285,26 +274,60 @@ export default function ProductInventoriesView() {
           />
         </div>
 
-        {/* Low stock toggle */}
-        <button
-          onClick={() => setLowStockOnly(!lowStockOnly)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '7px 12px',
-            background: lowStockOnly ? 'var(--warning-bg)' : 'var(--surface)',
-            border: `1px solid ${lowStockOnly ? 'var(--warning)' : 'var(--border)'}`,
-            borderRadius: 'var(--radius-md)',
-            fontSize: 12,
-            fontWeight: 500,
-            color: lowStockOnly ? 'var(--warning)' : 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          <AlertTriangle size={13} />
-          Low Stock Only
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <input
+            type="number"
+            value={stockGte}
+            onChange={(e) => setStockGte(e.target.value)}
+            placeholder="Min stock"
+            style={{
+              width: 100,
+              padding: '8px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
+            }}
+          />
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>-</span>
+          <input
+            type="number"
+            value={stockLte}
+            onChange={(e) => setStockLte(e.target.value)}
+            placeholder="Max stock"
+            style={{
+              width: 100,
+              padding: '8px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
+            }}
+          />
+          <input
+            type="date"
+            value={expiryDateGte}
+            onChange={(e) => setExpiryDateGte(e.target.value)}
+            placeholder="Min Expiry Date"
+            style={{
+              padding: '7px 10px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
+            }}
+            title="Min Expiry Date"
+          />
+        </div>
 
         {/* Hide empty batches toggle */}
         <button
@@ -344,12 +367,8 @@ export default function ProductInventoriesView() {
         >
           <span>Total items: {meta?.total ?? 0}</span>
           <span style={{ color: 'var(--border)' }}>|</span>
-          <span
-            style={{
-              color: lowCount > 0 ? 'var(--warning)' : 'var(--foreground-muted)',
-            }}
-          >
-            Low stock: {lowCount}
+          <span>
+            {filteredItems.length} listed
           </span>
         </div>
       )}
@@ -460,9 +479,7 @@ export default function ProductInventoriesView() {
                   >
                     <Boxes size={32} style={{ color: 'var(--foreground-subtle)' }} />
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {lowStockOnly
-                        ? 'No low stock items found'
-                        : 'No inventory items found'}
+                      No inventory items found
                     </span>
                   </div>
                 </td>
@@ -916,20 +933,6 @@ export default function ProductInventoriesView() {
                   {
                     label: 'Current Stock',
                     value: (selectedItem.stock ?? 0).toLocaleString('id-ID'),
-                  },
-                  {
-                    label: 'Base Price',
-                    value:
-                      selectedItem.base_price != null
-                        ? formatCurrency(selectedItem.base_price)
-                        : undefined,
-                  },
-                  {
-                    label: 'Online Price',
-                    value:
-                      selectedItem.online_price != null
-                        ? formatCurrency(selectedItem.online_price)
-                        : undefined,
                   },
                   { label: 'Status', value: selectedItem.status },
                   { label: 'Expiry Date', value: selectedItem.expiry_date },

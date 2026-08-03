@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { rolesService } from '@/services/roles.service'
 import { permissionsService } from '@/services/permissions.service'
 import { X, Loader2, Search } from 'lucide-react'
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   name: z.string().min(1, 'Role name is required'),
@@ -89,7 +90,7 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
       toast.success('Role created')
       onClose()
     },
-    onError: () => toast.error('Failed to create role'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create role'),
   })
 
   const updateMutation = useMutation({
@@ -99,7 +100,7 @@ export default function RoleSheet({ open, onClose, editData }: RoleSheetProps) {
       toast.success('Role updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update role'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update role'),
   })
 
   const onSubmit = (data: FormValues) => {

@@ -57,7 +57,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,delivery_details,delivery_details.product_uom,delivery_details.product_uom.product,delivery_details.product_uom.uom',
+            'branch,target_branch,delivery_details',
         } as any)
         .then((r) => r.data),
   })
@@ -674,7 +674,10 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                     <SearchableSelect
                       value={f.value ?? 0}
                       onChange={f.onChange}
-                      options={productUomOptions}
+                      options={productUomOptions.filter((o: any) => {
+                        const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                        return !selectedIds.includes(o.value) || o.value === f.value
+                      })}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={productUomsLoading}

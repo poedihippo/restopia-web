@@ -510,7 +510,10 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                           <SearchableSelect
                             value={selectField.value ?? 0}
                             onChange={selectField.onChange}
-                            options={productUomOptions}
+                            options={productUomOptions.filter((o: any) => {
+                              const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                              return !selectedIds.includes(o.value) || o.value === selectField.value
+                            })}
                             placeholder="Select product..."
                             searchPlaceholder="Search..."
                             loading={productUomsLoading}

@@ -18,6 +18,7 @@ import {
   SplitSquareHorizontal
 } from 'lucide-react'
 import AllocateModal from './AllocateModal'
+import { toastMutationApiError } from '@/utils/apiError';
 
 interface Payment {
   id: number
@@ -84,7 +85,7 @@ export default function PaymentsView() {
       toast.success('Payment deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete payment'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete payment'),
   })
 
   const voidMutation = useMutation({

@@ -152,7 +152,7 @@ export function usePosLogic() {
         per_page: 20,
         sort: 'fulfillment_date',
         'filter[status]': 'pending',
-        include: 'sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer',
+        include: 'sales_order_details,customer',
       }
       if (preorderSearchDebounced) params['filter[search]'] = preorderSearchDebounced
       if (preorderDateFrom) params['filter[fulfillment_date_gte]'] = preorderDateFrom
@@ -171,7 +171,7 @@ export function usePosLogic() {
         page: historyPage,
         per_page: 20,
         sort: '-created_at',
-        include: 'sales_order_details,sales_order_details.product_inventory,sales_order_details.product_inventory.product_uom,sales_order_details.product_inventory.product_uom.product,customer',
+        include: 'sales_order_details,customer',
       }
       if (historySearchDebounced) params['filter[search]'] = historySearchDebounced
       if (historyDateFrom) params['filter[date_gte]'] = historyDateFrom
@@ -246,7 +246,7 @@ export function usePosLogic() {
           per_page: 60,
           'filter[status]': 'active',
           'filter[search]': bundleSearchDebounced || undefined,
-          include: 'bundle_details,bundle_details.product_uom,bundle_details.product_uom.product,bundle_details.product_uom.product_inventories,bundle_details.product_uom.product_inventories.product_uom_batch',
+          include: 'bundle_details',
         } as any)
         .then((r) => r.data),
   })
@@ -267,7 +267,7 @@ export function usePosLogic() {
       productUomsService
         .list({
           per_page: 500,
-          include: 'product,product.product_category,uom',
+          include: 'product,uom',
           'filter[status]': 'active',
         } as any)
         .then((r) => r.data)
@@ -468,7 +468,10 @@ export function usePosLogic() {
           code: lot.product_uom_batch?.product_uom?.code ?? lot.product_uom_batch?.product_uom?.product?.code
             ?? '',
           // Harga dibedakan berdasarkan orderType (online/offline)
-          price: orderType === 'online' ? (lot.online_price ?? lot.base_price) : lot.base_price,
+          price: (() => {
+            const uom = lot.product_uom_batch?.product_uom ?? lot.product_uom ?? lot.productUom;
+            return orderType === 'online' ? (uom?.online_price ?? uom?.base_price ?? 0) : (uom?.base_price ?? 0);
+          })(),
           qty: 1,
         },
       ]

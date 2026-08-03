@@ -18,6 +18,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   qty: z.coerce.number().min(0.01, 'Qty must be > 0'),
+  price: z.coerce.number().min(0, 'Price must be >= 0').default(0),
   description: z.string().optional(),
 })
 
@@ -27,6 +28,7 @@ const schema = z.object({
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
+  total_price: z.coerce.number().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -60,7 +62,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
       date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
-      details: [{ product_uom_id: 0, qty: 1, description: '' }],
+      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+      total_price: 0,
     },
   })
 
@@ -107,6 +110,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
     sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
+    price: pu.base_price ?? 0,
   }))
 
   useEffect(() => {
@@ -115,12 +119,15 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     }
   }, [initialData, mode])
 
-  // Internal orders are always type 'branch'; supplier_id and pricing are never
-  // sent.
+  // Internal orders are always type 'branch'; supplier_id is never sent.
+  const watchDetails = watch('details')
+  const totalPrice = watchDetails.reduce((acc, curr) => acc + (Number(curr.qty) * Number(curr.price)), 0)
+
   const buildPayload = (values: FormValues) => ({
     ...values,
     type: 'branch',
     supplier_branch_id: values.supplier_branch_id || undefined,
+    total_price: totalPrice,
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
@@ -234,7 +241,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     boxSizing: 'border-box',
   }
 
-  const lineGridCols = '2fr 120px 1fr 40px'
+  const lineGridCols = '2fr 100px 100px 1fr 40px'
 
   return (
     <div
@@ -437,7 +444,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             <span style={sectionLabelStyle}>Line Items</span>
             <button
               type="button"
-              onClick={() => append({ product_uom_id: 0, qty: 1, description: '' })}
+              onClick={() => append({ product_uom_id: 0, qty: 1, price: 0, description: '' })}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -468,7 +475,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               background: 'var(--background)',
             }}
           >
-            {['Product / UOM', 'Qty', 'Notes', ''].map((h, i) => (
+            {['Product / UOM', 'Price', 'Qty', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -505,8 +512,15 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={f.onChange}
-                      options={productUomOptions}
+                      onChange={(val) => {
+                        f.onChange(val)
+                        const opt = productUomOptions.find((o: any) => o.value === val)
+                        if (opt) setValue(`details.${index}.price`, opt.price)
+                      }}
+                      options={productUomOptions.filter((o: any) => {
+                        const selectedIds = watch('details').map(d => d.product_uom_id).filter(id => id > 0)
+                        return !selectedIds.includes(o.value) || o.value === f.value
+                      })}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={productUomsLoading}
@@ -520,6 +534,18 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                 />
               </div>
 
+              {/* Price */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  {...register(`details.${index}.price`, { valueAsNumber: true })}
+                  style={lineInputStyle}
+                  onWheel={(e) => (e.target as HTMLElement).blur()}
+                />
+              </div>
+
               {/* Qty */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <input
@@ -528,6 +554,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                   step={0.01}
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={lineInputStyle}
+                  onWheel={(e) => (e.target as HTMLElement).blur()}
                 />
               </div>
 
@@ -567,6 +594,31 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               </span>
             </div>
           )}
+
+          {/* Total row */}
+          <div
+            style={{
+              padding: '14px 20px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: 12,
+              borderTop: '1px solid var(--border)',
+              background: 'var(--background)',
+            }}
+          >
+            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total</span>
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: 'var(--accent)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              Rp {totalPrice.toLocaleString('id-ID')}
+            </span>
+          </div>
         </div>
 
         {/* Form actions */}

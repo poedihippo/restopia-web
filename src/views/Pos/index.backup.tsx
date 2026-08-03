@@ -270,7 +270,7 @@ export default function PosView() {
       productUomsService
         .list({
           per_page: 500,
-          include: 'product,product.product_category,uom',
+          include: 'product,uom',
           'filter[status]': 'active',
         } as any)
         .then((r) => r.data),

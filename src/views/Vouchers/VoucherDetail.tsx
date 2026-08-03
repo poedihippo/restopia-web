@@ -75,7 +75,7 @@ export default function VoucherDetail({ id }: VoucherDetailProps) {
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       toast.success('Status updated')
     },
-    onError: () => toast.error('Failed to update status'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update status'),
   })
 
   const backBtnStyle: React.CSSProperties = {

@@ -191,7 +191,7 @@ export default function ProductCategoriesView() {
                 background: 'var(--background)',
               }}
             >
-              {(['Name', 'Description', 'Created', ''] as const).map((label, i) => (
+              {(['Name', 'Created', ''] as const).map((label, i) => (
                 <th
                   key={i}
                   style={{
@@ -298,19 +298,6 @@ export default function ProductCategoriesView() {
                     }}
                   >
                     {canRead ? item.name : "***"}
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 13,
-                      color: 'var(--foreground-muted)',
-                      maxWidth: 300,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {canRead ? item.description || '—' : "***"}
                   </td>
                   <td
                     style={{
@@ -622,7 +609,7 @@ export default function ProductCategoriesView() {
               {[
                 { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
-                { label: 'Description', value: selectedItem.description },
+
                 {
                   label: 'Created At',
                   value: selectedItem.created_at

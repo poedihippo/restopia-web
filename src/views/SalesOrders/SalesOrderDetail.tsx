@@ -52,7 +52,7 @@ export default function SalesOrderDetail() {
       salesOrderService
         .findById(id, {
           include:
-            'branch,customer,created_by,purchase_order,buyer_branch,credit_by,sales_order_details',
+            'branch,customer,created_by,purchase_order,credit_by,sales_order_details',
         })
         .then((r) => r.data),
   });
@@ -136,7 +136,7 @@ export default function SalesOrderDetail() {
       setPaymentAmount(0)
       setPaymentDescription('')
     },
-    onError: () => toast.error('Failed to record payment'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to record payment'),
   })
 
   const deletePaymentMutation = useMutation({
@@ -146,7 +146,7 @@ export default function SalesOrderDetail() {
       queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
       toast.success('Payment deleted')
     },
-    onError: () => toast.error('Failed to delete payment'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete payment'),
   })
 
   const { mutate: doDelete, isPending: deleting } = useMutation({

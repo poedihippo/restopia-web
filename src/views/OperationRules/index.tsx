@@ -7,6 +7,7 @@ import { operationRulesService } from '@/services/operation-rules.service';
 import { useAuth } from '@/hooks/useAuth';
 import OperationRuleSheet from './OperationRuleSheet';
 import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
+import { toastMutationApiError } from '@/utils/apiError';
 
 export default function OperationRulesView() {
   const qc = useQueryClient();
@@ -53,7 +54,7 @@ export default function OperationRulesView() {
       toast.success('OperationRule deleted');
       setDeleteConfirmId(null);
     },
-    onError: () => toast.error('Failed to delete OperationRule'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete OperationRule'),
   });
 
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1;

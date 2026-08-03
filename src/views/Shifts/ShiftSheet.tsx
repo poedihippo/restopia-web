@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { shiftsService } from '@/services/shifts.service'
 import { X, Loader2 } from 'lucide-react'
+import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
   branch_id: z.coerce.number().optional(),
@@ -62,7 +63,7 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
       toast.success('Shift created')
       onClose()
     },
-    onError: () => toast.error('Failed to create Shift'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create Shift'),
   })
 
   const updateMutation = useMutation({
@@ -72,7 +73,7 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
       toast.success('Shift updated')
       onClose()
     },
-    onError: () => toast.error('Failed to update Shift'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update Shift'),
   })
 
   const onSubmit = (data: FormValues) => {

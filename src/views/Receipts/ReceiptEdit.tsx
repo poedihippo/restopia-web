@@ -20,7 +20,7 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
     queryFn: () =>
       receiptsService
         .findById(id, {
-          include: 'branch,delivery,receipt_details.product_uom',
+          include: 'branch,delivery,receipt_details',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),

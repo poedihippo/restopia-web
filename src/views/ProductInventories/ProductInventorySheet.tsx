@@ -12,33 +12,17 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
-import { getCanReadPrice } from '@/utils/price'
 
-const formatNumber = (n: number | undefined): string => {
-  if (n === undefined || n === null || Number.isNaN(n)) return ''
-  if (!getCanReadPrice()) return '***'
-  return Number(n).toLocaleString('id-ID')
-}
 
 const createSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Please select a product'),
   code: z.string().min(1, 'SKU Code is required'),
-  base_price: z.coerce
-    .number({ message: 'Base price is required' })
-    .min(0, 'Base price cannot be negative'),
-  online_price: z.coerce
-    .number({ message: 'Online price is required' })
-    .min(0, 'Online price cannot be negative'),
-  price_editable: z.boolean().default(false),
   expiry_date: z.string().optional(),
   status: z.enum(['active', 'inactive'], { message: 'Status is required' }),
 })
 
 const editSchema = z.object({
   code: z.string().optional(),
-  base_price: z.coerce.number().min(0).optional(),
-  online_price: z.coerce.number().min(0).optional(),
-  price_editable: z.boolean().optional(),
   expiry_date: z.string().optional(),
   status: z.enum(['active', 'inactive']).optional(),
 })
@@ -46,9 +30,6 @@ const editSchema = z.object({
 const schema = z.object({
   product_uom_id: z.coerce.number().min(0).optional(),
   code: z.string().optional(),
-  base_price: z.coerce.number().min(0).optional(),
-  online_price: z.coerce.number().min(0).optional(),
-  price_editable: z.boolean().optional(),
   expiry_date: z.string().optional(),
   status: z.enum(['active', 'inactive']).optional(),
 })
@@ -61,9 +42,6 @@ interface ProductInventorySheetProps {
     id: number
     product_uom_id: number
     code?: string
-    base_price?: number
-    online_price?: number
-    price_editable?: boolean
     expiry_date?: string
     status?: 'active' | 'inactive'
     product_uom_batch?: {
@@ -130,9 +108,6 @@ export default function ProductInventorySheet({
     defaultValues: {
       product_uom_id: 0,
       code: '',
-      base_price: 0,
-      online_price: 0,
-      price_editable: false,
       expiry_date: '',
       status: 'active',
     },
@@ -176,9 +151,6 @@ export default function ProductInventorySheet({
       reset({
         product_uom_id: editData.product_uom_id,
         code: code,
-        base_price: editData.base_price ?? 0,
-        online_price: editData.online_price ?? 0,
-        price_editable: editData.price_editable ?? false,
         expiry_date: parseExpiryDate(expiry),
         status: editData.status ?? 'active',
       })
@@ -186,9 +158,6 @@ export default function ProductInventorySheet({
       reset({
         product_uom_id: 0,
         code: '',
-        base_price: 0,
-        online_price: 0,
-        price_editable: false,
         expiry_date: '',
         status: 'active',
       })
@@ -200,9 +169,6 @@ export default function ProductInventorySheet({
       productInventoriesService.create({
         product_uom_id: data.product_uom_id!,
         code: data.code!,
-        base_price: data.base_price ?? 0,
-        online_price: data.online_price ?? 0,
-        price_editable: data.price_editable,
         expiry_date: data.expiry_date || undefined,
         status: data.status ?? 'active',
       } as any),
@@ -219,9 +185,6 @@ export default function ProductInventorySheet({
     mutationFn: (data: FormValues) =>
       productInventoriesService.update(editData!.id, {
         code: data.code,
-        base_price: data.base_price,
-        online_price: data.online_price,
-        price_editable: data.price_editable,
         expiry_date: data.expiry_date || undefined,
         status: data.status,
       } as any),
@@ -373,102 +336,35 @@ export default function ProductInventorySheet({
             </div>
           )}
 
-          {/* SKU Code */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-              SKU Code
-              {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
-            </label>
-            <input
-              {...register('code')}
-              placeholder="e.g. SK000000001"
-              style={{
-                ...inputStyle,
-                border: `1px solid ${errors.code ? 'var(--destructive)' : 'var(--border)'}`,
-              }}
-            />
-            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4 }}>
-              Unique identifier for this inventory item
-            </span>
-            {errors.code && (
-              <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4 }}>
-                {errors.code.message}
-              </span>
-            )}
-          </div>
+          {!isEditMode && (
+            <>
+              {/* SKU Code */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  SKU Code
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
+                <input
+                  {...register('code')}
+                  placeholder="e.g. SK000000001"
+                  style={{
+                    ...inputStyle,
+                    ...(errors.code ? { border: '1px solid var(--destructive)' } : {}),
+                  }}
+                />
+                {errors.code && <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4 }}>{errors.code.message}</span>}
+              </div>
 
-          {/* Prices row */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 12,
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Base Price (Rp)
-                {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatNumber(watch('base_price'))}
-                disabled={!getCanReadPrice()}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^\d]/g, '')
-                  setValue('base_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
-                }}
-                placeholder="0"
-                style={{
-                  ...inputStyle,
-                  border: `1px solid ${errors.base_price ? 'var(--destructive)' : 'var(--border)'}`,
-                  ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
-                }}
-              />
-              {errors.base_price && (
-                <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4 }}>
-                  {errors.base_price.message}
+              {/* Expiry Date */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Expiry Date</label>
+                <input type="date" {...register('expiry_date')} style={inputStyle} />
+                <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4 }}>
+                  Leave empty if no expiry
                 </span>
-              )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Online Price (Rp)
-                {!isEditMode && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={formatNumber(watch('online_price'))}
-                disabled={!getCanReadPrice()}
-                onChange={(e) => {
-                  const raw = e.target.value.replace(/[^\d]/g, '')
-                  setValue('online_price', raw === '' ? 0 : parseInt(raw, 10) || 0)
-                }}
-                placeholder="0"
-                style={{
-                  ...inputStyle,
-                  border: `1px solid ${errors.online_price ? 'var(--destructive)' : 'var(--border)'}`,
-                  ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
-                }}
-              />
-              {errors.online_price && (
-                <span style={{ fontSize: 12, color: 'var(--destructive)', marginTop: 4 }}>
-                  {errors.online_price.message}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Expiry */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <label style={labelStyle}>Expiry Date</label>
-            <input type="date" {...register('expiry_date')} style={inputStyle} />
-            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4 }}>
-              Leave empty if no expiry
-            </span>
-          </div>
+              </div>
+            </>
+          )}
 
           {/* Status + price_editable */}
           <div
@@ -529,46 +425,7 @@ export default function ProductInventorySheet({
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={labelStyle}>Price Editable</label>
-              <Controller
-                name="price_editable"
-                control={control}
-                render={({ field }) => (
-                  <button
-                    type="button"
-                    onClick={() => field.onChange(!field.value)}
-                    style={{
-                      width: 36,
-                      height: 20,
-                      borderRadius: 10,
-                      border: 'none',
-                      background: field.value ? 'var(--accent)' : 'var(--border)',
-                      position: 'relative',
-                      cursor: 'pointer',
-                      transition: 'background 150ms ease',
-                      marginTop: 2,
-                    }}
-                  >
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: 3,
-                        left: field.value ? 19 : 3,
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        background: 'white',
-                        transition: 'left 150ms ease',
-                      }}
-                    />
-                  </button>
-                )}
-              />
-              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 6 }}>
-                Allow price editing at point of sale
-              </span>
-            </div>
+
           </div>
           </div>
 

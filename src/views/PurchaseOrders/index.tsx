@@ -45,6 +45,11 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
     color: 'var(--warning)',
     bg: 'var(--warning-bg)',
   },
+  final: {
+    label: 'Final',
+    color: 'var(--accent)',
+    bg: 'var(--accent-bg)',
+  },
   accepted: {
     label: 'Accepted',
     color: 'var(--success)',
@@ -60,8 +65,13 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
     color: 'var(--info)',
     bg: 'var(--info-bg)',
   },
-  final: {
-    label: 'Final',
+  partially_delivered: {
+    label: 'Partially Delivered',
+    color: 'var(--info)',
+    bg: 'var(--info-bg)',
+  },
+  delivered: {
+    label: 'Delivered',
     color: 'var(--success)',
     bg: 'var(--success-bg)',
   },
@@ -70,7 +80,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function PurchaseOrdersView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
   const canRead = hasPermission("purchase-order.read");
   const canCreate = hasPermission('purchase-order.create')
   const canEdit = hasPermission('purchase-order.update')
@@ -93,7 +103,7 @@ export default function PurchaseOrdersView() {
   }, [debouncedSearch, statusFilter, dateFrom, dateTo])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['purchase-orders', page, debouncedSearch, statusFilter, dateFrom, dateTo],
+    queryKey: ['purchase-orders', page, debouncedSearch, statusFilter, dateFrom, dateTo, (user as any)?.branch?.id],
     queryFn: () =>
       purchaseOrdersService
         .list({
@@ -105,6 +115,7 @@ export default function PurchaseOrdersView() {
           'filter[status]': statusFilter || undefined,
           'filter[date_gte]': dateFrom || undefined,
           'filter[date_lte]': dateTo || undefined,
+          'filter[branch_id]': (user as any)?.branch?.id || undefined,
         })
         .then((r) => r.data),
   })
@@ -204,7 +215,7 @@ export default function PurchaseOrdersView() {
             cursor: 'pointer',
           }}>
           <Plus size={15} />New Order
-                              </button>)}
+        </button>)}
       </div>
       {/* Toolbar */}
       <div

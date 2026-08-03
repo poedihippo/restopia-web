@@ -26,6 +26,7 @@ interface ProductUom {
   code?: string
   base_price?: number
   online_price?: number
+  franchise_price?: number
   price_editable?: boolean
   is_default?: boolean
   created_at?: string
@@ -42,6 +43,7 @@ export default function ProductUomsView() {
   const canCreate = hasPermission('product-uom.create')
   const canEdit = hasPermission('product-uom.update')
   const canDelete = hasPermission('product-uom.delete')
+  const canReadFranchisePrice = hasPermission('common.franchise-price.read')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -55,6 +57,7 @@ export default function ProductUomsView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<ProductUom | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const [resolvePrice, setResolvePrice] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
@@ -68,7 +71,7 @@ export default function ProductUomsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, resolvePrice])
 
   const { data: productSearchData } = useQuery({
     queryKey: ['product-uoms-product-search', productSearchDebounced],
@@ -96,6 +99,7 @@ export default function ProductUomsView() {
           sort: '-id',
           include: 'product,uom',
           'filter[search]': debouncedSearch || undefined,
+          'filter[resolve_price]': resolvePrice ? 'true' : undefined,
           ...(selectedProductId ? { 'filter[product_id]': selectedProductId } : {}),
         })
         .then((r) => r.data),
@@ -298,19 +302,41 @@ export default function ProductUomsView() {
             }}
           />
         </div>
-        {selectedProductId && (
-          <span
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {selectedProductId && (
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--accent)',
+                background: 'var(--accent-light-bg)',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-xl)',
+              }}
+            >
+              Filtered by: {productSearch}
+            </span>
+          )}
+          {/* Resolve price toggle */}
+          <button
+            onClick={() => setResolvePrice(!resolvePrice)}
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 12px',
+              background: resolvePrice ? 'var(--accent-light-bg)' : 'var(--surface)',
+              border: `1px solid ${resolvePrice ? 'var(--accent-light)' : 'var(--border)'}`,
+              borderRadius: 'var(--radius-md)',
               fontSize: 12,
-              color: 'var(--accent)',
-              background: 'var(--accent-light-bg)',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-xl)',
+              fontWeight: 500,
+              color: resolvePrice ? 'var(--accent)' : 'var(--foreground-muted)',
+              cursor: 'pointer',
             }}
           >
-            Filtered by: {productSearch}
-          </span>
-        )}
+            <Tag size={13} />
+            Resolve Franchise Price
+          </button>
+        </div>
       </div>
       {/* Table */}
       <div
@@ -331,6 +357,7 @@ export default function ProductUomsView() {
                 { label: 'Code', width: 120 },
                 { label: 'Base Price', width: 140 },
                 { label: 'Online Price', width: 140 },
+                ...(canReadFranchisePrice ? [{ label: 'Franchise Price', width: 140 }] : []),
                 { label: 'Default', width: 90 },
                 { label: 'Created', width: 130 },
                 { label: '', width: 80 },
@@ -460,6 +487,11 @@ export default function ProductUomsView() {
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {canRead ? formatCurrency(item.online_price) : "***"}
                   </td>
+                  {canReadFranchisePrice && (
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      {canRead ? formatCurrency(item.franchise_price) : "***"}
+                    </td>
+                  )}
                   <td style={{ padding: '12px 16px' }}>
                     <span style={boolPill(item.is_default)}>
                       {item.is_default ? 'Yes' : 'No'}
@@ -729,6 +761,7 @@ export default function ProductUomsView() {
                 { label: 'UOM Code', value: selectedItem.uom?.code },
                 { label: 'Base Price', value: formatCurrency(selectedItem.base_price) },
                 { label: 'Online Price', value: formatCurrency(selectedItem.online_price) },
+                ...(canReadFranchisePrice ? [{ label: 'Franchise Price', value: formatCurrency(selectedItem.franchise_price) }] : []),
                 {
                   label: 'Price Editable',
                   value: selectedItem.price_editable ? 'Yes' : 'No',

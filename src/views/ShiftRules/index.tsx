@@ -7,6 +7,7 @@ import { shiftRulesService } from '@/services/shift-rules.service';
 import { useAuth } from '@/hooks/useAuth';
 import ShiftRuleSheet from './ShiftRuleSheet';
 import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
+import { toastMutationApiError } from '@/utils/apiError';
 
 export default function ShiftRulesView() {
   const qc = useQueryClient();
@@ -53,7 +54,7 @@ export default function ShiftRulesView() {
       toast.success('ShiftRule deleted');
       setDeleteConfirmId(null);
     },
-    onError: () => toast.error('Failed to delete ShiftRule'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete ShiftRule'),
   });
 
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1;

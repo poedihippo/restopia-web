@@ -13,7 +13,7 @@ const useMedia = ({ media_id, media_type }: Props) => {
 
     const extraParams = useMemo(
         () => ({
-            include: 'created_by,updated_by,material_product,material_uom'
+            include: 'created_by,updated_by'
         }),
         [],
     );

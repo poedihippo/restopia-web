@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { getCanReadPrice } from '@/utils/price'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
@@ -118,29 +118,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   })
   const deliveries = (deliveriesData as any)?.data ?? []
 
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
-    queryFn: async () => {
-      let allProductUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProductUoms = allProductUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProductUoms }
-    },
-  })
-  const productUoms = (productUomsData as any)?.data ?? []
-
   const watchDeliveryId = watch('delivery_id')
 
   const { data: deliveryData, isLoading: deliveryDetailLoading } = useQuery({
@@ -148,7 +125,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     queryFn: () =>
       deliveriesService
         .findById(watchDeliveryId as number, {
-          include: 'delivery_details,delivery_details.product_uom',
+          include: 'delivery_details',
         })
         .then((r) => r.data),
     enabled: !!watchDeliveryId && (watchDeliveryId as number) > 0,
@@ -197,6 +174,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   useEffect(() => {
     if (!deliveryDetail?.delivery_details?.length) return
+    if (mode === 'edit' && watchDeliveryId === initialData?.delivery_id) return
 
     const newDetails = deliveryDetail.delivery_details.map((d: any, index: number) => ({
       delivery_detail_id: d.id,
@@ -218,11 +196,33 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     label: `${d.code ?? `DEL-${d.id}`} - ${d.branch?.name ?? 'Unknown Branch'}`,
     sublabel: d.date ? d.date : undefined,
   }))
-  const productUomOptions = productUoms.map((pu: any) => ({
-    value: pu.id as number,
-    label: (pu.product?.name as string) ?? '',
-    sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
-  }))
+
+  const productUomOptions = useMemo(() => {
+    const deliveryOpts = deliveryDetail?.delivery_details?.map((dd: any) => ({
+      value: dd.product_uom?.id ?? dd.product_uom_id ?? 0,
+      label: (dd.product_uom?.product?.name as string) ?? '',
+      sublabel: (dd.product_uom?.uom?.name as string) ?? (dd.product_uom?.code as string) ?? '',
+      base_price: dd.product_uom?.base_price ?? 0,
+      original: dd.product_uom
+    })) ?? []
+
+    const receiptOpts = initialData?.receipt_details?.map((rd: any) => ({
+      value: rd.product_uom?.id ?? rd.product_uom_id ?? 0,
+      label: (rd.product_uom?.product?.name as string) ?? '',
+      sublabel: (rd.product_uom?.uom?.name as string) ?? (rd.product_uom?.code as string) ?? '',
+      base_price: rd.product_uom?.base_price ?? 0,
+      original: rd.product_uom
+    })) ?? []
+
+    const all = [...deliveryOpts, ...receiptOpts]
+    const map = new Map<number, any>()
+    all.forEach(item => {
+      if (item.value > 0 && !map.has(item.value)) {
+        map.set(item.value, item)
+      }
+    })
+    return Array.from(map.values())
+  }, [deliveryDetail, initialData])
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -240,19 +240,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const buildPayload = (values: FormValues) => ({
     ...values,
     status: 'final',
-    // Internal receipts are price-free — never submit prices.
-    total_price: isInternalReceipt ? 0 : (values.total_price || totalPrice),
+    total_price: values.total_price || totalPrice,
     details: values.details
-      .filter((d) => Number(d.product_uom_id) > 0)
+      .filter((d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0)
       .map((d) => ({
         delivery_detail_id: d.delivery_detail_id || undefined,
-        product_uom_id: d.product_uom_id,
         planned_expiry_date: d.planned_expiry_date || undefined,
         qty: d.qty,
-        price: isInternalReceipt ? 0 : d.price,
+        price: d.price,
         status: d.status,
         description: d.description || undefined,
         client_ref: d.client_ref || undefined,
+        ...(deliveryDetail?.source_type === 'po_from_branch' ? { product_uom_id: d.product_uom_id || undefined } : {}),
       })),
   })
 
@@ -290,7 +289,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     // Guard against a stock-less receipt: the payload applies the same
     // product_uom_id filter, so an empty result here means nothing would save.
     const validDetails = values.details.filter(
-      (d) => Number(d.product_uom_id) > 0,
+      (d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0,
     )
     if (validDetails.length === 0) {
       toast.error(
@@ -299,12 +298,11 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       return
     }
     if (deliveryAlreadyReceived) {
-      toast.error(
-        'This delivery already has a final receipt. Creating another will double-count stock.',
-      )
+      toast.error('A receipt already exists for this delivery.')
       return
     }
-    if (mode === 'edit' && receiptId) {
+
+    if (mode === 'edit') {
       updateMutation.mutate(values)
     } else {
       createMutation.mutate(values)
@@ -492,12 +490,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 control={control}
                 render={({ field }) => (
                   <SearchableSelect
-                    value={field.value ?? 0}
+                    value={field.value}
                     onChange={field.onChange}
                     options={deliveryOptions}
                     placeholder="Select delivery..."
                     searchPlaceholder="Search deliveries..."
                     loading={deliveriesLoading}
+                    disabled={mode === 'edit'}
                     error={errors.delivery_id?.message as string | undefined}
                   />
                 )}
@@ -585,22 +584,19 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </button>
           </div>
 
-          <div
+          <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ minWidth: 900 }}>
+              <div
             style={{
               display: 'grid',
-              gridTemplateColumns: isInternalReceipt
-                ? '2fr 100px 110px 120px 1fr 40px'
-                : '2fr 100px 120px 110px 120px 1fr 40px',
+              gridTemplateColumns: `minmax(250px, 2fr) 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
           >
-            {(isInternalReceipt
-              ? ['Product UOM', 'Qty', 'Status', 'Planned Expiry', 'Notes', '']
-              : ['Product UOM', 'Qty', 'Price', 'Status', 'Planned Expiry', 'Notes', '']
-            ).map((h, i) => (
+            {['Product / UOM', 'Qty', 'Price', 'Subtotal', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -621,9 +617,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: isInternalReceipt
-                  ? '2fr 100px 110px 120px 1fr 40px'
-                  : '2fr 100px 120px 110px 120px 1fr 40px',
+                gridTemplateColumns: `minmax(250px, 2fr) 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -637,11 +631,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={f.onChange}
-                      options={productUomOptions}
+                      onChange={(val) => {
+                        f.onChange(val)
+                        const opt = productUomOptions.find((o: any) => o.value === val)
+                        if (opt && opt.base_price) setValue(`details.${index}.price`, opt.base_price)
+                      }}
+                      options={productUomOptions.filter((o: any) => {
+                        const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                        return !selectedIds.includes(o.value) || o.value === f.value
+                      })}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
-                      loading={productUomsLoading}
+                      loading={false}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
                         | string
@@ -658,27 +659,37 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 step={0.001}
                 {...register(`details.${index}.qty`, { valueAsNumber: true })}
                 style={lineInputStyle}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
 
-              {!isInternalReceipt && (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formatNumber(watch(`details.${index}.price`))}
-                  disabled={!getCanReadPrice()}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/[^\d]/g, '')
-                    setValue(
-                      `details.${index}.price`,
-                      raw === '' ? 0 : parseInt(raw, 10) || 0,
-                    )
-                  }}
-                  style={{
-                    ...lineInputStyle,
-                    ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
-                  }}
-                />
-              )}
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatNumber(watch(`details.${index}.price`))}
+                    disabled={!getCanReadPrice()}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/[^\d]/g, '')
+                      setValue(
+                        `details.${index}.price`,
+                        raw === '' ? 0 : parseInt(raw, 10) || 0,
+                      )
+                    }}
+                    style={{
+                      ...lineInputStyle,
+                      ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
+                    }}
+                  />
+                  <input
+                    type="text"
+                    readOnly
+                    value={formatNumber((watch(`details.${index}.price`) ?? 0) * (watch(`details.${index}.qty`) ?? 0))}
+                    style={{
+                      ...lineInputStyle,
+                      background: 'var(--surface)',
+                      color: 'var(--foreground-muted)',
+                      cursor: 'not-allowed'
+                    }}
+                  />
 
               <Controller
                 name={`details.${index}.status`}
@@ -731,6 +742,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               </button>
             </div>
           ))}
+          </div>
+          </div>
 
           {!isInternalReceipt && (
             <div
@@ -796,7 +809,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           </button>
           <button
             type="submit"
-            disabled={isPending || deliveryLinesPending || deliveryAlreadyReceived}
+            disabled={isPending}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -808,17 +821,11 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor:
-                isPending || deliveryLinesPending || deliveryAlreadyReceived
-                  ? 'not-allowed'
-                  : 'pointer',
-              opacity:
-                isPending || deliveryLinesPending || deliveryAlreadyReceived
-                  ? 0.7
-                  : 1,
+              cursor: isPending ? 'not-allowed' : 'pointer',
+              opacity: isPending ? 0.7 : 1,
             }}
           >
-            {(isPending || deliveryLinesPending) && (
+            {isPending && (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
             )}
             <Save size={14} />
@@ -826,11 +833,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               ? isPending
                 ? 'Saving...'
                 : 'Save Changes'
-              : deliveryLinesPending
-                ? 'Loading items...'
-                : isPending
-                  ? 'Creating...'
-                  : 'Create Receipt'}
+              : isPending
+                ? 'Creating...'
+                : 'Create Receipt'}
           </button>
         </div>
       </form>

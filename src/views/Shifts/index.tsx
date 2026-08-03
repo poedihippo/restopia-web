@@ -7,6 +7,7 @@ import { shiftsService } from '@/services/shifts.service';
 import { useAuth } from '@/hooks/useAuth';
 import ShiftSheet from './ShiftSheet';
 import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
+import { toastMutationApiError } from '@/utils/apiError';
 
 export default function ShiftsView() {
   const qc = useQueryClient();
@@ -53,7 +54,7 @@ export default function ShiftsView() {
       toast.success('Shift deleted');
       setDeleteConfirmId(null);
     },
-    onError: () => toast.error('Failed to delete Shift'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete Shift'),
   });
 
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1;

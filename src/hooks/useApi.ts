@@ -2,6 +2,7 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosE
 import qs from 'qs'
 import { cookies } from '@/lib/cookies'
 import environment from '@/config/environment'
+import { toast } from 'sonner'
 
 const api: AxiosInstance = axios.create({
   baseURL: environment.API_URL,
@@ -41,11 +42,34 @@ function clearAuthAndRedirect() {
   }
 }
 
+/** Map common HTTP status codes to user-friendly messages */
+function getFriendlyErrorMessage(status: number, data: any): string | null {
+  // Try to use backend message first
+  const backendMsg: string | undefined = data?.message
+  if (backendMsg && backendMsg.toLowerCase() !== 'internal server error') {
+    return backendMsg
+  }
+
+  switch (status) {
+    case 400: return 'Permintaan tidak valid. Periksa data yang Anda masukkan.'
+    case 403: return 'Anda tidak memiliki izin untuk melakukan tindakan ini.'
+    case 404: return 'Data yang diminta tidak ditemukan.'
+    case 409: return 'Terjadi konflik data. Data mungkin sudah ada atau sudah berubah.'
+    case 422: return 'Data yang dikirim tidak valid. Pastikan semua field sudah diisi dengan benar.'
+    case 429: return 'Terlalu banyak permintaan. Silakan coba lagi beberapa saat.'
+    case 500: return 'Terjadi kesalahan pada server. Silakan coba lagi atau hubungi administrator.'
+    case 502: return 'Server sedang tidak dapat diakses. Silakan coba lagi.'
+    case 503: return 'Layanan sedang tidak tersedia. Silakan coba lagi nanti.'
+    default: return null
+  }
+}
+
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
     const status = error?.response?.status
+    const data = (error?.response?.data as any) ?? {}
 
     if (status === 401 && !originalRequest._retry) {
       const refreshToken = cookies.get('refresh_token')
@@ -90,6 +114,15 @@ api.interceptors.response.use(
       }
     }
 
+    // Show global toast for server-side errors (5xx) where no specific
+    // mutation-level handler will provide a better message.
+    if (status && status >= 500) {
+      const friendlyMsg = getFriendlyErrorMessage(status, data)
+      if (friendlyMsg) {
+        toast.error(friendlyMsg)
+      }
+    }
+
     return Promise.reject(error)
   },
 )
@@ -97,3 +130,4 @@ api.interceptors.response.use(
 export default api
 
 export const useApi = () => api
+

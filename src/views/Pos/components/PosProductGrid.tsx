@@ -378,9 +378,12 @@ export default function PosProductGrid({
                           }}
                         >
                           {formatCurrency(
-                            orderType === 'online'
-                              ? (item.online_price ?? item.base_price ?? 0)
-                              : (item.base_price ?? 0)
+                            (() => {
+                              const uom = item.product_uom_batch?.product_uom ?? item.product_uom ?? item.productUom;
+                              return orderType === 'online'
+                                ? (uom?.online_price ?? uom?.base_price ?? 0)
+                                : (uom?.base_price ?? 0);
+                            })()
                           )}
                         </span>
                       </div>
@@ -529,7 +532,10 @@ export default function PosProductGrid({
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                         <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
-                          {formatCurrency(orderType === 'online' ? (lot.online_price ?? lot.base_price) : lot.base_price)}
+                          {formatCurrency((() => {
+                            const lotUom = lot.product_uom_batch?.product_uom ?? lot.product_uom ?? lot.productUom;
+                            return orderType === 'online' ? (lotUom?.online_price ?? lotUom?.base_price ?? 0) : (lotUom?.base_price ?? 0);
+                          })())}
                         </span>
                         <span style={{ fontSize: 12, color: (lot.stock ?? 0) > 0 ? 'var(--success)' : 'var(--destructive)' }}>
                           Stock: {lot.stock ?? 0}

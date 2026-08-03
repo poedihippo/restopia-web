@@ -32,6 +32,7 @@ interface LineItem {
   product_inventory_id?: number | null
   bundle_id?: number | null
   bundle_details?: { product_inventory_id: number; qty: number }[] | null
+  purchase_order_detail_id?: number
   name: string
   code: string
   qty: number
@@ -196,6 +197,79 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   })
   const bundles = (bundleData as any)?.data ?? []
 
+  // ── Prepopulate from PO (if ?po_id=... is in query) ──────────────────────
+  useEffect(() => {
+    if (router.isReady && router.query.po_id && !isEdit) {
+      setPurchaseOrderId(Number(router.query.po_id))
+    }
+  }, [router.isReady, router.query.po_id, isEdit])
+
+  const { data: poDetailData } = useQuery({
+    queryKey: ['po-detail-for-so', purchaseOrderId],
+    enabled: !!purchaseOrderId && !isEdit,
+    queryFn: () =>
+      purchaseOrdersService
+        .findById(purchaseOrderId as number, {
+          include: 'purchase_order_details',
+        })
+        .then((r) => r.data),
+  })
+
+  useEffect(() => {
+    const po = (poDetailData as any)?.data
+    if (!po || isEdit) return
+
+    setBuyerBranchId(po.branch_id)
+
+    const poDetails = po.purchase_order_details ?? []
+    if (poDetails.length === 0) return
+
+    const fetchAndMap = async () => {
+      try {
+        const uomIds = poDetails.map((d: any) => d.product_uom_id).filter(Boolean)
+        if (!uomIds.length) return
+
+        const piRes = await productInventoriesService.list({
+          'filter[product_uom_id]': uomIds.join(','),
+          'filter[status]': 'active',
+          per_page: 100,
+          include: '',
+        } as any)
+
+        const inventories = (piRes.data as any)?.data ?? []
+
+        const newItems = poDetails.map((d: any) => {
+          const inv = inventories.find((i: any) => i.product_uom_id === d.product_uom_id)
+
+          return {
+            type: 'product' as const,
+            product_inventory_id: inv?.id ?? null,
+            bundle_id: null,
+            bundle_details: null,
+            purchase_order_detail_id: d.id,
+            name: inv
+              ? inv.product_uom_batch?.product_uom?.product?.name ??
+              inv.product_uom?.product?.name ??
+              inv.code
+              : d.product_uom?.product?.name ?? 'Unknown Product',
+            code: inv?.code ?? d.product_uom?.code ?? '',
+            qty: d.qty,
+            price: d.price,
+            status: 'pending' as const,
+            description: d.description ?? '',
+          }
+        })
+
+        setItems(newItems)
+        toast.info('PO items loaded into Sales Order')
+      } catch (err) {
+        console.error(err)
+      }
+    }
+
+    fetchAndMap()
+  }, [poDetailData, isEdit])
+
   // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
   const total = Math.max(0, subtotal - discountPrice)
@@ -294,6 +368,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           product_inventory_id: i.product_inventory_id ?? null,
           bundle_id: i.bundle_id ?? null,
           bundle_details: i.bundle_details ?? null,
+          purchase_order_detail_id: i.purchase_order_detail_id || undefined,
           qty: i.qty,
           price: i.price,
           status: i.status,

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { bundlesService } from '@/services/bundles.service'
 import { useAuth } from '@/hooks/useAuth'
 import BundleSheet from './BundleSheet'
+import { toastMutationApiError } from '@/utils/apiError';
 import {
   Plus,
   Search,
@@ -105,7 +106,7 @@ export default function BundlesView() {
       toast.success('Bundle deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete bundle'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete bundle'),
   })
 
   const inputBase: React.CSSProperties = {

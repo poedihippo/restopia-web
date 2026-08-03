@@ -7,6 +7,7 @@ import { operationsService } from '@/services/operations.service';
 import { useAuth } from '@/hooks/useAuth';
 import OperationSheet from './OperationSheet';
 import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
+import { toastMutationApiError } from '@/utils/apiError';
 
 export default function OperationsView() {
   const qc = useQueryClient();
@@ -53,7 +54,7 @@ export default function OperationsView() {
       toast.success('Operation deleted');
       setDeleteConfirmId(null);
     },
-    onError: () => toast.error('Failed to delete Operation'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete Operation'),
   });
 
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1;

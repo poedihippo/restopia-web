@@ -87,11 +87,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
     queryFn: () =>
       receiptsService
         .findById(id, {
-          include:
-            'branch,delivery,created_by,receipt_details,' +
-            'receipt_details.delivery_detail,' +
-            'receipt_details.product_uom,' +
-            'receipt_details.product_uom.product,receipt_details.product_uom.uom',
+          include: 'branch,delivery,receipt_details,created_by',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -500,13 +496,17 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
             {details.map((detail, index) => {
               const detailStatus =
                 STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+              
+              const deliveryDetail = (receipt?.delivery as any)?.delivery_details?.find((dd: any) => dd.id === detail.delivery_detail_id)
+              const productName = deliveryDetail?.product_uom?.product?.name ?? detail.product_uom?.product?.name ?? '—'
+              
               return (
                 <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {index + 1}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {detail.product_uom?.product?.name ?? '—'}
+                    {productName}
                   </td>
                   <td
                     style={{

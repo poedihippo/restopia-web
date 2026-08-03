@@ -12,6 +12,22 @@ interface Props {
 
 const INCLUDE = 'branch,created_by,production_details'
 
+function getProductName(inv: any): string {
+  return (
+    inv?.product_uom_batch?.product_uom?.product?.name ??
+    inv?.product_uom?.product?.name ??
+    ''
+  )
+}
+
+function getUomCode(inv: any): string {
+  return (
+    inv?.product_uom_batch?.product_uom?.uom?.code ??
+    inv?.product_uom?.uom?.code ??
+    ''
+  )
+}
+
 function mapApiToForm(production: any) {
   if (!production) return undefined
   const dateStr =
@@ -60,12 +76,31 @@ function mapApiToForm(production: any) {
   }
 }
 
+/** Build material label map { "detailIdx-matIdx": "ProductName · UomCode · SKU" } from API data */
+function buildMaterialLabels(production: any): Record<string, string> {
+  const labels: Record<string, string> = {}
+  ;(production?.production_details ?? []).forEach((d: any, di: number) => {
+    ;(d?.production_detail_materials ?? []).forEach((m: any, mi: number) => {
+      const inv = m?.product_inventory
+      if (!inv) return
+      const name = getProductName(inv)
+      const uomCode = getUomCode(inv)
+      const sku = inv?.code ?? ''
+      labels[`${di}-${mi}`] = [name, uomCode, sku ? `SKU: ${sku}` : '']
+        .filter(Boolean)
+        .join(' · ')
+    })
+  })
+  return labels
+}
+
 export default function ProductionEdit({ id }: Props) {
   const { data, isLoading } = useGetProduction(id, {
     include: INCLUDE,
   })
 
   const initialData = useMemo(() => mapApiToForm(data), [data])
+  const initialMaterialLabels = useMemo(() => buildMaterialLabels(data), [data])
 
   if (!id || Number.isNaN(id)) {
     return null
@@ -89,7 +124,7 @@ export default function ProductionEdit({ id }: Props) {
 
   return (
     <>
-      <ProductionForm mode="edit" productionId={id} initialData={initialData} />
+      <ProductionForm mode="edit" productionId={id} initialData={initialData} initialMaterialLabels={initialMaterialLabels} />
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -99,3 +134,4 @@ export default function ProductionEdit({ id }: Props) {
     </>
   )
 }
+

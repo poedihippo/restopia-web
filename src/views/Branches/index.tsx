@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { branchesService } from '@/services/branches.service'
 import { useAuth } from '@/hooks/useAuth'
 import BranchSheet from './BranchSheet'
+import { toastMutationApiError } from '@/utils/apiError';
 import {
   Plus,
   Search,
@@ -76,7 +77,7 @@ export default function BranchesView() {
       toast.success('Branch deleted')
       setDeleteConfirmId(null)
     },
-    onError: () => toast.error('Failed to delete branch'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to delete branch'),
   })
 
   const thStyle: React.CSSProperties = {

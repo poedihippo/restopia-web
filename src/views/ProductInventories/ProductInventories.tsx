@@ -47,11 +47,7 @@ const ProductInventories = () => {
     handleBranchChange,
     handleDefaultChange,
     handleClearFilter,
-    handlePriceEditableChange,
-    setBasePriceGte,
-    setBasePriceLte,
-    setOnlinePriceGte,
-    setOnlinePriceLte,
+
     setExpiryDateGte,
     setExpiryDateLte,
     setStatus,
@@ -267,85 +263,7 @@ const ProductInventories = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">
-                      Price Editable?
-                    </span>
-                    <Select
-                      onValueChange={(val) =>
-                        handlePriceEditableChange(
-                          val === "all" ? undefined : Number(val),
-                        )
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="All" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="all">All</SelectItem>
-                          <SelectItem value="1">True</SelectItem>
-                          <SelectItem value="0">False</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">
-                      Base Price Range
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="Min"
-                        onChange={(e) =>
-                          setBasePriceGte(
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="Max"
-                        onChange={(e) =>
-                          setBasePriceLte(
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">
-                      Online Price Range
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="Min"
-                        onChange={(e) =>
-                          setOnlinePriceGte(
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="Max"
-                        onChange={(e) =>
-                          setOnlinePriceLte(
-                            e.target.value ? Number(e.target.value) : undefined,
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
+
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">
                       Stock Range
