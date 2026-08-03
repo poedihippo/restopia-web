@@ -15,7 +15,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, FileText, CheckCircle2, Send, AlertCircle,
+  X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye,
 } from 'lucide-react'
 //trigger
 interface JournalDetail {
@@ -194,6 +194,17 @@ export default function JournalsView() {
   const numInputStyle: React.CSSProperties = { ...inputStyle, textAlign: 'right' }
   const smallInputStyle: React.CSSProperties = { ...inputStyle, padding: '7px 10px', fontSize: 13 }
 
+  // Detail modal: debit/credit lines, standard journal presentation (debits first, then credits).
+  const detailLines = detailItem?.journal_details ?? []
+  const sortedDetailLines = [...detailLines].sort((a, b) => {
+    const aIsDebit = Number(a.debit) > 0 ? 0 : 1
+    const bIsDebit = Number(b.debit) > 0 ? 0 : 1
+    return aIsDebit - bIsDebit
+  })
+  const detailTotalDebit = detailLines.reduce((s, l) => s + Number(l.debit || 0), 0)
+  const detailTotalCredit = detailLines.reduce((s, l) => s + Number(l.credit || 0), 0)
+  const detailIsBalanced = detailTotalDebit === detailTotalCredit
+
   return (
     <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
@@ -265,6 +276,8 @@ export default function JournalsView() {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      <button onClick={() => setDetailItem(item)} title="View Detail"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Eye size={14} /></button>
                       {!item.is_posted && isSuperadmin && (
                         <>
                           <button onClick={() => postMutation.mutate(item.id)} disabled={postMutation.isPending} title="Post Journal"
@@ -425,6 +438,94 @@ export default function JournalsView() {
           </div>
         </div>
       )}
+      {detailItem && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setDetailItem(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 640, maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
+                  {detailItem.journal_number}
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+                  {detailItem.date ? fmtDate(detailItem.date) : '—'} · {JOURNAL_TYPE_LABELS[detailItem.type] ?? detailItem.type} · {detailItem.period?.name || '—'}
+                </p>
+              </div>
+              <button onClick={() => setDetailItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 20px' }}>
+              {detailItem.is_posted
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}><CheckCircle2 size={11} /> Posted</span>
+                : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#f59e0b', padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.1)' }}><AlertCircle size={11} /> Draft</span>
+              }
+              {detailItem.description && (
+                <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{detailItem.description}</span>
+              )}
+            </div>
+
+            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--background)' }}>
+                    <th style={thStyle}>Account</th>
+                    <th style={{ ...thStyle, width: 150, textAlign: 'right' }}>Debit</th>
+                    <th style={{ ...thStyle, width: 150, textAlign: 'right' }}>Credit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedDetailLines.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
+                        No journal lines
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedDetailLines.map((line, idx) => (
+                      <tr key={line.id ?? idx}>
+                        <td style={tdStyle}>
+                          <div style={{ fontSize: 13, color: 'var(--foreground)' }}>
+                            {line.chart_of_account
+                              ? `${line.chart_of_account.code} — ${line.chart_of_account.name}`
+                              : `Account #${line.chart_of_account_id}`}
+                          </div>
+                          {line.description && (
+                            <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 2 }}>{line.description}</div>
+                          )}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {Number(line.debit) > 0 ? `Rp ${Number(line.debit).toLocaleString('id-ID')}` : ''}
+                        </td>
+                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                          {Number(line.credit) > 0 ? `Rp ${Number(line.credit).toLocaleString('id-ID')}` : ''}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: 'var(--background)' }}>
+                    <td style={{ padding: '10px 16px', fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>Total</td>
+                    <td style={{
+                      padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                      color: detailIsBalanced ? 'var(--foreground)' : 'var(--warning)',
+                    }}>
+                      Rp {detailTotalDebit.toLocaleString('id-ID')}
+                    </td>
+                    <td style={{
+                      padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                      color: detailIsBalanced ? 'var(--foreground)' : 'var(--warning)',
+                    }}>
+                      Rp {detailTotalCredit.toLocaleString('id-ID')}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
   )
