@@ -2,6 +2,7 @@
 import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { useAuth } from '@/hooks/useAuth'
@@ -33,6 +34,23 @@ interface StockMovement {
       }
     }
   }
+}
+
+// Verified against each module's own detail-route pattern (Productions/Deliveries/Receipts/SalesOrders/PurchaseOrders list views).
+const REFERENCE_ROUTES: Record<string, (id: number | string) => string> = {
+  productions: (id) => `/production/${id}/detail`,
+  deliveries: (id) => `/transfer/deliveries/${id}/detail`,
+  receipts: (id) => `/transfer/receipts/${id}/detail`,
+  sales_orders: (id) => `/sales/sales-orders/${id}/detail`,
+  purchase_orders: (id) => `/purchase/purchase-orders/${id}/detail`,
+}
+
+const REFERENCE_LABELS: Record<string, string> = {
+  productions: 'Production',
+  deliveries: 'Delivery',
+  receipts: 'Receipt',
+  sales_orders: 'Sales Order',
+  purchase_orders: 'Purchase Order',
 }
 
 const TYPE_META = {
@@ -226,6 +244,7 @@ export default function StockMovementView() {
               {(
                 [
                   { label: 'Type', width: 140 },
+                  { label: 'Document', width: 160 },
                   { label: 'Product', width: undefined },
                   { label: 'Branch', width: 160 },
                   { label: 'Qty', width: 100 },
@@ -255,7 +274,7 @@ export default function StockMovementView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -284,7 +303,7 @@ export default function StockMovementView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -299,7 +318,7 @@ export default function StockMovementView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <div
                     style={{
                       padding: 48,
@@ -371,6 +390,39 @@ export default function StockMovementView() {
                         </div>
                       )}
                     </div>
+                  </td>
+                  {/* Document */}
+                  <td style={{ padding: '12px 16px' }}>
+                    {(() => {
+                      const refType = item.reference_type as string | undefined
+                      const refId = item.reference_id as number | string | undefined
+                      if (!refType) {
+                        return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+                      }
+                      const code = item.reference?.code
+                      const label =
+                        code ??
+                        (refId != null
+                          ? `${REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' ')} #${refId}`
+                          : REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' '))
+                      const buildHref = REFERENCE_ROUTES[refType]
+                      if (buildHref && refId != null) {
+                        return (
+                          <Link
+                            href={buildHref(refId)}
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 500,
+                              color: 'var(--accent)',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            {label}
+                          </Link>
+                        )
+                      }
+                      return <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{label}</span>
+                    })()}
                   </td>
                   {/* Product */}
                   <td style={{ padding: '12px 16px' }}>
