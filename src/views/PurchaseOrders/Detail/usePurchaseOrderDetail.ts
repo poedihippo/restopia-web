@@ -1,5 +1,5 @@
 import useGetPurchaseOrder from '@/hooks/purchase-order/useGetPurchaseOrder';
-import productInventoriesService from '@/services/product-inventories.service';
+import { productInventoriesService } from '@/services/product-inventories.service';
 import productUomBatchesService from '@/services/product-uom-batches.service';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
