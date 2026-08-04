@@ -3,17 +3,26 @@ import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
+import { toast } from 'sonner'
 import { invoicesService } from '@/services/invoices.service'
+import { deliveriesService } from '@/services/deliveries.service'
 import { useAuth } from '@/hooks/useAuth'
+import { toastMutationApiError } from '@/utils/apiError'
 import {
   Search,
   ChevronLeft,
   ChevronRight,
   Eye,
   FileText,
+  Plus,
+  X,
+  Loader2,
+  Truck,
 } from 'lucide-react'
+
+const todayInputDate = () => new Date().toISOString().split('T')[0]
 
 interface Invoice {
   id: number
@@ -47,11 +56,20 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 
 export default function InvoicesView() {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canRead = hasPermission('invoice.read')
+  const canCreate = hasPermission('invoice.create')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+
+  const [createOpen, setCreateOpen] = useState(false)
+  const [deliverySearch, setDeliverySearch] = useState('')
+  const [debouncedDeliverySearch, setDebouncedDeliverySearch] = useState('')
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<number>(0)
+  const [invoiceDate, setInvoiceDate] = useState(todayInputDate())
+  const [invoiceDescription, setInvoiceDescription] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -61,6 +79,11 @@ export default function InvoicesView() {
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedDeliverySearch(deliverySearch), 400)
+    return () => clearTimeout(t)
+  }, [deliverySearch])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['invoices', page, debouncedSearch],
@@ -74,6 +97,49 @@ export default function InvoicesView() {
 
   const items: Invoice[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  // Deliveries eligible to be invoiced: only fetch while the modal is open,
+  // and only PO-sourced deliveries — the backend rejects delivery_id without a purchase_order_id.
+  const { data: deliveriesData, isLoading: deliveriesLoading } = useQuery({
+    queryKey: ['invoiceable-deliveries', debouncedDeliverySearch],
+    enabled: createOpen,
+    queryFn: () => {
+      const params: any = { per_page: 50, sort: '-created_at', include: 'target_branch' }
+      if (debouncedDeliverySearch && debouncedDeliverySearch.trim()) {
+        params['filter[search]'] = debouncedDeliverySearch.trim()
+      }
+      return deliveriesService.list(params).then((r) => r.data)
+    },
+  })
+  const allDeliveries: any[] = (deliveriesData as any)?.data ?? []
+  const invoiceableDeliveries = allDeliveries.filter((d) => d.purchase_order_id != null)
+
+  const resetCreateForm = () => {
+    setSelectedDeliveryId(0)
+    setInvoiceDate(todayInputDate())
+    setInvoiceDescription('')
+    setDeliverySearch('')
+  }
+
+  const createMutation = useMutation({
+    mutationFn: () =>
+      invoicesService.createFromDelivery({
+        delivery_id: selectedDeliveryId,
+        date: invoiceDate || undefined,
+        description: invoiceDescription.trim() || undefined,
+      }),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      toast.success('Invoice created')
+      setCreateOpen(false)
+      resetCreateForm()
+      // The create endpoint only returns a message wrapper today, but navigate
+      // straight to the new invoice if a future backend response ever includes the id.
+      const newId = res?.data?.data?.id ?? res?.data?.id
+      if (newId) router.push(`/transfer/invoices/${newId}`)
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create invoice'),
+  })
 
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
@@ -169,6 +235,26 @@ export default function InvoicesView() {
             Invoices billed to a branch, created from a delivery
           </p>
         </div>
+        {canCreate && (
+          <button
+            onClick={() => setCreateOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />Create Invoice
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}
@@ -422,10 +508,218 @@ export default function InvoicesView() {
         </div>
       )}
 
+      {/* Create Invoice modal */}
+      {createOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            onClick={() => {
+              setCreateOpen(false)
+              resetCreateForm()
+            }}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
+          />
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 70,
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '24px 24px 20px',
+              width: 520,
+              maxWidth: '92vw',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              boxShadow: 'var(--shadow-lg)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
+                Create Invoice
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateOpen(false)
+                  resetCreateForm()
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', color: 'var(--foreground-muted)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '0 0 16px' }}>
+              Select a delivery to invoice. Only PO-sourced deliveries are eligible — the delivery's lines are snapshotted as-is.
+            </p>
+
+            {/* Delivery picker */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: 6 }}>
+                Delivery
+              </label>
+              <div style={{ position: 'relative', marginBottom: 8 }}>
+                <Search
+                  size={14}
+                  style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }}
+                />
+                <input
+                  value={deliverySearch}
+                  onChange={(e) => setDeliverySearch(e.target.value)}
+                  placeholder="Search deliveries by code..."
+                  style={{
+                    ...inputBase,
+                    width: '100%',
+                    padding: '8px 12px 8px 32px',
+                    fontSize: 13,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  maxHeight: 260,
+                  overflowY: 'auto',
+                }}
+              >
+                {deliveriesLoading ? (
+                  <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    Loading deliveries...
+                  </div>
+                ) : invoiceableDeliveries.length === 0 ? (
+                  <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    No PO-sourced deliveries found
+                  </div>
+                ) : (
+                  invoiceableDeliveries.map((d: any) => {
+                    const isSelected = selectedDeliveryId === d.id
+                    return (
+                      <div
+                        key={d.id}
+                        onClick={() => setSelectedDeliveryId(d.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          padding: '10px 12px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid var(--border)',
+                          background: isSelected ? 'var(--accent-light-bg)' : 'transparent',
+                        }}
+                      >
+                        <Truck size={14} color={isSelected ? 'var(--accent)' : 'var(--foreground-subtle)'} style={{ flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--accent)' : 'var(--foreground)' }}>
+                              {d.code}
+                            </span>
+                            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                              {d.target_branch?.name ?? '—'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 2 }}>
+                            {d.date ? formatDate(d.date) : '—'}
+                            {' · '}
+                            {getCanReadPrice() ? `Rp ${Number(d.total_price ?? 0).toLocaleString('id-ID')}` : '***'}
+                          </div>
+                        </div>
+                        <input
+                          type="radio"
+                          readOnly
+                          checked={isSelected}
+                          style={{ cursor: 'pointer', flexShrink: 0 }}
+                        />
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Optional date + description */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: 6 }}>
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) => setInvoiceDate(e.target.value)}
+                  style={{ ...inputBase, width: '100%', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: 6 }}>
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={invoiceDescription}
+                  onChange={(e) => setInvoiceDescription(e.target.value)}
+                  placeholder="Optional"
+                  style={{ ...inputBase, width: '100%', padding: '8px 12px', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateOpen(false)
+                  resetCreateForm()
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => createMutation.mutate()}
+                disabled={!selectedDeliveryId || createMutation.isPending}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 16px',
+                  background: 'var(--accent)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'white',
+                  cursor: !selectedDeliveryId || createMutation.isPending ? 'not-allowed' : 'pointer',
+                  opacity: !selectedDeliveryId || createMutation.isPending ? 0.6 : 1,
+                }}
+              >
+                {createMutation.isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                Create Invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
