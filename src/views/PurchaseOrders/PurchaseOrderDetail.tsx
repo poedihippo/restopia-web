@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import {
   ArrowLeft,
   Pencil,
@@ -20,6 +21,7 @@ import {
   Hash,
   ChevronRight,
   ShoppingCart,
+  Printer,
 } from 'lucide-react'
 
 interface PurchaseOrderDetailProps {
@@ -32,11 +34,13 @@ interface PurchaseOrderFull {
   date: string
   total_price: number
   status: 'pending' | 'final'
+  type?: 'supplier' | 'branch'
   description?: string
   created_at?: string
   updated_at?: string
   branch?: { id: number; name: string }
   supplier?: { id: number; name: string }
+  supplier_branch?: { id: number; name: string }
   created_by?: { id: number; name: string }
   updated_by?: { id: number; name: string }
   purchase_order_details?: Array<{
@@ -97,6 +101,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canRead = hasPermission('purchase-order.read')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
@@ -104,7 +110,9 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
     queryFn: () =>
       purchaseOrdersService
         .findById(id, {
-          include: 'branch,supplier,created_by,updated_by,purchase_order_details',
+          include:
+            'branch,supplier,supplier_branch,created_by,updated_by,' +
+            'purchase_order_details,purchase_order_details.product_uom',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -124,6 +132,16 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
 
   const details = order?.purchase_order_details ?? []
   const statusMeta = STATUS_META[order?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+
+  // Print document party resolution: a supplier PO sources from a supplier;
+  // an internal-branch PO sources from another branch (supplier_branch) instead.
+  const sourceLabel = order?.type === 'branch' ? 'Source Branch' : 'Supplier'
+  const sourceName =
+    order?.type === 'supplier'
+      ? order?.supplier?.name
+      : order?.type === 'branch'
+        ? order?.supplier_branch?.name
+        : order?.supplier?.name ?? order?.supplier_branch?.name
 
   // Fulfillment summary — only meaningful once goods start arriving on a final PO.
   const totalOrdered = details.reduce((s, d) => s + Number(d.qty ?? 0), 0)
@@ -295,6 +313,28 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
 
         {/* Right */}
         <div style={{ display: 'flex', gap: 8 }}>
+          {canRead && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                cursor: 'pointer',
+              }}
+            >
+              <Printer size={13} />
+              Print
+            </button>
+          )}
           {order?.status === 'final' && (
             <button
               type="button"
@@ -802,10 +842,180 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         </div>
       )}
 
+      {/* 🖨️ Printable A4 Purchase Order (hidden on screen, shown only in print) */}
+      <div className="po-print">
+        {/* Header */}
+        <div
+          style={{
+            textAlign: 'center',
+            backgroundColor: '#5c3a21',
+            color: '#fff',
+            padding: '10mm 0',
+            marginBottom: '6mm',
+            borderRadius: '8px 8px 0 0',
+          }}
+        >
+          <div style={{ fontSize: '24pt', fontWeight: 800, letterSpacing: '2px' }}>DAPUR COKLAT</div>
+          <div style={{ fontSize: '14pt', fontWeight: 600, marginTop: '2mm', letterSpacing: '1px', opacity: 0.9 }}>
+            PURCHASE ORDER
+          </div>
+        </div>
+
+        {/* PO info */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8mm', padding: '0 4mm' }}>
+          <div>
+            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase' }}>
+              Buyer
+            </div>
+            <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>
+              {order.branch?.name || '-'}
+            </div>
+            <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase', marginTop: '4mm' }}>
+              {sourceLabel}
+            </div>
+            <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>
+              {sourceName || '-'}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '10pt', color: '#333' }}>
+              <strong style={{ color: '#5c3a21' }}>PO No:</strong> {order.code || '-'}
+            </div>
+            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
+              <strong style={{ color: '#5c3a21' }}>Date:</strong> {order.date ? formatDate(order.date) : '-'}
+            </div>
+          </div>
+        </div>
+
+        {/* Status label */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6mm', padding: '0 4mm' }}>
+          <div
+            style={{
+              padding: '6px 16px',
+              border: `2px solid ${statusMeta.color}`,
+              backgroundColor: statusMeta.color + '15',
+              color: statusMeta.color,
+              fontWeight: 800,
+              fontSize: '12pt',
+              borderRadius: '6px',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+            }}
+          >
+            {statusMeta.label}
+          </div>
+        </div>
+
+        {/* Line items */}
+        <div style={{ padding: '0 4mm', marginBottom: '8mm' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f0e6d2', color: '#5c3a21' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
+                  No
+                </th>
+                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
+                  Product
+                </th>
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
+                  Qty
+                </th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
+                  Unit Price
+                </th>
+                <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
+                  Line Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {details.map((d, i) => (
+                <tr key={d.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
+                    {d.product_uom?.product?.name ?? `Item #${d.product_uom_id ?? d.id}`}
+                    {d.product_uom?.uom?.name ? ` (${d.product_uom.uom.name})` : ''}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', color: '#444' }}>
+                    {d.qty.toLocaleString('id-ID')}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#444' }}>
+                    {`Rp ${Number(d.price ?? 0).toLocaleString('id-ID')}`}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>
+                    {`Rp ${(Number(d.qty ?? 0) * Number(d.price ?? 0)).toLocaleString('id-ID')}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Totals */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 4mm' }}>
+          <div style={{ width: '50%', backgroundColor: '#fdfbf7', padding: '16px', borderRadius: '8px', border: '1px solid #f0e6d2' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td
+                    style={{
+                      padding: '8px 0',
+                      fontSize: '11pt',
+                      fontWeight: 700,
+                      color: '#5c3a21',
+                      borderTop: '2px dashed #d4c4a8',
+                    }}
+                  >
+                    Grand Total
+                  </td>
+                  <td
+                    style={{
+                      padding: '8px 0',
+                      textAlign: 'right',
+                      fontSize: '12pt',
+                      fontWeight: 800,
+                      color: '#5c3a21',
+                      borderTop: '2px dashed #d4c4a8',
+                    }}
+                  >
+                    {`Rp ${Number(order.total_price ?? 0).toLocaleString('id-ID')}`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        .po-print { display: none; }
+        @media print {
+          @page { size: A4 portrait; margin: 15mm; }
+          /* Enforce background colors in print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Defeat the global pos-print.css rule that otherwise collapses #__next and blanks this page. */
+          body > * { display: block !important; }
+          #pos-receipt { display: none !important; }
+          /* Isolate: hide the on-screen detail UI, show only the PO document. */
+          body * { visibility: hidden !important; }
+          .po-print, .po-print * { visibility: visible !important; }
+          .po-print {
+            display: block !important;
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: #fff;
+            font-family: 'Inter', Arial, Helvetica, sans-serif;
+          }
+          .po-print thead { display: table-header-group; }
         }
       `}</style>
     </div>
