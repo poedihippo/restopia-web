@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
+import { uomsService } from '@/services/uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import api from '@/hooks/useApi'
 import { X, Loader2 } from 'lucide-react'
@@ -18,6 +19,7 @@ const schema = z.object({
   type: z.string().min(1, 'Type is required'),
   description: z.string().optional(),
   status: z.enum(['active', 'inactive']),
+  base_uom_id: z.coerce.number().optional().nullable(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -32,6 +34,7 @@ interface ProductSheetProps {
     type?: 'raw' | 'wip' | 'final'
     description?: string
     status: 'active' | 'inactive'
+    base_uom_id?: number | null
   } | null
 }
 
@@ -53,6 +56,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       type: '',
       description: '',
       status: 'active',
+      base_uom_id: null,
     },
   })
 
@@ -67,6 +71,13 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   })
   const categories = (catData as any)?.data ?? []
 
+  // Mirrors ProductConversionSheet's UOM-fetching pattern for the Base Unit options.
+  const { data: uomsData } = useQuery({
+    queryKey: ['uoms-all'],
+    queryFn: () => uomsService.list({ per_page: 200 } as any).then((r) => r.data),
+  })
+  const uoms = (uomsData as any)?.data ?? []
+
   useEffect(() => {
     if (open) {
       if (editData) {
@@ -77,6 +88,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           type: editData.type ?? '',
           description: editData.description ?? '',
           status: editData.status ?? 'active',
+          base_uom_id: editData.base_uom_id ?? null,
         })
       } else {
         reset({
@@ -86,6 +98,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           type: '',
           description: '',
           status: 'active',
+          base_uom_id: null,
         })
       }
     }
@@ -347,6 +360,51 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 {errors.type.message}
               </span>
             )}
+          </div>
+
+          {/* Base Unit */}
+          <div>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Base Unit
+            </label>
+            <Controller
+              name="base_uom_id"
+              control={control}
+              render={({ field }) => (
+                <select
+                  value={field.value ?? ''}
+                  onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                  style={{
+                    width: '100%',
+                    height: 40,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '0 12px',
+                    fontSize: 14,
+                    color: 'var(--foreground)',
+                    background: 'var(--surface)',
+                    boxSizing: 'border-box' as const,
+                  }}
+                >
+                  <option value="">— None —</option>
+                  {uoms.map((uom: any) => (
+                    <option key={uom.id} value={uom.id}>
+                      {uom.name} ({uom.code})
+                    </option>
+                  ))}
+                </select>
+              )}
+            />
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--foreground-muted)',
+                marginTop: 4,
+                display: 'block',
+              }}
+            >
+              The smallest unit stock is tracked in (e.g. grams, ml)
+            </span>
           </div>
 
           {/* Status */}

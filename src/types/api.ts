@@ -87,6 +87,7 @@ export interface ProductRequest {
   name: string
   type: 'raw' | 'wip' | 'final'
   description?: string
+  base_uom_id?: number | null
 }
 
 // UOMs
