@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 import {
   ArrowLeft,
   Pencil,
@@ -85,6 +86,8 @@ const STATUS_META = {
 export default function DeliveryDetail({ id }: DeliveryDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canRead = hasPermission('delivery.read')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
@@ -94,7 +97,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
         .findById(id, {
           include:
             'branch,target_branch,purchase_order,sales_order,created_by,delivery_details,' +
-            'delivery_details.purchase_order_detail',
+            'delivery_details.purchase_order_detail,delivery_details.product_uom',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -383,26 +386,28 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
-          >
-            <Printer size={13} />
-            Print Surat Jalan
-          </button>
+          {canRead && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                cursor: 'pointer',
+              }}
+            >
+              <Printer size={13} />
+              Print Surat Jalan
+            </button>
+          )}
           <button
             type="button"
             onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
