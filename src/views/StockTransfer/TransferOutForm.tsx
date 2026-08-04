@@ -519,7 +519,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                   <input
                     type="number"
                     min={0}
-                    step={100}
+                    step={1}
                     {...register(`details.${index}.price`, { valueAsNumber: true })}
                     style={inputStyle}
                   />
