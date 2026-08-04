@@ -51,7 +51,7 @@ interface RecipeSheetProps {
       product_uom?: {
         id: number
         code?: string
-        product?: { name: string }
+        product?: { name: string; base_uom?: { id?: number; name?: string; code?: string } }
         uom?: { code: string }
       }
     }>
@@ -121,6 +121,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
 
   const [selectedMaterialProductId, setSelectedMaterialProductId] = useState<number | null>(null)
   const [selectedMaterialProductName, setSelectedMaterialProductName] = useState('')
+  const [selectedMaterialBaseUom, setSelectedMaterialBaseUom] = useState<{ name?: string; code?: string } | null>(null)
   const [showMaterialUomPicker, setShowMaterialUomPicker] = useState(false)
 
   const {
@@ -150,7 +151,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' })
+          .list({ page, per_page: 100, include: 'product,product.base_uom,uom' })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -198,7 +199,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     queryFn: () => {
       const params: Record<string, any> = {
         per_page: 500,
-        include: '',
+        include: 'base_uom',
         sort: 'name',
       }
       if (materialSearchDebounced) params['filter[search]'] = materialSearchDebounced
@@ -289,6 +290,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       setShowMaterialUomPicker(false)
       setSelectedMaterialProductId(null)
       setSelectedMaterialProductName('')
+      setSelectedMaterialBaseUom(null)
       if (editData.product_uom) {
         setSelectedFinishedLabel(productUomOptionLabel(editData.product_uom))
       } else {
@@ -310,6 +312,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       setShowMaterialUomPicker(false)
       setSelectedMaterialProductId(null)
       setSelectedMaterialProductName('')
+      setSelectedMaterialBaseUom(null)
     }
   }, [editData, reset])
 
@@ -756,10 +759,13 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
           {/* Materials section */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* Materials header */}
-            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2, marginBottom: 0 }}>
               Raw Materials (Ingredients)
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
+            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginBottom: 4 }}>
+              Enter quantities in each ingredient's base unit (e.g. gram)
+            </span>
 
             {/* Type filter pills */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
@@ -869,6 +875,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         onClick={() => {
                           setSelectedMaterialProductId(p.id)
                           setSelectedMaterialProductName(p.name)
+                          setSelectedMaterialBaseUom(p.base_uom ?? null)
                           setMaterialSearch('')
                           setShowMaterialDrop(false)
                           setShowMaterialUomPicker(true)
@@ -972,7 +979,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         setMaterialInfoMap((prev) => ({
                           ...prev,
                           [pu.id]: {
-                            product: { name: selectedMaterialProductName },
+                            product: { name: selectedMaterialProductName, base_uom: selectedMaterialBaseUom },
                             uom: { name: pu.uom?.name ?? '', code: pu.uom?.code ?? '' },
                             code: pu.code,
                           },
@@ -980,6 +987,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         setShowMaterialUomPicker(false)
                         setSelectedMaterialProductId(null)
                         setSelectedMaterialProductName('')
+                        setSelectedMaterialBaseUom(null)
                       }}
                       style={{
                         padding: '6px 14px',
@@ -1011,6 +1019,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     setShowMaterialUomPicker(false)
                     setSelectedMaterialProductId(null)
                     setSelectedMaterialProductName('')
+                    setSelectedMaterialBaseUom(null)
                   }}
                   style={{
                     marginTop: 10,
@@ -1036,6 +1045,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                 info?.product?.name ?? fromAll?.product?.name ?? `Item #${puId}`
               const uomCode = info?.uom?.code ?? fromAll?.uom?.code ?? ''
               const sku = info?.code ?? fromAll?.code ?? ''
+              const baseUomName =
+                info?.product?.base_uom?.name ?? fromAll?.product?.base_uom?.name ?? ''
               return (
                 <div
                   key={field.id}
@@ -1080,7 +1091,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     <input
                       type="number"
                       min={0.001}
-                      step={0.001}
+                      step={0.01}
                       {...register(`materials.${index}.qty`, { valueAsNumber: true })}
                       placeholder="Qty"
                       style={{
@@ -1092,6 +1103,9 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         }`,
                       }}
                     />
+                    <span style={{ fontSize: 10, color: 'var(--foreground-subtle)' }}>
+                      {baseUomName ? `in ${baseUomName}` : 'base unit'}
+                    </span>
                     {errors.materials?.[index]?.qty && (
                       <span style={errorTextStyle}>
                         {errors.materials[index]!.qty!.message}
