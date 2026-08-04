@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { recipesService } from '@/services/recipes.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -715,19 +715,14 @@ export default function ProductionForm({
       }
       setLoadingRecipeFor(detailIndex)
       try {
-        // Fetch recipe by product_uom_id
-        const res = await recipesService.list({
-          per_page: 200,
-          include:
-            'recipe_materials',
-          'filter[product_uom_id]': productUomId,
+        // Fetch the DEFAULT recipe for this product_uom via the default_recipe
+        // relation — a product_uom can have multiple recipes, only one is_default.
+        const res = await productUomsService.findById(productUomId, {
+          include: 'default_recipe',
         } as any)
-        const recipes = unwrapList(res.data)
-        const recipe = recipes.find(
-          (r: any) => Number(r.product_uom_id) === Number(productUomId),
-        )
+        const recipe = (res.data as any)?.data?.default_recipe
         if (!recipe) {
-          toast.error('No recipe found for this product')
+          toast.error('No default recipe found for this product')
           return
         }
         const rawMaterials = recipe.recipe_materials ?? []
