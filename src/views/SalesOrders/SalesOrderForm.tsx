@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { toastMutationApiError } from '@/utils/apiError'
 import { customersService as customerService } from '@/services/customers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { bundlesService as bundleService } from '@/services/bundles.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
@@ -210,7 +211,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     queryFn: () =>
       purchaseOrdersService
         .findById(purchaseOrderId as number, {
-          include: 'purchase_order_details',
+          include: 'purchase_order_details,purchase_order_details.product_uom,purchase_order_details.product_uom.product,purchase_order_details.product_uom.product_inventory',
         })
         .then((r) => r.data),
   })
@@ -226,24 +227,54 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
     const fetchAndMap = async () => {
       try {
-        const uomIds = poDetails.map((d: any) => d.product_uom_id).filter(Boolean)
+        const uomIds = Array.from(new Set(poDetails.map((d: any) => d.product_uom_id).filter(Boolean)))
         if (!uomIds.length) return
 
-        const piRes = await productInventoriesService.list({
-          'filter[product_uom_id]': uomIds.join(','),
-          'filter[status]': 'active',
-          per_page: 100,
-          include: '',
-        } as any)
+        // 1. Fetch batches for these UOMs
+        const batchPromises = uomIds.map(id =>
+          productUomBatchesService.list({
+            'filter[product_uom_id]': id,
+            per_page: 100,
+          } as any)
+        )
+        const batchResponses = await Promise.all(batchPromises)
+        const batches = batchResponses.flatMap(res => (res.data as any)?.data ?? [])
 
-        const inventories = (piRes.data as any)?.data ?? []
+        // 2. Fetch inventories for these batches
+        let inventories: any[] = []
+        if (batches.length > 0) {
+          const batchIds = batches.map((b: any) => b.id).join(',')
+          const invRes = await productInventoriesService.list({
+            'filter[product_uom_batch_id]': batchIds,
+            'filter[branch_id]': po.branch_id,
+            'filter[status]': 'active',
+            include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+            per_page: 100,
+          } as any)
+          inventories = (invRes.data as any)?.data ?? []
+
+          // Fallback if comma separated failed
+          if (inventories.length === 0) {
+            const invPromises = batches.map((b: any) =>
+              productInventoriesService.list({
+                'filter[product_uom_batch_id]': b.id,
+                'filter[branch_id]': po.branch_id,
+                'filter[status]': 'active',
+                include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+                per_page: 1,
+              } as any)
+            )
+            const invResponses = await Promise.all(invPromises)
+            inventories = invResponses.flatMap(res => (res.data as any)?.data ?? [])
+          }
+        }
 
         const newItems = poDetails.map((d: any) => {
-          const inv = inventories.find((i: any) => i.product_uom_id === d.product_uom_id)
+          const inv = inventories.find((i: any) => i.product_uom_batch?.product_uom_id === d.product_uom_id)
 
           return {
             type: 'product' as const,
-            product_inventory_id: inv?.id ?? null,
+            product_inventory_id: inv?.id ?? d.product_uom?.product_inventory?.id ?? null,
             bundle_id: null,
             bundle_details: null,
             purchase_order_detail_id: d.id,
@@ -1218,7 +1249,15 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             </button>
             <button
               type="button"
-              onClick={() => mutate()}
+              onClick={() => {
+                const missingStockItems = items.filter(i => !i.product_inventory_id && !i.bundle_id)
+                if (missingStockItems.length > 0) {
+                  const names = missingStockItems.map(i => i.name).join(', ')
+                  toast.error(`Produk ${names} belum ada stocknya`)
+                  return
+                }
+                mutate()
+              }}
               disabled={isPending || items.length === 0}
               style={{
                 flex: 1,

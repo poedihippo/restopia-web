@@ -28,7 +28,7 @@ const detailSchema = z.object({
   planned_expiry_date: z.string().optional(),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   price: z.coerce.number().min(0, 'Price required'),
-  status: z.enum(['pending', 'success', 'failed']),
+  status: z.enum(['final', 'failed']),
   description: z.string().optional(),
   client_ref: z.string(),
 })
@@ -78,7 +78,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           planned_expiry_date: '',
           qty: 1,
           price: 0,
-          status: 'pending',
+          status: 'final',
           description: '',
           client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
         },
@@ -182,7 +182,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       planned_expiry_date: '',
       qty: d.qty ?? 1,
       price: d.price ?? 0,
-      status: 'success' as const,
+      status: 'final' as const,
       description: d.description ?? '',
       client_ref: `${deliveryDetail.code ?? 'RCP'}-${index + 1}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
     }))
@@ -560,7 +560,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   planned_expiry_date: '',
                   qty: 1,
                   price: 0,
-                  status: 'pending',
+                  status: 'final',
                   description: '',
                   client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
                 })
@@ -700,8 +700,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     onChange={(e) => f.onChange(e.target.value)}
                     style={{ ...lineInputStyle, cursor: 'pointer' }}
                   >
-                    <option value="pending">Pending</option>
-                    <option value="success">Success</option>
+                    <option value="final">Final</option>
                     <option value="failed">Failed</option>
                   </select>
                 )}

@@ -199,7 +199,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
         target_branch_id: values.target_branch_id,
         date: values.date,
         total_price: totalPrice,
-        status: 'pending',
+        status: 'final',
         description: values.description || undefined,
         details: values.details
           .filter((d) => Number(d.product_uom_id) > 0)
