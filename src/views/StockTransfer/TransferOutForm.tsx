@@ -181,10 +181,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   const branchOptions = branches
     .filter((b: any) => b.id !== (user as any)?.employee?.branch_id)
     .map((b: any) => ({
-    value: b.id as number,
-    label: (b.name as string) ?? '',
-    sublabel: (b.company?.name as string) ?? '',
-  }))
+      value: b.id as number,
+      label: (b.name as string) ?? '',
+      sublabel: (b.company?.name as string) ?? '',
+    }))
 
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
@@ -210,7 +210,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
               product_uom_batch_id: pick?.product_uom_batch?.id,
               qty: d.qty,
               price: d.price,
-              status: 'pending',
+              status: 'final',
               description: d.description || undefined,
             }
           }),
