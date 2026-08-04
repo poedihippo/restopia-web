@@ -20,6 +20,8 @@ import {
 interface StockMovement {
   id: number
   qty: number
+  base_qty?: number | null
+  base_uom_code?: string | null
   direction: 'in' | 'out'
   product_inventory_id?: number
   branch_id?: number
@@ -499,7 +501,16 @@ export default function StockMovementView() {
                         }}
                       >
                         {item.direction === 'out' ? '−' : '+'}
-                        {(item.qty ?? 0).toLocaleString('id-ID')}
+                        {item.base_qty != null && item.base_uom_code
+                          ? `${Number(item.base_qty)} ${item.base_uom_code}`
+                          : `${(item.qty ?? 0).toLocaleString('id-ID')}${
+                              (() => {
+                                const uomCode =
+                                  item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
+                                  item.product_inventory?.product_uom?.uom?.code
+                                return uomCode ? ` ${uomCode}` : ''
+                              })()
+                            }`}
                       </span>
                     </td>
                     {/* Notes */}
