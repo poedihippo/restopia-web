@@ -594,7 +594,7 @@ export default function ProductionForm({
             page,
             per_page: 100,
             include:
-              'branch,product_uom,product_uom_batch',
+              'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
             'filter[branch_id]': activeBranchId,
           } as any)
           .then((r) => r.data)
