@@ -210,7 +210,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
               product_uom_batch_id: pick?.product_uom_batch?.id,
               qty: d.qty,
               price: d.price,
-              status: 'final',
+              status: 'packed',
               description: d.description || undefined,
             }
           }),
