@@ -30,6 +30,10 @@ interface PosModalsProps {
   change: number
   handleConfirmPayment: () => void
   isPending: boolean
+  isCreditMethod: boolean
+  creditByUserId: number | null
+  setCreditByUserId: (val: number | null) => void
+  creditUsers: any[]
   receiptData: any
   resetCart: () => void
   printReceipt: ReceiptData | null
@@ -86,6 +90,10 @@ export default function PosModals({
   quickAmounts,
   change,
   handleConfirmPayment,
+  isCreditMethod,
+  creditByUserId,
+  setCreditByUserId,
+  creditUsers,
   isPending,
   receiptData,
   resetCart,
@@ -237,7 +245,55 @@ export default function PosModals({
               </div>
             </div>
 
-            {!isCashMethod && paymentMethodId && (
+            {isCreditMethod && paymentMethodId && (
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--foreground-muted)',
+                    display: 'block',
+                    marginBottom: 8,
+                  }}
+                >
+                  Credit User <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <select
+                  value={creditByUserId ?? ''}
+                  onChange={(e) => setCreditByUserId(e.target.value ? Number(e.target.value) : null)}
+                  style={{
+                    width: '100%',
+                    height: 44,
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0 14px',
+                    fontSize: 14,
+                    color: 'var(--foreground)',
+                    background: 'var(--surface)',
+                    boxSizing: 'border-box' as const,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="">Select user...</option>
+                  {creditUsers.map((u: any) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}{u.credit ? ` — Credit: Rp ${Number(u.credit ?? 0).toLocaleString('id-ID')}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--warning)',
+                    display: 'block',
+                    marginTop: 6,
+                  }}
+                >
+                  ⚠ Select the user whose credit will be used for this transaction.
+                </span>
+              </div>
+            )}
+
+            {!isCashMethod && !isCreditMethod && paymentMethodId && (
               <div
                 style={{
                   background: 'var(--info-bg)',
@@ -351,6 +407,10 @@ export default function PosModals({
               onClick={() => {
                 if (!paymentMethodId) {
                   toast.error('Select a payment method')
+                  return
+                }
+                if (isCreditMethod && !creditByUserId) {
+                  toast.error('Please select a credit user')
                   return
                 }
                 if (

@@ -45,10 +45,9 @@ export default function InternalOrderEdit({ id }: InternalOrderEditProps) {
           product_uom_id:
             d.product_uom_id ?? d.product_uom?.id ?? 0,
           qty: d.qty ?? 1,
-          price: d.price ?? 0,
           description: d.description ?? '',
         }))
-        : [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+        : [{ product_uom_id: 0, qty: 1, description: '' }],
     }
     : undefined
 

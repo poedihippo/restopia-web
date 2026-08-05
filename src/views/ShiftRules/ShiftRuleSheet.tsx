@@ -28,15 +28,16 @@ interface ShiftRuleSheetProps {
 }
 
 export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleSheetProps) {
-  const { user } = useAuth()
+  const { user, isSuperadmin } = useAuth()
   const qc = useQueryClient()
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches', 'list-all'],
-    queryFn: () => branchesService.list({ limit: 1000 }).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: isSuperadmin,
   })
-  const branches = (branchesData as any)?.data ?? []
-  const branchOptions = branches.map((b: any) => ({
+  const allBranches = (branchesData as any)?.data ?? []
+  const branchOptions = (isSuperadmin ? allBranches : user?.branches ?? []).map((b: any) => ({
     value: b.id as number,
     label: (b.name as string) ?? '',
     sublabel: b.code as string | undefined,
@@ -61,14 +62,14 @@ export default function ShiftRuleSheet({ open, onClose, editData }: ShiftRuleShe
   useEffect(() => {
     if (editData) {
       reset({
-        branch_id: editData.branch_id ?? (user as any)?.employee?.branch_id ?? 0,
+        branch_id: editData.branch_id ?? user?.branch?.id ?? 0,
         name: editData.name ?? '',
         start_time: editData.start_time ?? '',
         end_time: editData.end_time ?? '',
       })
     } else {
       reset({
-        branch_id: (user as any)?.employee?.branch_id ?? 0,
+        branch_id: user?.branch?.id ?? 0,
         name: '',
         start_time: '',
         end_time: '',

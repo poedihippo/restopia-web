@@ -29,15 +29,17 @@ interface OperationRuleSheetProps {
 }
 
 export default function OperationRuleSheet({ open, onClose, editData }: OperationRuleSheetProps) {
-  const { user } = useAuth()
+  const { user, isSuperadmin } = useAuth()
   const qc = useQueryClient()
 
+  
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches', 'list-all'],
-    queryFn: () => branchesService.list({ limit: 1000 }).then((r) => r.data),
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: isSuperadmin,
   })
-  const branches = (branchesData as any)?.data ?? []
-  const branchOptions = branches.map((b: any) => ({
+  const allBranches = (branchesData as any)?.data ?? []
+  const branchOptions = (isSuperadmin ? allBranches : user?.branches ?? []).map((b: any) => ({
     value: b.id as number,
     label: (b.name as string) ?? '',
     sublabel: b.code as string | undefined,
@@ -63,7 +65,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
   useEffect(() => {
     if (editData) {
       reset({
-        branch_id: editData.branch_id ?? (user as any)?.employee?.branch_id ?? 0,
+        branch_id:editData.branch_id ?? user?.branch?.id ?? 0,  
         operation_mode: editData.operation_mode ?? '',
         shift_mode: editData.shift_mode ?? '',
         auto_open_cron: editData.auto_open_cron ?? '',
@@ -71,7 +73,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
       })
     } else {
       reset({
-        branch_id: (user as any)?.employee?.branch_id ?? 0,
+        branch_id: user?.branch?.id ?? 0,
         operation_mode: '',
         shift_mode: '',
         auto_open_cron: '',
@@ -144,19 +146,27 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Operation Mode (auto/manual)</label>
-              <input
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Operation Mode</label>
+              <select
                 {...register('operation_mode')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              />
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}
+              >
+                <option value="">Select mode...</option>
+                <option value="auto">auto</option>
+                <option value="manual">manual</option>
+              </select>
               {errors.operation_mode && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.operation_mode.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Shift Mode (auto/manual)</label>
-              <input
+               <select
                 {...register('shift_mode')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              />
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}
+              >
+                <option value="">Select mode...</option>
+                <option value="auto">auto</option>
+                <option value="manual">manual</option>
+              </select>
               {errors.shift_mode && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.shift_mode.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

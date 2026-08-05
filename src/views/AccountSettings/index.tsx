@@ -12,19 +12,19 @@ export default function AccountSettingsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-settings'],
-    queryFn: () => accountSettingsService.list({ per_page: 100, include: 'chart_of_account' } as any).then(r => r.data),
+    queryFn: () => accountSettingsService.list({ per_page: 100, include: 'chart_of_account,account_setting_key' } as any).then(r => r.data),
   })
 
   const items: any[] = (data as any)?.data ?? []
-  
+
   const filteredItems = items.filter((item: any) => {
     if (!search) return true
     const term = search.toLowerCase()
     return (
-        item.account_setting_key_entity?.label?.toLowerCase().includes(term) ||
-        item.account_setting_key_entity?.key?.toLowerCase().includes(term) ||
-        item.account_setting_key_entity?.module?.toLowerCase().includes(term) ||
-        item.chart_of_account?.name?.toLowerCase().includes(term)
+      item.account_setting_key_entity?.label?.toLowerCase().includes(term) ||
+      item.account_setting_key_entity?.key?.toLowerCase().includes(term) ||
+      item.account_setting_key_entity?.module?.toLowerCase().includes(term) ||
+      item.chart_of_account?.name?.toLowerCase().includes(term)
     )
   })
 
@@ -62,6 +62,7 @@ export default function AccountSettingsView() {
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 200 }}>Key / Label</th>
+                <th style={{ ...thStyle, width: 180 }}>Key</th>
                 <th style={{ ...thStyle, width: 140 }}>Module</th>
                 <th style={{ ...thStyle, width: 250 }}>Chart of Account</th>
                 <th style={thStyle}>Description</th>
@@ -88,14 +89,14 @@ export default function AccountSettingsView() {
                 filteredItems.map((item: any) => (
                   <tr key={item.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                     <td style={tdStyle}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>
-                          {item.account_setting_key_entity?.label || item.account_setting_key}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>
-                          {item.account_setting_key_entity?.key || item.account_setting_key}
-                        </span>
-                      </div>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>
+                        {item.account_setting_key_entity?.label || item.account_setting_key}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>
+                        {item.account_setting_key_entity?.key || item.account_setting_key}
+                      </span>
                     </td>
                     <td style={tdStyle}>
                       <span style={{ display: 'inline-block', padding: '4px 8px', background: 'var(--background)', borderRadius: 'var(--radius-sm)', fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)', border: '1px solid var(--border)' }}>

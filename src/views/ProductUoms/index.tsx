@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from '@/hooks/useApi'
 import { productUomsService } from '@/services/product-uoms.service'
+import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductUomSheet from './ProductUomSheet'
@@ -50,6 +51,7 @@ export default function ProductUomsView() {
   const [productSearch, setProductSearch] = useState('')
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
+  const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [showProductDrop, setShowProductDrop] = useState(false)
   const [page, setPage] = useState(1)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -89,6 +91,32 @@ export default function ProductUomsView() {
   })
   const productResults = (productSearchData as any)?.data ?? []
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ['product-categories-all'],
+    queryFn: () =>
+      productCategoriesService
+        .list({ per_page: 100 })
+        .then((r) => r.data),
+  })
+  const categories = (categoriesData as any)?.data ?? []
+
+  const { data: categoryProductsData } = useQuery({
+    queryKey: ['products-by-category', categoryFilter],
+    enabled: categoryFilter !== '',
+    queryFn: () =>
+      api
+        .get('/products', {
+          params: {
+            per_page: 500,
+            'filter[product_category_id]': String(categoryFilter),
+          },
+        })
+        .then((r) => r.data),
+  })
+  const categoryProductIds = new Set<number>(
+    ((categoryProductsData as any)?.data ?? []).map((p: any) => p.id as number),
+  )
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-uoms', page, debouncedSearch, selectedProductId],
     queryFn: () =>
@@ -107,6 +135,10 @@ export default function ProductUomsView() {
 
   const items: ProductUom[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const filteredItems = categoryFilter === ''
+    ? items
+    : items.filter((i) => categoryProductIds.has(i.product_id))
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productUomsService.delete(id),
@@ -301,6 +333,34 @@ export default function ProductUomsView() {
               background: 'var(--surface)',
             }}
           />
+
+          <select
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+              setPage(1)
+            }}
+            style={{
+              height: 36,
+              maxWidth: 200,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0 12px',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-sans)',
+            }}
+          >
+            <option value="">All Categories</option>
+            {categories.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {selectedProductId && (
@@ -411,7 +471,7 @@ export default function ProductUomsView() {
               </tr>
             )}
 
-            {!isLoading && !isError && items.length === 0 && (
+            {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
                 <td colSpan={8}>
                   <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
@@ -425,7 +485,7 @@ export default function ProductUomsView() {
             )}
 
             {!isLoading &&
-              items.map((item) => (
+              filteredItems.map((item) => (
                 <tr
                   key={item.id}
                   onMouseEnter={() => setHoveredRow(item.id)}

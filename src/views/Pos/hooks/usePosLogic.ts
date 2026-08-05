@@ -12,6 +12,7 @@ import { bundlesService } from '@/services/bundles.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { paymentsService } from '@/services/payments.service'
 import { vouchersService } from '@/services/vouchers.service'
+import { usersService } from '@/services/users.service'
 import api from '@/hooks/useApi'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
@@ -83,6 +84,7 @@ export function usePosLogic() {
   const [showPayment, setShowPayment] = useState(false)
   const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null)
   const [cashTendered, setCashTendered] = useState<string>('')
+  const [creditByUserId, setCreditByUserId] = useState<number | null>(null)
   const [historySearch, setHistorySearch] = useState('')
   const [historySearchDebounced, setHistorySearchDebounced] = useState('')
   const [historyDateFrom, setHistoryDateFrom] = useState('')
@@ -390,7 +392,19 @@ export function usePosLogic() {
 
   const selectedMethod = paymentMethods.find((pm) => pm.id === paymentMethodId)
   const isCashMethod = selectedMethod?.name?.toLowerCase().includes('cash') ?? false;
+  const isCreditMethod = selectedMethod?.name?.toLowerCase().includes('credit') ?? false;
   const change = isCashMethod ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - total) : 0;
+
+  // Credit users query — fetched when Credit payment method is selected
+  const { data: creditUsersData } = useQuery({
+    queryKey: ['pos-credit-users'],
+    enabled: isCreditMethod,
+    queryFn: () =>
+      usersService
+        .list({ per_page: 100, 'filter[type]': 'user' } as any)
+        .then((r) => r.data),
+  })
+  const creditUsers: any[] = (creditUsersData as any)?.data ?? []
 
 
 
@@ -643,7 +657,8 @@ export function usePosLogic() {
       discount_price: discountAmount,
       total_price: total,
       status: 'pending',
-      settlement_status: 'pending',
+      settlement_status: isCreditMethod ? 'credit' : 'pending',
+      credit_by_id: isCreditMethod ? creditByUserId || undefined : undefined,
       description: orderNote || undefined,
       details: mergedDetails,
     }
@@ -726,7 +741,8 @@ export function usePosLogic() {
       discount_price: discountAmount,
       total_price: total,
       status: 'final',
-      settlement_status: 'pending',
+      settlement_status: isCreditMethod ? 'credit' : 'pending',
+      credit_by_id: isCreditMethod ? creditByUserId || undefined : undefined,
       description: orderNote || undefined,
       details: mergedDetails,
     }
@@ -781,7 +797,8 @@ export function usePosLogic() {
     paymentMethods, paymentMethodsLoading,
     customers,
     subtotal, total, change, quickAmounts,
-    selectedMethod, isCashMethod,
+    selectedMethod, isCashMethod, isCreditMethod,
+    creditByUserId, setCreditByUserId, creditUsers,
     isPending, isHoldPending,
 
     // Handlers & Methods

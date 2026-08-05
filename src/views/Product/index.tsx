@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
+import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductSheet from './ProductSheet'
@@ -44,6 +45,7 @@ export default function ProductView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [typeFilter, setTypeFilter] = useState<'' | 'raw' | 'wip' | 'final'>('')
+  const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Product | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -57,10 +59,19 @@ export default function ProductView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, typeFilter])
+  }, [debouncedSearch, typeFilter, categoryFilter])
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['product-categories-all'],
+    queryFn: () =>
+      productCategoriesService
+        .list({ per_page: 100 })
+        .then((r) => r.data),
+  })
+  const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, debouncedSearch, typeFilter],
+    queryKey: ['products', page, debouncedSearch, typeFilter, categoryFilter],
     queryFn: () =>
       productsService
         .list({
@@ -70,6 +81,7 @@ export default function ProductView() {
           include: 'product_category',
           'filter[search]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
+          'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
         })
         .then((r) => r.data),
   })
@@ -210,6 +222,33 @@ export default function ProductView() {
           <option value="raw">Raw</option>
           <option value="wip">WIP</option>
           <option value="final">Final</option>
+        </select>
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => {
+            setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+            setPage(1)
+          }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+            outline: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            maxWidth: 200,
+          }}
+        >
+          <option value="">All Categories</option>
+          {categories.map((c: any) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
         </select>
       </div>
       {/* Table */}

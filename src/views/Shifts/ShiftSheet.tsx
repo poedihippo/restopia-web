@@ -1,14 +1,19 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { shiftsService } from '@/services/shifts.service'
+import { operationsService } from '@/services/operations.service'
+import { shiftRulesService } from '@/services/shift-rules.service'
+import { branchesService } from '@/services/branches.service'
 import { X, Loader2 } from 'lucide-react'
+import SearchableSelect from '@/components/SearchableSelect'
 import { toastMutationApiError } from '@/utils/apiError';
+import { useAuth } from '@/hooks/useAuth'
 
 const schema = z.object({
   branch_id: z.coerce.number().optional(),
@@ -25,11 +30,53 @@ interface ShiftSheetProps {
 
 export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps) {
   const qc = useQueryClient()
+  const { user, isSuperadmin } = useAuth()
+
+  const myBranchIds = (user?.branches ?? []).map((b: any) => b.id as number)
+
+  const { data: branchesData, isLoading: branchesLoading } = useQuery({
+    queryKey: ['branches', 'list-all'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: isSuperadmin,
+  })
+  const allBranches = (branchesData as any)?.data ?? []
+  const branchOptions = (isSuperadmin ? allBranches : user?.branches ?? []).map((b: any) => ({
+    value: b.id as number,
+    label: (b.name as string) ?? '',
+    sublabel: b.code as string | undefined,
+  }))
+
+  const { data: operationsData, isLoading: operationsLoading } = useQuery({
+    queryKey: ['operations', 'list-all'],
+    queryFn: () => operationsService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const allOperations = (operationsData as any)?.data ?? []
+  const operationOptions = allOperations
+    .filter((o: any) => isSuperadmin || myBranchIds.includes(o.branch_id as number))
+    .map((o: any) => ({
+      value: o.id as number,
+      label: o.date ? `#${o.id} · ${o.date}` : `#${o.id}`,
+      sublabel: o.branch?.name as string | undefined,
+    }))
+
+  const { data: shiftRulesData, isLoading: shiftRulesLoading } = useQuery({
+    queryKey: ['shift-rules', 'list-all'],
+    queryFn: () => shiftRulesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const allShiftRules = (shiftRulesData as any)?.data ?? []
+  const shiftRuleOptions = allShiftRules
+    .filter((r: any) => isSuperadmin || myBranchIds.includes(r.branch_id as number))
+    .map((r: any) => ({
+      value: r.id as number,
+      label: (r.name as string) ?? `#${r.id}`,
+      sublabel: r.start_time && r.end_time ? `${r.start_time} - ${r.end_time}` : undefined,
+    }))
 
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -43,18 +90,18 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
   useEffect(() => {
     if (editData) {
       reset({
-        branch_id: editData.branch_id ?? 0,
+        branch_id: editData.branch_id ?? user?.branch?.id ?? 0,
         operation_id: editData.operation_id ?? 0,
         shift_rule_id: editData.shift_rule_id ?? 0,
       })
     } else {
       reset({
-        branch_id: 0,
+        branch_id: user?.branch?.id ?? 0,
         operation_id: 0,
         shift_rule_id: 0,
       })
     }
-  }, [editData, open, reset])
+  }, [editData, open, reset, user])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => shiftsService.create(data as any),
@@ -101,26 +148,59 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch ID</label>
-              <input
-                {...register('branch_id')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch</label>
+              <Controller
+                name="branch_id"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? 0}
+                    onChange={field.onChange}
+                    options={branchOptions}
+                    placeholder="Select branch..."
+                    searchPlaceholder="Search branch..."
+                    loading={branchesLoading}
+                    error={errors.branch_id?.message as string | undefined}
+                  />
+                )}
               />
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Operation ID</label>
-              <input
-                {...register('operation_id')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Operation</label>
+              <Controller
+                name="operation_id"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? 0}
+                    onChange={field.onChange}
+                    options={operationOptions}
+                    placeholder="Select operation..."
+                    searchPlaceholder="Search operation..."
+                    loading={operationsLoading}
+                    error={errors.operation_id?.message as string | undefined}
+                  />
+                )}
               />
               {errors.operation_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.operation_id.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Shift Rule ID</label>
-              <input
-                {...register('shift_rule_id')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Shift Rule</label>
+              <Controller
+                name="shift_rule_id"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? 0}
+                    onChange={field.onChange}
+                    options={shiftRuleOptions}
+                    placeholder="Select shift rule..."
+                    searchPlaceholder="Search shift rule..."
+                    loading={shiftRulesLoading}
+                    error={errors.shift_rule_id?.message as string | undefined}
+                  />
+                )}
               />
               {errors.shift_rule_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.shift_rule_id.message as string}</span>}
             </div>

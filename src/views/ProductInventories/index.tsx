@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productUomsService } from '@/services/product-uoms.service'
+import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductInventorySheet from './ProductInventorySheet'
@@ -73,6 +74,7 @@ export default function ProductInventoriesView() {
   const [stockGte, setStockGte] = useState<string>('')
   const [stockLte, setStockLte] = useState<string>('')
   const [expiryDateGte, setExpiryDateGte] = useState<string>('')
+  const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [debouncedStockGte, setDebouncedStockGte] = useState<string>('')
   const [debouncedStockLte, setDebouncedStockLte] = useState<string>('')
   const [debouncedExpiryDateGte, setDebouncedExpiryDateGte] = useState<string>('')
@@ -124,10 +126,19 @@ export default function ProductInventoriesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte])
+  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter])
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['product-categories-all'],
+    queryFn: () =>
+      productCategoriesService
+        .list({ per_page: 100 })
+        .then((r) => r.data),
+  })
+  const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte],
+    queryKey: ['product-inventories', page, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -139,6 +150,7 @@ export default function ProductInventoriesView() {
           'filter[stock_gte]': debouncedStockGte || undefined,
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
+          'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
         })
         .then((r) => r.data),
   })
@@ -328,6 +340,33 @@ export default function ProductInventoriesView() {
             title="Min Expiry Date"
           />
         </div>
+
+        <select
+          value={categoryFilter}
+          onChange={(e) => {
+            setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+            setPage(1)
+          }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+            outline: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            maxWidth: 200,
+          }}
+        >
+          <option value="">All Categories</option>
+          {categories.map((c: any) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
 
         {/* Hide empty batches toggle */}
         <button

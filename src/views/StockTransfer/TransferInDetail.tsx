@@ -170,6 +170,9 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
             client_ref: d.client_ref || undefined,
           })),
       }
+      if (existingReceipts.length > 0) {
+        return receiptsService.update(existingReceipts[0].id, payload as any)
+      }
       return receiptsService.create(payload as any)
     },
     onSuccess: () => {
@@ -179,7 +182,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
       router.push('/transfer/stock-transfer')
     },
     onError: (err: any) =>
-      toast.error(err?.response?.data?.message ?? 'Failed to create receipt'),
+      toast.error(err?.response?.data?.message ?? 'Failed to receive stock'),
   })
 
   const onSubmit = (values: FormValues) => createReceiptMutation.mutate(values)
@@ -408,7 +411,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
         </div>
       </div>
 
-      {alreadyReceipted ? (
+      {/* {alreadyReceipted && (
         <div>
           <div
             style={{
@@ -533,90 +536,131 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
             </table>
           </div>
         </div>
-      ) : (
-        <form
-          onSubmit={handleSubmit(onSubmit, onInvalid)}
-          style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
-        >
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 20,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            }}
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>
-                  Receipt Code <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <input
-                  {...register('code')}
-                  placeholder="e.g. RCP-TRF-001"
-                  style={{
-                    ...inputStyle,
-                    ...(errors.code
-                      ? { border: '1px solid var(--destructive)' }
-                      : {}),
-                  }}
-                />
-                {errors.code && (
-                  <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                    {errors.code.message}
-                  </span>
-                )}
-              </div>
-              <div>
-                <label style={labelStyle}>
-                  Date <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <input
-                  type="date"
-                  {...register('date')}
-                  style={{
-                    ...inputStyle,
-                    ...(errors.date
-                      ? { border: '1px solid var(--destructive)' }
-                      : {}),
-                  }}
-                />
-              </div>
-            </div>
+      )} */}
 
+      <form
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+      >
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
             <div>
-              <label style={labelStyle}>Notes</label>
-              <textarea
-                {...register('description')}
-                rows={2}
-                placeholder="Optional notes"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 56 }}
+              <label style={labelStyle}>
+                Receipt Code <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <input
+                {...register('code')}
+                placeholder="e.g. RCP-TRF-001"
+                style={{
+                  ...inputStyle,
+                  ...(errors.code
+                    ? { border: '1px solid var(--destructive)' }
+                    : {}),
+                }}
+              />
+              {errors.code && (
+                <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
+                  {errors.code.message}
+                </span>
+              )}
+            </div>
+            <div>
+              <label style={labelStyle}>
+                Date <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <input
+                type="date"
+                {...register('date')}
+                style={{
+                  ...inputStyle,
+                  ...(errors.date
+                    ? { border: '1px solid var(--destructive)' }
+                    : {}),
+                }}
               />
             </div>
           </div>
 
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea
+              {...register('description')}
+              rows={2}
+              placeholder="Optional notes"
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 56 }}
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+          }}
+        >
           <div
             style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              overflow: 'hidden',
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--background)',
             }}
           >
+            <span style={sectionLabelStyle}>Items to Receive</span>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                '2fr 70px 110px 120px 100px 130px 1fr 32px',
+              gap: 8,
+              padding: '10px 16px',
+              borderBottom: '1px solid var(--border)',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--foreground-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
+            <span>Product</span>
+            <span>Qty</span>
+            <span>Price</span>
+            <span>Planned Expiry</span>
+            <span>Status</span>
+            <span>Client Ref *</span>
+            <span>Notes</span>
+            <span />
+          </div>
+
+          {fields.length === 0 && (
             <div
               style={{
-                padding: '12px 16px',
-                borderBottom: '1px solid var(--border)',
-                background: 'var(--background)',
+                padding: 24,
+                textAlign: 'center',
+                fontSize: 13,
+                color: 'var(--foreground-muted)',
               }}
             >
-              <span style={sectionLabelStyle}>Items to Receive</span>
+              Loading items...
             </div>
+          )}
 
+          {fields.map((field, index) => (
             <div
+              key={field.id}
               style={{
                 display: 'grid',
                 gridTemplateColumns:
@@ -624,222 +668,182 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                 gap: 8,
                 padding: '10px 16px',
                 borderBottom: '1px solid var(--border)',
-                fontSize: 11,
-                fontWeight: 600,
-                color: 'var(--foreground-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
+                alignItems: 'start',
               }}
             >
-              <span>Product</span>
-              <span>Qty</span>
-              <span>Price</span>
-              <span>Planned Expiry</span>
-              <span>Status</span>
-              <span>Client Ref *</span>
-              <span>Notes</span>
-              <span />
-            </div>
-
-            {fields.length === 0 && (
-              <div
-                style={{
-                  padding: 24,
-                  textAlign: 'center',
-                  fontSize: 13,
-                  color: 'var(--foreground-muted)',
-                }}
-              >
-                Loading items...
-              </div>
-            )}
-
-            {fields.map((field, index) => (
-              <div
-                key={field.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns:
-                    '2fr 70px 110px 120px 100px 130px 1fr 32px',
-                  gap: 8,
-                  padding: '10px 16px',
-                  borderBottom: '1px solid var(--border)',
-                  alignItems: 'start',
-                }}
-              >
-                <Controller
-                  name={`details.${index}.product_uom_id`}
-                  control={control}
-                  render={({ field: f }) => (
-                    <SearchableSelect
-                      value={f.value ?? 0}
-                      onChange={f.onChange}
-                      options={productUomOptions.filter((o: any) => {
-                        const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
-                        return !selectedIds.includes(o.value) || o.value === f.value
-                      })}
-                      placeholder="Select product..."
-                      searchPlaceholder="Search products..."
-                      loading={productUomsLoading}
-                      error={
-                        errors.details?.[index]?.product_uom_id?.message as
-                        | string
-                        | undefined
-                      }
-                    />
-                  )}
-                />
-                <input
-                  type="number"
-                  min={0.001}
-                  step={0.001}
-                  {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                  style={inputStyle}
-                />
-                {getCanReadPrice() ? (
-                  <input
-                    type="number"
-                    min={0}
-                    step={100}
-                    {...register(`details.${index}.price`, { valueAsNumber: true })}
-                    style={inputStyle}
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value="***"
-                    disabled
-                    style={{ ...inputStyle, background: 'var(--surface)', cursor: 'not-allowed' }}
-                  />
-                )}
-                <input
-                  type="date"
-                  {...register(`details.${index}.planned_expiry_date`)}
-                  style={inputStyle}
-                />
-                <Controller
-                  name={`details.${index}.status`}
-                  control={control}
-                  render={({ field: f }) => (
-                    <select
-                      value={f.value}
-                      onChange={(e) => f.onChange(e.target.value)}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="success">Success</option>
-                      <option value="failed">Failed</option>
-                    </select>
-                  )}
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <input
-                    {...register(`details.${index}.client_ref`)}
-                    placeholder="e.g. DEL-001-1"
-                    style={
-                      errors.details?.[index]?.client_ref
-                        ? { ...inputStyle, border: '1px solid var(--destructive)' }
-                        : inputStyle
+              <Controller
+                name={`details.${index}.product_uom_id`}
+                control={control}
+                render={({ field: f }) => (
+                  <SearchableSelect
+                    value={f.value ?? 0}
+                    onChange={f.onChange}
+                    options={productUomOptions.filter((o: any) => {
+                      const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                      return !selectedIds.includes(o.value) || o.value === f.value
+                    })}
+                    placeholder="Select product..."
+                    searchPlaceholder="Search products..."
+                    loading={productUomsLoading}
+                    error={
+                      errors.details?.[index]?.product_uom_id?.message as
+                      | string
+                      | undefined
                     }
                   />
-                  {errors.details?.[index]?.client_ref && (
-                    <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                      {errors.details[index]!.client_ref!.message}
-                    </span>
-                  )}
-                </div>
+                )}
+              />
+              <input
+                type="number"
+                min={0.001}
+                step={0.001}
+                {...register(`details.${index}.qty`, { valueAsNumber: true })}
+                style={inputStyle}
+              />
+              {getCanReadPrice() ? (
                 <input
-                  {...register(`details.${index}.description`)}
-                  placeholder="Note"
+                  type="number"
+                  min={0}
+                  step={100}
+                  {...register(`details.${index}.price`, { valueAsNumber: true })}
                   style={inputStyle}
                 />
-                <button
-                  type="button"
-                  onClick={() => remove(index)}
-                  style={{
-                    padding: 6,
-                    background: 'none',
-                    border: 'none',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    color: 'var(--destructive)',
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Package size={14} />
-                </button>
+              ) : (
+                <input
+                  type="text"
+                  value="***"
+                  disabled
+                  style={{ ...inputStyle, background: 'var(--surface)', cursor: 'not-allowed' }}
+                />
+              )}
+              <input
+                type="date"
+                {...register(`details.${index}.planned_expiry_date`)}
+                style={inputStyle}
+              />
+              <Controller
+                name={`details.${index}.status`}
+                control={control}
+                render={({ field: f }) => (
+                  <select
+                    value={f.value}
+                    onChange={(e) => f.onChange(e.target.value)}
+                    style={{ ...inputStyle, cursor: 'pointer' }}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                )}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <input
+                  {...register(`details.${index}.client_ref`)}
+                  placeholder="e.g. DEL-001-1"
+                  style={
+                    errors.details?.[index]?.client_ref
+                      ? { ...inputStyle, border: '1px solid var(--destructive)' }
+                      : inputStyle
+                  }
+                />
+                {errors.details?.[index]?.client_ref && (
+                  <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
+                    {errors.details[index]!.client_ref!.message}
+                  </span>
+                )}
               </div>
-            ))}
-
-            <div
-              style={{
-                padding: '14px 16px',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                alignItems: 'center',
-                gap: 12,
-                background: 'var(--background)',
-              }}
-            >
-              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total:</span>
-              <span
+              <input
+                {...register(`details.${index}.description`)}
+                placeholder="Note"
+                style={inputStyle}
+              />
+              <button
+                type="button"
+                onClick={() => remove(index)}
                 style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: 'var(--accent)',
-                  fontFamily: 'var(--font-display)',
+                  padding: 6,
+                  background: 'none',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  color: 'var(--destructive)',
+                  display: 'flex',
+                  alignItems: 'center',
                 }}
               >
-                <PriceDisplay amount={totalPrice} />
-              </span>
+                <Package size={14} />
+              </button>
             </div>
-          </div>
+          ))}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => router.back()}
+          <div
+            style={{
+              padding: '14px 16px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: 12,
+              background: 'var(--background)',
+            }}
+          >
+            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total:</span>
+            <span
               style={{
-                padding: '8px 16px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-                cursor: 'pointer',
+                fontSize: 16,
+                fontWeight: 700,
+                color: 'var(--accent)',
+                fontFamily: 'var(--font-display)',
               }}
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={createReceiptMutation.isPending}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 16px',
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: createReceiptMutation.isPending ? 'not-allowed' : 'pointer',
-                opacity: createReceiptMutation.isPending ? 0.7 : 1,
-              }}
-            >
-              {createReceiptMutation.isPending && (
-                <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-              )}
-              <Check size={13} />
-              Confirm Receipt
-            </button>
+              <PriceDisplay amount={totalPrice} />
+            </span>
           </div>
-        </form>
-      )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            style={{
+              padding: '8px 16px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--foreground)',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={createReceiptMutation.isPending}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 16px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: createReceiptMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: createReceiptMutation.isPending ? 0.7 : 1,
+            }}
+          >
+            {createReceiptMutation.isPending ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Check size={16} />
+            )}
+            {alreadyReceipted ? 'Update Receipt' : 'Confirm Receipt'}
+          </button>
+        </div>
+      </form>
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

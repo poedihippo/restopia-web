@@ -1,14 +1,18 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { operationsService } from '@/services/operations.service'
 import { X, Loader2 } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError';
+import { useAuth } from '@/hooks/useAuth'
+import { branchesService } from '@/services/branches.service'
+import SearchableSelect from '@/components/SearchableSelect'
+import { operationRulesService } from '@/services/operation-rules.service'
 
 const schema = z.object({
   branch_id: z.coerce.number().optional(),
@@ -25,11 +29,41 @@ interface OperationSheetProps {
 
 export default function OperationSheet({ open, onClose, editData }: OperationSheetProps) {
   const qc = useQueryClient()
+  const {user, isSuperadmin } = useAuth()
+
+  const {data: branchesData, isLoading: branchesLoading} = useQuery({
+    queryKey: ['branches','list-all'],
+    queryFn: () => branchesService.list({per_page:100}).then((r) => r.data),
+    enabled: isSuperadmin,
+  })
+  const allBranches = (branchesData as any)?.data ?? []
+  const branchOptions = (isSuperadmin ? allBranches : user?.branches ?? []).map((b:any) =>({
+    value: b.id as number,
+    label: (b.name as string) ?? '',
+    sublabel: b.code as string | undefined,
+  }))
+
+  const myBranchIds = (user?.branches ?? []).map((b:any) => b.id as number)
+
+  const {data: operationRulesData, isLoading: operationRulesLoading} = useQuery({
+    queryKey: ['operationrules','list-all'],
+    queryFn: () => operationRulesService.list({per_page:100}).then((r) => r.data),
+  })
+
+  const allOperationRules = (operationRulesData as any)?.data ?? []
+  const operationRulesOption = allOperationRules
+    .filter((r:any) => isSuperadmin || myBranchIds.includes(r.branch_id as number))
+    .map((r:any) =>({
+    value: r.id as number,
+    label: (r.auto_open_cron && r.auto_close_cron) ? `open ${r.auto_open_cron} · close ${r.auto_close_cron}` : `#${r.id}`,
+    sublabel: r.operation_mode as string | undefined,
+  }))
 
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -43,13 +77,13 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
   useEffect(() => {
     if (editData) {
       reset({
-        branch_id: editData.branch_id ?? 0,
+        branch_id: editData.branch_id ?? user?.branch?.id ?? 0,  
         date: editData.date ?? '',
         operation_rule_id: editData.operation_rule_id ?? 0,
       })
     } else {
       reset({
-        branch_id: 0,
+        branch_id: user?.branch?.id ?? 0,
         date: '',
         operation_rule_id: 0,
       })
@@ -102,15 +136,26 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch ID</label>
-              <input
-                {...register('branch_id')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              />
+             <Controller 
+             name='branch_id'
+             control={control}
+             render={({field}) => (
+              <SearchableSelect
+              value={field.value ?? 0}
+              onChange={field.onChange}
+              options={branchOptions}
+              placeholder='Select branch...'
+              searchPlaceholder='Search branch...'
+              loading={branchesLoading}
+              error={errors.branch_id?.message as string | undefined} />
+             )}
+             />
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Date (YYYY-MM-DD)</label>
               <input
+              type='date'
                 {...register('date')}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
               />
@@ -118,10 +163,20 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Operation Rule ID</label>
-              <input
-                {...register('operation_rule_id')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              />
+             <Controller 
+             name='operation_rule_id'
+             control={control}
+             render={({field}) => (
+              <SearchableSelect
+              value={field.value ?? 0}
+              onChange={field.onChange}
+              options={operationRulesOption}
+              placeholder='Select rule...'
+              searchPlaceholder='Search rule...'
+              loading={operationRulesLoading}
+              error={errors.operation_rule_id?.message as string | undefined} />
+             )}
+             />
               {errors.operation_rule_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.operation_rule_id.message as string}</span>}
             </div>
           </div>

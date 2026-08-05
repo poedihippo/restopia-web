@@ -139,6 +139,10 @@ export default function PosView() {
         quickAmounts={logic.quickAmounts}
         change={logic.change}
         handleConfirmPayment={logic.handleConfirmPayment}
+        isCreditMethod={logic.isCreditMethod}
+        creditByUserId={logic.creditByUserId}
+        setCreditByUserId={logic.setCreditByUserId}
+        creditUsers={logic.creditUsers}
         isPending={logic.isPending}
         receiptData={null} // Replace with actual state
         resetCart={logic.resetCart}

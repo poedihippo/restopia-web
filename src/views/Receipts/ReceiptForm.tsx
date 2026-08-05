@@ -28,7 +28,7 @@ const detailSchema = z.object({
   planned_expiry_date: z.string().optional(),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   price: z.coerce.number().min(0, 'Price required'),
-  status: z.enum(['final', 'failed']),
+  status: z.enum(['pending', 'success', 'failed']),
   description: z.string().optional(),
   client_ref: z.string(),
 })
@@ -36,7 +36,7 @@ const detailSchema = z.object({
 const schema = z.object({
   delivery_id: z.coerce.number().min(0, 'Delivery is required'),
   date: z.string().min(1, 'Date required'),
-  status: z.literal('final'),
+  status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
   total_price: z.coerce.number().optional(),
@@ -78,7 +78,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           planned_expiry_date: '',
           qty: 1,
           price: 0,
-          status: 'final',
+          status: 'success',
           description: '',
           client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
         },
@@ -182,7 +182,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       planned_expiry_date: '',
       qty: d.qty ?? 1,
       price: d.price ?? 0,
-      status: 'final' as const,
+      status: 'success' as const,
       description: d.description ?? '',
       client_ref: `${deliveryDetail.code ?? 'RCP'}-${index + 1}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
     }))
@@ -239,7 +239,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const buildPayload = (values: FormValues) => ({
     ...values,
-    status: 'final',
+    status: values.status,
     total_price: values.total_price || totalPrice,
     details: values.details
       .filter((d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0)
@@ -251,7 +251,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         status: d.status,
         description: d.description || undefined,
         client_ref: d.client_ref || undefined,
-        ...(deliveryDetail?.source_type === 'po_from_branch' ? { product_uom_id: d.product_uom_id || undefined } : {}),
+        ...(['po_from_supplier', 'po_from_branch'].includes(deliveryDetail?.source_type)
+          ? { product_uom_id: d.product_uom_id || undefined }
+          : {}),
       })),
   })
 
@@ -560,7 +562,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   planned_expiry_date: '',
                   qty: 1,
                   price: 0,
-                  status: 'final',
+                  status: 'success',
                   description: '',
                   client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
                 })
@@ -700,7 +702,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     onChange={(e) => f.onChange(e.target.value)}
                     style={{ ...lineInputStyle, cursor: 'pointer' }}
                   >
-                    <option value="final">Final</option>
+                    <option value="success">Success</option>
+                    <option value="pending">Pending</option>
                     <option value="failed">Failed</option>
                   </select>
                 )}
