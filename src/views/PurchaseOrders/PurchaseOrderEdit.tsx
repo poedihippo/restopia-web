@@ -20,7 +20,9 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
     queryFn: () =>
       purchaseOrdersService
         .findById(id, {
-          include: 'branch,supplier,created_by,updated_by',
+          include:
+            'branch,supplier,supplier_branch,created_by,updated_by,' +
+            'purchase_order_details'
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),

@@ -553,37 +553,39 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             }}
           >
             <span style={sectionLabelStyle}>Received Items</span>
-            <button
-              type="button"
-              onClick={() =>
-                append({
-                  delivery_detail_id: undefined,
-                  product_uom_id: 0,
-                  planned_expiry_date: '',
-                  qty: 1,
-                  price: 0,
-                  status: 'success',
-                  description: '',
-                  client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-                })
-              }
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 10px',
-                background: 'var(--accent-light-bg)',
-                color: 'var(--accent)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={13} />
-              Add Item
-            </button>
+            {mode !== 'edit' && (
+              <button
+                type="button"
+                onClick={() =>
+                  append({
+                    delivery_detail_id: undefined,
+                    product_uom_id: 0,
+                    planned_expiry_date: '',
+                    qty: 1,
+                    price: 0,
+                    status: 'success',
+                    description: '',
+                    client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+                  })
+                }
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '5px 10px',
+                  background: 'var(--accent-light-bg)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                <Plus size={13} />
+                Add Item
+              </button>
+            )}
           </div>
 
           <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)' }}>
@@ -645,6 +647,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={false}
+                      disabled={mode === 'edit'}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
                         | string
@@ -660,7 +663,11 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 min={0.001}
                 step={0.001}
                 {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                style={lineInputStyle}
+                disabled={mode === 'edit'}
+                style={{
+                  ...lineInputStyle,
+                  ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
+                }}
                 onWheel={(e) => (e.target as HTMLElement).blur()}
               />
 
@@ -668,7 +675,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     type="text"
                     inputMode="numeric"
                     value={formatNumber(watch(`details.${index}.price`))}
-                    disabled={!getCanReadPrice()}
+                    disabled={mode === 'edit' || !getCanReadPrice()}
                     onChange={(e) => {
                       const raw = e.target.value.replace(/[^\d]/g, '')
                       setValue(
@@ -678,7 +685,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     }}
                     style={{
                       ...lineInputStyle,
-                      ...( !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed' } : {} )
+                      ...(mode === 'edit' || !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
                     }}
                   />
                   <input
@@ -712,13 +719,21 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               <input
                 type="date"
                 {...register(`details.${index}.planned_expiry_date`)}
-                style={lineInputStyle}
+                disabled={mode === 'edit'}
+                style={{
+                  ...lineInputStyle,
+                  ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
+                }}
               />
 
               <input
                 {...register(`details.${index}.description`)}
                 placeholder="Note"
-                style={lineInputStyle}
+                disabled={mode === 'edit'}
+                style={{
+                  ...lineInputStyle,
+                  ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
+                }}
               />
 
               <input type="hidden" {...register(`details.${index}.client_ref`)} />
@@ -726,18 +741,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               <button
                 type="button"
                 onClick={() => remove(index)}
-                disabled={fields.length === 1}
+                disabled={fields.length === 1 || mode === 'edit'}
                 style={{
                   padding: '6px 8px',
                   background: 'var(--destructive-bg)',
                   border: '1px solid var(--destructive)',
                   borderRadius: 'var(--radius-md)',
-                  cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
+                  cursor: fields.length === 1 || mode === 'edit' ? 'not-allowed' : 'pointer',
                   color: 'var(--destructive)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: fields.length === 1 ? 0.3 : 1,
+                  opacity: fields.length === 1 || mode === 'edit' ? 0.3 : 1,
                 }}
               >
                 <Trash2 size={14} />
