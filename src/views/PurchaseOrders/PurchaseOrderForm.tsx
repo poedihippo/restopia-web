@@ -512,7 +512,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               </label>
               {([
                 { key: 'supplier', label: 'Supplier' },
-                { key: 'branch', label: 'Internal Branch' },
               ] as const).map(({ key, label }) => {
                 const selected = watchType === key
                 return (

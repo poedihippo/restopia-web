@@ -134,6 +134,10 @@ export default function PosView() {
         setPaymentMethodId={logic.setPaymentMethodId}
         cashTendered={logic.cashTendered}
         setCashTendered={logic.setCashTendered}
+        isSplitPayment={logic.isSplitPayment}
+        setIsSplitPayment={logic.setIsSplitPayment}
+        splitPayments={logic.splitPayments}
+        setSplitPayments={logic.setSplitPayments}
         paymentMethods={logic.paymentMethods}
         selectedMethod={logic.selectedMethod}
         quickAmounts={logic.quickAmounts}

@@ -24,6 +24,10 @@ interface PosModalsProps {
   setPaymentMethodId: (val: number | null) => void
   cashTendered: string
   setCashTendered: (val: string) => void
+  isSplitPayment?: boolean
+  setIsSplitPayment?: (val: boolean) => void
+  splitPayments?: Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>
+  setSplitPayments?: (val: Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>) => void
   paymentMethods: any[]
   selectedMethod: any
   quickAmounts: number[]
@@ -85,6 +89,10 @@ export default function PosModals({
   setPaymentMethodId,
   cashTendered,
   setCashTendered,
+  isSplitPayment = false,
+  setIsSplitPayment,
+  splitPayments = [],
+  setSplitPayments,
   paymentMethods,
   selectedMethod,
   quickAmounts,
@@ -125,6 +133,53 @@ export default function PosModals({
   historyMeta,
   isHistoryLoading,
 }: PosModalsProps) {
+  const [splitMethodId, setSplitMethodId] = React.useState<number | null>(null)
+  const [splitAmount, setSplitAmount] = React.useState<string>('')
+  
+  const remainingSplitBalance = React.useMemo(() => {
+    const paid = (splitPayments || []).reduce((sum, p) => sum + p.amount, 0)
+    return Math.max(0, total - paid)
+  }, [total, splitPayments])
+
+  React.useEffect(() => {
+    if (remainingSplitBalance > 0 && !splitAmount) {
+      setSplitAmount(remainingSplitBalance.toString())
+    }
+  }, [remainingSplitBalance, splitAmount])
+
+  const canConfirm = isSplitPayment 
+    ? remainingSplitBalance === 0 
+    : (paymentMethodId !== null && (!isCreditMethod || creditByUserId !== null))
+
+  const handleAddSplit = () => {
+    if (!splitMethodId) return toast.error('Select payment method')
+    const amt = Number(splitAmount.replace(/\D/g, ''))
+    if (amt <= 0) return toast.error('Enter a valid amount')
+    
+    const method = paymentMethods.find((pm: any) => pm.id === splitMethodId)
+    const isCredit = method?.code === 'credit'
+    
+    if (isCredit && !creditByUserId) return toast.error('Select credit user')
+    
+    if (setSplitPayments && splitPayments) {
+      setSplitPayments([...splitPayments, {
+        paymentMethodId: splitMethodId,
+        amount: amt,
+        creditByUserId: isCredit ? creditByUserId : null
+      }])
+    }
+    setSplitMethodId(null)
+    setSplitAmount('')
+  }
+
+  const handleRemoveSplit = (index: number) => {
+    if (setSplitPayments && splitPayments) {
+      const updated = [...splitPayments]
+      updated.splice(index, 1)
+      setSplitPayments(updated)
+    }
+  }
+
   return (
     <>
       {showPayment && !showReceipt && (
@@ -200,6 +255,105 @@ export default function PosModals({
               </span>
             </div>
 
+            {/* Split Payment Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+              <input
+                type="checkbox"
+                id="split-payment"
+                checked={isSplitPayment}
+                onChange={(e) => setIsSplitPayment?.(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }}
+              />
+              <label htmlFor="split-payment" style={{ fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                Split Payment (Multiple Methods)
+              </label>
+            </div>
+
+            {isSplitPayment ? (
+              <div style={{ marginBottom: 20, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Added Payments</h4>
+                {splitPayments.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--foreground-muted)', fontStyle: 'italic', marginBottom: 12 }}>
+                    No payments added yet.
+                  </p>
+                ) : (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px 0' }}>
+                    {splitPayments.map((sp, idx) => {
+                      const method = paymentMethods.find(pm => pm.id === sp.paymentMethodId)
+                      const user = creditUsers.find(u => u.id === sp.creditByUserId)
+                      return (
+                        <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px dashed var(--border)' }}>
+                          <span style={{ fontSize: 13 }}>
+                            {method?.name} {user ? `(Credit: ${user.name})` : ''}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{ fontSize: 13, fontWeight: 500 }}>{formatCurrency(sp.amount)}</span>
+                            <button
+                              onClick={() => handleRemoveSplit(idx)}
+                              style={{ background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer', fontSize: 16, padding: 0 }}
+                            >×</button>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, background: remainingSplitBalance === 0 ? 'var(--success-bg)' : 'var(--accent-light-bg)', padding: '10px 14px', borderRadius: 'var(--radius-md)' }}>
+                  <span style={{ fontSize: 13, color: remainingSplitBalance === 0 ? 'var(--success)' : 'var(--accent)' }}>Remaining Balance</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: remainingSplitBalance === 0 ? 'var(--success)' : 'var(--accent)' }}>{formatCurrency(remainingSplitBalance)}</span>
+                </div>
+
+                {remainingSplitBalance > 0 && (
+                  <div style={{ background: 'var(--background)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                    <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Add Payment</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                      <div>
+                        <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Method</label>
+                        <select
+                          value={splitMethodId ?? ''}
+                          onChange={(e) => setSplitMethodId(e.target.value ? Number(e.target.value) : null)}
+                          style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+                        >
+                          <option value="">Select...</option>
+                          {paymentMethods.map(pm => <option key={pm.id} value={pm.id}>{pm.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Amount</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={splitAmount ? formatCurrency(Number(splitAmount.replace(/\D/g, ''))) : ''}
+                          onChange={(e) => setSplitAmount(e.target.value.replace(/\D/g, ''))}
+                          style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+                        />
+                      </div>
+                    </div>
+                    {splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.code === 'credit' && (
+                      <div style={{ marginBottom: 12 }}>
+                        <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Credit User</label>
+                        <select
+                          value={creditByUserId ?? ''}
+                          onChange={(e) => setCreditByUserId(e.target.value ? Number(e.target.value) : null)}
+                          style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+                        >
+                          <option value="">Select user...</option>
+                          {creditUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleAddSplit}
+                      style={{ width: '100%', padding: '8px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontWeight: 500 }}
+                    >
+                      Add to Split
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
             {/* Payment method selection */}
             <div style={{ marginBottom: 20 }}>
               <label
@@ -400,30 +554,39 @@ export default function PosModals({
                 )}
               </>
             )}
+              </>
+            )}
 
             {/* Confirm button */}
             <button
               type="button"
               onClick={() => {
-                if (!paymentMethodId) {
-                  toast.error('Select a payment method')
-                  return
-                }
-                if (isCreditMethod && !creditByUserId) {
-                  toast.error('Please select a credit user')
-                  return
-                }
-                if (
-                  isCashMethod &&
-                  Number(cashTendered.replace(/\D/g, '')) < total
-                ) {
-                  toast.error('Cash tendered is less than total')
-                  return
+                if (isSplitPayment) {
+                  if (remainingSplitBalance > 0) {
+                    toast.error('Payment does not cover total due')
+                    return
+                  }
+                } else {
+                  if (!paymentMethodId) {
+                    toast.error('Select a payment method')
+                    return
+                  }
+                  if (isCreditMethod && !creditByUserId) {
+                    toast.error('Please select a credit user')
+                    return
+                  }
+                  if (
+                    isCashMethod &&
+                    Number(cashTendered.replace(/\D/g, '')) < total
+                  ) {
+                    toast.error('Cash tendered is less than total')
+                    return
+                  }
                 }
                 setShowPayment(false)
                 handleConfirmPayment()
               }}
-              disabled={isPending}
+              disabled={!canConfirm || isPending}
               style={{
                 width: '100%',
                 height: 48,

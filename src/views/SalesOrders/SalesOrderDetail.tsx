@@ -123,7 +123,9 @@ export default function SalesOrderDetail() {
   const createPaymentMutation = useMutation({
     mutationFn: () =>
       paymentsService.create({
-        sales_order_id: id,
+        type: 'receive',
+        date: new Date().toISOString().split('T')[0],
+        allocations: [{ sales_order_id: id, amount: paymentAmount }],
         payment_method_id: paymentMethodId,
         amount: paymentAmount,
         description: paymentDescription || undefined,

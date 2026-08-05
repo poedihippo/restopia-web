@@ -85,6 +85,8 @@ export function usePosLogic() {
   const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null)
   const [cashTendered, setCashTendered] = useState<string>('')
   const [creditByUserId, setCreditByUserId] = useState<number | null>(null)
+  const [isSplitPayment, setIsSplitPayment] = useState(false)
+  const [splitPayments, setSplitPayments] = useState<Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>>([])
   const [historySearch, setHistorySearch] = useState('')
   const [historySearchDebounced, setHistorySearchDebounced] = useState('')
   const [historyDateFrom, setHistoryDateFrom] = useState('')
@@ -678,21 +680,41 @@ export function usePosLogic() {
         ? Number(cashTendered.replace(/\D/g, ''))
         : variables.total_price
 
-      if (salesOrderId && paymentMethodId) {
-        try {
-          await paymentsService.create({
-            type: 'receive',
-            date: new Date().toISOString().split('T')[0],
-            allocations: [{ sales_order_id: salesOrderId, amount: paidAmount }],
-            payment_method_id: paymentMethodId,
-            amount: paidAmount,
-            description: orderNote || undefined,
-          } as any)
-        } catch (err: any) {
-          toast.error(
-            'Order created but payment recording failed: ' +
-            (err?.response?.data?.message ?? 'Unknown error'),
-          )
+      if (salesOrderId) {
+        if (isSplitPayment) {
+          for (const sp of splitPayments) {
+            try {
+              await paymentsService.create({
+                type: 'receive',
+                date: new Date().toISOString().split('T')[0],
+                allocations: [{ sales_order_id: salesOrderId, amount: sp.amount }],
+                payment_method_id: sp.paymentMethodId,
+                amount: sp.amount,
+                description: orderNote || undefined,
+              } as any)
+            } catch (err: any) {
+              toast.error(
+                'Order created but one of the payments failed: ' +
+                (err?.response?.data?.message ?? 'Unknown error'),
+              )
+            }
+          }
+        } else if (paymentMethodId) {
+          try {
+            await paymentsService.create({
+              type: 'receive',
+              date: new Date().toISOString().split('T')[0],
+              allocations: [{ sales_order_id: salesOrderId, amount: paidAmount }],
+              payment_method_id: paymentMethodId,
+              amount: paidAmount,
+              description: orderNote || undefined,
+            } as any)
+          } catch (err: any) {
+            toast.error(
+              'Order created but payment recording failed: ' +
+              (err?.response?.data?.message ?? 'Unknown error'),
+            )
+          }
         }
       }
 
@@ -779,6 +801,8 @@ export function usePosLogic() {
     showPayment, setShowPayment,
     paymentMethodId, setPaymentMethodId,
     cashTendered, setCashTendered,
+    isSplitPayment, setIsSplitPayment,
+    splitPayments, setSplitPayments,
     orderNote, setOrderNote,
     transactionDate, setTransactionDate,
     fulfillmentDate, setFulfillmentDate,
