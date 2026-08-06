@@ -71,6 +71,15 @@ api.interceptors.response.use(
     const status = error?.response?.status
     const data = (error?.response?.data as any) ?? {}
 
+    // Overwrite generic message with specific field error if available
+    if (data?.errors && typeof data.errors === 'object') {
+      for (const key in data.errors) {
+        if (Array.isArray(data.errors[key]) && data.errors[key].length > 0) {
+          data.message = data.errors[key][0]
+          break
+        }
+      }
+    }
     if (status === 401 && !originalRequest._retry) {
       const refreshToken = cookies.get('refresh_token')
       if (!refreshToken) {

@@ -121,6 +121,7 @@ const NAV_GROUPS: NavGroup[] = [
         icon: ReceiptText,
         children: [
           { label: 'Sales Orders', href: '/sales/sales-orders', permission: 'sales-order.read' },
+          { label: 'Sales Channels', href: '/sales/sales-channels', permission: 'sales-channel.read' },
           { label: 'Customers', href: '/sales/customers', permission: 'customer.read' },
           { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.read' },
           { label: 'Payments', href: '/sales/payments', permission: 'payment.read' },
@@ -188,6 +189,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.read' },
       { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard, permission: 'payment-method.read' },
+      { label: 'Sales Channels', href: '/settings/sales-channels', icon: Store, permission: 'sales-channel.read' },
       { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.read' },
       {
         label: 'Store Operations',

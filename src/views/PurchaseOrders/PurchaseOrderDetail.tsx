@@ -36,6 +36,7 @@ interface PurchaseOrderFull {
   status: 'pending' | 'final'
   type?: 'supplier' | 'branch'
   description?: string
+  fulfillment_date?: string
   created_at?: string
   updated_at?: string
   branch?: { id: number; name: string }
@@ -335,28 +336,26 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               Print
             </button>
           )}
-          {order?.status === 'final' && (
-            <button
-              type="button"
-              onClick={() => router.push(`/sales/sales-orders/create?po_id=${id}`)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--accent)',
-                border: '1px solid var(--accent)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'white',
-                cursor: 'pointer',
-              }}
-            >
-              <ShoppingCart size={13} />
-              Create Sales Order
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => router.push(`/sales/sales-orders/create?po_id=${id}`)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 14px',
+              background: 'var(--accent)',
+              border: '1px solid var(--accent)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            <ShoppingCart size={13} />
+            Create Sales Order
+          </button>
           <button
             type="button"
             onClick={() => router.push(`/purchase/purchase-orders/${id}/edit`)}
@@ -526,6 +525,48 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
           >
             {order.date
               ? formatDate(order.date)
+              : '—'}
+          </div>
+        </div>
+
+        {/* Fulfillment Date */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                background: 'var(--accent-light-bg)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
+            </div>
+            <span style={sectionLabelStyle}>Fulfillment Date</span>
+          </div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: 'var(--foreground)',
+              fontFamily: 'var(--font-display)',
+            }}
+          >
+            {order.fulfillment_date
+              ? formatDate(order.fulfillment_date)
               : '—'}
           </div>
         </div>

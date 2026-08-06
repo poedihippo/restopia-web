@@ -7,6 +7,7 @@ import { productUomBatchesService } from '@/services/product-uom-batches.service
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import api from '@/hooks/useApi'
 import ProductUomBatchSheet from './ProductUomBatchSheet'
 import {
   Plus,
@@ -80,6 +81,8 @@ export default function ProductUomBatchesView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [productUomFilter, setProductUomFilter] = useState(0)
+  const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
+  const [typeFilter, setTypeFilter] = useState<string | ''>('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
@@ -92,7 +95,7 @@ export default function ProductUomBatchesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, productUomFilter])
+  }, [debouncedSearch, productUomFilter, categoryFilter, typeFilter])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-uom-batches', page, debouncedSearch, productUomFilter],
@@ -105,12 +108,21 @@ export default function ProductUomBatchesView() {
           include: INCLUDE,
           'filter[search]': debouncedSearch || undefined,
           'filter[product_uom_id]': productUomFilter || undefined,
+          'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
+          'filter[type]': typeFilter === '' ? undefined : String(typeFilter),
         })
         .then((r) => r.data),
   })
 
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['product-categories-all'],
+    queryFn: () =>
+      api.get('/product-categories', { params: { per_page: 100 } }).then((r) => r.data),
+  })
+  const categories = (categoriesData as any)?.data ?? []
 
   // Product UOMs for the filter dropdown (paginate all pages)
   const { data: puData } = useQuery({
@@ -263,6 +275,56 @@ export default function ProductUomBatchesView() {
                 (pu.code ? ` (${pu.code})` : '')}
             </option>
           ))}
+        </select>
+        <select
+          value={categoryFilter}
+          onChange={(e) => {
+            setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+            setPage(1)
+          }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+            outline: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            maxWidth: 160,
+          }}
+        >
+          <option value="">All Categories</option>
+          {categories.map((c: any) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value)
+            setPage(1)
+          }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+            outline: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            maxWidth: 160,
+          }}
+        >
+          <option value="">All Types</option>
+          <option value="raw">Raw</option>
+          <option value="wip">WIP</option>
+          <option value="final">Final</option>
         </select>
       </div>
       {/* Table */}

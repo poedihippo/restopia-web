@@ -75,6 +75,7 @@ export default function ProductInventoriesView() {
   const [stockLte, setStockLte] = useState<string>('')
   const [expiryDateGte, setExpiryDateGte] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
+  const [typeFilter, setTypeFilter] = useState<string | ''>('')
   const [debouncedStockGte, setDebouncedStockGte] = useState<string>('')
   const [debouncedStockLte, setDebouncedStockLte] = useState<string>('')
   const [debouncedExpiryDateGte, setDebouncedExpiryDateGte] = useState<string>('')
@@ -126,7 +127,7 @@ export default function ProductInventoriesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter])
+  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter])
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -138,7 +139,7 @@ export default function ProductInventoriesView() {
   const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter],
+    queryKey: ['product-inventories', page, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -151,6 +152,7 @@ export default function ProductInventoriesView() {
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
+          'filter[type]': typeFilter === '' ? undefined : String(typeFilter),
         })
         .then((r) => r.data),
   })
@@ -366,6 +368,31 @@ export default function ProductInventoriesView() {
               {c.name}
             </option>
           ))}
+        </select>
+
+        <select
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value)
+            setPage(1)
+          }}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface)',
+            outline: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            maxWidth: 160,
+          }}
+        >
+          <option value="">All Types</option>
+          <option value="raw">Raw</option>
+          <option value="wip">WIP</option>
+          <option value="final">Final</option>
         </select>
 
         {/* Hide empty batches toggle */}

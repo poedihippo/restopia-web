@@ -12,9 +12,9 @@ import { bundlesService } from '@/services/bundles.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { paymentsService } from '@/services/payments.service'
 import { vouchersService } from '@/services/vouchers.service'
+import { salesChannelsService } from '@/services/sales-channels.service'
 import { usersService } from '@/services/users.service'
 import api from '@/hooks/useApi'
-import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 
 import type { PosCartItem, PosCartBundle } from '@/types/api'
@@ -62,6 +62,7 @@ export function usePosLogic() {
   const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null)
   const [batchPickerGroup, setBatchPickerGroup] = useState<any | null>(null)
   const [bundlePickerGroup, setBundlePickerGroup] = useState<any | null>(null)
+  const [salesChannelId, setSalesChannelId] = useState<number | null>(null)
 
   // Customer State
   const [customerSearch, setCustomerSearch] = useState('')
@@ -117,13 +118,8 @@ export function usePosLogic() {
   // ---------------------------------------------------------------------------
   // 2. DEBOUNCE EFFECTS
   // ---------------------------------------------------------------------------
-  // TODO: Implement debouncing effects for other search states if needed.
-  // Contoh penerapan debounce untuk mencegah pencarian API berulang-ulang setiap kali user mengetik:
-
   useEffect(() => {
-    // Set timer selama 400 milidetik
     const t = setTimeout(() => setSearchDebounced(search), 400)
-    // Cleanup function: batalkan timer sebelumnya jika user mengetik lagi sebelum 400ms selesai
     return () => clearTimeout(t)
   }, [search])
 
@@ -161,7 +157,7 @@ export function usePosLogic() {
       if (preorderSearchDebounced) params['filter[search]'] = preorderSearchDebounced
       if (preorderDateFrom) params['filter[fulfillment_date_gte]'] = preorderDateFrom
       if (preorderDateTo) params['filter[fulfillment_date_lte]'] = preorderDateTo
-      return salesOrderService.list(params).then((r) => r.data)
+      return salesOrdersService.list(params).then((r) => r.data)
     },
   })
   const preorders: any[] = (preorderData as any)?.data ?? []
@@ -180,7 +176,7 @@ export function usePosLogic() {
       if (historySearchDebounced) params['filter[search]'] = historySearchDebounced
       if (historyDateFrom) params['filter[date_gte]'] = historyDateFrom
       if (historyDateTo) params['filter[date_lte]'] = historyDateTo
-      return salesOrderService.list(params).then((r) => r.data)
+      return salesOrdersService.list(params).then((r) => r.data)
     },
   })
   const historyOrders: any[] = (historyData as any)?.data ?? []
@@ -197,12 +193,11 @@ export function usePosLogic() {
         if (typeof snapshot === 'string') {
           try {
             snapshot = JSON.parse(snapshot)
-          } catch (e) {}
+          } catch (e) { }
         }
-        
-        // Extract product uom from either the batch relation or direct relation
+
         const pu = snapshot?.product_uom_batch?.product_uom ?? snapshot?.product_uom ?? d.product_inventory?.product_uom_batch?.product_uom ?? d.product_inventory?.product_uom
-        
+
         return {
           product_inventory_id: d.product_inventory_id,
           name: pu?.product?.name ?? d.description ?? `Item #${d.product_inventory_id}`,
@@ -221,6 +216,14 @@ export function usePosLogic() {
       setGuestName(order.customer_name ?? '')
       setGuestPhone(order.customer_phone ?? '')
     }
+
+    if (order.sales_channel_id) {
+      setSalesChannelId(order.sales_channel_id)
+    } else {
+      setSalesChannelId(null)
+    }
+
+    setOrderNote(order.description ?? '')
     setEditingOrderId(order.id)
     setEditingOrderCode(order.code)
     setShowPreorders(false)
@@ -250,7 +253,7 @@ export function usePosLogic() {
           per_page: 60,
           'filter[status]': 'active',
           'filter[search]': bundleSearchDebounced || undefined,
-          include: 'bundle_details',
+          include: 'bundle_details,bundle_details.items,bundle_details.items.product_uom,bundle_details.items.product_uom.product',
         } as any)
         .then((r) => r.data),
   })
@@ -260,13 +263,20 @@ export function usePosLogic() {
   const { data: paymentMethodsData, isLoading: paymentMethodsLoading } = useQuery({
     queryKey: ['payment-methods-all'],
     queryFn: () =>
-      paymentMethodsService.list({ per_page: 50, sort: 'id' } as any).then((r) => r.data),
+      paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any).then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
 
+  // Sales channels query
+  const { data: salesChannelsData } = useQuery({
+    queryKey: ['pos-sales-channels'],
+    queryFn: () =>
+      salesChannelsService.list({ per_page: 100, sort: 'name' } as any).then((r) => r.data),
+  })
+  const salesChannels: any[] = (salesChannelsData as any)?.data ?? []
+
   const { data: puData } = useQuery({
     queryKey: ['product-uoms-pos'],
-
     queryFn: () =>
       productUomsService
         .list({
@@ -279,15 +289,12 @@ export function usePosLogic() {
 
   const productUomsList: any[] = (puData as any)?.data ?? [];
 
-  const getProductUom = (id: number | null | undefined) => id != null ? productUomsList.find((pu: any) => pu.id === id) : undefined;
-
   const categories = useMemo<string[]>(() => {
-    const cats = new Set<string>() // Set otomatis membuang nama yang duplikat
+    const cats = new Set<string>()
     for (const pu of productUomsList) {
       const name = pu?.product?.product_category?.name
       if (name) cats.add(name)
     }
-    // Jadikan array dan urutkan sesuai abjad
     return Array.from(cats).sort((a, b) => a.localeCompare(b))
   }, [productUomsList]);
 
@@ -383,12 +390,6 @@ export function usePosLogic() {
   // ---------------------------------------------------------------------------
   // 4. COMPUTED VALUES
   // ---------------------------------------------------------------------------
-  // TODO: Implement derived state calculations like:
-  // - subtotal
-  // - total
-  // - change (kembalian)
-  // - quickAmounts (for cash payment buttons)
-
   const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0) + bundleCart.reduce((s: number, c: any) => s + c.price * c.qty, 0)
   const total = Math.max(0, subtotal - (discountAmount ?? 0))
 
@@ -397,10 +398,8 @@ export function usePosLogic() {
   const isCreditMethod = selectedMethod?.name?.toLowerCase().includes('credit') ?? false;
   const change = isCashMethod ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - total) : 0;
 
-  // Credit users query — fetched when Credit payment method is selected
   const { data: creditUsersData } = useQuery({
     queryKey: ['pos-credit-users'],
-    enabled: isCreditMethod,
     queryFn: () =>
       usersService
         .list({ per_page: 100, 'filter[type]': 'user' } as any)
@@ -408,33 +407,21 @@ export function usePosLogic() {
   })
   const creditUsers: any[] = (creditUsersData as any)?.data ?? []
 
-
-
   const quickAmounts = [
-    total, // Nominal uang pas
-    Math.ceil(total / 10000) * 10000 + 10000, // Pembulatan ke atas terdekat
+    total,
+    Math.ceil(total / 10000) * 10000 + 10000,
     50000,
     100000,
     200000,
   ]
-    .filter((v, i, arr) => arr.indexOf(v) === i) // Buang angka duplikat
-    .filter((v) => v >= total) // Buang nominal yang kurang dari total belanja
-    .slice(0, 4) // Ambil 4 tombol saja
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .filter((v) => v >= total)
+    .slice(0, 4)
 
   // ---------------------------------------------------------------------------
   // 5. EVENT HANDLERS & MUTATIONS
   // ---------------------------------------------------------------------------
-  // TODO: Implement logic for mutations and handlers:
-  // - addLotToCart / addGroupToCart
-  // - addBundleToCart
-  // - handleApplyVoucher
-  // - handleCharge (validation before payment)
-  // - handleConfirmPayment (submitting the actual order via useMutation)
-  // - triggerPrint (printing logic)
-  // - resetCart
-
   const resetCart = useCallback(() => {
-    // TODO: Reset all cart and order-related state
     setCart([])
     setBundleCart([])
     setActiveTab('products')
@@ -450,13 +437,13 @@ export function usePosLogic() {
     setTransactionDate(new Date().toLocaleDateString('en-CA'))
     setFulfillmentDate(new Date().toISOString().slice(0, 16))
     setOrderType('offline')
+    setSalesChannelId(null)
     setShowPayment(false)
     setPaymentMethodId(null)
     setCashTendered('')
     setShowReceipt(false)
     setEditingOrderId(null)
     setEditingOrderCode(null)
-    // setReceiptData(null)
   }, [])
 
   const addLotToCart = useCallback((lot: any) => {
@@ -468,7 +455,6 @@ export function usePosLogic() {
     }
 
     setCart((prev: any[]) => {
-      // Cari apakah sudah ada di keranjang
       const existing = prev.find((c) => c.product_inventory_id === lot.id)
       if (existing) {
         return prev.map((c) =>
@@ -483,7 +469,6 @@ export function usePosLogic() {
           name: lot.product_uom_batch?.product_uom?.product?.name ?? lot.code,
           code: lot.product_uom_batch?.product_uom?.code ?? lot.product_uom_batch?.product_uom?.product?.code
             ?? '',
-          // Harga dibedakan berdasarkan orderType (online/offline)
           price: (() => {
             const uom = lot.product_uom_batch?.product_uom ?? lot.product_uom ?? lot.productUom;
             return orderType === 'online' ? (uom?.online_price ?? uom?.base_price ?? 0) : (uom?.base_price ?? 0);
@@ -492,25 +477,27 @@ export function usePosLogic() {
         },
       ]
     })
-    
-    // Close the picker if it's open
+
     setBatchPickerGroup(null)
   }, [orderType])
-
-
 
   const addBundleToCart = useCallback((bundle: any) => {
     setBundlePickerGroup(bundle)
   }, [])
 
-  const addConfiguredBundleToCart = useCallback((bundle: any, selectedBatches: Record<number, any>) => {
+  const addConfiguredBundleToCart = useCallback((bundle: any, selectedBatches: Record<number, any>, selectedItems?: Record<number, number>) => {
     try {
       const details = bundle.bundle_details || bundle.details || []
       const processedDetails = details.map((bd: any) => {
-        const inventoryId = selectedBatches[bd.id]
+        const itemId = selectedItems?.[bd.id]
+        const item = bd.items?.find((i: any) => i.id === itemId) || bd.items?.[0] || bd
+        const inventory = selectedBatches[bd.id] || selectedBatches[item.id]
         return {
           ...bd,
-          product_inventory_id: inventoryId,
+          qty: item.qty ?? bd.qty ?? 1,
+          product_name: item.product_uom?.product?.name || item.product?.name || inventory?.product_uom_batch?.product_uom?.product?.name || 'Item',
+          bundle_detail_item_id: item.id,
+          product_inventory_id: inventory?.id || inventory,
         }
       })
 
@@ -555,8 +542,8 @@ export function usePosLogic() {
           price: c.price,
           status: 'pending',
           bundle_details: c.bundle_details?.map((bd: any) => ({
-            product_inventory_id: bd.product_inventory_id || bd.product_uom?.product_inventories?.[0]?.id || items.find((i: any) => i.product_uom_id === bd.product_uom_id)?.id || bd.product_uom_id, // fallback
-            qty: bd.qty,
+            product_inventory_id: bd.product_inventory_id,
+            bundle_detail_item_id: bd.bundle_detail_item_id,
           })) || [],
         })),
       ]
@@ -567,6 +554,7 @@ export function usePosLogic() {
         customer_id: selectedCustomerId ?? null,
         date: transactionDate,
         fulfillment_date: fulfillmentDate.slice(0, 10),
+        sales_channel_id: salesChannelId,
         voucher_id: voucher.id,
         subtotal_price: subtotal,
         discount_price: 0,
@@ -604,11 +592,10 @@ export function usePosLogic() {
     setShowPayment(true)
   }
 
-  // Hold — save the current cart as a pending order with no payment.
   const { mutate: holdMutate, isPending: isHoldPending } = useMutation({
-    mutationFn: (payload: any) => 
-      editingOrderId 
-        ? salesOrderService.update(editingOrderId, payload as any)
+    mutationFn: (payload: any) =>
+      editingOrderId
+        ? salesOrdersService.update(editingOrderId, payload as any)
         : api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
@@ -622,6 +609,11 @@ export function usePosLogic() {
   const handleHold = () => {
     if (cart.length === 0 && bundleCart.length === 0) {
       toast.error('Cart is empty')
+      return
+    }
+
+    if (!salesChannelId) {
+      toast.error('Please select a Sales Channel first')
       return
     }
 
@@ -640,11 +632,23 @@ export function usePosLogic() {
         price: c.price,
         status: 'pending',
         bundle_details: c.bundle_details?.map((bd: any) => ({
-          product_inventory_id: bd.product_inventory_id || bd.product_uom?.product_inventories?.[0]?.id || items.find((i: any) => i.product_uom_id === bd.product_uom_id)?.id || bd.product_uom_id || 0,
-          qty: bd.qty,
+          product_inventory_id: bd.product_inventory_id,
+          bundle_detail_item_id: bd.bundle_detail_item_id,
         })) || [],
       })),
     ]
+
+    const splitCreditUser = isSplitPayment
+      ? splitPayments.find(sp => sp.creditByUserId)?.creditByUserId
+      : null
+
+    const finalCreditById = isSplitPayment 
+      ? (splitCreditUser || undefined)
+      : (isCreditMethod ? creditByUserId : undefined)
+    
+    const finalSettlementStatus = isSplitPayment 
+      ? (splitCreditUser ? 'credit' : 'pending')
+      : (isCreditMethod ? 'credit' : 'pending')
 
     const payload = {
       code: editingOrderCode ?? `POS-${Date.now()}`,
@@ -654,13 +658,14 @@ export function usePosLogic() {
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: fulfillmentDate.slice(0, 10),
+      sales_channel_id: salesChannelId,
       voucher_id: appliedVoucher?.voucher_id ?? undefined,
       subtotal_price: subtotal,
       discount_price: discountAmount,
       total_price: total,
       status: 'pending',
-      settlement_status: isCreditMethod ? 'credit' : 'pending',
-      credit_by_id: isCreditMethod ? creditByUserId || undefined : undefined,
+      settlement_status: finalSettlementStatus,
+      credit_by_id: finalCreditById,
       description: orderNote || undefined,
       details: mergedDetails,
     }
@@ -668,11 +673,10 @@ export function usePosLogic() {
     holdMutate(payload)
   }
 
-  // Sales order mutation — creates new order or completes pending order
   const { mutate, isPending } = useMutation({
     mutationFn: (payload: any) =>
       editingOrderId
-        ? salesOrderService.update(editingOrderId, payload as any)
+        ? salesOrdersService.update(editingOrderId, payload as any)
         : api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
     onSuccess: async (res: any, variables: any) => {
       const salesOrderId = res?.data?.id ?? editingOrderId ?? null
@@ -681,34 +685,32 @@ export function usePosLogic() {
         : variables.total_price
 
       if (salesOrderId) {
+        const dateStr = new Date().toISOString().split('T')[0];
+        let paymentsPayload: any[] = [];
+
         if (isSplitPayment) {
-          for (const sp of splitPayments) {
-            try {
-              await paymentsService.create({
-                type: 'receive',
-                date: new Date().toISOString().split('T')[0],
-                allocations: [{ sales_order_id: salesOrderId, amount: sp.amount }],
-                payment_method_id: sp.paymentMethodId,
-                amount: sp.amount,
-                description: orderNote || undefined,
-              } as any)
-            } catch (err: any) {
-              toast.error(
-                'Order created but one of the payments failed: ' +
-                (err?.response?.data?.message ?? 'Unknown error'),
-              )
-            }
-          }
+          paymentsPayload = splitPayments.map(sp => ({
+            payment_method_id: sp.paymentMethodId,
+            amount: sp.amount,
+            description: orderNote || undefined,
+            allocations: [{ sales_order_id: salesOrderId, amount: sp.amount }]
+          }));
         } else if (paymentMethodId) {
+          paymentsPayload = [{
+            payment_method_id: paymentMethodId,
+            amount: paidAmount,
+            description: orderNote || undefined,
+            allocations: [{ sales_order_id: salesOrderId, amount: paidAmount }]
+          }];
+        }
+
+        if (paymentsPayload.length > 0) {
           try {
             await paymentsService.create({
               type: 'receive',
-              date: new Date().toISOString().split('T')[0],
-              allocations: [{ sales_order_id: salesOrderId, amount: paidAmount }],
-              payment_method_id: paymentMethodId,
-              amount: paidAmount,
-              description: orderNote || undefined,
-            } as any)
+              date: dateStr,
+              payments: paymentsPayload
+            } as any);
           } catch (err: any) {
             toast.error(
               'Order created but payment recording failed: ' +
@@ -744,11 +746,23 @@ export function usePosLogic() {
         price: c.price,
         status: 'completed',
         bundle_details: c.bundle_details?.map((bd: any) => ({
-          product_inventory_id: bd.product_inventory_id || bd.product_uom?.product_inventories?.[0]?.id || items.find((i: any) => i.product_uom_id === bd.product_uom_id)?.id || bd.product_uom_id || 0,
-          qty: bd.qty,
+          product_inventory_id: bd.product_inventory_id,
+          bundle_detail_item_id: bd.bundle_detail_item_id,
         })) || [],
       })),
     ]
+
+    const splitCreditUser = isSplitPayment
+      ? splitPayments.find(sp => sp.creditByUserId)?.creditByUserId
+      : null
+
+    const finalCreditById = isSplitPayment 
+      ? (splitCreditUser || undefined)
+      : (isCreditMethod ? creditByUserId : undefined)
+    
+    const finalSettlementStatus = isSplitPayment 
+      ? (splitCreditUser ? 'credit' : 'pending')
+      : (isCreditMethod ? 'credit' : 'pending')
 
     const payload = {
       code: editingOrderCode ?? `POS-${Date.now()}`,
@@ -758,13 +772,14 @@ export function usePosLogic() {
       customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: fulfillmentDate.slice(0, 10),
+      sales_channel_id: salesChannelId,
       voucher_id: appliedVoucher?.voucher_id ?? undefined,
       subtotal_price: subtotal,
       discount_price: discountAmount,
       total_price: total,
       status: 'final',
-      settlement_status: isCreditMethod ? 'credit' : 'pending',
-      credit_by_id: isCreditMethod ? creditByUserId || undefined : undefined,
+      settlement_status: finalSettlementStatus,
+      credit_by_id: finalCreditById,
       description: orderNote || undefined,
       details: mergedDetails,
     }
@@ -772,12 +787,10 @@ export function usePosLogic() {
     mutate(payload)
   }
 
-
   // ---------------------------------------------------------------------------
   // 6. RETURN OBJECT
   // ---------------------------------------------------------------------------
   return {
-    // States
     activeTab, setActiveTab,
     search, setSearch,
     selectedCategory, setSelectedCategory,
@@ -791,6 +804,7 @@ export function usePosLogic() {
     orderType, setOrderType,
     customerSearch, setCustomerSearch,
     selectedCustomerId, setSelectedCustomerId,
+    salesChannelId, setSalesChannelId,
     guestName, setGuestName,
     guestPhone, setGuestPhone,
     showCustomerDropdown, setShowCustomerDropdown,
@@ -815,17 +829,16 @@ export function usePosLogic() {
     historyOrders, historyMeta, isHistoryLoading,
     showPreorder, setShowPreorder,
 
-    // Data & Computed
     isLoading, items, productMeta, groupedItems, categories,
     bundles, isBundleLoading,
     paymentMethods, paymentMethodsLoading,
+    salesChannels,
     customers,
     subtotal, total, change, quickAmounts,
     selectedMethod, isCashMethod, isCreditMethod,
     creditByUserId, setCreditByUserId, creditUsers,
     isPending, isHoldPending,
 
-    // Handlers & Methods
     resetCart,
     addLotToCart,
     addBundleToCart,

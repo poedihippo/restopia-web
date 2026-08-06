@@ -97,6 +97,9 @@ export default function PosView() {
         setCustomerSearch={logic.setCustomerSearch}
         selectedCustomerId={logic.selectedCustomerId}
         setSelectedCustomerId={logic.setSelectedCustomerId}
+        salesChannelId={logic.salesChannelId}
+        setSalesChannelId={logic.setSalesChannelId}
+        salesChannels={logic.salesChannels}
         customers={logic.customers}
         showCustomerDropdown={logic.showCustomerDropdown}
         setShowCustomerDropdown={logic.setShowCustomerDropdown}
@@ -152,6 +155,9 @@ export default function PosView() {
         resetCart={logic.resetCart}
         printReceipt={null} // Replace with actual state
         triggerPrint={() => {}}
+        salesChannelId={logic.salesChannelId}
+        setSalesChannelId={logic.setSalesChannelId}
+        salesChannels={logic.salesChannels}
 
         preorderSearch={logic.preorderSearch}
         setPreorderSearch={logic.setPreorderSearch}

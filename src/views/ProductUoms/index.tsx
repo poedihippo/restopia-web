@@ -52,6 +52,7 @@ export default function ProductUomsView() {
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
+  const [typeFilter, setTypeFilter] = useState<string | ''>('')
   const [showProductDrop, setShowProductDrop] = useState(false)
   const [page, setPage] = useState(1)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -73,7 +74,7 @@ export default function ProductUomsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, resolvePrice])
+  }, [debouncedSearch, categoryFilter, typeFilter, selectedProductId])
 
   const { data: productSearchData } = useQuery({
     queryKey: ['product-uoms-product-search', productSearchDebounced],
@@ -101,14 +102,15 @@ export default function ProductUomsView() {
   const categories = (categoriesData as any)?.data ?? []
 
   const { data: categoryProductsData } = useQuery({
-    queryKey: ['products-by-category', categoryFilter],
-    enabled: categoryFilter !== '',
+    queryKey: ['products-by-category-type', categoryFilter, typeFilter],
+    enabled: categoryFilter !== '' || typeFilter !== '',
     queryFn: () =>
       api
         .get('/products', {
           params: {
             per_page: 500,
-            'filter[product_category_id]': String(categoryFilter),
+            'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
+            'filter[type]': typeFilter === '' ? undefined : String(typeFilter),
           },
         })
         .then((r) => r.data),
@@ -136,7 +138,7 @@ export default function ProductUomsView() {
   const items: ProductUom[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
-  const filteredItems = categoryFilter === ''
+  const filteredItems = (categoryFilter === '' && typeFilter === '')
     ? items
     : items.filter((i) => categoryProductIds.has(i.product_id))
 
@@ -360,6 +362,29 @@ export default function ProductUomsView() {
                 {c.name}
               </option>
             ))}
+          </select>
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value)
+              setPage(1)
+            }}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-sans)',
+            }}
+          >
+            <option value="">All Types</option>
+            <option value="raw">Raw</option>
+            <option value="wip">WIP</option>
+            <option value="final">Final</option>
           </select>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

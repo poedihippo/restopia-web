@@ -65,6 +65,9 @@ interface PosCartSidebarProps {
   setCustomerSearch: (val: string) => void
   selectedCustomerId: number | null
   setSelectedCustomerId: (val: number | null) => void
+  salesChannelId: number | null
+  setSalesChannelId: (val: number | null) => void
+  salesChannels: any[]
   customers: any[]
   showCustomerDropdown: boolean
   setShowCustomerDropdown: (val: boolean) => void
@@ -110,6 +113,9 @@ export default function PosCartSidebar({
   setCustomerSearch,
   selectedCustomerId,
   setSelectedCustomerId,
+  salesChannelId,
+  setSalesChannelId,
+  salesChannels,
   customers,
   showCustomerDropdown,
   setShowCustomerDropdown,
@@ -423,7 +429,7 @@ export default function PosCartSidebar({
               {item.bundle_details && item.bundle_details.length > 0 && (
                 <div style={{ marginTop: 8, padding: '6px 8px', background: 'rgba(0,0,0,0.02)', borderRadius: 'var(--radius-sm)' }}>
                   {item.bundle_details.map((bd: any, idx: number) => {
-                    const prodName = bd.product_uom?.product?.name || bd.product_inventory?.product_uom?.product?.name || `Item`
+                    const prodName = bd.product_name || bd.product_uom?.product?.name || bd.product_inventory?.product_uom?.product?.name || `Item`
                     return (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--foreground-subtle)', marginBottom: idx === item.bundle_details.length - 1 ? 0 : 4 }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
@@ -571,6 +577,23 @@ export default function PosCartSidebar({
             flexShrink: 0,
           }}
         >
+          {/* Sales Channel field */}
+          <div style={{ padding: '0 16px', flexShrink: 0, marginTop: 10 }}>
+            <span style={labelStyle}>Sales Channel</span>
+            <select
+              value={salesChannelId || ''}
+              onChange={(e) => setSalesChannelId(e.target.value ? Number(e.target.value) : null)}
+              style={inputStyle}
+            >
+              <option value="">Select channel...</option>
+              {salesChannels.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Voucher field */}
           <div style={{ padding: '0 16px', flexShrink: 0, marginTop: 10 }}>
             <span style={labelStyle}>Voucher</span>
@@ -690,3 +713,4 @@ export default function PosCartSidebar({
     </div>
   )
 }
+

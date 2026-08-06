@@ -4,7 +4,7 @@ import { formatDate, toInputDate } from '@/utils/date';
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
@@ -87,9 +87,14 @@ const fmtCurrency = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
 export default function JournalsView() {
   const queryClient = useQueryClient()
-  const { isSuperadmin } = useAuth()
+  const { isSuperadmin, hasPermission } = useAuth()
+  const canCreate = isSuperadmin || hasPermission('journal.create')
+  const canUpdate = isSuperadmin || hasPermission('journal.update')
+  const canDelete = isSuperadmin || hasPermission('journal.delete')
+  const canPost = isSuperadmin || hasPermission('journal.update')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
   const [page, setPage] = useState(1)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Journal | null>(null)
@@ -97,11 +102,11 @@ export default function JournalsView() {
   const [detailItem, setDetailItem] = useState<Journal | null>(null)
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
-  useEffect(() => { setPage(1) }, [debouncedSearch])
+  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['journals', page, debouncedSearch],
-    queryFn: () => journalsService.list({ page, per_page: 15, sort: '-id', include: 'period,journal_details', 'filter[search]': debouncedSearch || undefined }).then((r) => r.data),
+    queryKey: ['journals', page, debouncedSearch, typeFilter],
+    queryFn: () => journalsService.list({ page, per_page: 15, sort: '-id', include: 'period,journal_details', 'filter[search]': debouncedSearch || undefined, 'filter[type]': typeFilter || undefined }).then((r) => r.data),
   })
 
   const { data: periodsData } = useQuery({
@@ -223,19 +228,29 @@ export default function JournalsView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Journals</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Accounting journal entries with double-entry method (debit = credit)</p>
         </div>
-        {isSuperadmin && (
+        {canCreate && (
           <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
             <Plus size={16} /> New Journal Entry
           </button>
         )}
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
         <div style={{ position: 'relative', width: 300 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search journal number or description..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          style={{ width: 160, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none' }}
+        >
+          <option value="">All Types</option>
+          {Object.entries(JOURNAL_TYPE_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
@@ -289,12 +304,12 @@ export default function JournalsView() {
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                       <button onClick={() => setDetailItem(item)} title="View Detail"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Eye size={14} /></button>
-                      {!item.is_posted && isSuperadmin && (
+                      {!item.is_posted && (
                         <>
-                          <button onClick={() => postMutation.mutate(item.id)} disabled={postMutation.isPending} title="Post Journal"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: '#10b981', display: 'flex' }}><Send size={13} /></button>
-                          <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>
-                          <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>
+                          {canPost && <button onClick={() => postMutation.mutate(item.id)} disabled={postMutation.isPending} title="Post Journal"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: '#10b981', display: 'flex' }}><Send size={13} /></button>}
+                          {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
+                          {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
                         </>
                       )}
                     </div>
@@ -306,11 +321,11 @@ export default function JournalsView() {
         </table>
       </div>
 
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
-          <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page ?? meta.total_pages}</span>
+          <button onClick={() => setPage((p) => Math.min((meta.last_page ?? meta.total_pages), p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
 
@@ -402,10 +417,42 @@ export default function JournalsView() {
                               </select>
                             </td>
                             <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
-                              <input type="number" min={0} disabled={currentCredit > 0} {...register(`details.${idx}.debit`)} style={{ ...smallInputStyle, textAlign: 'right', fontSize: 12, opacity: currentCredit > 0 ? 0.5 : 1, cursor: currentCredit > 0 ? 'not-allowed' : 'text' }} placeholder="0" />
+                              <Controller
+                                control={control}
+                                name={`details.${idx}.debit`}
+                                render={({ field }) => (
+                                  <input
+                                    type="text"
+                                    disabled={currentCredit > 0}
+                                    value={field.value ? Number(field.value).toLocaleString('id-ID') : ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, '')
+                                      field.onChange(val ? Number(val) : 0)
+                                    }}
+                                    style={{ ...smallInputStyle, textAlign: 'right', fontSize: 12, opacity: currentCredit > 0 ? 0.5 : 1, cursor: currentCredit > 0 ? 'not-allowed' : 'text' }}
+                                    placeholder="0"
+                                  />
+                                )}
+                              />
                             </td>
                             <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
-                              <input type="number" min={0} disabled={currentDebit > 0} {...register(`details.${idx}.credit`)} style={{ ...smallInputStyle, textAlign: 'right', fontSize: 12, opacity: currentDebit > 0 ? 0.5 : 1, cursor: currentDebit > 0 ? 'not-allowed' : 'text' }} placeholder="0" />
+                              <Controller
+                                control={control}
+                                name={`details.${idx}.credit`}
+                                render={({ field }) => (
+                                  <input
+                                    type="text"
+                                    disabled={currentDebit > 0}
+                                    value={field.value ? Number(field.value).toLocaleString('id-ID') : ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/\D/g, '')
+                                      field.onChange(val ? Number(val) : 0)
+                                    }}
+                                    style={{ ...smallInputStyle, textAlign: 'right', fontSize: 12, opacity: currentDebit > 0 ? 0.5 : 1, cursor: currentDebit > 0 ? 'not-allowed' : 'text' }}
+                                    placeholder="0"
+                                  />
+                                )}
+                              />
                             </td>
                             <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
                               <input {...register(`details.${idx}.description`)} style={{ ...smallInputStyle, fontSize: 12 }} placeholder="Opsional" />

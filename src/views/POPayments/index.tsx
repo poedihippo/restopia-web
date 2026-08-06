@@ -115,7 +115,7 @@ export default function POPaymentsView() {
   const { data: paymentMethodsData } = useQuery({
     queryKey: ['payment-methods-all'],
     queryFn: () =>
-      paymentMethodsService.list({ per_page: 50, sort: 'id' } as any).then((r) => r.data),
+      paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'purchase_orders' } as any).then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
 
@@ -219,13 +219,15 @@ export default function POPaymentsView() {
       paymentsService.create({
         type: 'disburse',
         date,
-        payment_method_id: paymentMethodId,
-        amount: totalPayment,
-        description: description || undefined,
-        allocations: Object.entries(allocations).map(([poId, amount]) => ({
-          purchase_order_id: Number(poId),
-          amount,
-        })),
+        payments: [{
+          payment_method_id: paymentMethodId,
+          amount: totalPayment,
+          description: description || undefined,
+          allocations: Object.entries(allocations).map(([poId, amount]) => ({
+            purchase_order_id: Number(poId),
+            amount,
+          })),
+        }]
       } as any),
     onSuccess: () => {
       invalidateAll()

@@ -14,6 +14,7 @@ import { bundlesService as bundleService } from '@/services/bundles.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
 import { usersService } from '@/services/users.service'
+import { salesChannelsService } from '@/services/sales-channels.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
@@ -56,6 +57,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const [date, setDate] = useState(editingOrder?.date ?? today)
   const [fulfillmentDate, setFulfillmentDate] = useState(
     editingOrder?.fulfillment_date ?? today
+  )
+  const [salesChannelId, setSalesChannelId] = useState<number | undefined>(
+    editingOrder?.sales_channel_id ?? undefined
   )
   const [status, setStatus] = useState<'pending' | 'final'>(editingOrder?.status ?? 'pending')
   const [settlementStatus, setSettlementStatus] = useState<
@@ -144,6 +148,12 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   })
   const customers = (customerData as any)?.data ?? []
 
+  const { data: salesChannelsData } = useQuery({
+    queryKey: ['so-sales-channels'],
+    queryFn: () => salesChannelsService.list({ per_page: 100, sort: 'name' } as any).then((r) => r.data),
+  })
+  const salesChannels = (salesChannelsData as any)?.data ?? []
+
   const { data: productData } = useQuery({
     queryKey: ['so-products', productSearchDebounced],
     enabled: showProductDrop && itemTab === 'products',
@@ -172,6 +182,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     queryFn: () => branchesService.list({ per_page: 100 } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
+
 
   const { data: creditUsersData } = useQuery({
     queryKey: ['users-credit'],
@@ -243,30 +254,17 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         // 2. Fetch inventories for these batches
         let inventories: any[] = []
         if (batches.length > 0) {
-          const batchIds = batches.map((b: any) => b.id).join(',')
-          const invRes = await productInventoriesService.list({
-            'filter[product_uom_batch_id]': batchIds,
-            'filter[branch_id]': po.branch_id,
-            'filter[status]': 'active',
-            include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
-            per_page: 100,
-          } as any)
-          inventories = (invRes.data as any)?.data ?? []
-
-          // Fallback if comma separated failed
-          if (inventories.length === 0) {
-            const invPromises = batches.map((b: any) =>
-              productInventoriesService.list({
-                'filter[product_uom_batch_id]': b.id,
-                'filter[branch_id]': po.branch_id,
-                'filter[status]': 'active',
-                include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
-                per_page: 1,
-              } as any)
-            )
-            const invResponses = await Promise.all(invPromises)
-            inventories = invResponses.flatMap(res => (res.data as any)?.data ?? [])
-          }
+          const invPromises = batches.map((b: any) =>
+            productInventoriesService.list({
+              'filter[product_uom_batch_id]': b.id,
+              'filter[branch_id]': po.branch_id,
+              'filter[status]': 'active',
+              include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+              per_page: 1,
+            } as any)
+          )
+          const invResponses = await Promise.all(invPromises)
+          inventories = invResponses.flatMap(res => (res.data as any)?.data ?? [])
         }
 
         const newItems = poDetails.map((d: any) => {
@@ -350,10 +348,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           type: 'bundle',
           product_inventory_id: null,
           bundle_id: b.id,
-          bundle_details: (b.details ?? []).map((d: any) => ({
-            product_inventory_id: d.product_inventory_id ?? d.product_uom_id,
-            qty: d.qty,
-          })),
+          bundle_details: (b.bundle_details ?? []).map((d: any) => {
+            const item = d.items?.[0] || d
+            // The POS/SO expects product_inventory_id, we map it from the item's product_uom_id
+            return {
+              bundle_detail_item_id: item.id,
+              product_inventory_id: item.product_uom_id, 
+            }
+          }),
           name: b.name,
           code: b.code,
           qty: 1,
@@ -387,6 +389,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         voucher_id: voucherId,
         purchase_order_id: purchaseOrderId || undefined,
         buyer_branch_id: buyerBranchId || undefined,
+        sales_channel_id: salesChannelId || undefined,
         credit_by_id:
           settlementStatus === 'credit' ? creditById || undefined : undefined,
         subtotal_price: subtotal,
@@ -533,6 +536,26 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             >
               <option value="offline">Offline</option>
               <option value="online">Online</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Sales Channel
+            </label>
+            <select
+              value={salesChannelId ?? 0}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setSalesChannelId(v > 0 ? v : undefined)
+              }}
+              style={fieldStyle}
+            >
+              <option value={0}>No Sales Channel</option>
+              {salesChannels.map((sc: any) => (
+                <option key={sc.id} value={sc.id}>
+                  {sc.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -787,6 +810,30 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Section 2.5: Sales Channel ── */}
+      <div style={sectionStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <span style={{ fontSize: 18 }}>📢</span>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Sales Channel</h2>
+        </div>
+        
+        <div>
+          <label style={labelStyle}>Sales Channel (optional)</label>
+          <select
+            value={salesChannelId || ''}
+            onChange={(e) => setSalesChannelId(e.target.value ? Number(e.target.value) : undefined)}
+            style={fieldStyle}
+          >
+            <option value="">Select channel...</option>
+            {salesChannels.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* ── Section 2b: Inter-branch / PO Reference ── */}

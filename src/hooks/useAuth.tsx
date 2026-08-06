@@ -211,7 +211,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     (permission: string): boolean => {
       if (!user) return false;
       if (user.type === "superadmin") return true;
-      return user.permissions?.some((p) => p.name === permission) ?? false;
+      
+      const parts = permission.split('.');
+      if (parts.length !== 2) {
+        return user.permissions?.some((p: any) => p.name === permission) ?? false;
+      }
+      
+      const resource = parts[0];
+      const action = parts[1];
+      
+      const resourceUnder = resource.replace(/-/g, '_');
+      const resourcePlural = resource.endsWith('y') ? resource.slice(0, -1) + 'ies' : resource.endsWith('s') ? resource : resource + 's';
+      const resourceUnderPlural = resourceUnder.endsWith('y') ? resourceUnder.slice(0, -1) + 'ies' : resourceUnder.endsWith('s') ? resourceUnder : resourceUnder + 's';
+      
+      const possiblePerms = [
+        permission,
+        `${resourceUnder}.${action}`,
+        `${resourcePlural}.${action}`,
+        `${resourceUnderPlural}.${action}`
+      ];
+      
+      return user.permissions?.some((p: any) => possiblePerms.includes(p.name)) ?? false;
     },
     [user],
   );

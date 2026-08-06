@@ -234,6 +234,7 @@ export interface PurchaseOrderRequest {
   supplier_branch_id?: number
   branch_id?: number
   date: string
+  fulfillment_date?: string
   total_price: number
   type: 'offline' | 'online' | 'franchise'
   status: 'pending' | 'final'
@@ -243,8 +244,10 @@ export interface PurchaseOrderRequest {
 
 // Bundles
 export interface BundleDetail {
-  product_uom_id: number
-  qty: number
+  items: {
+    product_uom_id: number
+    qty: number
+  }[]
 }
 export interface BundleRequest {
   name: string
@@ -337,7 +340,7 @@ export interface VoucherStatusRequest {
 export interface SalesOrderDetail {
   product_inventory_id?: number | null
   bundle_id?: number | null
-  bundle_details?: { product_inventory_id: number; qty: number }[] | null
+  bundle_details?: { bundle_detail_item_id: number; product_inventory_id: number }[] | null
   qty: number
   price: number
   status: 'pending' | 'process' | 'completed'
@@ -406,7 +409,7 @@ export interface PosCartBundle {
   code: string
   price: number
   qty: number
-  bundle_details: { product_inventory_id: number; qty: number }[]
+  bundle_details: { bundle_detail_item_id: number; product_inventory_id: number }[]
 }
 
 export interface PaymentMethod {

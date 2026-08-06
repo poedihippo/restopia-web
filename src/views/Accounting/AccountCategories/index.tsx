@@ -61,7 +61,10 @@ const tdStyle: React.CSSProperties = {
 
 export default function AccountCategoriesView() {
   const queryClient = useQueryClient()
-  const { isSuperadmin } = useAuth()
+  const { isSuperadmin, hasPermission } = useAuth()
+  const canCreate = isSuperadmin || hasPermission('account-category.create')
+  const canUpdate = isSuperadmin || hasPermission('account-category.update')
+  const canDelete = isSuperadmin || hasPermission('account-category.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -146,7 +149,7 @@ export default function AccountCategoriesView() {
             Main groups in the chart of accounts (Assets, Liabilities, Equity, etc.)
           </p>
         </div>
-        {isSuperadmin && (
+        {canCreate && (
           <button onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
             <Plus size={16} /> New Category
           </button>
@@ -219,14 +222,10 @@ export default function AccountCategoriesView() {
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                      {isSuperadmin && (
-                        <>
-                          <button onClick={() => openEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }} title="Edit"><Pencil size={14} /></button>
-                          <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }} title="Delete"><Trash2 size={14} /></button>
-                        </>
-                      )}
-                    </div>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                        {canUpdate && <button onClick={() => openEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
+                        {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
+                      </div>
                   </td>
                 </tr>
               ))
@@ -236,11 +235,11 @@ export default function AccountCategoriesView() {
       </div>
 
       {/* Pagination */}
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
-          <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page ?? meta.total_pages}</span>
+          <button onClick={() => setPage((p) => Math.min((meta.last_page ?? meta.total_pages), p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
 

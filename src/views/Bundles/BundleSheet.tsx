@@ -19,9 +19,13 @@ const formatNumber = (n: number | undefined): string => {
   return Number(n).toLocaleString('id-ID')
 }
 
-const detailSchema = z.object({
+const itemSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Please select a product'),
   qty: z.coerce.number().min(0.001, 'Quantity must be greater than 0'),
+})
+
+const detailSchema = z.object({
+  items: z.array(itemSchema).min(1, 'Please add at least one item to this slot'),
 })
 
 const schema = z.object({
@@ -32,7 +36,7 @@ const schema = z.object({
     .min(0, 'Price cannot be negative'),
   status: z.enum(['active', 'inactive'], { message: 'Status is required' }),
   description: z.string().optional(),
-  details: z.array(detailSchema).min(1, 'Please add at least one bundle item'),
+  details: z.array(detailSchema).min(1, 'Please add at least one slot'),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -58,7 +62,7 @@ interface BundleSheetProps {
     price: number
     status: 'active' | 'inactive'
     description?: string
-    bundle_details?: BundleDetail[]
+    bundle_details?: any[]
   } | null
 }
 
@@ -67,6 +71,81 @@ interface ProductUomOption {
   code?: string
   product?: { name?: string }
   uom?: { name?: string; code?: string }
+}
+
+function SlotField({ nestIndex, control, register, errors, watch, productUomOptions, productUomsLoading, removeSlot, canRemoveSlot }: any) {
+  const { fields, remove, append } = useFieldArray({
+    control,
+    name: `details.${nestIndex}.items`
+  });
+  const detailError = errors.details?.[nestIndex];
+
+  return (
+    <div style={{ background: 'var(--background)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>Slot {nestIndex + 1}</h4>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => append({ product_uom_id: 0, qty: 1 })} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--accent-light-bg)', color: 'var(--accent)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+            <Plus size={12} /> Add Allowed Product
+          </button>
+          <button type="button" onClick={() => removeSlot(nestIndex)} disabled={!canRemoveSlot} style={{ padding: '4px 8px', background: 'none', border: 'none', cursor: canRemoveSlot ? 'pointer' : 'not-allowed', color: canRemoveSlot ? 'var(--destructive)' : 'var(--border)', display: 'flex', alignItems: 'center' }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+      
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {fields.map((item, k) => {
+          const itemError = detailError?.items?.[k];
+          return (
+            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 32px', gap: 8, alignItems: 'start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <Controller
+                  control={control}
+                  name={`details.${nestIndex}.items.${k}.product_uom_id` as const}
+                  render={({ field: selectField }) => (
+                    <SearchableSelect
+                      value={selectField.value ?? 0}
+                      onChange={selectField.onChange}
+                      options={productUomOptions.filter((o: any) => {
+                        const selectedIds = watch(`details.${nestIndex}.items`).map((i: any) => i.product_uom_id).filter((id: number) => id > 0);
+                        return !selectedIds.includes(o.value) || o.value === selectField.value;
+                      })}
+                      placeholder="Select allowed product..."
+                      searchPlaceholder="Search..."
+                      loading={productUomsLoading}
+                      error={itemError?.product_uom_id?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <input
+                  type="number"
+                  min={0.001}
+                  step={0.001}
+                  {...register(`details.${nestIndex}.items.${k}.qty` as const, { valueAsNumber: true })}
+                  style={{ width: '100%', padding: '9px 12px', border: itemError?.qty ? '1px solid var(--destructive)' : '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, background: 'var(--surface)', outline: 'none' }}
+                />
+                {itemError?.qty && <span style={{ fontSize: 10, color: 'var(--destructive)' }}>{itemError.qty.message}</span>}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => remove(k)}
+                disabled={fields.length === 1}
+                style={{ padding: 6, background: 'none', border: 'none', cursor: fields.length === 1 ? 'not-allowed' : 'pointer', color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+      {detailError?.items?.message && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{detailError.items.message}</span>}
+    </div>
+  );
 }
 
 export default function BundleSheet({ open, onClose, editData }: BundleSheetProps) {
@@ -88,7 +167,7 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
       price: 0,
       status: 'active',
       description: '',
-      details: [{ product_uom_id: 0, qty: 1 }],
+      details: [{ items: [{ product_uom_id: 0, qty: 1 }] }],
     },
   })
 
@@ -134,11 +213,15 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
         description: editData.description ?? '',
         details:
           editData.bundle_details && editData.bundle_details.length > 0
-            ? editData.bundle_details.map((d) => ({
-                product_uom_id: d.product_uom_id,
-                qty: d.qty,
+            ? editData.bundle_details.map((d: any) => ({
+                items: d.items && d.items.length > 0
+                  ? d.items.map((i: any) => ({
+                      product_uom_id: i.product_uom_id ?? 0,
+                      qty: i.qty ?? 1,
+                    }))
+                  : [{ product_uom_id: d.product_uom_id ?? 0, qty: d.qty ?? 1 }]
               }))
-            : [{ product_uom_id: 0, qty: 1 }],
+            : [{ items: [{ product_uom_id: 0, qty: 1 }] }],
       })
     } else {
       reset({
@@ -147,18 +230,23 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
         price: 0,
         status: 'active',
         description: '',
-        details: [{ product_uom_id: 0, qty: 1 }],
+        details: [{ items: [{ product_uom_id: 0, qty: 1 }] }],
       })
     }
   }, [editData, open, reset])
 
   const buildPayload = (data: FormValues) => {
     const cleanDetails = (data.details ?? [])
-      .filter((d) => Number(d.product_uom_id) > 0 && Number(d.qty) > 0)
-      .map((d) => ({
-        product_uom_id: Number(d.product_uom_id),
-        qty: Number(d.qty),
-      }))
+      .map((d) => {
+        const cleanItems = (d.items ?? [])
+          .filter((i) => Number(i.product_uom_id) > 0 && Number(i.qty) > 0)
+          .map((i) => ({
+            product_uom_id: Number(i.product_uom_id),
+            qty: Number(i.qty),
+          }))
+        return { items: cleanItems }
+      })
+      .filter((d) => d.items.length > 0)
     return {
       code: data.code,
       name: data.name,
@@ -465,12 +553,12 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                 }}
               >
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                  Bundle Items
+                  Bundle Slots (Allowed Products)
                   <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
                 </label>
                 <button
                   type="button"
-                  onClick={() => append({ product_uom_id: 0, qty: 1 })}
+                  onClick={() => append({ items: [{ product_uom_id: 0, qty: 1 }] })}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -486,79 +574,24 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                   }}
                 >
                   <Plus size={12} />
-                  Add Item
+                  Add Slot
                 </button>
               </div>
 
-              {fields.map((field, index) => {
-                const detailError = errors.details?.[index]
-                return (
-                  <div
-                    key={field.id}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 100px 32px',
-                      gap: 8,
-                      alignItems: 'start',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <Controller
-                        control={control}
-                        name={`details.${index}.product_uom_id` as const}
-                        render={({ field: selectField }) => (
-                          <SearchableSelect
-                            value={selectField.value ?? 0}
-                            onChange={selectField.onChange}
-                            options={productUomOptions.filter((o: any) => {
-                              const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
-                              return !selectedIds.includes(o.value) || o.value === selectField.value
-                            })}
-                            placeholder="Select product..."
-                            searchPlaceholder="Search..."
-                            loading={productUomsLoading}
-                            error={detailError?.product_uom_id?.message as string | undefined}
-                          />
-                        )}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <input
-                        type="number"
-                        min={0.001}
-                        step={0.001}
-                        {...register(`details.${index}.qty` as const, { valueAsNumber: true })}
-                        style={smallInputStyle}
-                      />
-                      {detailError?.qty && (
-                        <span style={{ fontSize: 10, color: 'var(--destructive)' }}>
-                          {detailError.qty.message}
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => remove(index)}
-                      disabled={fields.length === 1}
-                      style={{
-                        padding: 6,
-                        background: 'none',
-                        border: 'none',
-                        cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                        color:
-                          fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                )
-              })}
+              {fields.map((field, index) => (
+                <SlotField
+                  key={field.id}
+                  nestIndex={index}
+                  control={control}
+                  register={register}
+                  errors={errors}
+                  watch={watch}
+                  productUomOptions={productUomOptions}
+                  productUomsLoading={productUomsLoading}
+                  removeSlot={remove}
+                  canRemoveSlot={fields.length > 1}
+                />
+              ))}
 
               {errors.details && !Array.isArray(errors.details) && (errors.details as any).message && (
                 <span style={{ fontSize: 12, color: 'var(--destructive)' }}>

@@ -30,6 +30,7 @@ const detailSchema = z.object({
 const schema = z.object({
   code: z.string().min(1, 'Receipt code required'),
   date: z.string().min(1, 'Date required'),
+  status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1),
 })
@@ -73,6 +74,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
   })
   const existingReceipts: any[] = (receiptsData as any)?.data ?? []
   const alreadyReceipted = existingReceipts.length > 0
+  const isFinal = existingReceipts.some((r: any) => r.status === 'final')
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all'],
@@ -115,6 +117,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     defaultValues: {
       code: '',
       date: today,
+      status: 'pending',
       description: '',
       details: [],
     },
@@ -137,6 +140,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     reset({
       code: `RCP-${delivery.code ?? id}`,
       date: today,
+      status: 'pending',
       description: '',
       details: lines.length > 0 ? lines : [],
     })
@@ -155,7 +159,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
         delivery_id: id,
         date: values.date,
         total_price: totalPrice,
-        status: 'final',
+        status: values.status,
         description: values.description || undefined,
         details: values.details
           .filter((d) => Number(d.product_uom_id) > 0)
@@ -553,7 +557,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
             gap: 16,
           }}
         >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             <div>
               <label style={labelStyle}>
                 Receipt Code <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -588,6 +592,18 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                     : {}),
                 }}
               />
+            </div>
+            <div>
+              <label style={labelStyle}>
+                Status <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <select
+                {...register('status')}
+                style={inputStyle}
+              >
+                <option value="pending">Pending</option>
+                <option value="final">Final (Sent)</option>
+              </select>
             </div>
           </div>
 
@@ -704,7 +720,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                 <input
                   type="number"
                   min={0}
-                  step={100}
+                  step={0.001}
                   {...register(`details.${index}.price`, { valueAsNumber: true })}
                   style={inputStyle}
                 />
@@ -819,7 +835,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
           </button>
           <button
             type="submit"
-            disabled={createReceiptMutation.isPending}
+            disabled={createReceiptMutation.isPending || isFinal}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -831,8 +847,8 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: createReceiptMutation.isPending ? 'not-allowed' : 'pointer',
-              opacity: createReceiptMutation.isPending ? 0.7 : 1,
+              cursor: createReceiptMutation.isPending || isFinal ? 'not-allowed' : 'pointer',
+              opacity: createReceiptMutation.isPending || isFinal ? 0.7 : 1,
             }}
           >
             {createReceiptMutation.isPending ? (
@@ -840,7 +856,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
             ) : (
               <Check size={16} />
             )}
-            {alreadyReceipted ? 'Update Receipt' : 'Confirm Receipt'}
+            {isFinal ? 'Already Finalized' : alreadyReceipted ? 'Update Receipt' : 'Confirm Receipt'}
           </button>
         </div>
       </form>

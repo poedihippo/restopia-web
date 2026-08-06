@@ -5,6 +5,7 @@ import type { ReceiptData } from '@/components/PosReceipt'
 import PosPreordersModal from './PosPreordersModal'
 import PosHistoryModal from './PosHistoryModal'
 import { formatCurrency } from '@/utils/price';
+import SearchableSelect from '@/components/SearchableSelect'
 
 interface PosModalsProps {
   showPayment: boolean
@@ -42,6 +43,10 @@ interface PosModalsProps {
   resetCart: () => void
   printReceipt: ReceiptData | null
   triggerPrint: (receipt: ReceiptData) => void
+
+  salesChannelId: number | null
+  setSalesChannelId: (val: number | null) => void
+  salesChannels: any[]
 
   // Preorders
   preorderSearch: string
@@ -107,6 +112,9 @@ export default function PosModals({
   resetCart,
   printReceipt,
   triggerPrint,
+  salesChannelId,
+  setSalesChannelId,
+  salesChannels,
 
   preorderSearch,
   setPreorderSearch,
@@ -157,7 +165,7 @@ export default function PosModals({
     if (amt <= 0) return toast.error('Enter a valid amount')
     
     const method = paymentMethods.find((pm: any) => pm.id === splitMethodId)
-    const isCredit = method?.code === 'credit'
+    const isCredit = method?.name?.toLowerCase().includes('credit')
     
     if (isCredit && !creditByUserId) return toast.error('Select credit user')
     
@@ -255,6 +263,31 @@ export default function PosModals({
               </span>
             </div>
 
+            {/* Sales Channel (Required) */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+                Sales Channel <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <select
+                value={salesChannelId || ''}
+                onChange={(e) => setSalesChannelId(e.target.value ? Number(e.target.value) : null)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--background)',
+                }}
+              >
+                <option value="">Select sales channel...</option>
+                {salesChannels.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Split Payment Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
               <input
@@ -312,7 +345,11 @@ export default function PosModals({
                         <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Method</label>
                         <select
                           value={splitMethodId ?? ''}
-                          onChange={(e) => setSplitMethodId(e.target.value ? Number(e.target.value) : null)}
+                          onChange={(e) => {
+                            setSplitMethodId(e.target.value ? Number(e.target.value) : null)
+                            setCreditByUserId(null)
+                            setSplitAmount(remainingSplitBalance.toString())
+                          }}
                           style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
                         >
                           <option value="">Select...</option>
@@ -326,21 +363,52 @@ export default function PosModals({
                           inputMode="numeric"
                           value={splitAmount ? formatCurrency(Number(splitAmount.replace(/\D/g, ''))) : ''}
                           onChange={(e) => setSplitAmount(e.target.value.replace(/\D/g, ''))}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
+                          disabled={Boolean(splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit'))}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-md)',
+                            background: splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit') ? 'var(--surface)' : 'var(--background)',
+                            opacity: splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit') ? 0.7 : 1,
+                            cursor: splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit') ? 'not-allowed' : 'text'
+                          }}
                         />
                       </div>
                     </div>
-                    {splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.code === 'credit' && (
+                    {splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit') && (
                       <div style={{ marginBottom: 12 }}>
                         <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Credit User</label>
-                        <select
-                          value={creditByUserId ?? ''}
-                          onChange={(e) => setCreditByUserId(e.target.value ? Number(e.target.value) : null)}
-                          style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}
-                        >
-                          <option value="">Select user...</option>
-                          {creditUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                        </select>
+                        <SearchableSelect
+                          value={creditByUserId ?? 0}
+                          onChange={(v) => {
+                            const val = v > 0 ? v : null
+                            setCreditByUserId(val)
+                            if (val) {
+                              const user = creditUsers.find((u: any) => u.id === val)
+                              if (user) {
+                                const userCredit = Number(user.credit ?? 0)
+                                const amountToUse = Math.min(userCredit, remainingSplitBalance)
+                                setSplitAmount(amountToUse.toString())
+                              }
+                            } else {
+                              setSplitAmount(remainingSplitBalance.toString())
+                            }
+                          }}
+                          options={[
+                            { value: 0, label: 'Select user...' },
+                            ...creditUsers.map((u: any) => ({
+                              value: u.id as number,
+                              label: (u.name as string) ?? '',
+                              sublabel: u.credit
+                                ? 'Credit: Rp ' +
+                                Number(u.credit ?? 0).toLocaleString('id-ID')
+                                : 'No credit set',
+                            })),
+                          ]}
+                          placeholder="Search user..."
+                          searchPlaceholder="Search users..."
+                        />
                       </div>
                     )}
                     <button
@@ -411,29 +479,23 @@ export default function PosModals({
                 >
                   Credit User <span style={{ color: 'var(--destructive)' }}>*</span>
                 </label>
-                <select
-                  value={creditByUserId ?? ''}
-                  onChange={(e) => setCreditByUserId(e.target.value ? Number(e.target.value) : null)}
-                  style={{
-                    width: '100%',
-                    height: 44,
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '0 14px',
-                    fontSize: 14,
-                    color: 'var(--foreground)',
-                    background: 'var(--surface)',
-                    boxSizing: 'border-box' as const,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <option value="">Select user...</option>
-                  {creditUsers.map((u: any) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}{u.credit ? ` — Credit: Rp ${Number(u.credit ?? 0).toLocaleString('id-ID')}` : ''}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={creditByUserId ?? 0}
+                  onChange={(v) => setCreditByUserId(v > 0 ? v : null)}
+                  options={[
+                    { value: 0, label: 'Select user...' },
+                    ...creditUsers.map((u: any) => ({
+                      value: u.id as number,
+                      label: (u.name as string) ?? '',
+                      sublabel: u.credit
+                        ? 'Credit: Rp ' +
+                        Number(u.credit ?? 0).toLocaleString('id-ID')
+                        : 'No credit set',
+                    })),
+                  ]}
+                  placeholder="Search user..."
+                  searchPlaceholder="Search users..."
+                />
                 <span
                   style={{
                     fontSize: 11,
@@ -561,6 +623,12 @@ export default function PosModals({
             <button
               type="button"
               onClick={() => {
+                // Pre-check logic moved to button interaction
+                if (!salesChannelId) {
+                  toast.error('Please select a sales channel')
+                  return
+                }
+                
                 if (isSplitPayment) {
                   if (remainingSplitBalance > 0) {
                     toast.error('Payment does not cover total due')
@@ -586,21 +654,21 @@ export default function PosModals({
                 setShowPayment(false)
                 handleConfirmPayment()
               }}
-              disabled={!canConfirm || isPending}
+              disabled={isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)}
               style={{
                 width: '100%',
-                height: 48,
-                background: 'var(--accent)',
+                padding: '14px 24px',
+                background: (isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)) ? 'var(--foreground-subtle)' : 'var(--accent)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 16,
                 fontWeight: 700,
-                cursor: isPending ? 'not-allowed' : 'pointer',
-                opacity: isPending ? 0.7 : 1,
+                cursor: (isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)) ? 'not-allowed' : 'pointer',
+                opacity: (isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)) ? 0.7 : 1,
               }}
             >
-              {isPending ? 'Processing...' : 'Confirm Payment'}
+              {isPending ? 'Processing...' : (!salesChannelId ? 'Select Sales Channel' : 'Confirm Payment')}
             </button>
           </div>
         </div>

@@ -29,7 +29,7 @@ interface CoA {
   account_category_id: number
   account_type_id: number
   account_category?: { id: number; name: string; code: string }
-  account_type?: { id: number; name: string; code: string }
+  account_type?: { id: number; name: string; code: string; account_category?: { id: number; name: string; code: string } }
   created_at?: string
 }
 
@@ -64,7 +64,10 @@ const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px 
 
 export default function ChartOfAccountsView() {
   const queryClient = useQueryClient()
-  const { isSuperadmin } = useAuth()
+  const { isSuperadmin, hasPermission } = useAuth()
+  const canCreate = isSuperadmin || hasPermission('chart-of-account.create')
+  const canUpdate = isSuperadmin || hasPermission('chart-of-account.update')
+  const canDelete = isSuperadmin || hasPermission('chart-of-account.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -156,7 +159,7 @@ export default function ChartOfAccountsView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Chart of Accounts (Chart of Accounts)</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Complete list of accounts used in the bookkeeping system</p>
         </div>
-        {isSuperadmin && (
+        {canCreate && (
           <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
             <Plus size={16} /> New Account
           </button>
@@ -220,7 +223,7 @@ export default function ChartOfAccountsView() {
                     </div>
                     {item.description && <span style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginTop: 2 }}>{item.description}</span>}
                   </td>
-                  <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.account_category?.name || '—'}</span></td>
+                  <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.account_type?.account_category?.name || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.account_type?.name || '—'}</span></td>
                   <td style={tdStyle}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 99, fontSize: 12, fontWeight: 500, background: item.normal_balance === 'debit' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)', color: item.normal_balance === 'debit' ? '#3b82f6' : '#10b981' }}>
@@ -236,12 +239,8 @@ export default function ChartOfAccountsView() {
                   <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.is_header ? 'Ya' : '—'}</span></td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                      {isSuperadmin && (
-                        <>
-                          <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>
-                          <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>
-                        </>
-                      )}
+                      {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
+                      {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -251,11 +250,11 @@ export default function ChartOfAccountsView() {
         </table>
       </div>
 
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
-          <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page ?? meta.total_pages}</span>
+          <button onClick={() => setPage((p) => Math.min((meta.last_page ?? meta.total_pages), p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
 

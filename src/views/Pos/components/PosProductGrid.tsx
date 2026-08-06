@@ -705,31 +705,46 @@ function BundleBatchPickerModal({
 }: {
   bundle: any
   onClose: () => void
-  onAdd: (bundle: any, selectedBatches: Record<number, any>) => void
+  onAdd: (bundle: any, selectedBatches: Record<number, any>, selectedItems?: Record<number, number>) => void
 }) {
+  const details = bundle.bundle_details || bundle.details || []
+
+  // Track selected item (bundle_detail_item_id) for each detail slot
+  const [selectedItems, setSelectedItems] = useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {}
+    for (const d of details) {
+      if (d.items && d.items.length > 0) {
+        initial[d.id] = d.items[0].id
+      }
+    }
+    return initial
+  })
+
   const [selectedBatches, setSelectedBatches] = useState<Record<number, any>>({})
 
   const handleAdd = () => {
     // Validate that all items have a selected batch
-    const details = bundle.bundle_details || bundle.details || []
     for (const detail of details) {
       if (!selectedBatches[detail.id]) {
         alert('Please select a batch for all items.')
         return
       }
     }
-    onAdd(bundle, selectedBatches)
+    onAdd(bundle, selectedBatches, selectedItems)
   }
 
-  const details = bundle.bundle_details || bundle.details || []
 
   const { data: inventoriesData, isLoading } = useQuery({
-    queryKey: ['bundle-inventories', bundle.id],
+    queryKey: ['bundle-inventories', bundle.id, selectedItems],
     queryFn: async () => {
       const promises = details.map(async (d: any) => {
+        const itemId = selectedItems[d.id]
+        if (!itemId) return null
+        
+        const item = d.items?.find((i: any) => i.id === itemId) || d.items?.[0] || d
         // First get batches for this product_uom_id
         const batchRes = await productUomBatchesService.list({
-          'filter[product_uom_id]': d.product_uom_id,
+          'filter[product_uom_id]': item.product_uom_id,
           per_page: 100,
         } as any)
         const batches = (batchRes.data as any)?.data || []
@@ -737,28 +752,16 @@ function BundleBatchPickerModal({
         let allInventories: any[] = []
         
         if (batches.length > 0) {
-          // Then get inventories for these batches
-          // Try to use a comma-separated list if backend supports it, otherwise fallback to first few
-          const batchIds = batches.map((b: any) => b.id).join(',')
-          const invRes = await productInventoriesService.list({
-            'filter[product_uom_batch_id]': batchIds,
-            include: 'product_uom_batch',
-            per_page: 100,
-          } as any)
-          allInventories = (invRes.data as any)?.data || []
-          
-          // If comma separated didn't work (returned 0), fetch one by one
-          if (allInventories.length === 0 && batches.length > 0) {
-             for (const b of batches) {
-               const singleInvRes = await productInventoriesService.list({
-                 'filter[product_uom_batch_id]': b.id,
-                 include: 'product_uom_batch',
-                 per_page: 100,
-               } as any)
-               const invs = (singleInvRes.data as any)?.data || []
-               allInventories.push(...invs)
-             }
-          }
+          // Fetch inventories for these batches one by one
+          const invPromises = batches.map((b: any) =>
+            productInventoriesService.list({
+              'filter[product_uom_batch_id]': b.id,
+              include: 'product_uom_batch',
+              per_page: 100,
+            } as any)
+          )
+          const invResponses = await Promise.all(invPromises)
+          allInventories = invResponses.flatMap((res: any) => res.data?.data || [])
         }
         
         return {
@@ -766,13 +769,17 @@ function BundleBatchPickerModal({
           inventories: allInventories,
         }
       })
-      return Promise.all(promises)
+      const results = await Promise.all(promises)
+      return results.filter(Boolean)
     },
+    enabled: Object.keys(selectedItems).length === details.length
   })
 
   // Group fetched inventories by detailId
   const inventoriesByDetailId = (inventoriesData || []).reduce((acc: any, curr: any) => {
-    acc[curr.detailId] = curr.inventories
+    if (curr) {
+      acc[curr.detailId] = curr.inventories
+    }
     return acc
   }, {})
 
@@ -829,12 +836,16 @@ function BundleBatchPickerModal({
             </div>
           ) : (
             details.map((detail: any) => {
-              const productName = detail.product_uom?.product?.name ?? 'Unknown Product'
-              const qty = detail.qty
+              const itemId = selectedItems[detail.id]
+              const item = detail.items?.find((i: any) => i.id === itemId) || detail.items?.[0] || detail
+              const qty = item.qty || detail.qty || 1
+              
               const inventories = inventoriesByDetailId[detail.id] || []
               // Filter only positive stock
               const availableInventories = inventories.filter((i: any) => (i.stock ?? i.qty ?? 0) > 0)
               
+              const hasChoices = detail.items && detail.items.length > 1
+
               return (
               <div
                 key={detail.id}
@@ -848,19 +859,53 @@ function BundleBatchPickerModal({
                   gap: 12,
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>{productName}</span>
-                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Qty: {qty}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Slot (Qty: {qty})</span>
                 </div>
                 
+                {hasChoices ? (
+                  <select
+                    value={itemId || ''}
+                    onChange={(e) => {
+                      const newId = Number(e.target.value)
+                      setSelectedItems(prev => ({ ...prev, [detail.id]: newId }))
+                      // Reset batch selection for this detail
+                      setSelectedBatches(prev => ({ ...prev, [detail.id]: undefined }))
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      background: 'var(--background)',
+                      color: 'var(--foreground)',
+                      marginBottom: 8,
+                    }}
+                  >
+                    {detail.items.map((opt: any) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.product_uom?.product?.name ?? 'Unknown Product'}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>
+                    {item.product_uom?.product?.name ?? 'Unknown Product'}
+                  </div>
+                )}
+                
                 <select
-                  value={selectedBatches[detail.id] || ''}
-                  onChange={(e) =>
+                  value={selectedBatches[detail.id]?.id || ''}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    const selectedInv = availableInventories.find((i: any) => i.id === Number(val))
                     setSelectedBatches((prev) => ({
                       ...prev,
-                      [detail.id]: e.target.value ? Number(e.target.value) : undefined,
+                      [detail.id]: selectedInv || (val ? Number(val) : undefined),
                     }))
-                  }
+                  }}
                   style={{
                     width: '100%',
                     padding: '10px 12px',

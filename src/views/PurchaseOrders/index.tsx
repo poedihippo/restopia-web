@@ -19,6 +19,7 @@ import {
   Trash2,
   PackageSearch,
   Filter,
+  ShoppingCart,
 } from 'lucide-react'
 
 interface PurchaseOrder {
@@ -579,6 +580,15 @@ export default function PurchaseOrdersView() {
                           title="View"
                         >
                           <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={() =>
+                            router.push(`/sales/sales-orders/create?po_id=${item.id}`)
+                          }
+                          style={actionBtnStyle}
+                          title="Create Sales Order"
+                        >
+                          <ShoppingCart size={14} />
                         </button>
                         {canEdit && (<button
                           onClick={() =>

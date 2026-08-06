@@ -35,7 +35,7 @@ const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
-  qty: z.coerce.number().min(0.01, 'Qty must be > 0'),
+  qty: z.coerce.number().min(1, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
   description: z.string().optional(),
 })
@@ -47,6 +47,7 @@ const schema = z.object({
   supplier_id: z.coerce.number().optional(),
   supplier_branch_id: z.coerce.number().optional(),
   date: z.string().min(1, 'Date is required'),
+  fulfillment_date: z.string().optional(),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
@@ -87,6 +88,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       supplier_id: 0,
       supplier_branch_id: undefined,
       date: new Date().toISOString().split('T')[0],
+      fulfillment_date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
       details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
@@ -490,6 +492,18 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
             </div>
 
+            {/* Fulfillment Date */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Fulfillment Date
+              </label>
+              <input
+                type="date"
+                {...register('fulfillment_date')}
+                style={errors.fulfillment_date ? inputErrorStyle : inputStyle}
+              />
+              {errors.fulfillment_date && <span style={errorStyle}>{errors.fulfillment_date.message}</span>}
+            </div>
             {/* Order source toggle — external Supplier or internal Branch */}
             <div
               style={{
@@ -798,8 +812,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <input
                   type="number"
-                  min={0.01}
-                  step={0.01}
+                  min={1}
+                  step={1}
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={{
                     ...lineInputStyle,

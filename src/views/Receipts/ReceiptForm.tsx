@@ -553,7 +553,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             }}
           >
             <span style={sectionLabelStyle}>Received Items</span>
-            {mode !== 'edit' && (
+            {/* Add Item button hidden as per requirements */}
+            {false && (
               <button
                 type="button"
                 onClick={() =>
@@ -647,7 +648,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={false}
-                      disabled={mode === 'edit'}
+                      disabled={true}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
                         | string
@@ -663,10 +664,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 min={0.001}
                 step={0.001}
                 {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                disabled={mode === 'edit'}
+                disabled={true}
                 style={{
                   ...lineInputStyle,
-                  ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
+                  background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)'
                 }}
                 onWheel={(e) => (e.target as HTMLElement).blur()}
               />
@@ -675,7 +676,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     type="text"
                     inputMode="numeric"
                     value={formatNumber(watch(`details.${index}.price`))}
-                    disabled={mode === 'edit' || !getCanReadPrice()}
+                    disabled={true}
                     onChange={(e) => {
                       const raw = e.target.value.replace(/[^\d]/g, '')
                       setValue(
@@ -685,7 +686,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     }}
                     style={{
                       ...lineInputStyle,
-                      ...(mode === 'edit' || !getCanReadPrice() ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
+                      background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)'
                     }}
                   />
                   <input
@@ -741,18 +742,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               <button
                 type="button"
                 onClick={() => remove(index)}
-                disabled={fields.length === 1 || mode === 'edit'}
+                disabled={true}
                 style={{
                   padding: '6px 8px',
                   background: 'var(--destructive-bg)',
                   border: '1px solid var(--destructive)',
                   borderRadius: 'var(--radius-md)',
-                  cursor: fields.length === 1 || mode === 'edit' ? 'not-allowed' : 'pointer',
+                  cursor: 'not-allowed',
                   color: 'var(--destructive)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: fields.length === 1 || mode === 'edit' ? 0.3 : 1,
+                  opacity: 0.3,
                 }}
               >
                 <Trash2 size={14} />

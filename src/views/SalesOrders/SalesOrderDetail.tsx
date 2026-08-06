@@ -110,7 +110,7 @@ export default function SalesOrderDetail() {
     enabled: idReady,
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'all,sales_orders' } as any)
         .then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
@@ -125,10 +125,12 @@ export default function SalesOrderDetail() {
       paymentsService.create({
         type: 'receive',
         date: new Date().toISOString().split('T')[0],
-        allocations: [{ sales_order_id: id, amount: paymentAmount }],
-        payment_method_id: paymentMethodId,
-        amount: paymentAmount,
-        description: paymentDescription || undefined,
+        payments: [{
+          payment_method_id: paymentMethodId,
+          amount: paymentAmount,
+          description: paymentDescription || undefined,
+          allocations: [{ sales_order_id: id, amount: paymentAmount }],
+        }],
       } as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-order-payments', id] })
@@ -244,7 +246,7 @@ export default function SalesOrderDetail() {
         </button>
       </div>
 
-      {(order?.purchase_order_id || order?.buyer_branch_id || order?.credit_by_id) && (
+      {(order?.purchase_order_id || order?.buyer_branch_id || order?.sales_channel_id || order?.credit_by_id) && (
         <div
           style={{
             ...sectionStyle,
@@ -294,6 +296,25 @@ export default function SalesOrderDetail() {
               </span>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                 {order.buyer_branch?.name ?? `Branch #${order.buyer_branch_id}`}
+              </span>
+            </div>
+          )}
+          {order?.sales_channel_id && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                  background: 'var(--accent-light-bg)',
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+              >
+                Sales Channel
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                {order.sales_channel?.name ?? `Channel #${order.sales_channel_id}`}
               </span>
             </div>
           )}

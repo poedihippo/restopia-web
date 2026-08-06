@@ -416,22 +416,20 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
 
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: '2fr 90px 110px 90px 1fr 32px',
-              gap: 8,
-              padding: '6px 0',
-              borderBottom: '1px solid var(--border)',
-              fontSize: 11,
-              fontWeight: 600,
-              color: 'var(--foreground-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}
-          >
-            <span>Product / UOM</span>
-            <span>Qty</span>
-            <span>Unit Price</span>
-            <span>Subtotal</span>
+            display: 'grid',
+            gridTemplateColumns: '2fr 90px 1fr 32px',
+            gap: 8,
+            padding: '6px 0',
+            borderBottom: '1px solid var(--border)',
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--foreground-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}
+        >
+          <span>Product / UOM</span>
+          <span>Qty</span>
             <span>Notes</span>
             <span></span>
           </div>
@@ -445,7 +443,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                 key={field.id}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '2fr 90px 110px 90px 1fr 32px',
+                  gridTemplateColumns: '2fr 90px 1fr 32px',
                   gap: 8,
                   alignItems: 'start',
                   padding: '8px 0',
@@ -515,32 +513,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={inputStyle}
                 />
-                {getCanReadPrice() ? (
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    {...register(`details.${index}.price`, { valueAsNumber: true })}
-                    style={inputStyle}
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value="***"
-                    disabled
-                    style={{ ...inputStyle, background: 'var(--surface)', cursor: 'not-allowed' }}
-                  />
-                )}
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: 'var(--foreground-muted)',
-                    paddingTop: 8,
-                  }}
-                >
-                  <PriceDisplay amount={subtotal} />
-                </span>
+                <input
+                  type="hidden"
+                  {...register(`details.${index}.price`, { valueAsNumber: true })}
+                />
                 <input
                   {...register(`details.${index}.description`)}
                   placeholder="Note"

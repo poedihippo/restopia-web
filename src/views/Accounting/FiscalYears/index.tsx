@@ -51,7 +51,10 @@ const fmtDate = (d: string) => formatDate(d)
 
 export default function FiscalYearsView() {
   const queryClient = useQueryClient()
-  const { isSuperadmin } = useAuth()
+  const { isSuperadmin, hasPermission } = useAuth()
+  const canCreate = isSuperadmin || hasPermission('fiscal-year.create')
+  const canUpdate = isSuperadmin || hasPermission('fiscal-year.update')
+  const canDelete = isSuperadmin || hasPermission('fiscal-year.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -111,9 +114,9 @@ export default function FiscalYearsView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Fiscal Years</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Annual accounting period for financial recording</p>
         </div>
-        {isSuperadmin && (
+        {canCreate && (
           <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> Fiscal Years Baru
+            <Plus size={16} /> New Fiscal Year
           </button>
         )}
       </div>
@@ -169,10 +172,10 @@ export default function FiscalYearsView() {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                      {isSuperadmin && !item.is_closed && (
+                      {!item.is_closed && (
                         <>
-                          <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>
-                          <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>
+                          {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
+                          {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
                         </>
                       )}
                     </div>
@@ -184,11 +187,11 @@ export default function FiscalYearsView() {
         </table>
       </div>
 
-      {meta && meta.last_page > 1 && (
+      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page}</span>
-          <button onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))} disabled={page === meta.last_page} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === meta.last_page ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === meta.last_page ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page ?? meta.total_pages}</span>
+          <button onClick={() => setPage((p) => Math.min((meta.last_page ?? meta.total_pages), p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
         </div>
       )}
 
