@@ -16,8 +16,8 @@ interface AccountLine {
 }
 
 interface StatementTier {
-  accounts: AccountLine[]
-  subtotal: number
+  accounts?: AccountLine[] | null
+  subtotal?: number | null
 }
 
 interface IncomeStatement {
@@ -197,39 +197,44 @@ export default function IncomeStatementView() {
 
   const hasStatement = !isLoading && !isError && !!stmt
 
-  const renderTier = (key: string, tier: StatementTier) => (
-    <React.Fragment key={key}>
-      <tr style={tierLabelRowStyle}>
-        <td colSpan={2} style={tierLabelCellStyle}>
-          {TIER_LABELS[key]}
-        </td>
-      </tr>
-      {tier.accounts.length === 0 ? (
-        <tr>
-          <td style={accountRowCellStyle}>
-            <span style={{ color: 'var(--foreground-subtle)' }}>—</span>
+  const renderTier = (key: string, tier: StatementTier | null | undefined) => {
+    const accounts = tier?.accounts ?? []
+    const subtotal = tier?.subtotal ?? 0
+
+    return (
+      <React.Fragment key={key}>
+        <tr style={tierLabelRowStyle}>
+          <td colSpan={2} style={tierLabelCellStyle}>
+            {TIER_LABELS[key]}
           </td>
-          <td style={amountCellStyle}>{formatCurrency(0)}</td>
         </tr>
-      ) : (
-        tier.accounts.map((acc) => (
-          <tr key={acc.code}>
+        {accounts.length === 0 ? (
+          <tr>
             <td style={accountRowCellStyle}>
-              <span style={{ fontFamily: 'monospace', fontSize: 11, marginRight: 8, color: 'var(--foreground-muted)' }}>
-                {acc.code}
-              </span>
-              {acc.name}
+              <span style={{ color: 'var(--foreground-subtle)' }}>—</span>
             </td>
-            <td style={amountCellStyle}>{formatCurrency(acc.amount)}</td>
+            <td style={amountCellStyle}>{formatCurrency(0)}</td>
           </tr>
-        ))
-      )}
-      <tr style={subtotalRowStyle}>
-        <td style={subtotalCellStyle}>Subtotal {TIER_LABELS[key]}</td>
-        <td style={subtotalAmountCellStyle}>{formatCurrency(tier.subtotal)}</td>
-      </tr>
-    </React.Fragment>
-  )
+        ) : (
+          accounts.map((acc) => (
+            <tr key={acc.code}>
+              <td style={accountRowCellStyle}>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, marginRight: 8, color: 'var(--foreground-muted)' }}>
+                  {acc.code}
+                </span>
+                {acc.name}
+              </td>
+              <td style={amountCellStyle}>{formatCurrency(acc.amount)}</td>
+            </tr>
+          ))
+        )}
+        <tr style={subtotalRowStyle}>
+          <td style={subtotalCellStyle}>Subtotal {TIER_LABELS[key]}</td>
+          <td style={subtotalAmountCellStyle}>{formatCurrency(subtotal)}</td>
+        </tr>
+      </React.Fragment>
+    )
+  }
 
   const renderProfitRow = (label: string, amount: number) => (
     <tr style={profitRowStyle}>
@@ -241,10 +246,12 @@ export default function IncomeStatementView() {
   const handleExport = () => {
     const sheetRows: (string | number)[][] = [['Code', 'Account', 'Amount']]
 
-    const pushTier = (key: string, tier: StatementTier) => {
+    const pushTier = (key: string, tier: StatementTier | null | undefined) => {
+      const accounts = tier?.accounts ?? []
+      const subtotal = tier?.subtotal ?? 0
       sheetRows.push([TIER_LABELS[key], '', ''])
-      tier.accounts.forEach((acc) => sheetRows.push([acc.code, acc.name, acc.amount]))
-      sheetRows.push(['', `Subtotal ${TIER_LABELS[key]}`, tier.subtotal])
+      accounts.forEach((acc) => sheetRows.push([acc.code, acc.name, acc.amount]))
+      sheetRows.push(['', `Subtotal ${TIER_LABELS[key]}`, subtotal])
     }
 
     pushTier('operating_revenue', operatingRevenue)
