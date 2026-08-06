@@ -21,7 +21,7 @@ import { ArrowLeft, Trash, X } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { Control, Controller, FormProvider, useFormContext, useWatch, } from "react-hook-form";
-import { SalesOrderFormValues } from "./useCreateSalesOrders";
+import { SalesOrderFormValues } from "./useEditSalesOrders";
 import { useEditSalesOrders } from "./useEditSalesOrders";
 import { formatCurrency } from '@/utils/price';
 
