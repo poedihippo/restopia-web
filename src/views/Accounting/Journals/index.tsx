@@ -13,6 +13,7 @@ import {
 } from '@/services/accounting.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import SearchableSelect from '@/components/SearchableSelect'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye,
@@ -123,6 +124,8 @@ export default function JournalsView() {
   const meta = (data as any)?.meta
   const periods: Period[] = (periodsData as any)?.data ?? []
   const accounts: CoA[] = (coaData as any)?.data ?? []
+  const periodOptions = periods.map((p) => ({ value: String(p.id), label: p.name }))
+  const accountOptions = accounts.map((a) => ({ value: String(a.id), label: `${a.code} ${a.name}` }))
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => journalsService.delete(id),
@@ -356,10 +359,19 @@ export default function JournalsView() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Periode <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                  <select {...register('period_id')} style={inputStyle}>
-                    <option value={0}>-- Select Period --</option>
-                    {periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                  <Controller
+                    control={control}
+                    name="period_id"
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={String(field.value ?? 0)}
+                        onChange={(val) => field.onChange(Number(val))}
+                        options={periodOptions}
+                        placeholder="-- Pilih Periode --"
+                        searchPlaceholder="Cari periode..."
+                      />
+                    )}
+                  />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Date <span style={{ color: 'var(--destructive)' }}>*</span></label>
@@ -411,10 +423,19 @@ export default function JournalsView() {
                         return (
                           <tr key={field.id}>
                             <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
-                              <select {...register(`details.${idx}.chart_of_account_id`)} style={{ ...smallInputStyle, fontSize: 12 }}>
-                                <option value={0}>-- Select Account --</option>
-                                {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}
-                              </select>
+                              <Controller
+                                control={control}
+                                name={`details.${idx}.chart_of_account_id`}
+                                render={({ field }) => (
+                                  <SearchableSelect
+                                    value={String(field.value ?? 0)}
+                                    onChange={(val) => field.onChange(Number(val))}
+                                    options={accountOptions}
+                                    placeholder="-- Pilih Akun --"
+                                    searchPlaceholder="Cari akun..."
+                                  />
+                                )}
+                              />
                             </td>
                             <td style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
                               <Controller
