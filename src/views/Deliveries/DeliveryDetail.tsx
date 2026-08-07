@@ -882,15 +882,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
     <div className="surat-jalan-print">
       {/* Letterhead */}
       <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '6mm', marginBottom: '6mm' }}>
-        <div style={{ fontSize: '22pt', fontWeight: 700, letterSpacing: '1px' }}>
-          DAPUR COKELAT
-        </div>
-        {/* TODO: replace with real company address / phone */}
-        <div style={{ fontSize: '9pt', marginTop: '2mm' }}>
-          Jl. ____, Jakarta · Telp: ____
-        </div>
-        <div style={{ fontSize: '13pt', fontWeight: 700, marginTop: '3mm' }}>
-          SURAT JALAN / DELIVERY ORDER
+        <div style={{ fontSize: '13pt', fontWeight: 700 }}>
+          DELIVERY NOTE
         </div>
       </div>
 
@@ -929,11 +922,13 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
         <thead style={{ display: 'table-header-group' }}>
           <tr>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center', width: '10mm' }}>No</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left' }}>Nama Produk</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '24mm' }}>Qty</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '28mm' }}>Satuan</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '45mm' }}>Keterangan</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center', width: '9mm' }}>NO</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '22mm' }}>ITEM CODE</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left' }}>NAME</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '18mm' }}>UNIT</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>DEL</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>RECV</th>
+            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '28mm' }}>REMARK</th>
           </tr>
         </thead>
         <tbody>
@@ -945,17 +940,19 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                   {index + 1}
                 </td>
                 <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                  {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
+                  {pu?.product?.code ?? '-'}
                 </td>
-                <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right' }}>
-                  {detail.qty.toLocaleString('id-ID')}
+                <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                  {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
                 </td>
                 <td style={{ border: '1px solid #000', padding: '2mm' }}>
                   {pu?.uom?.name ?? pu?.uom?.code ?? '-'}
                 </td>
-                <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                  {detail.description ?? '-'}
+                <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right' }}>
+                  {detail.qty.toLocaleString('id-ID')}
                 </td>
+                <td style={{ border: '1px solid #000', padding: '2mm' }} />
+                <td style={{ border: '1px solid #000', padding: '2mm' }} />
               </tr>
             )
           })}
