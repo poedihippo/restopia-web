@@ -15,7 +15,10 @@ import {
   Calendar,
   Building2,
   FileText,
+  Check,
+  X,
 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 interface InternalOrderDetailProps {
   id: number
@@ -88,6 +91,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const myBranchId = user?.branch?.id
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
@@ -113,6 +118,25 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
+
+  const actionMutation = useMutation({
+    mutationFn: (action: 'accept' | 'reject') =>
+      action === 'accept'
+        ? purchaseOrdersService.accept(id)
+        : purchaseOrdersService.reject(id),
+    onSuccess: (_res, action) => {
+      queryClient.invalidateQueries({ queryKey: ['internal-order-detail', id] })
+      queryClient.invalidateQueries({ queryKey: ['internal-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['requested-orders'] })
+      toast.success(action === 'accept' ? 'Order accepted' : 'Order rejected')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Action failed'),
+  })
+
+  const handleAction = (action: 'accept' | 'reject') => {
+    if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
+    actionMutation.mutate(action)
+  }
 
   const details = order?.purchase_order_details ?? []
   const statusMeta = STATUS_META[order?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
@@ -304,6 +328,55 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
             <Pencil size={13} />
             Edit
           </button>
+          
+          {order.supplier_branch?.id === myBranchId && order.status === 'pending' && (
+            <>
+              <button
+                type="button"
+                disabled={actionMutation.isPending}
+                onClick={() => handleAction('accept')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--success)',
+                  color: 'white',
+                  border: '1px solid var(--success)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                  opacity: actionMutation.isPending ? 0.6 : 1,
+                }}
+              >
+                <Check size={13} />
+                Accept
+              </button>
+              <button
+                type="button"
+                disabled={actionMutation.isPending}
+                onClick={() => handleAction('reject')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--surface)',
+                  color: 'var(--destructive)',
+                  border: '1px solid var(--destructive)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                  opacity: actionMutation.isPending ? 0.6 : 1,
+                }}
+              >
+                <X size={13} />
+                Reject
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setDeleteConfirm(true)}

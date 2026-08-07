@@ -152,7 +152,7 @@ export default function ProductInventoriesView() {
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-          'filter[type]': typeFilter === '' ? undefined : String(typeFilter),
+          'filter[product_type]': typeFilter === '' ? undefined : String(typeFilter),
         })
         .then((r) => r.data),
   })

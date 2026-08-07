@@ -94,7 +94,7 @@ export default function RequestedOrdersView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'delivered' | 'rejected' | 'partially_delivered'>('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -236,7 +236,7 @@ export default function RequestedOrdersView() {
         <select
           value={statusFilter}
           onChange={(e) =>
-            setStatusFilter(e.target.value as '' | 'pending' | 'final')
+            setStatusFilter(e.target.value as any)
           }
           style={{
             ...inputBase,
@@ -248,6 +248,9 @@ export default function RequestedOrdersView() {
           <option value="">All Status</option>
           <option value="pending">Pending</option>
           <option value="final">Fulfilled</option>
+          <option value="delivered">Delivered</option>
+          <option value="rejected">Rejected</option>
+          <option value="partially_delivered">Partially Delivered</option>
         </select>
       </div>
 

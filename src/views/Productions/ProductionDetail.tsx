@@ -232,6 +232,10 @@ export default function ProductionDetail({ id }: Props) {
                         )}
                       </div>
                       <div>
+                        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Batch Code</span>
+                        <p style={{ margin: '2px 0 0', fontSize: 13 }}>{detail.planned_batch_code ?? '—'}</p>
+                      </div>
+                      <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Code</span>
                         <p style={{ margin: '2px 0 0', fontSize: 13 }}>{detail.product_uom?.code ?? '—'}</p>
                       </div>

@@ -37,6 +37,7 @@ const detailSchema = z.object({
   qty: z.coerce.number().min(0.001, 'Qty required'),
   status: z.enum(['pending', 'final']),
   expiry_date: z.string().optional(),
+  planned_batch_code: z.string().optional(),
   description: z.string().optional(),
   materials: z.array(materialSchema),
 })
@@ -872,6 +873,7 @@ export default function ProductionForm({
         qty: d.qty,
         status: d.status,
         expiry_date: d.expiry_date || undefined,
+        planned_batch_code: d.planned_batch_code || undefined,
         description: d.description || undefined,
         materials: (d.materials ?? [])
           .map((m) => ({
@@ -1316,14 +1318,22 @@ export default function ProductionForm({
                         gap: 16,
                       }}
                     >
-                      {/* Expiry + description row */}
+                      {/* Batch + Expiry + description row */}
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '1fr 1fr',
+                          gridTemplateColumns: '1fr 1fr 1fr',
                           gap: 12,
                         }}
                       >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={labelStyle}>Batch Code</label>
+                          <input
+                            {...register(`details.${detailIndex}.planned_batch_code` as any)}
+                            placeholder="Optional batch"
+                            style={fieldInputStyle}
+                          />
+                        </div>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <label style={labelStyle}>Expiry Date</label>
                           <input
