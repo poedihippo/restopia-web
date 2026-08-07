@@ -42,7 +42,6 @@ const schema = z.object({
   qty: z.coerce.number().min(1, 'Qty minimal 1'),
   to_owner_ref: z.string().min(1, 'Owner tujuan wajib diisi'),
   to_stage: z.string().min(1, 'Stage tujuan wajib diisi'),
-  to_location_ref: z.string().min(1, 'Lokasi tujuan wajib diisi'),
   description: z.string().optional(),
 })
 
@@ -68,7 +67,6 @@ export default function DimensionTransferView() {
       qty: 1,
       to_owner_ref: '',
       to_stage: '',
-      to_location_ref: '',
       description: '',
     },
   })
@@ -165,7 +163,6 @@ export default function DimensionTransferView() {
         qty: 1,
         to_owner_ref: '',
         to_stage: '',
-        to_location_ref: '',
         description: '',
       })
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
@@ -197,10 +194,7 @@ export default function DimensionTransferView() {
     const fromOwner = row.owner_ref ?? ''
     const fromStage = row.stage ?? ''
     const fromLocation = row.location_ref ?? ''
-    const noOp =
-      values.to_owner_ref === fromOwner &&
-      values.to_stage === fromStage &&
-      values.to_location_ref === fromLocation
+    const noOp = values.to_owner_ref === fromOwner && values.to_stage === fromStage
     if (noOp) {
       toast.error('Dimensi tujuan harus berbeda dari sumber')
       return
@@ -219,7 +213,7 @@ export default function DimensionTransferView() {
       to: {
         owner_ref: values.to_owner_ref,
         stage: values.to_stage,
-        location_ref: values.to_location_ref,
+        location_ref: 'GENERAL',
       },
       description: values.description || undefined,
     })
@@ -305,7 +299,6 @@ export default function DimensionTransferView() {
                     if (row) {
                       setValue('to_owner_ref', row.owner_ref ?? 'GENERAL')
                       setValue('to_stage', row.stage ?? '')
-                      setValue('to_location_ref', row.location_ref ?? '')
                     }
                   }}
                   options={sourceOptions}
@@ -346,7 +339,7 @@ export default function DimensionTransferView() {
             {errors.qty && <span style={errorStyle}>{errors.qty.message}</span>}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
             <div>
               <label style={labelStyle}>
                 Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -386,19 +379,6 @@ export default function DimensionTransferView() {
                   />
                 )}
               />
-            </div>
-            <div>
-              <label style={labelStyle}>
-                Lokasi Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <input
-                {...register('to_location_ref')}
-                style={{
-                  ...inputStyle,
-                  ...(errors.to_location_ref ? { border: '1px solid var(--destructive)' } : {}),
-                }}
-              />
-              {errors.to_location_ref && <span style={errorStyle}>{errors.to_location_ref.message}</span>}
             </div>
           </div>
 
