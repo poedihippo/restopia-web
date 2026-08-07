@@ -1013,6 +1013,11 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
         }
         .surat-jalan-print, .surat-jalan-print * { visibility: visible !important; }
         .dd-screen { display: none !important; }
+        /* The app shell (AppSidebar renders <aside>, TopBar renders <header>)
+           isn't part of .dd-screen, so visibility:hidden alone left its full
+           expanded-nav content height in the print flow, forcing a 2nd page.
+           Collapse their boxes outright. */
+        aside, header { display: none !important; }
         .surat-jalan-print {
           display: block !important;
           position: absolute;
