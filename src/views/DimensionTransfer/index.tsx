@@ -8,15 +8,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { dimensionTransfersService } from '@/services/dimension-transfers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { companiesService } from '@/services/companies.service'
+import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Loader2, ArrowRightLeft } from 'lucide-react'
+
+const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
 interface DimensionInventoryRow {
   id: number
   product_uom_batch_id?: number
   stock?: number
   owner_ref?: string
+  owner_display?: string
+  owner_company_name?: string
   stage?: string
   location_ref?: string
   product_uom_batch?: {
@@ -98,13 +104,41 @@ export default function DimensionTransferView() {
     (r: any) => Number(r.stock ?? 0) > 0,
   )
 
+  const { data: companiesData, isLoading: companiesLoading } = useQuery({
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+  })
+  const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+  const companyOptions = [
+    GENERAL_OWNER_OPTION,
+    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ]
+
+  const { data: stagesData, isLoading: stagesLoading } = useQuery({
+    queryKey: ['stages-all'],
+    queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
+  })
+  const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
+  const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
+
+  const ownerLabel = (row: DimensionInventoryRow | undefined): string => {
+    if (!row) return '—'
+    if (row.owner_display) return row.owner_display
+    if (row.owner_company_name) return row.owner_company_name
+    const ownerRef = row.owner_ref
+    if (!ownerRef) return '—'
+    if (ownerRef === 'GENERAL') return 'Umum'
+    const match = companies.find((c) => String(c.id) === String(ownerRef))
+    return match?.name ?? ownerRef
+  }
+
   const sourceInventoryId = watch('source_inventory_id')
   const selectedRow = inventoryRows.find((r) => r.id === Number(sourceInventoryId))
 
   const sourceOptions = inventoryRows.map((row) => {
     const product = row.product_uom_batch?.product_uom?.product
     const batchCode = row.product_uom_batch?.code ?? '—'
-    const owner = row.owner_ref ?? '—'
+    const owner = ownerLabel(row)
     const stage = row.stage ?? '—'
     const location = row.location_ref ?? '—'
     const stock = row.stock ?? 0
@@ -269,7 +303,7 @@ export default function DimensionTransferView() {
                     field.onChange(val)
                     const row = inventoryRows.find((r) => r.id === Number(val))
                     if (row) {
-                      setValue('to_owner_ref', row.owner_ref ?? '')
+                      setValue('to_owner_ref', row.owner_ref ?? 'GENERAL')
                       setValue('to_stage', row.stage ?? '')
                       setValue('to_location_ref', row.location_ref ?? '')
                     }
@@ -284,7 +318,7 @@ export default function DimensionTransferView() {
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Dari: {selectedRow.owner_ref ?? '—'}/{selectedRow.stage ?? '—'}/{selectedRow.location_ref ?? '—'},
+                Dari: {ownerLabel(selectedRow)}/{selectedRow.stage ?? '—'}/{selectedRow.location_ref ?? '—'},
                 {' '}stok {selectedRow.stock ?? 0}
               </span>
             )}
@@ -317,27 +351,41 @@ export default function DimensionTransferView() {
               <label style={labelStyle}>
                 Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
-              <input
-                {...register('to_owner_ref')}
-                style={{
-                  ...inputStyle,
-                  ...(errors.to_owner_ref ? { border: '1px solid var(--destructive)' } : {}),
-                }}
+              <Controller
+                name="to_owner_ref"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    options={companyOptions}
+                    placeholder="Pilih owner..."
+                    searchPlaceholder="Cari perusahaan..."
+                    loading={companiesLoading}
+                    error={errors.to_owner_ref?.message as string | undefined}
+                  />
+                )}
               />
-              {errors.to_owner_ref && <span style={errorStyle}>{errors.to_owner_ref.message}</span>}
             </div>
             <div>
               <label style={labelStyle}>
                 Stage Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
-              <input
-                {...register('to_stage')}
-                style={{
-                  ...inputStyle,
-                  ...(errors.to_stage ? { border: '1px solid var(--destructive)' } : {}),
-                }}
+              <Controller
+                name="to_stage"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    options={stageOptions}
+                    placeholder="Pilih stage..."
+                    searchPlaceholder="Cari stage..."
+                    loading={stagesLoading}
+                    error={errors.to_stage?.message as string | undefined}
+                  />
+                )}
               />
-              {errors.to_stage && <span style={errorStyle}>{errors.to_stage.message}</span>}
             </div>
             <div>
               <label style={labelStyle}>
