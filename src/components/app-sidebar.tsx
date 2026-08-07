@@ -148,6 +148,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Trial Balance', href: '/accounting/reports/trial-balance', permission: 'journal.read' },
           { label: 'Income Statement', href: '/accounting/reports/income-statement', permission: 'journal.read' },
           { label: 'Balance Sheet', href: '/accounting/reports/balance-sheet', permission: 'journal.read' },
+          { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.read' },
         ],
       },
     ],
