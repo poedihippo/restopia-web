@@ -8,6 +8,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { invoicesService } from '@/services/invoices.service'
 import { deliveriesService } from '@/services/deliveries.service'
+import { receiptsService } from '@/services/receipts.service'
 import { useAuth } from '@/hooks/useAuth'
 import { toastMutationApiError } from '@/utils/apiError'
 import {
@@ -104,7 +105,12 @@ export default function InvoicesView() {
     queryKey: ['invoiceable-deliveries', debouncedDeliverySearch],
     enabled: createOpen,
     queryFn: () => {
-      const params: any = { per_page: 50, sort: '-created_at', include: 'target_branch' }
+      const params: any = {
+        per_page: 50,
+        sort: '-created_at',
+        include: 'target_branch',
+        'filter[invoiceable]': 'true',
+      }
       if (debouncedDeliverySearch && debouncedDeliverySearch.trim()) {
         params['filter[search]'] = debouncedDeliverySearch.trim()
       }
@@ -113,6 +119,53 @@ export default function InvoicesView() {
   })
   const allDeliveries: any[] = (deliveriesData as any)?.data ?? []
   const invoiceableDeliveries = allDeliveries.filter((d) => d.purchase_order_id != null)
+
+  // Preview: delivered vs received qty per line for the selected delivery,
+  // so the user sees what will actually be billed (received) before creating.
+  const { data: selectedDeliveryData, isLoading: selectedDeliveryLoading } = useQuery({
+    queryKey: ['invoice-preview-delivery', selectedDeliveryId],
+    enabled: createOpen && selectedDeliveryId > 0,
+    queryFn: () =>
+      deliveriesService
+        .findById(selectedDeliveryId, { include: 'delivery_details,delivery_details.product_uom' })
+        .then((r) => r.data),
+  })
+  const selectedDelivery = (selectedDeliveryData as any)?.data
+  const selectedDeliveryLines: any[] = selectedDelivery?.delivery_details ?? []
+
+  // Received qty isn't always on the delivery_detail itself — fall back to
+  // summing the delivery's final receipt(s) receipt_details by delivery_detail_id.
+  const { data: deliveryReceiptsData, isLoading: deliveryReceiptsLoading } = useQuery({
+    queryKey: ['invoice-preview-receipts', selectedDeliveryId],
+    enabled: createOpen && selectedDeliveryId > 0,
+    queryFn: () =>
+      receiptsService
+        .list({
+          'filter[delivery_id]': selectedDeliveryId,
+          'filter[status]': 'final',
+          include: 'receipt_details',
+          per_page: 50,
+        } as any)
+        .then((r) => r.data),
+  })
+  const deliveryReceipts: any[] = (deliveryReceiptsData as any)?.data ?? []
+  const receivedByDeliveryDetailId = deliveryReceipts.reduce((map: Record<number, number>, receipt: any) => {
+    for (const rd of receipt.receipt_details ?? []) {
+      const key = rd.delivery_detail_id
+      if (key == null) continue
+      map[key] = (map[key] ?? 0) + Number(rd.qty ?? 0)
+    }
+    return map
+  }, {})
+
+  const previewLoading = selectedDeliveryLoading || deliveryReceiptsLoading
+  const previewLines = selectedDeliveryLines.map((d: any) => ({
+    id: d.id,
+    productLabel: d.product_uom?.product?.name ?? d.product_uom?.code ?? `Item #${d.product_uom_id}`,
+    uom: d.product_uom?.uom?.name ?? d.product_uom?.uom?.code ?? '—',
+    delivered: Number(d.qty ?? 0),
+    received: Number(d.received_qty ?? receivedByDeliveryDetailId[d.id] ?? 0),
+  }))
 
   const resetCreateForm = () => {
     setSelectedDeliveryId(0)
@@ -637,6 +690,82 @@ export default function InvoicesView() {
                 )}
               </div>
             </div>
+
+            {/* Preview: delivered vs received qty per line for the selected delivery */}
+            {selectedDeliveryId > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: 6 }}>
+                  Preview Tagihan (yang akan ditagih: Diterima)
+                </label>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  {previewLoading ? (
+                    <div style={{ padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      Memuat detail pengiriman...
+                    </div>
+                  ) : previewLines.length === 0 ? (
+                    <div style={{ padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      Tidak ada baris pada pengiriman ini
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: 'var(--background)' }}>
+                          <th style={{ ...thStyle, fontSize: 11 }}>Produk</th>
+                          <th style={{ ...thStyle, fontSize: 11, width: 90, textAlign: 'right' }}>Dikirim</th>
+                          <th style={{ ...thStyle, fontSize: 11, width: 90, textAlign: 'right' }}>Diterima</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewLines.map((line) => {
+                          const notReceived = line.received === 0
+                          return (
+                            <tr key={line.id} style={{ opacity: notReceived ? 0.5 : 1 }}>
+                              <td style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--foreground)' }}>
+                                {line.productLabel}
+                                <span style={{ color: 'var(--foreground-subtle)' }}> ({line.uom})</span>
+                                {notReceived && (
+                                  <span
+                                    style={{
+                                      marginLeft: 6,
+                                      fontSize: 10,
+                                      fontWeight: 600,
+                                      color: 'var(--warning)',
+                                      background: 'var(--warning-bg)',
+                                      padding: '1px 6px',
+                                      borderRadius: 'var(--radius-sm)',
+                                    }}
+                                  >
+                                    belum diterima
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, textAlign: 'right', color: 'var(--foreground-muted)' }}>
+                                {line.delivered.toLocaleString('id-ID')}
+                              </td>
+                              <td
+                                style={{
+                                  padding: '8px 16px',
+                                  borderBottom: '1px solid var(--border)',
+                                  fontSize: 12,
+                                  textAlign: 'right',
+                                  fontWeight: 600,
+                                  color: notReceived ? 'var(--foreground-muted)' : 'var(--success)',
+                                }}
+                              >
+                                {line.received.toLocaleString('id-ID')}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--foreground-subtle)', margin: '6px 0 0' }}>
+                  Baris dengan qty diterima 0 tidak akan ditagih.
+                </p>
+              </div>
+            )}
 
             {/* Optional date + description */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
