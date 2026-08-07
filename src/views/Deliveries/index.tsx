@@ -19,6 +19,7 @@ import {
   Truck,
   CheckCircle,
   RotateCcw,
+  ClipboardList,
 } from 'lucide-react'
 
 interface Delivery {
@@ -498,6 +499,15 @@ export default function DeliveriesView() {
                             <RotateCcw size={14} />
                           </button>
                         ))}
+                        {item.status === 'final' && (
+                          <button
+                            onClick={() => router.push(`/transfer/receipts/create?delivery_id=${item.id}`)}
+                            style={actionBtnStyle}
+                            title="Create Receipt"
+                          >
+                            <ClipboardList size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => router.push(`/transfer/deliveries/${item.id}/detail`)}
                           style={actionBtnStyle}

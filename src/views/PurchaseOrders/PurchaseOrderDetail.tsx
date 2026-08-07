@@ -425,6 +425,30 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             <ShoppingCart size={13} />
             Create Sales Order
           </button>
+          
+          {order.type === 'branch' && (order.status === 'accepted' || order.status === 'final') && (
+            <button
+              type="button"
+              onClick={() => router.push(`/transfer/deliveries/create?po_id=${id}`)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'white',
+                cursor: 'pointer',
+              }}
+            >
+              <Truck size={13} />
+              Create Delivery
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => router.push(`/purchase/purchase-orders/${id}/edit`)}

@@ -20,12 +20,14 @@ import {
   PackageSearch,
   Filter,
   ShoppingCart,
+  Truck,
 } from 'lucide-react'
 
 interface PurchaseOrder {
   id: number
   code: string
   date: string
+  type?: string
   total_price: number
   status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final'
   description?: string
@@ -581,6 +583,17 @@ export default function PurchaseOrdersView() {
                         >
                           <Eye size={14} />
                         </button>
+                        {item.type === 'branch' && (item.status === 'accepted' || item.status === 'final') && (
+                          <button
+                            onClick={() =>
+                              router.push(`/transfer/deliveries/create?po_id=${item.id}`)
+                            }
+                            style={actionBtnStyle}
+                            title="Create Delivery"
+                          >
+                            <Truck size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() =>
                             router.push(`/sales/sales-orders/create?po_id=${item.id}`)

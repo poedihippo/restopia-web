@@ -231,9 +231,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           1
         page += 1
       } while (page <= totalPages)
-      const linkable = allOrders.filter((po: any) =>
-        ['accepted', 'final'].includes(po?.status),
-      )
+      const linkable = allOrders
+        .filter((po: any) => ['accepted', 'final'].includes(po?.status))
+        .sort((a: any, b: any) => b.id - a.id)
       return { data: linkable }
     },
   })

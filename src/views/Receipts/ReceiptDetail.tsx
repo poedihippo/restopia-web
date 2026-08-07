@@ -41,6 +41,7 @@ interface ReceiptFull {
     status: 'pending' | 'success' | 'failed'
     description?: string
     client_ref?: string
+    planned_batch_code?: string
     planned_expiry_date?: string
     product_uom?: {
       id: number
@@ -482,6 +483,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
             <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
               <th style={{ ...thStyle, width: 50 }}>#</th>
               <th style={thStyle}>Product</th>
+              <th style={{ ...thStyle, width: 130 }}>Batch</th>
               <th style={{ ...thStyle, width: 130 }}>Planned Expiry</th>
               <th style={{ ...thStyle, width: 130 }}>Client Ref</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
@@ -507,6 +509,15 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                     {productName}
+                  </td>
+                  <td
+                    style={{
+                      padding: '12px 16px',
+                      fontSize: 12,
+                      color: 'var(--foreground-muted)',
+                    }}
+                  >
+                    {detail.planned_batch_code || '—'}
                   </td>
                   <td
                     style={{

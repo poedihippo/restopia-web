@@ -25,6 +25,7 @@ const formatNumber = (n: number | undefined): string => {
 const detailSchema = z.object({
   delivery_detail_id: z.coerce.number().optional(),
   product_uom_id: z.coerce.number().min(0, 'Product required'),
+  planned_batch_code: z.string().optional(),
   planned_expiry_date: z.string().optional(),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   price: z.coerce.number().min(0, 'Price required'),
@@ -48,10 +49,13 @@ interface ReceiptFormProps {
   mode: 'create' | 'edit'
   initialData?: any
   receiptId?: number
+  prefill?: {
+    delivery_id?: number
+  }
 }
 
 export default function ReceiptForm(props: ReceiptFormProps) {
-  const { mode, initialData, receiptId } = props
+  const { mode, initialData, receiptId, prefill } = props
   const { canReadPrice } = usePrice()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -67,7 +71,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      delivery_id: 0,
+      delivery_id: prefill?.delivery_id ?? 0,
       date: new Date().toISOString().split('T')[0],
       status: 'final',
       description: '',
@@ -113,7 +117,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           1
         page += 1
       } while (page <= totalPages)
-      return { data: allDeliveries }
+      return { data: allDeliveries.sort((a: any, b: any) => b.id - a.id) }
     },
   })
   const deliveries = (deliveriesData as any)?.data ?? []
@@ -179,6 +183,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     const newDetails = deliveryDetail.delivery_details.map((d: any, index: number) => ({
       delivery_detail_id: d.id,
       product_uom_id: d.product_uom_id ?? 0,
+      planned_batch_code: d.planned_batch_code ?? d.product_uom_batch?.code ?? '',
       planned_expiry_date: '',
       qty: d.qty ?? 1,
       price: d.price ?? 0,
@@ -245,6 +250,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       .filter((d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0)
       .map((d) => ({
         delivery_detail_id: d.delivery_detail_id || undefined,
+        planned_batch_code: d.planned_batch_code || undefined,
         planned_expiry_date: d.planned_expiry_date || undefined,
         qty: d.qty,
         price: d.price,
@@ -594,14 +600,14 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               <div
             style={{
               display: 'grid',
-              gridTemplateColumns: `minmax(250px, 2fr) 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
+              gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
           >
-            {['Product / UOM', 'Qty', 'Price', 'Subtotal', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
+            {['Product / UOM', 'Batch', 'Qty', 'Price', 'Subtotal', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -622,7 +628,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: `minmax(250px, 2fr) 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
+                gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -658,6 +664,16 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   )}
                 />
               </div>
+
+              <input
+                type="text"
+                {...register(`details.${index}.planned_batch_code`)}
+                placeholder="Batch code..."
+                style={{
+                  ...lineInputStyle,
+                  background: 'var(--surface)', color: 'var(--foreground)'
+                }}
+              />
 
               <input
                 type="number"

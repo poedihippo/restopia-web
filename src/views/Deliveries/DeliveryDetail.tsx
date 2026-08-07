@@ -21,6 +21,8 @@ import {
   Truck,
   FileText,
   Printer,
+  MapPin,
+  ClipboardList,
 } from 'lucide-react'
 
 interface DeliveryDetailProps {
@@ -386,6 +388,30 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
             </button>
           )}
+
+          {delivery?.status === 'final' && (
+            <button
+              type="button"
+              onClick={() => router.push(`/transfer/receipts/create?delivery_id=${id}`)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'white',
+                cursor: 'pointer',
+              }}
+            >
+              <ClipboardList size={13} />
+              Create Receipt
+            </button>
+          )}
+
           {canRead && (
             <button
               type="button"
