@@ -22,6 +22,8 @@ import {
   ChevronRight,
   ShoppingCart,
   Printer,
+  Check,
+  X,
 } from 'lucide-react'
 
 interface PurchaseOrderDetailProps {
@@ -33,7 +35,7 @@ interface PurchaseOrderFull {
   code: string
   date: string
   total_price: number
-  status: 'pending' | 'final'
+  status: 'pending' | 'final' | 'accepted' | 'rejected' | 'fulfilled' | 'partially_delivered' | 'delivered'
   type?: 'supplier' | 'branch'
   description?: string
   fulfillment_date?: string
@@ -102,7 +104,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { user, hasPermission } = useAuth()
+  const myBranchId = (user as any)?.branch?.id ?? (user as any)?.branch_id
   const canRead = hasPermission('purchase-order.read')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
@@ -120,6 +123,24 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   })
 
   const order = (data as any)?.data as PurchaseOrderFull | undefined
+
+  const actionMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'accept' | 'reject' }) =>
+      action === 'accept'
+        ? purchaseOrdersService.accept(id)
+        : purchaseOrdersService.reject(id),
+    onSuccess: (_res, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-order-detail', id] })
+      toast.success(vars.action === 'accept' ? 'Order accepted' : 'Order rejected')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Action failed'),
+  })
+
+  const handleAction = (orderId: number, action: 'accept' | 'reject') => {
+    if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
+    actionMutation.mutate({ id: orderId, action })
+  }
 
   const deleteMutation = useMutation({
     mutationFn: () => purchaseOrdersService.delete(id),
@@ -314,6 +335,54 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
 
         {/* Right */}
         <div style={{ display: 'flex', gap: 8 }}>
+          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'pending' || order.status === 'rejected') && (
+            <button
+              type="button"
+              disabled={actionMutation.isPending}
+              onClick={() => handleAction(order.id, 'accept')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--success)',
+                border: '1px solid var(--success)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'white',
+                cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: actionMutation.isPending ? 0.6 : 1,
+              }}
+            >
+              <Check size={13} />
+              Accept
+            </button>
+          )}
+          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'pending' || order.status === 'accepted') && (
+            <button
+              type="button"
+              disabled={actionMutation.isPending}
+              onClick={() => handleAction(order.id, 'reject')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--surface)',
+                border: '1px solid var(--destructive)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--destructive)',
+                cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: actionMutation.isPending ? 0.6 : 1,
+              }}
+            >
+              <X size={13} />
+              Reject
+            </button>
+          )}
           {canRead && (
             <button
               type="button"

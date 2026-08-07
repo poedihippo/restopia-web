@@ -8,6 +8,8 @@ import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import SearchableSelect from '@/components/SearchableSelect'
+import { productsService } from '@/services/products.service'
 import {
   Plus,
   Search,
@@ -57,20 +59,36 @@ export default function ProductionsView() {
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [productFilter, setProductFilter] = useState<number | ''>('')
+  const [productSearch, setProductSearch] = useState('')
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setDebouncedProductSearch(productSearch)
+    }, 400)
     return () => clearTimeout(t)
-  }, [search])
+  }, [search, productSearch])
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo])
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, productFilter])
+
+  const { data: productsData } = useQuery({
+    queryKey: ['products-finished', debouncedProductSearch],
+    queryFn: () => productsService.list({ per_page: 50, 'filter[type]': 'finished', 'filter[search]': debouncedProductSearch || undefined } as any).then((r) => r.data),
+  })
+  
+  const productOptions = (productsData as any)?.data?.map((p: any) => ({
+    value: p.id,
+    label: p.name,
+  })) ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['productions', page, debouncedSearch, statusFilter, dateFrom, dateTo],
+    queryKey: ['productions', page, debouncedSearch, statusFilter, dateFrom, dateTo, productFilter],
     queryFn: () =>
       productionsService
         .list({
@@ -82,6 +100,7 @@ export default function ProductionsView() {
           'filter[status]': statusFilter || undefined,
           'filter[start_date]': dateFrom || undefined,
           'filter[end_date]': dateTo || undefined,
+          'filter[product_id]': productFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -182,8 +201,21 @@ export default function ProductionsView() {
               color: 'var(--foreground)',
               background: 'var(--surface)',
               outline: 'none',
-              fontFamily: 'var(--font-sans)',
+            fontFamily: 'var(--font-sans)',
             }}
+          />
+        </div>
+
+        <div style={{ width: 220 }}>
+          <SearchableSelect
+            value={productFilter}
+            onChange={(val) => {
+              setProductFilter(val)
+              setPage(1)
+            }}
+            onSearchChange={(val) => setProductSearch(val)}
+            options={[{ value: '', label: 'All Finished Products' }, ...productOptions]}
+            placeholder="Filter by Product"
           />
         </div>
 

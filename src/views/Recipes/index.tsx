@@ -7,6 +7,8 @@ import { recipesService } from '@/services/recipes.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import RecipeSheet from './RecipeSheet'
+import SearchableSelect from '@/components/SearchableSelect'
+import { productUomsService } from '@/services/product-uoms.service'
 import {
   Plus,
   Pencil,
@@ -15,6 +17,7 @@ import {
   ChevronRight,
   BookOpen,
   Check,
+  Search,
 } from 'lucide-react'
 
 interface Recipe {
@@ -51,20 +54,51 @@ export default function RecipesView() {
   const canDelete = hasPermission('recipe.delete')
 
   const [page, setPage] = useState(1)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [productUomFilter, setProductUomFilter] = useState<number | ''>('')
+  const [puSearch, setPuSearch] = useState('')
+  const [debouncedPuSearch, setDebouncedPuSearch] = useState('')
+  
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Recipe | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search)
+      setDebouncedPuSearch(puSearch)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [search, puSearch])
+
+  React.useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, productUomFilter])
+
+  const { data: productUomsData } = useQuery({
+    queryKey: ['product-uoms-list', debouncedPuSearch],
+    queryFn: () => productUomsService.list({ per_page: 50, include: 'product,uom', 'filter[search]': debouncedPuSearch || undefined } as any).then((r) => r.data),
+  })
+
+  const productUomOptions = (productUomsData as any)?.data?.map((pu: any) => ({
+    value: pu.id,
+    label: `${pu.product?.name ?? 'Unknown'} - ${pu.uom?.name ?? 'Unknown'}`,
+  })) ?? []
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['recipes', page],
+    queryKey: ['recipes', page, debouncedSearch, productUomFilter],
     queryFn: () =>
       recipesService
         .list({
           page,
           per_page: 10,
           include: 'product_uom,recipe_materials',
-        })
+          sort: '-id',
+          'filter[search]': debouncedSearch || undefined,
+          'filter[product_uom_id]': productUomFilter || undefined,
+        } as any)
         .then((r) => r.data),
   })
 
@@ -130,6 +164,50 @@ export default function RecipesView() {
           <Plus size={15} />New Recipe
                               </button>)}
       </div>
+
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', maxWidth: 280, width: '100%' }}>
+          <Search
+            size={14}
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--foreground-muted)',
+              pointerEvents: 'none',
+            }}
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search recipes..."
+            style={{
+              width: '100%',
+              padding: '8px 10px 8px 32px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              boxSizing: 'border-box',
+              fontFamily: 'var(--font-sans)',
+            }}
+          />
+        </div>
+        <div style={{ width: 220 }}>
+          <SearchableSelect
+            value={productUomFilter}
+            onChange={(val) => setProductUomFilter(val)}
+            onSearchChange={(val) => setPuSearch(val)}
+            options={[{ value: '', label: 'All Products' }, ...productUomOptions]}
+            placeholder="Filter by Product UOM"
+          />
+        </div>
+      </div>
+
       {/* Recipe cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 

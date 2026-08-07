@@ -560,13 +560,14 @@ export default function ProductionForm({
   // documented type filter, so we query /products?filter[type]=final with the
   // product_uoms relation included (same approach recipes use) and flatten.
   const { data: finishedProductsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['production-finished-product-uoms'],
+    queryKey: ['production-finished-product-uoms', sharedProductSearchDebounced],
     queryFn: () =>
       api
         .get('/product-uoms', {
           params: {
             per_page: 100,
             include: 'uom,product',
+            'filter[search]': sharedProductSearchDebounced || undefined,
           },
         })
         .then((r) => r.data),
@@ -1205,6 +1206,7 @@ export default function ProductionForm({
                             placeholder="Search finished product..."
                             searchPlaceholder="Search products..."
                             loading={productUomsLoading}
+                            onSearchChange={(val) => setSharedProductSearch(val)}
                           />
                         )}
                       />

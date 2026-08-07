@@ -221,7 +221,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       let totalPages = 1
       do {
         const res = await purchaseOrdersService
-          .list({ page, per_page: 100, include: 'supplier,supplier_branch' } as any)
+          .list({ page, per_page: 100, include: 'supplier,supplier_branch', sort: '-id' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allOrders = allOrders.concat(items)
@@ -1060,7 +1060,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   fontFamily: 'var(--font-display)',
                 }}
               >
-                {'Rp ' + totalPrice.toLocaleString('id-ID')}
+                {'Rp ' + formatNumber(totalPrice)}
               </span>
             </div>
           )}
