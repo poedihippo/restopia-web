@@ -967,7 +967,17 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       )}
 
       {/* Signatures — 3 columns */}
-      <table style={{ width: '100%', fontSize: '10pt', marginTop: '16mm', borderCollapse: 'collapse' }}>
+      <table
+        style={{
+          width: '100%',
+          fontSize: '10pt',
+          marginTop: '16mm',
+          marginBottom: 0,
+          borderCollapse: 'collapse',
+          pageBreakInside: 'avoid',
+          breakInside: 'avoid',
+        }}
+      >
         <tbody>
           <tr>
             {['Pengirim', 'Penerima', 'Sopir / Driver'].map((label) => (
@@ -991,8 +1001,16 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
            that otherwise collapses #__next and blanks this page. */
         body > * { display: block !important; }
         #pos-receipt { display: none !important; }
-        /* Isolate: hide the on-screen detail UI, show only the surat jalan. */
-        body * { visibility: hidden !important; }
+        /* Isolate: hide the on-screen detail UI, show only the surat jalan.
+           Also collapse every hidden element's box (height/min-height) so the
+           app shell (GlobalLayout's height:100vh sidebar/topbar/main) can't
+           leave residual invisible height in the print flow and push a 2nd page. */
+        body * {
+          visibility: hidden !important;
+          height: auto !important;
+          min-height: 0 !important;
+          max-height: none !important;
+        }
         .surat-jalan-print, .surat-jalan-print * { visibility: visible !important; }
         .dd-screen { display: none !important; }
         .surat-jalan-print {
@@ -1001,6 +1019,10 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           left: 0;
           top: 0;
           width: 100%;
+          height: auto;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
           color: #000;
           background: #fff;
           font-family: Arial, Helvetica, sans-serif;
