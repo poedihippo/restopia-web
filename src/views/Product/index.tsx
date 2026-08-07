@@ -29,6 +29,7 @@ interface Product {
   status: 'active' | 'inactive'
   product_category_id: number
   description?: string
+  reorder_point?: number | null
   created_at?: string
   product_category?: { id: number; name: string }
 }

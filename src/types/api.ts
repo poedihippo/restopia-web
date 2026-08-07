@@ -88,6 +88,7 @@ export interface ProductRequest {
   type: 'raw' | 'wip' | 'final'
   description?: string
   base_uom_id?: number | null
+  reorder_point?: number | null
 }
 
 // UOMs

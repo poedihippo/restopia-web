@@ -20,6 +20,7 @@ const schema = z.object({
   description: z.string().optional(),
   status: z.enum(['active', 'inactive']),
   base_uom_id: z.coerce.number().optional().nullable(),
+  reorder_point: z.coerce.number().int().min(0).nullable().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -35,6 +36,7 @@ interface ProductSheetProps {
     description?: string
     status: 'active' | 'inactive'
     base_uom_id?: number | null
+    reorder_point?: number | null
   } | null
 }
 
@@ -57,6 +59,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       description: '',
       status: 'active',
       base_uom_id: null,
+      reorder_point: null,
     },
   })
 
@@ -89,6 +92,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           description: editData.description ?? '',
           status: editData.status ?? 'active',
           base_uom_id: editData.base_uom_id ?? null,
+          reorder_point: editData.reorder_point ?? null,
         })
       } else {
         reset({
@@ -99,6 +103,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           description: '',
           status: 'active',
           base_uom_id: null,
+          reorder_point: null,
         })
       }
     }
@@ -405,6 +410,29 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
             >
               The smallest unit stock is tracked in (e.g. grams, ml)
             </span>
+          </div>
+
+          {/* Reorder Point */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {fieldLabel('Reorder Point')}
+            <Controller
+              name="reorder_point"
+              control={control}
+              render={({ field }) => (
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={field.value ?? ''}
+                  onChange={(e) =>
+                    field.onChange(e.target.value === '' ? null : Number(e.target.value))
+                  }
+                  placeholder="Kosongkan jika tidak dipakai"
+                  style={inputBase(!!errors.reorder_point)}
+                />
+              )}
+            />
+            {errorMsg(errors.reorder_point?.message as string | undefined)}
           </div>
 
           {/* Status */}
