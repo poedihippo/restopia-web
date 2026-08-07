@@ -83,6 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Product Inventory', href: '/products/product-inventory', permission: 'product-inventory.read' },
           { label: 'Price Lists', href: '/products/price-lists', permission: 'price-list.read' },
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.read' },
+          { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.read' },
         ],
       },
     ],

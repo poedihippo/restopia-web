@@ -147,6 +147,24 @@ export default function DimensionTransferView() {
     }
   })
 
+  const toOwnerRef = watch('to_owner_ref')
+  const toStage = watch('to_stage')
+  const qtyWatched = watch('qty')
+
+  const targetBatchId = selectedRow?.product_uom_batch_id ?? selectedRow?.product_uom_batch?.id
+  const targetRow = inventoryRows.find((r) => {
+    const batchId = r.product_uom_batch_id ?? r.product_uom_batch?.id
+    return (
+      batchId === targetBatchId &&
+      r.owner_ref === toOwnerRef &&
+      r.stage === toStage &&
+      (r.location_ref ?? 'GENERAL') === 'GENERAL'
+    )
+  })
+  const targetCurrentStock = targetRow?.stock ?? 0
+  const targetAfterStock = targetCurrentStock + Number(qtyWatched || 0)
+  const showTargetCaption = !!selectedRow && !!toOwnerRef && !!toStage
+
   const createMutation = useMutation({
     mutationFn: (payload: {
       branch_id: number
@@ -381,6 +399,13 @@ export default function DimensionTransferView() {
               />
             </div>
           </div>
+
+          {showTargetCaption && (
+            <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+              Tujuan saat ini: {targetCurrentStock.toLocaleString('id-ID')} → akan menjadi{' '}
+              {targetAfterStock.toLocaleString('id-ID')}
+            </span>
+          )}
 
           <div>
             <label style={labelStyle}>Catatan</label>
