@@ -1,0 +1,402 @@
+'use client'
+
+import React from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { dimensionTransfersService } from '@/services/dimension-transfers.service'
+import { productInventoriesService } from '@/services/product-inventories.service'
+import { useAuth } from '@/hooks/useAuth'
+import SearchableSelect from '@/components/SearchableSelect'
+import { Loader2, ArrowRightLeft } from 'lucide-react'
+
+interface DimensionInventoryRow {
+  id: number
+  product_uom_batch_id?: number
+  stock?: number
+  owner_ref?: string
+  stage?: string
+  location_ref?: string
+  product_uom_batch?: {
+    id: number
+    code?: string
+    product_uom?: {
+      id: number
+      code?: string
+      product?: { id: number; name: string; code?: string }
+      uom?: { id: number; name: string; code: string }
+    }
+  }
+}
+
+const schema = z.object({
+  source_inventory_id: z.coerce.number().min(1, 'Pilih item sumber'),
+  qty: z.coerce.number().min(1, 'Qty minimal 1'),
+  to_owner_ref: z.string().min(1, 'Owner tujuan wajib diisi'),
+  to_stage: z.string().min(1, 'Stage tujuan wajib diisi'),
+  to_location_ref: z.string().min(1, 'Lokasi tujuan wajib diisi'),
+  description: z.string().optional(),
+})
+
+type FormValues = z.infer<typeof schema>
+
+export default function DimensionTransferView() {
+  const { user } = useAuth()
+  const branchId = user?.branch?.id
+  const queryClient = useQueryClient()
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema) as any,
+    defaultValues: {
+      source_inventory_id: 0,
+      qty: 1,
+      to_owner_ref: '',
+      to_stage: '',
+      to_location_ref: '',
+      description: '',
+    },
+  })
+
+  const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
+    queryKey: ['dimension-transfer-source-inventory', branchId],
+    enabled: !!branchId,
+    queryFn: async () => {
+      let allInv: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productInventoriesService
+          .list({
+            page,
+            per_page: 100,
+            'filter[branch_id]': branchId,
+            'filter[status]': 'active',
+            include: 'product_uom_batch.product_uom.product',
+          } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allInv = allInv.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ?? (res as any)?.meta?.total_pages ?? 1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allInv }
+    },
+  })
+
+  const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
+    (r: any) => Number(r.stock ?? 0) > 0,
+  )
+
+  const sourceInventoryId = watch('source_inventory_id')
+  const selectedRow = inventoryRows.find((r) => r.id === Number(sourceInventoryId))
+
+  const sourceOptions = inventoryRows.map((row) => {
+    const product = row.product_uom_batch?.product_uom?.product
+    const batchCode = row.product_uom_batch?.code ?? '—'
+    const owner = row.owner_ref ?? '—'
+    const stage = row.stage ?? '—'
+    const location = row.location_ref ?? '—'
+    const stock = row.stock ?? 0
+    return {
+      value: row.id,
+      label: `${product?.code ?? ''} ${product?.name ?? ''}`.trim() || `Item #${row.id}`,
+      sublabel: `batch ${batchCode} · ${owner}/${stage}/${location} · stok ${stock}`,
+    }
+  })
+
+  const createMutation = useMutation({
+    mutationFn: (payload: {
+      branch_id: number
+      product_uom_batch_id: number
+      qty: number
+      from: { owner_ref: string; stage: string; location_ref: string }
+      to: { owner_ref: string; stage: string; location_ref: string }
+      description?: string
+    }) => dimensionTransfersService.create(payload),
+    onSuccess: () => {
+      toast.success('Stok dipindahkan')
+      reset({
+        source_inventory_id: 0,
+        qty: 1,
+        to_owner_ref: '',
+        to_stage: '',
+        to_location_ref: '',
+        description: '',
+      })
+      queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
+      queryClient.invalidateQueries({ queryKey: ['dimension-transfer-source-inventory'] })
+    },
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message ?? 'Gagal memindahkan stok'),
+  })
+
+  const onSubmit = (values: FormValues) => {
+    const row = inventoryRows.find((r) => r.id === Number(values.source_inventory_id))
+    if (!row) {
+      toast.error('Pilih item sumber yang valid')
+      return
+    }
+
+    const batchId = row.product_uom_batch_id ?? row.product_uom_batch?.id
+    if (!batchId) {
+      toast.error('Item sumber tidak memiliki batch')
+      return
+    }
+
+    const stock = Number(row.stock ?? 0)
+    if (Number(values.qty) > stock) {
+      toast.error(`Qty melebihi stok tersedia (${stock})`)
+      return
+    }
+
+    const fromOwner = row.owner_ref ?? ''
+    const fromStage = row.stage ?? ''
+    const fromLocation = row.location_ref ?? ''
+    const noOp =
+      values.to_owner_ref === fromOwner &&
+      values.to_stage === fromStage &&
+      values.to_location_ref === fromLocation
+    if (noOp) {
+      toast.error('Dimensi tujuan harus berbeda dari sumber')
+      return
+    }
+
+    if (!branchId) {
+      toast.error('Tidak ada cabang aktif')
+      return
+    }
+
+    createMutation.mutate({
+      branch_id: branchId,
+      product_uom_batch_id: batchId,
+      qty: values.qty,
+      from: { owner_ref: fromOwner, stage: fromStage, location_ref: fromLocation },
+      to: {
+        owner_ref: values.to_owner_ref,
+        stage: values.to_stage,
+        location_ref: values.to_location_ref,
+      },
+      description: values.description || undefined,
+    })
+  }
+
+  const onInvalid = (errs: any) => {
+    const first = Object.values(errs)[0] as any
+    toast.error(first?.message ?? 'Mohon lengkapi field yang wajib diisi')
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '8px 10px',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface)',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+    boxSizing: 'border-box',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--foreground)',
+    marginBottom: 4,
+    display: 'block',
+  }
+
+  const errorStyle: React.CSSProperties = {
+    fontSize: 11,
+    color: 'var(--destructive)',
+    marginTop: 4,
+  }
+
+  return (
+    <div style={{ padding: '32px 32px 64px', maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 26,
+            fontWeight: 500,
+            color: 'var(--foreground)',
+            margin: 0,
+          }}
+        >
+          Dimension Transfer
+        </h1>
+        <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+          Pindahkan stok antar owner/stage/lokasi untuk item yang sama
+        </p>
+      </div>
+
+      <div
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 24,
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        <form
+          onSubmit={handleSubmit(onSubmit, onInvalid)}
+          style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+        >
+          <div>
+            <label style={labelStyle}>
+              Item Sumber <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <Controller
+              name="source_inventory_id"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ?? 0}
+                  onChange={(val) => {
+                    field.onChange(val)
+                    const row = inventoryRows.find((r) => r.id === Number(val))
+                    if (row) {
+                      setValue('to_owner_ref', row.owner_ref ?? '')
+                      setValue('to_stage', row.stage ?? '')
+                      setValue('to_location_ref', row.location_ref ?? '')
+                    }
+                  }}
+                  options={sourceOptions}
+                  placeholder="Pilih item, batch, dan dimensi sumber..."
+                  searchPlaceholder="Cari produk atau batch..."
+                  loading={inventoryLoading}
+                  error={errors.source_inventory_id?.message as string | undefined}
+                />
+              )}
+            />
+            {selectedRow && (
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                Dari: {selectedRow.owner_ref ?? '—'}/{selectedRow.stage ?? '—'}/{selectedRow.location_ref ?? '—'},
+                {' '}stok {selectedRow.stock ?? 0}
+              </span>
+            )}
+          </div>
+
+          <div>
+            <label style={labelStyle}>
+              Qty <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              {...register('qty', { valueAsNumber: true })}
+              style={{
+                ...inputStyle,
+                ...(errors.qty ? { border: '1px solid var(--destructive)' } : {}),
+              }}
+            />
+            {selectedRow && (
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                Tersedia: {selectedRow.stock ?? 0}
+              </span>
+            )}
+            {errors.qty && <span style={errorStyle}>{errors.qty.message}</span>}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div>
+              <label style={labelStyle}>
+                Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <input
+                {...register('to_owner_ref')}
+                style={{
+                  ...inputStyle,
+                  ...(errors.to_owner_ref ? { border: '1px solid var(--destructive)' } : {}),
+                }}
+              />
+              {errors.to_owner_ref && <span style={errorStyle}>{errors.to_owner_ref.message}</span>}
+            </div>
+            <div>
+              <label style={labelStyle}>
+                Stage Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <input
+                {...register('to_stage')}
+                style={{
+                  ...inputStyle,
+                  ...(errors.to_stage ? { border: '1px solid var(--destructive)' } : {}),
+                }}
+              />
+              {errors.to_stage && <span style={errorStyle}>{errors.to_stage.message}</span>}
+            </div>
+            <div>
+              <label style={labelStyle}>
+                Lokasi Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <input
+                {...register('to_location_ref')}
+                style={{
+                  ...inputStyle,
+                  ...(errors.to_location_ref ? { border: '1px solid var(--destructive)' } : {}),
+                }}
+              />
+              {errors.to_location_ref && <span style={errorStyle}>{errors.to_location_ref.message}</span>}
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Catatan</label>
+            <textarea
+              {...register('description')}
+              rows={2}
+              placeholder="Catatan opsional"
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 56 }}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button
+              type="submit"
+              disabled={createMutation.isPending}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: createMutation.isPending ? 0.7 : 1,
+              }}
+            >
+              {createMutation.isPending ? (
+                <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <ArrowRightLeft size={13} />
+              )}
+              Pindahkan
+            </button>
+          </div>
+        </form>
+
+        <style>{`
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    </div>
+  )
+}

@@ -109,6 +109,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.read' },
           { label: 'Invoices', href: '/transfer/invoices', permission: 'invoice.read' },
           { label: 'Stock Transfer', href: '/transfer/stock-transfer', permission: 'delivery.create' },
+          { label: 'Dimension Transfer', href: '/transfer/dimension-transfer', permission: 'stock-movement.create' },
         ],
       },
     ],
