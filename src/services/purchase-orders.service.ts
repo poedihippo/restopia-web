@@ -17,8 +17,8 @@ export const purchaseOrdersService = {
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/purchase-orders/${id}`),
 
-  accept: (id: number) =>
-    api.post<ApiResponse<unknown>>(`/purchase-orders/${id}/accept`),
+  accept: (id: number, data?: any) =>
+    api.post<ApiResponse<unknown>>(`/purchase-orders/${id}/accept`, data),
 
   reject: (id: number) =>
     api.post<ApiResponse<unknown>>(`/purchase-orders/${id}/reject`),

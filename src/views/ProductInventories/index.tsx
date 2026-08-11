@@ -60,7 +60,7 @@ interface ProductInventory {
   branch?: { id: number; name: string; code?: string }
 }
 
-export default function ProductInventoriesView() {
+export default function ProductInventoriesView({ defaultType }: { defaultType?: string }) {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canRead = hasPermission("product-inventory.read");
@@ -75,7 +75,12 @@ export default function ProductInventoriesView() {
   const [stockLte, setStockLte] = useState<string>('')
   const [expiryDateGte, setExpiryDateGte] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
-  const [typeFilter, setTypeFilter] = useState<string | ''>('')
+  const [typeFilter, setTypeFilter] = useState<string | ''>(defaultType ?? '')
+  useEffect(() => {
+    if (defaultType !== undefined) {
+      setTypeFilter(defaultType)
+    }
+  }, [defaultType])
   const [debouncedStockGte, setDebouncedStockGte] = useState<string>('')
   const [debouncedStockLte, setDebouncedStockLte] = useState<string>('')
   const [debouncedExpiryDateGte, setDebouncedExpiryDateGte] = useState<string>('')
@@ -209,7 +214,11 @@ export default function ProductInventoriesView() {
               color: 'var(--foreground)',
             }}
           >
-            Product Inventory
+            {defaultType === 'raw' ? 'Raw Material Inventory' :
+             defaultType === 'wip' ? 'Unfinish Inventory' :
+             defaultType === 'final' ? 'Finish Good Inventory' :
+             defaultType === 'supply' ? 'Supplies Inventory' :
+             'Product Inventory'}
           </h1>
           <p
             style={{
@@ -370,30 +379,33 @@ export default function ProductInventoriesView() {
           ))}
         </select>
 
-        <select
-          value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value)
-            setPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface)',
-            outline: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-            maxWidth: 160,
-          }}
-        >
-          <option value="">All Types</option>
-          <option value="raw">Raw</option>
-          <option value="wip">WIP</option>
-          <option value="final">Final</option>
-        </select>
+        {!defaultType && (
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value)
+              setPage(1)
+            }}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface)',
+              outline: 'none',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-sans)',
+              maxWidth: 160,
+            }}
+          >
+            <option value="">All Types</option>
+            <option value="raw">Raw</option>
+            <option value="wip">WIP</option>
+            <option value="final">Final</option>
+            <option value="supply">Supply</option>
+          </select>
+        )}
 
         {/* Hide empty batches toggle */}
         <button

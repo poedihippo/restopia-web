@@ -7,11 +7,10 @@ export interface InvoiceLineRequest {
   price?: number
 }
 
-export interface CreateInvoiceFromDeliveryRequest {
-  delivery_id: number
+export interface CreateInvoiceFromReceiptsRequest {
+  receipt_ids: number[]
   date?: string
   description?: string
-  lines?: InvoiceLineRequest[]
 }
 
 export const invoicesService = {
@@ -21,6 +20,6 @@ export const invoicesService = {
   get: (id: number, params?: { include?: string }) =>
     api.get<ApiResponse<unknown>>(`/invoices/${id}`, { params }),
 
-  createFromDelivery: (data: CreateInvoiceFromDeliveryRequest) =>
+  createFromReceipts: (data: CreateInvoiceFromReceiptsRequest) =>
     api.post<ApiResponse<unknown>>('/invoices', data),
 }

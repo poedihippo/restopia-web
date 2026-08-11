@@ -25,6 +25,7 @@ import {
   Check,
   X,
 } from 'lucide-react'
+import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
 
 interface PurchaseOrderDetailProps {
   id: number
@@ -108,6 +109,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const myBranchId = (user as any)?.branch?.id ?? (user as any)?.branch_id
   const canRead = hasPermission('purchase-order.read')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [acceptModalOpen, setAcceptModalOpen] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['purchase-order-detail', id],
@@ -125,21 +127,26 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const order = (data as any)?.data as PurchaseOrderFull | undefined
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: 'accept' | 'reject' }) =>
+    mutationFn: ({ id, action, details, total_price }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number }) =>
       action === 'accept'
-        ? purchaseOrdersService.accept(id)
+        ? purchaseOrdersService.accept(id, { details, total_price })
         : purchaseOrdersService.reject(id),
     onSuccess: (_res, vars) => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-order-detail', id] })
       toast.success(vars.action === 'accept' ? 'Order accepted' : 'Order rejected')
+      setAcceptModalOpen(false)
     },
     onError: (err: any) => toastMutationApiError(err, 'Action failed'),
   })
 
   const handleAction = (orderId: number, action: 'accept' | 'reject') => {
-    if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
-    actionMutation.mutate({ id: orderId, action })
+    if (action === 'accept') {
+      setAcceptModalOpen(true)
+    } else {
+      if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
+      actionMutation.mutate({ id: orderId, action })
+    }
   }
 
   const deleteMutation = useMutation({
@@ -335,7 +342,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
 
         {/* Right */}
         <div style={{ display: 'flex', gap: 8 }}>
-          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'pending' || order.status === 'rejected') && (
+          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
             <button
               type="button"
               disabled={actionMutation.isPending}
@@ -359,7 +366,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               Accept
             </button>
           )}
-          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'pending' || order.status === 'accepted') && (
+          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'accepted') && (
             <button
               type="button"
               disabled={actionMutation.isPending}
@@ -426,7 +433,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             Create Sales Order
           </button>
           
-          {order.type === 'branch' && (order.status === 'accepted' || order.status === 'final') && (
+          { (order.status === 'accepted' || order.status === 'final') && (
             <button
               type="button"
               onClick={() => router.push(`/transfer/deliveries/create?po_id=${id}`)}
@@ -975,6 +982,19 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
           </div>
         </div>
       )}
+
+      <AcceptPOModal
+        isOpen={acceptModalOpen}
+        onClose={() => setAcceptModalOpen(false)}
+        purchaseOrder={order}
+        isSubmitting={actionMutation.isPending}
+        onConfirm={(payload) => {
+          if (order) {
+            const total_price = payload.details.reduce((sum, d) => sum + d.qty * d.price, 0)
+            actionMutation.mutate({ id: order.id, action: 'accept', details: payload.details, total_price })
+          }
+        }}
+      />
 
       {/* 🖨️ Printable A4 Purchase Order (hidden on screen, shown only in print) */}
       <div className="po-print">

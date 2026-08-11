@@ -66,9 +66,10 @@ export default function InvoicesView() {
   const [page, setPage] = useState(1)
 
   const [createOpen, setCreateOpen] = useState(false)
-  const [deliverySearch, setDeliverySearch] = useState('')
-  const [debouncedDeliverySearch, setDebouncedDeliverySearch] = useState('')
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<number>(0)
+  const [receiptSearch, setReceiptSearch] = useState('')
+  const [debouncedReceiptSearch, setDebouncedReceiptSearch] = useState('')
+  const [selectedReceiptIds, setSelectedReceiptIds] = useState<number[]>([])
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null)
   const [invoiceDate, setInvoiceDate] = useState(todayInputDate())
   const [invoiceDescription, setInvoiceDescription] = useState('')
 
@@ -82,9 +83,9 @@ export default function InvoicesView() {
   }, [debouncedSearch])
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedDeliverySearch(deliverySearch), 400)
+    const t = setTimeout(() => setDebouncedReceiptSearch(receiptSearch), 400)
     return () => clearTimeout(t)
-  }, [deliverySearch])
+  }, [receiptSearch])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['invoices', page, debouncedSearch],
@@ -99,85 +100,73 @@ export default function InvoicesView() {
   const items: Invoice[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
-  // Deliveries eligible to be invoiced: only fetch while the modal is open,
-  // and only PO-sourced deliveries — the backend rejects delivery_id without a purchase_order_id.
-  const { data: deliveriesData, isLoading: deliveriesLoading } = useQuery({
-    queryKey: ['invoiceable-deliveries', debouncedDeliverySearch],
+  // Receipts eligible to be invoiced: only fetch while the modal is open
+  const { data: receiptsData, isLoading: receiptsLoading } = useQuery({
+    queryKey: ['invoiceable-receipts', debouncedReceiptSearch],
     enabled: createOpen,
     queryFn: () => {
       const params: any = {
         per_page: 50,
         sort: '-created_at',
-        include: 'target_branch',
-        'filter[invoiceable]': 'true',
+        include: 'delivery,target_branch,receipt_details',
+        'filter[invoiceable]': true,
       }
-      if (debouncedDeliverySearch && debouncedDeliverySearch.trim()) {
-        params['filter[search]'] = debouncedDeliverySearch.trim()
+      if (debouncedReceiptSearch && debouncedReceiptSearch.trim()) {
+        params['filter[search]'] = debouncedReceiptSearch.trim()
       }
-      return deliveriesService.list(params).then((r) => r.data)
+      return receiptsService.list(params).then((r) => r.data)
     },
   })
-  const allDeliveries: any[] = (deliveriesData as any)?.data ?? []
-  const invoiceableDeliveries = allDeliveries.filter((d) => d.purchase_order_id != null)
+  const allReceipts: any[] = (receiptsData as any)?.data ?? []
 
-  // Preview: delivered vs received qty per line for the selected delivery,
-  // so the user sees what will actually be billed (received) before creating.
-  const { data: selectedDeliveryData, isLoading: selectedDeliveryLoading } = useQuery({
-    queryKey: ['invoice-preview-delivery', selectedDeliveryId],
-    enabled: createOpen && selectedDeliveryId > 0,
-    queryFn: () =>
-      deliveriesService
-        .findById(selectedDeliveryId, { include: 'delivery_details,delivery_details.product_uom' })
-        .then((r) => r.data),
-  })
-  const selectedDelivery = (selectedDeliveryData as any)?.data
-  const selectedDeliveryLines: any[] = selectedDelivery?.delivery_details ?? []
+  const groupedReceipts = React.useMemo(() => {
+    const groups: Record<number, any[]> = {}
+    allReceipts.forEach((r) => {
+      const bid = r.target_branch_id
+      if (!groups[bid]) groups[bid] = []
+      groups[bid].push(r)
+    })
+    return groups
+  }, [allReceipts])
 
-  // Received qty isn't always on the delivery_detail itself — fall back to
-  // summing the delivery's final receipt(s) receipt_details by delivery_detail_id.
-  const { data: deliveryReceiptsData, isLoading: deliveryReceiptsLoading } = useQuery({
-    queryKey: ['invoice-preview-receipts', selectedDeliveryId],
-    enabled: createOpen && selectedDeliveryId > 0,
-    queryFn: () =>
-      receiptsService
-        .list({
-          'filter[delivery_id]': selectedDeliveryId,
-          'filter[status]': 'final',
-          include: 'receipt_details',
-          per_page: 50,
-        } as any)
-        .then((r) => r.data),
-  })
-  const deliveryReceipts: any[] = (deliveryReceiptsData as any)?.data ?? []
-  const receivedByDeliveryDetailId = deliveryReceipts.reduce((map: Record<number, number>, receipt: any) => {
-    for (const rd of receipt.receipt_details ?? []) {
-      const key = rd.delivery_detail_id
-      if (key == null) continue
-      map[key] = (map[key] ?? 0) + Number(rd.qty ?? 0)
-    }
-    return map
-  }, {})
+  // Preview: aggregate receipt_details from selected receipts
+  const previewLoading = false
+  const previewLines = React.useMemo(() => {
+    if (selectedReceiptIds.length === 0) return []
+    const selected = allReceipts.filter((r) => selectedReceiptIds.includes(r.id))
+    const aggregated: Record<number, any> = {}
 
-  const previewLoading = selectedDeliveryLoading || deliveryReceiptsLoading
-  const previewLines = selectedDeliveryLines.map((d: any) => ({
-    id: d.id,
-    productLabel: d.product_uom?.product?.name ?? d.product_uom?.code ?? `Item #${d.product_uom_id}`,
-    uom: d.product_uom?.uom?.name ?? d.product_uom?.uom?.code ?? '—',
-    delivered: Number(d.qty ?? 0),
-    received: Number(d.received_qty ?? receivedByDeliveryDetailId[d.id] ?? 0),
-  }))
+    selected.forEach((receipt) => {
+      receipt.receipt_details?.forEach((rd: any) => {
+        const uomId = rd.product_uom_id
+        if (!uomId) return
+        if (!aggregated[uomId]) {
+          aggregated[uomId] = {
+            id: rd.id,
+            productLabel: rd.product_uom?.product?.name ?? rd.product_uom?.code ?? `Item #${uomId}`,
+            uom: rd.product_uom?.uom?.name ?? rd.product_uom?.uom?.code ?? '—',
+            received: 0,
+          }
+        }
+        aggregated[uomId].received += Number(rd.qty ?? 0)
+      })
+    })
+
+    return Object.values(aggregated)
+  }, [selectedReceiptIds, allReceipts])
 
   const resetCreateForm = () => {
-    setSelectedDeliveryId(0)
+    setSelectedReceiptIds([])
+    setSelectedBranchId(null)
     setInvoiceDate(todayInputDate())
     setInvoiceDescription('')
-    setDeliverySearch('')
+    setReceiptSearch('')
   }
 
   const createMutation = useMutation({
     mutationFn: () =>
-      invoicesService.createFromDelivery({
-        delivery_id: selectedDeliveryId,
+      invoicesService.createFromReceipts({
+        receipt_ids: selectedReceiptIds,
         date: invoiceDate || undefined,
         description: invoiceDescription.trim() || undefined,
       }),
@@ -602,13 +591,13 @@ export default function InvoicesView() {
               </button>
             </div>
             <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '0 0 16px' }}>
-              Select a delivery to invoice. Only PO-sourced deliveries are eligible — the delivery's lines are snapshotted as-is.
+              Select receipts to invoice.
             </p>
 
-            {/* Delivery picker */}
+            {/* Receipt picker */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: 6 }}>
-                Delivery
+                Receipts
               </label>
               <div style={{ position: 'relative', marginBottom: 8 }}>
                 <Search
@@ -616,9 +605,9 @@ export default function InvoicesView() {
                   style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }}
                 />
                 <input
-                  value={deliverySearch}
-                  onChange={(e) => setDeliverySearch(e.target.value)}
-                  placeholder="Search deliveries by code..."
+                  value={receiptSearch}
+                  onChange={(e) => setReceiptSearch(e.target.value)}
+                  placeholder="Search receipts or deliveries..."
                   style={{
                     ...inputBase,
                     width: '100%',
@@ -637,53 +626,108 @@ export default function InvoicesView() {
                   overflowY: 'auto',
                 }}
               >
-                {deliveriesLoading ? (
+                {receiptsLoading ? (
                   <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    Loading deliveries...
+                    Loading receipts...
                   </div>
-                ) : invoiceableDeliveries.length === 0 ? (
+                ) : allReceipts.length === 0 ? (
                   <div style={{ padding: 20, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    No PO-sourced deliveries found
+                    No invoiceable receipts found
                   </div>
                 ) : (
-                  invoiceableDeliveries.map((d: any) => {
-                    const isSelected = selectedDeliveryId === d.id
+                  Object.entries(groupedReceipts).map(([branchIdStr, receipts]) => {
+                    const branchId = Number(branchIdStr)
+                    const branchName = receipts[0]?.target_branch?.name ?? 'Unknown Branch'
+                    const disabledGroup = selectedBranchId !== null && selectedBranchId !== branchId
+
                     return (
-                      <div
-                        key={d.id}
-                        onClick={() => setSelectedDeliveryId(d.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          padding: '10px 12px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)',
-                          background: isSelected ? 'var(--accent-light-bg)' : 'transparent',
-                        }}
-                      >
-                        <Truck size={14} color={isSelected ? 'var(--accent)' : 'var(--foreground-subtle)'} style={{ flexShrink: 0 }} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--accent)' : 'var(--foreground)' }}>
-                              {d.code}
-                            </span>
-                            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                              {d.target_branch?.name ?? '—'}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 2 }}>
-                            {d.date ? formatDate(d.date) : '—'}
-                            {' · '}
-                            {getCanReadPrice() ? `Rp ${Number(d.total_price ?? 0).toLocaleString('id-ID')}` : '***'}
-                          </div>
+                      <div key={branchId} style={{ marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--background)', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+                          <span>{branchName} ({receipts.length} receipts)</span>
+                          <button
+                            type="button"
+                            disabled={disabledGroup}
+                            onClick={() => {
+                              if (disabledGroup) return
+                              const allIds = receipts.map((r: any) => r.id)
+                              const allSelected = allIds.every((id: number) => selectedReceiptIds.includes(id))
+                              if (allSelected) {
+                                // deselect all in this group
+                                const next = selectedReceiptIds.filter((id) => !allIds.includes(id))
+                                setSelectedReceiptIds(next)
+                                if (next.length === 0) setSelectedBranchId(null)
+                              } else {
+                                // select all in this group
+                                const next = Array.from(new Set([...selectedReceiptIds, ...allIds]))
+                                setSelectedReceiptIds(next)
+                                setSelectedBranchId(branchId)
+                              }
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: disabledGroup ? 'var(--foreground-subtle)' : 'var(--accent)',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: disabledGroup ? 'not-allowed' : 'pointer',
+                              padding: 0
+                            }}
+                          >
+                            {receipts.every((r: any) => selectedReceiptIds.includes(r.id)) ? 'Deselect All' : 'Select All'}
+                          </button>
                         </div>
-                        <input
-                          type="radio"
-                          readOnly
-                          checked={isSelected}
-                          style={{ cursor: 'pointer', flexShrink: 0 }}
-                        />
+                        {receipts.map((d: any) => {
+                          const isSelected = selectedReceiptIds.includes(d.id)
+                          return (
+                            <div
+                              key={d.id}
+                              onClick={() => {
+                                if (disabledGroup && !isSelected) return
+                                setSelectedReceiptIds((prev) => {
+                                  if (prev.includes(d.id)) {
+                                    const next = prev.filter((id) => id !== d.id)
+                                    if (next.length === 0) setSelectedBranchId(null)
+                                    return next
+                                  } else {
+                                    if (prev.length === 0) setSelectedBranchId(d.target_branch_id)
+                                    return [...prev, d.id]
+                                  }
+                                })
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '10px 12px',
+                                cursor: disabledGroup && !isSelected ? 'not-allowed' : 'pointer',
+                                borderBottom: '1px solid var(--border)',
+                                background: isSelected ? 'var(--accent-light-bg)' : 'transparent',
+                                opacity: disabledGroup && !isSelected ? 0.5 : 1,
+                              }}
+                            >
+                              <Truck size={14} color={isSelected ? 'var(--accent)' : 'var(--foreground-subtle)'} style={{ flexShrink: 0 }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 600, color: isSelected ? 'var(--accent)' : 'var(--foreground)' }}>
+                                    {d.delivery?.code ?? d.code}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 2 }}>
+                                  {d.date ? formatDate(d.date) : '—'}
+                                  {' · '}
+                                  {getCanReadPrice() ? `Rp ${Number(d.total_price ?? 0).toLocaleString('id-ID')}` : '***'}
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                readOnly
+                                checked={isSelected}
+                                disabled={disabledGroup && !isSelected}
+                                style={{ cursor: disabledGroup && !isSelected ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+                              />
+                            </div>
+                          )
+                        })}
                       </div>
                     )
                   })
@@ -691,81 +735,7 @@ export default function InvoicesView() {
               </div>
             </div>
 
-            {/* Preview: delivered vs received qty per line for the selected delivery */}
-            {selectedDeliveryId > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'block', marginBottom: 6 }}>
-                  Preview Tagihan (yang akan ditagih: Diterima)
-                </label>
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  {previewLoading ? (
-                    <div style={{ padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      Memuat detail pengiriman...
-                    </div>
-                  ) : previewLines.length === 0 ? (
-                    <div style={{ padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      Tidak ada baris pada pengiriman ini
-                    </div>
-                  ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: 'var(--background)' }}>
-                          <th style={{ ...thStyle, fontSize: 11 }}>Produk</th>
-                          <th style={{ ...thStyle, fontSize: 11, width: 90, textAlign: 'right' }}>Dikirim</th>
-                          <th style={{ ...thStyle, fontSize: 11, width: 90, textAlign: 'right' }}>Diterima</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewLines.map((line) => {
-                          const notReceived = line.received === 0
-                          return (
-                            <tr key={line.id} style={{ opacity: notReceived ? 0.5 : 1 }}>
-                              <td style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--foreground)' }}>
-                                {line.productLabel}
-                                <span style={{ color: 'var(--foreground-subtle)' }}> ({line.uom})</span>
-                                {notReceived && (
-                                  <span
-                                    style={{
-                                      marginLeft: 6,
-                                      fontSize: 10,
-                                      fontWeight: 600,
-                                      color: 'var(--warning)',
-                                      background: 'var(--warning-bg)',
-                                      padding: '1px 6px',
-                                      borderRadius: 'var(--radius-sm)',
-                                    }}
-                                  >
-                                    belum diterima
-                                  </span>
-                                )}
-                              </td>
-                              <td style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, textAlign: 'right', color: 'var(--foreground-muted)' }}>
-                                {line.delivered.toLocaleString('id-ID')}
-                              </td>
-                              <td
-                                style={{
-                                  padding: '8px 16px',
-                                  borderBottom: '1px solid var(--border)',
-                                  fontSize: 12,
-                                  textAlign: 'right',
-                                  fontWeight: 600,
-                                  color: notReceived ? 'var(--foreground-muted)' : 'var(--success)',
-                                }}
-                              >
-                                {line.received.toLocaleString('id-ID')}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-                <p style={{ fontSize: 11, color: 'var(--foreground-subtle)', margin: '6px 0 0' }}>
-                  Baris dengan qty diterima 0 tidak akan ditagih.
-                </p>
-              </div>
-            )}
+            {/* Preview hidden as requested */}
 
             {/* Optional date + description */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -794,48 +764,53 @@ export default function InvoicesView() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setCreateOpen(false)
-                  resetCreateForm()
-                }}
-                style={{
-                  padding: '8px 16px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => createMutation.mutate()}
-                disabled={!selectedDeliveryId || createMutation.isPending}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 16px',
-                  background: 'var(--accent)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: !selectedDeliveryId || createMutation.isPending ? 'not-allowed' : 'pointer',
-                  opacity: !selectedDeliveryId || createMutation.isPending ? 0.6 : 1,
-                }}
-              >
-                {createMutation.isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
-                Create Invoice
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
+                Total: {getCanReadPrice() ? `Rp ${allReceipts.filter((r) => selectedReceiptIds.includes(r.id)).reduce((sum, r) => sum + Number(r.total_price || 0), 0).toLocaleString('id-ID')}` : '***'}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreateOpen(false)
+                    resetCreateForm()
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => createMutation.mutate()}
+                  disabled={selectedReceiptIds.length === 0 || createMutation.isPending}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 16px',
+                    background: 'var(--accent)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'white',
+                    cursor: selectedReceiptIds.length === 0 || createMutation.isPending ? 'not-allowed' : 'pointer',
+                    opacity: selectedReceiptIds.length === 0 || createMutation.isPending ? 0.6 : 1,
+                  }}
+                >
+                  {createMutation.isPending && <Loader2 size={13} className="animate-spin" />}
+                  Create Invoice
+                </button>
+              </div>
             </div>
           </div>
         </div>

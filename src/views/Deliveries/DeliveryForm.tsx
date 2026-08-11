@@ -322,7 +322,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       purchase_order_detail_id: d.id,
       sales_order_detail_id: undefined,
       qty: d.qty ?? 1,
-      price: d.price ?? 0,
+      price: d.product_uom?.franchise_price ?? d.price ?? 0,
       status: 'packed' as const,
       description: d.description ?? '',
     }))

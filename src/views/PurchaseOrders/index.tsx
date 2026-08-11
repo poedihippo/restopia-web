@@ -586,7 +586,7 @@ export default function PurchaseOrdersView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {item.type === 'branch' && (item.status === 'accepted' || item.status === 'final') && (
+                        {(item.status === 'accepted' || item.status === 'final') && (
                           <button
                             onClick={() =>
                               router.push(`/transfer/deliveries/create?po_id=${item.id}`)

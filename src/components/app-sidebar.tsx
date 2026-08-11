@@ -71,7 +71,7 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       {
-        label: 'Inventory',
+        label: 'Product Management',
         icon: Boxes,
         children: [
           { label: 'Products', href: '/products', permission: 'product.read' },
@@ -81,7 +81,10 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'Product UOMs', href: '/products/product-uoms', permission: 'product-uom.read' },
           { label: 'Product UOM Batches', href: '/products/product-uom-batches', permission: 'product-uom-batch.read' },
           { label: 'Product Conversions', href: '/products/product-conversions', permission: 'product-conversion.read' },
-          { label: 'Product Inventory', href: '/products/product-inventory', permission: 'product-inventory.read' },
+          { label: 'Raw Material', href: '/products/product-inventory?type=raw', permission: 'product-inventory.read' },
+          { label: 'Unfinish', href: '/products/product-inventory?type=wip', permission: 'product-inventory.read' },
+          { label: 'Finish Good', href: '/products/product-inventory?type=final', permission: 'product-inventory.read' },
+          { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: 'product-inventory.read' },
           { label: 'Price Lists', href: '/products/price-lists', permission: 'price-list.read' },
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.read' },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.read' },
@@ -98,7 +101,7 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.read' },
           { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.read' },
-          { label: 'Requested PO', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
+          { label: 'Incoming PO Request', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
           { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.read' },
           { label: 'Payment PO', href: '/purchase/po-payments', permission: 'payment.create' },
         ],
@@ -109,7 +112,6 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Deliveries', href: '/transfer/deliveries', permission: 'delivery.read' },
           { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.read' },
-          { label: 'Invoices', href: '/transfer/invoices', permission: 'invoice.read' },
           { label: 'Stock Transfer', href: '/transfer/stock-transfer', permission: 'delivery.create' },
           { label: 'Dimension Transfer', href: '/transfer/dimension-transfer', permission: 'stock-movement.create' },
         ],
@@ -131,6 +133,18 @@ const NAV_GROUPS: NavGroup[] = [
         ],
       },
       { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.read' },
+    ],
+  },
+  {
+    title: 'BILLING & INVOICING',
+    items: [
+      {
+        label: 'Invoicing',
+        icon: ReceiptText,
+        children: [
+          { label: 'Invoices', href: '/transfer/invoices', permission: 'invoice.read' },
+        ],
+      },
     ],
   },
   {

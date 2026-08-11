@@ -14,7 +14,7 @@ interface AllocateModalProps {
 
 export default function AllocateModal({ payment, onClose }: AllocateModalProps) {
   const qc = useQueryClient()
-  const [orderType, setOrderType] = useState<'so' | 'po'>('so')
+  const [orderType, setOrderType] = useState<'so' | 'po' | 'invoice'>('so')
   const [orderId, setOrderId] = useState('')
   const [amount, setAmount] = useState(payment.amount.toString())
 
@@ -26,6 +26,7 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
             amount: parseFloat(amount),
             sales_order_id: orderType === 'so' ? parseInt(orderId) : undefined,
             purchase_order_id: orderType === 'po' ? parseInt(orderId) : undefined,
+            invoice_id: orderType === 'invoice' ? parseInt(orderId) : undefined,
           }
         ]
       }
@@ -62,11 +63,12 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Order Type</label>
             <select
               value={orderType}
-              onChange={(e) => setOrderType(e.target.value as 'so' | 'po')}
+              onChange={(e) => setOrderType(e.target.value as 'so' | 'po' | 'invoice')}
               style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', fontSize: 14 }}
             >
               <option value="so">Sales Order</option>
               <option value="po">Purchase Order</option>
+              <option value="invoice">Invoice</option>
             </select>
           </div>
 

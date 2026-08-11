@@ -21,6 +21,7 @@ import {
   Check,
   X,
 } from 'lucide-react'
+import AcceptPOModal, { AcceptPODetailPayload } from './AcceptPOModal'
 
 interface RequestedPO {
   id: number
@@ -96,6 +97,7 @@ export default function RequestedOrdersView() {
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'delivered' | 'rejected' | 'partially_delivered'>('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [acceptModalPO, setAcceptModalPO] = useState<RequestedPO | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -130,22 +132,27 @@ export default function RequestedOrdersView() {
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: 'accept' | 'reject' }) =>
+    mutationFn: ({ id, action, details, total_price }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number }) =>
       action === 'accept'
-        ? purchaseOrdersService.accept(id)
+        ? purchaseOrdersService.accept(id, { details, total_price })
         : purchaseOrdersService.reject(id),
     onSuccess: (_res, vars) => {
       // Refresh the supplier's incoming list AND the requester's PO list.
       queryClient.invalidateQueries({ queryKey: ['requested-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       toast.success(vars.action === 'accept' ? 'Order accepted' : 'Order rejected')
+      setAcceptModalPO(null)
     },
     onError: (err: any) => toastMutationApiError(err, 'Action failed'),
   })
 
-  const handleAction = (id: number, action: 'accept' | 'reject') => {
-    if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
-    actionMutation.mutate({ id, action })
+  const handleAction = (item: RequestedPO, action: 'accept' | 'reject') => {
+    if (action === 'accept') {
+      setAcceptModalPO(item)
+    } else {
+      if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
+      actionMutation.mutate({ id: item.id, action })
+    }
   }
 
   const inputBase: React.CSSProperties = {
@@ -473,11 +480,11 @@ export default function RequestedOrdersView() {
                       <Eye size={12} />
                       View
                     </button>
-                    {(item.status === 'pending' || item.status === 'rejected') && (
+                    {(item.status === 'final' || item.status === 'rejected') && (
                       <button
                         type="button"
                         disabled={actionMutation.isPending}
-                        onClick={() => handleAction(item.id, 'accept')}
+                        onClick={() => handleAction(item, 'accept')}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -497,11 +504,11 @@ export default function RequestedOrdersView() {
                         Accept
                       </button>
                     )}
-                    {(item.status === 'pending' || item.status === 'accepted') && (
+                    {(item.status === 'final' || item.status === 'accepted') && (
                       <button
                         type="button"
                         disabled={actionMutation.isPending}
-                        onClick={() => handleAction(item.id, 'reject')}
+                        onClick={() => handleAction(item, 'reject')}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -788,6 +795,18 @@ export default function RequestedOrdersView() {
           50% { opacity: 0.3; }
         }
       `}</style>
+      <AcceptPOModal
+        isOpen={!!acceptModalPO}
+        onClose={() => setAcceptModalPO(null)}
+        purchaseOrder={acceptModalPO}
+        isSubmitting={actionMutation.isPending}
+        onConfirm={(payload) => {
+          if (acceptModalPO) {
+            const total_price = payload.details.reduce((sum, d) => sum + d.qty * d.price, 0)
+            actionMutation.mutate({ id: acceptModalPO.id, action: 'accept', details: payload.details, total_price })
+          }
+        }}
+      />
     </div>
   )
 }
