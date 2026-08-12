@@ -254,11 +254,14 @@ export default function SearchableSelect({
                   <button
                     type="button"
                     key={option.value}
-                    onClick={() => {
+                    onMouseDown={(e) => {
+                      e.preventDefault()
                       onChange(option.value)
                       setOpen(false)
                       setSearch('')
+                      onSearchChange?.('')
                     }}
+                    onClick={(e) => e.preventDefault()}
                     style={{
                       width: '100%',
                       display: 'flex',

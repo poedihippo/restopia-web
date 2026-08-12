@@ -476,7 +476,6 @@ export default function ProductionForm({
   const [sharedSelectedProductId, setSharedSelectedProductId] = useState<number | null>(null)
   const [sharedSelectedProductName, setSharedSelectedProductName] = useState('')
   const [sharedShowUomPicker, setSharedShowUomPicker] = useState(false)
-  // label per detail index so re-renders show the selected value
   const [detailLabels, setDetailLabels] = useState<Record<number, string>>({})
 
   // ── Material two-step search ───────────────────────────────────────────────
@@ -558,30 +557,40 @@ export default function ProductionForm({
   // Finished-product picker options: every product-UOM whose parent product is
   // type=final — NOT filtered by branch inventory, so brand-new products this
   // branch has never produced can still be selected. /product-uoms has no
-  // documented type filter, so we query /products?filter[type]=final with the
-  // product_uoms relation included (same approach recipes use) and flatten.
-  const { data: finishedProductsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['production-finished-product-uoms', sharedProductSearchDebounced],
+  // Finished product search (Step 1)
+  const { data: prodItemData } = useQuery({
+    queryKey: ['prod-item-product-search', sharedProductSearchDebounced],
+    enabled: sharedProductSearchDebounced.length >= 2,
     queryFn: () =>
       api
-        .get('/product-uoms', {
+        .get('/products', {
           params: {
-            per_page: 100,
-            include: 'uom,product',
-            'filter[search]': sharedProductSearchDebounced || undefined,
+            per_page: 500,
+            'filter[type]': 'final',
+            'filter[search]': sharedProductSearchDebounced,
+            sort: 'name',
           },
         })
         .then((r) => r.data),
   })
-  const finishedProductUoms = unwrapList(finishedProductsData)
+  const prodItemProducts = unwrapList(prodItemData)
 
-  const productUomOptions = finishedProductUoms
-    .filter((pu: any) => pu.product?.type === 'final')
-    .map((pu: any) => ({
-      value: pu.id as number,
-      label: pu.product?.name ?? `Product UOM #${pu.id}`,
-      sublabel: pu.code ?? pu.uom?.name ?? undefined,
-    }))
+  // UOMs for selected finished product (Step 2)
+  const { data: prodItemUomData } = useQuery({
+    queryKey: ['prod-item-uoms', sharedSelectedProductId],
+    enabled: !!sharedSelectedProductId,
+    queryFn: () =>
+      api
+        .get('/product-uoms', {
+          params: {
+            per_page: 500,
+            include: 'uom',
+            'filter[product_id]': sharedSelectedProductId,
+          },
+        })
+        .then((r) => r.data),
+  })
+  const prodItemUoms = unwrapList(prodItemUomData)
 
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all', activeBranchId],
@@ -612,41 +621,6 @@ export default function ProductionForm({
     },
   })
   const inventories = (inventoriesData as any)?.data ?? []
-
-  // Finished product search
-  const { data: prodItemData } = useQuery({
-    queryKey: ['prod-item-product-search', sharedProductSearchDebounced],
-    enabled: sharedProductSearchDebounced.length >= 2,
-    queryFn: () =>
-      api
-        .get('/products', {
-          params: {
-            per_page: 500,
-            'filter[type]': 'final',
-            'filter[search]': sharedProductSearchDebounced,
-            sort: 'name',
-          },
-        })
-        .then((r) => r.data),
-  })
-  const prodItemProducts = unwrapList(prodItemData)
-
-  // UOMs for selected finished product
-  const { data: prodItemUomData } = useQuery({
-    queryKey: ['prod-item-uoms', sharedSelectedProductId],
-    enabled: !!sharedSelectedProductId,
-    queryFn: () =>
-      api
-        .get('/product-uoms', {
-          params: {
-            per_page: 500,
-            include: 'uom',
-            'filter[product_id]': sharedSelectedProductId,
-          },
-        })
-        .then((r) => r.data),
-  })
-  const prodItemUoms = unwrapList(prodItemUomData)
 
   // Material product search
   const { data: prodMaterialData } = useQuery({
@@ -1193,25 +1167,189 @@ export default function ProductionForm({
                     <div
                       style={{ flex: 1 }}
                       onClick={(e) => e.stopPropagation()}
+                      data-prod-item-search
                     >
-                      <Controller
-                        name={`details.${detailIndex}.product_uom_id` as any}
-                        control={control}
-                        render={({ field }) => (
-                          <SearchableSelect
-                            value={(field.value as number) ?? 0}
-                            onChange={field.onChange}
-                            options={productUomOptions.filter((o: any) => {
-                              const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
-                              return !selectedIds.includes(o.value) || o.value === field.value
-                            })}
-                            placeholder="Search finished product..."
-                            searchPlaceholder="Search products..."
-                            loading={productUomsLoading}
-                            onSearchChange={(val) => setSharedProductSearch(val)}
-                          />
-                        )}
-                      />
+                      {(() => {
+                        const isActive = activeDetailIndex === detailIndex
+                        // Derive the label for the current detail if not searching
+                        let displayValue = detailLabels[detailIndex] ?? 'Select finished product...'
+                        const currentProductUomId = watchDetails[detailIndex]?.product_uom_id
+                        
+                        // If it's loaded from initial data but no local label is set yet, attempt to find a name from prodItemUoms if we have it, or leave as placeholder
+                        // Actually initialData mapping or form default doesn't have the label natively without joining. We can fetch it if needed, but for now we rely on user interaction or pre-filled labels if any.
+
+                        return (
+                          <div style={{ position: 'relative', width: '100%', zIndex: isActive ? 200 : 10 }}>
+                            <input
+                              type="text"
+                              value={isActive ? sharedProductSearch : displayValue}
+                              onChange={(e) => {
+                                setActiveDetailIndex(detailIndex)
+                                setSharedProductSearch(e.target.value)
+                                setSharedShowUomPicker(false)
+                                setSharedSelectedProductId(null)
+                              }}
+                              onFocus={() => {
+                                setActiveDetailIndex(detailIndex)
+                                if (!sharedShowUomPicker) {
+                                  setSharedSelectedProductId(null)
+                                }
+                              }}
+                              placeholder="Search finished product..."
+                              style={{
+                                width: '100%',
+                                height: 34,
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-md)',
+                                padding: '0 10px',
+                                fontSize: 13,
+                                color: 'var(--foreground)',
+                                background: 'var(--surface)',
+                                boxSizing: 'border-box',
+                                fontFamily: 'var(--font-sans)',
+                              }}
+                            />
+
+                            {/* Dropdown 1: Product list */}
+                            {isActive && sharedProductSearch.length >= 2 && !sharedShowUomPicker && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: 0,
+                                  width: '100%',
+                                  background: 'var(--surface)',
+                                  border: '1px solid var(--border)',
+                                  borderRadius: 'var(--radius-md)',
+                                  boxShadow: 'var(--shadow-lg)',
+                                  maxHeight: 220,
+                                  overflowY: 'auto',
+                                  zIndex: 300,
+                                }}
+                              >
+                                {prodItemProducts.length === 0 && (
+                                  <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                                    No products found
+                                  </div>
+                                )}
+                                {prodItemProducts.map((p: any) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      setSharedSelectedProductId(p.id)
+                                      setSharedSelectedProductName(p.name)
+                                      setSharedShowUomPicker(true)
+                                      setSharedProductSearch('')
+                                    }}
+                                    style={{
+                                      width: '100%',
+                                      textAlign: 'left',
+                                      padding: '9px 12px',
+                                      background: 'transparent',
+                                      border: 'none',
+                                      borderBottom: '1px solid var(--border)',
+                                      cursor: 'pointer',
+                                      fontSize: 13,
+                                      fontWeight: 500,
+                                      color: 'var(--foreground)'
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                  >
+                                    {p.name}
+                                    <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginLeft: 8 }}>
+                                      {p.code}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Dropdown 2: UOM list */}
+                            {isActive && sharedShowUomPicker && sharedSelectedProductId && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: '100%',
+                                  left: 0,
+                                  width: '100%',
+                                  background: 'var(--surface)',
+                                  border: '1px solid var(--accent-light)',
+                                  borderRadius: 'var(--radius-md)',
+                                  boxShadow: 'var(--shadow-lg)',
+                                  padding: 10,
+                                  zIndex: 300,
+                                }}
+                              >
+                                <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginBottom: 8 }}>
+                                  Select UOM for <strong>{sharedSelectedProductName}</strong>:
+                                </div>
+                                {prodItemUoms.length === 0 && (
+                                  <div style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                                    No UOM found for this product.
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                  {prodItemUoms.map((pu: any) => (
+                                    <button
+                                      key={pu.id}
+                                      type="button"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault()
+                                        setValue(`details.${detailIndex}.product_uom_id` as any, pu.id)
+                                        setDetailLabels((prev) => ({
+                                          ...prev,
+                                          [detailIndex]: `${sharedSelectedProductName} — ${pu.uom?.code ?? 'UOM'}`,
+                                        }))
+                                        setSharedShowUomPicker(false)
+                                        setSharedSelectedProductId(null)
+                                        setSharedSelectedProductName('')
+                                        setActiveDetailIndex(null)
+                                      }}
+                                      style={{
+                                        padding: '5px 10px',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        background: 'var(--surface)',
+                                        color: 'var(--foreground)',
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        cursor: 'pointer',
+                                      }}
+                                    >
+                                      {pu.uom?.code ?? 'UOM'}
+                                      <span style={{ color: 'var(--foreground-muted)', marginLeft: 6 }}>
+                                        {pu.code ?? ''}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSharedShowUomPicker(false)
+                                    setSharedSelectedProductId(null)
+                                    setSharedSelectedProductName('')
+                                  }}
+                                  style={{
+                                    marginTop: 8,
+                                    fontSize: 11,
+                                    color: 'var(--foreground-muted)',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  ← Back
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
 
                     {/* Qty */}
