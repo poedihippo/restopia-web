@@ -58,7 +58,7 @@ export default function ReceiptsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('final')
+  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -214,7 +214,7 @@ export default function ReceiptsView() {
             cursor: 'pointer',
           }}>
           <Plus size={15} />New Receipt
-                              </button>)}
+        </button>)}
       </div>
       {/* Toolbar */}
       <div
@@ -471,11 +471,8 @@ export default function ReceiptsView() {
                         {canEdit && (item.status === 'pending' ? (
                           <button
                             type="button"
-                            onClick={() =>
-                              toggleStatusMutation.mutate({ id: item.id, status: 'final' })
-                            }
-                            disabled={toggleStatusMutation.isPending}
-                            title="Finalize"
+                            onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
+                            title="Accept (Edit)"
                             style={{ ...actionBtnStyle, color: 'var(--success)' }}
                           >
                             <CheckCircle size={14} />
@@ -483,11 +480,8 @@ export default function ReceiptsView() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() =>
-                              toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
-                            }
-                            disabled={toggleStatusMutation.isPending}
-                            title="Revert to Pending"
+                            onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
+                            title="Revert to Pending (Edit)"
                             style={{ ...actionBtnStyle, color: 'var(--warning)' }}
                           >
                             <RotateCcw size={14} />
@@ -500,12 +494,6 @@ export default function ReceiptsView() {
                         >
                           <Eye size={14} />
                         </button>
-                        {canEdit && (<button
-                          onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
-                          style={actionBtnStyle}
-                          title="Edit">
-                          <Pencil size={14} />
-                        </button>)}
                         {canDelete && (<button
                           onClick={() => setDeleteConfirmId(item.id)}
                           style={{ ...actionBtnStyle, color: 'var(--destructive)' }}

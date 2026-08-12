@@ -24,6 +24,7 @@ const detailSchema = z.object({
 const schema = z.object({
   supplier_branch_id: z.coerce.number().min(1, 'Source branch is required'),
   date: z.string().min(1, 'Date is required'),
+  fulfillment_date: z.string().min(1, 'Fulfillment Date is required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
@@ -58,6 +59,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     defaultValues: {
       supplier_branch_id: 0,
       date: new Date().toISOString().split('T')[0],
+      fulfillment_date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
       details: [{ product_uom_id: 0, qty: 1, description: '' }],
@@ -112,7 +114,11 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
-      reset({ ...initialData })
+      reset({
+        ...initialData,
+        date: initialData.date?.split('T')[0],
+        fulfillment_date: initialData.fulfillment_date?.split('T')[0],
+      })
     }
   }, [initialData, mode])
 
@@ -121,6 +127,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
   const buildPayload = (values: FormValues) => ({
     ...values,
+    fulfillment_date: values.fulfillment_date ? new Date(values.fulfillment_date).toISOString().split('T')[0] : undefined,
     type: 'branch',
     supplier_branch_id: values.supplier_branch_id || undefined,
     details: values.details
@@ -333,6 +340,20 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                 style={errors.date ? inputErrorStyle : inputStyle}
               />
               {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
+            </div>
+
+            {/* Fulfillment Date */}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Fulfillment Date
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
+              <input
+                type="date"
+                {...register('fulfillment_date')}
+                style={errors.fulfillment_date ? inputErrorStyle : inputStyle}
+              />
+              {errors.fulfillment_date && <span style={errorStyle}>{errors.fulfillment_date.message}</span>}
             </div>
 
             {/* Source Branch (internal) — always shown; type is locked to branch. */}

@@ -47,7 +47,7 @@ const schema = z.object({
   supplier_id: z.coerce.number().optional(),
   supplier_branch_id: z.coerce.number().optional(),
   date: z.string().min(1, 'Date is required'),
-  fulfillment_date: z.string().optional(),
+  fulfillment_date: z.string().min(1, 'Fulfillment Date is required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
@@ -243,7 +243,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     if (initialData && mode === 'edit') {
       // branch_id (the old destination-branch field) is intentionally dropped
       // here so it never re-enters the form / payload.
-      reset({ ...initialData, branch_id: undefined })
+      reset({
+        ...initialData,
+        date: initialData.date?.split('T')[0],
+        fulfillment_date: initialData.fulfillment_date?.split('T')[0],
+        branch_id: undefined,
+      })
       if (initialData.type) {
         setValue('type', initialData.type)
       } else if (initialData.supplier_branch_id) {
@@ -256,6 +261,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   const buildPayload = (values: FormValues) => ({
     ...values,
+    fulfillment_date: values.fulfillment_date ? new Date(values.fulfillment_date).toISOString().split('T')[0] : undefined,
     total_price: totalPrice,
     type: values.type,
     supplier_id:

@@ -36,31 +36,39 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
       code: receipt.code,
       delivery_id: receipt.delivery?.id ?? receipt.delivery_id ?? 0,
       date: parseDate(receipt.date),
-      status: receipt.status ?? 'final',
+      status: receipt.status === 'pending' ? 'final' : (receipt.status ?? 'final'),
       description: receipt.description ?? '',
       total_price: receipt.total_price ?? 0,
       details: rawDetails.length
         ? rawDetails.map((d: any) => ({
+          id: d.id ?? undefined,
           delivery_detail_id: d.delivery_detail_id ?? undefined,
+          product_uom_batch_id: d.product_uom_batch_id ?? d.product_uom_batch?.id ?? undefined,
           product_uom_id:
             d.product_uom_id ?? d.product_uom?.id ?? 0,
-          planned_expiry_date: parseDate(d.planned_expiry_date)
+          planned_batch_code: d.planned_batch_code ?? d.product_uom_batch?.batch_code ?? d.product_uom_batch?.code ?? '',
+          planned_expiry_date: d.planned_expiry_date
             ? parseDate(d.planned_expiry_date.split('T')[0])
-            : '',
+            : d.product_uom_batch?.expiry_date
+              ? parseDate(d.product_uom_batch.expiry_date.split('T')[0])
+              : '',
           qty: d.qty ?? 1,
           price: d.price ?? 0,
-          status: d.status ?? 'pending',
+          status: d.status === 'pending' ? 'success' : (d.status ?? 'success'),
           description: d.description ?? '',
           client_ref: d.client_ref ?? '',
         }))
         : [
           {
+            id: undefined,
             delivery_detail_id: undefined,
+            product_uom_batch_id: undefined,
             product_uom_id: 0,
+            planned_batch_code: '',
             planned_expiry_date: '',
             qty: 1,
             price: 0,
-            status: 'pending',
+            status: 'success',
             description: '',
             client_ref: '',
           },

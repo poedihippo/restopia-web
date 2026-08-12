@@ -36,6 +36,7 @@ interface InternalOrderFull {
   supplier_branch?: { id: number; name: string; code?: string }
   created_by?: { id: number; name: string }
   updated_by?: { id: number; name: string }
+  fulfillment_date?: string
   purchase_order_details?: Array<{
     id: number
     qty: number
@@ -526,6 +527,48 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
           >
             {order.date
               ? formatDate(order.date)
+              : '—'}
+          </div>
+        </div>
+
+        {/* Fulfillment Date */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                background: 'var(--accent-light-bg)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
+            </div>
+            <span style={sectionLabelStyle}>Fulfillment Date</span>
+          </div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: 'var(--foreground)',
+              fontFamily: 'var(--font-display)',
+            }}
+          >
+            {order.fulfillment_date
+              ? formatDate(order.fulfillment_date)
               : '—'}
           </div>
         </div>

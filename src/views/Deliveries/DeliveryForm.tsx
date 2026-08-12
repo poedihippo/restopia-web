@@ -208,7 +208,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       })
       .map((inv: any) => ({
         batchId: inv.product_uom_batch.id as number,
-        code: inv.product_uom_batch.code as string | undefined,
+        code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
         expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
         stock: inv.stock ?? inv.qty ?? 0,
       }))
@@ -322,7 +322,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       purchase_order_detail_id: d.id,
       sales_order_detail_id: undefined,
       qty: d.qty ?? 1,
-      price: d.product_uom?.franchise_price ?? d.price ?? 0,
+      price: d.price ?? d.product_uom?.franchise_price ?? 0,
       status: 'packed' as const,
       description: d.description ?? '',
     }))

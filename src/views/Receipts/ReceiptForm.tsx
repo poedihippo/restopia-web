@@ -23,7 +23,9 @@ const formatNumber = (n: number | undefined): string => {
 }
 
 const detailSchema = z.object({
+  id: z.coerce.number().optional(),
   delivery_detail_id: z.coerce.number().optional(),
+  product_uom_batch_id: z.coerce.number().optional(),
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   planned_batch_code: z.string().optional(),
   planned_expiry_date: z.string().optional(),
@@ -77,7 +79,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       description: '',
       details: [
         {
+          id: undefined,
           delivery_detail_id: undefined,
+          product_uom_batch_id: undefined,
           product_uom_id: 0,
           planned_expiry_date: '',
           qty: 1,
@@ -182,8 +186,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
     const newDetails = deliveryDetail.delivery_details.map((d: any, index: number) => ({
       delivery_detail_id: d.id,
+      product_uom_batch_id: d.product_uom_batch_id ?? d.product_uom_batch?.id ?? undefined,
       product_uom_id: d.product_uom_id ?? 0,
-      planned_batch_code: d.planned_batch_code ?? d.product_uom_batch?.code ?? '',
+      planned_batch_code: d.planned_batch_code ?? d.product_uom_batch?.batch_code ?? d.product_uom_batch?.code ?? '',
       planned_expiry_date: '',
       qty: d.qty ?? 1,
       price: d.price ?? 0,
@@ -249,7 +254,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     details: values.details
       .filter((d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0)
       .map((d) => ({
+        id: d.id || undefined,
         delivery_detail_id: d.delivery_detail_id || undefined,
+        product_uom_batch_id: d.product_uom_batch_id || undefined,
         planned_batch_code: d.planned_batch_code || undefined,
         planned_expiry_date: d.planned_expiry_date || undefined,
         qty: d.qty,
@@ -488,6 +495,21 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
             </div>
 
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Status
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
+              <select
+                {...register('status')}
+                style={errors.status ? inputErrorStyle : inputStyle}
+              >
+                <option value="pending">Pending</option>
+                <option value="final">Final</option>
+              </select>
+              {errors.status && <span style={errorStyle}>{errors.status.message}</span>}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                 Linked Delivery
@@ -598,95 +620,95 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)' }}>
             <div style={{ minWidth: 900 }}>
               <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
-              gap: 10,
-              padding: '10px 20px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            {['Product / UOM', 'Batch', 'Qty', 'Price', 'Subtotal', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
-              <span
-                key={i}
                 style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
+                  display: 'grid',
+                  gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
+                  gap: 10,
+                  padding: '10px 20px',
+                  borderBottom: '1px solid var(--border)',
+                  background: 'var(--background)',
                 }}
               >
-                {h}
-              </span>
-            ))}
-          </div>
-
-          {fields.map((field, index) => (
-            <div
-              key={field.id}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
-                gap: 10,
-                padding: '12px 20px',
-                borderBottom: '1px solid var(--border)',
-                alignItems: 'start',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Controller
-                  name={`details.${index}.product_uom_id`}
-                  control={control}
-                  render={({ field: f }) => (
-                    <SearchableSelect
-                      value={f.value ?? 0}
-                      onChange={(val) => {
-                        f.onChange(val)
-                        const opt = productUomOptions.find((o: any) => o.value === val)
-                        if (opt && opt.base_price) setValue(`details.${index}.price`, opt.base_price)
-                      }}
-                      options={productUomOptions.filter((o: any) => {
-                        const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
-                        return !selectedIds.includes(o.value) || o.value === f.value
-                      })}
-                      placeholder="Select product..."
-                      searchPlaceholder="Search products..."
-                      loading={false}
-                      disabled={true}
-                      error={
-                        errors.details?.[index]?.product_uom_id?.message as
-                        | string
-                        | undefined
-                      }
-                    />
-                  )}
-                />
+                {['Product / UOM', 'Batch', 'Qty', 'Price', 'Subtotal', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    {h}
+                  </span>
+                ))}
               </div>
 
-              <input
-                type="text"
-                {...register(`details.${index}.planned_batch_code`)}
-                placeholder="Batch code..."
-                style={{
-                  ...lineInputStyle,
-                  background: 'var(--surface)', color: 'var(--foreground)'
-                }}
-              />
+              {fields.map((field, index) => (
+                <div
+                  key={field.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
+                    gap: 10,
+                    padding: '12px 20px',
+                    borderBottom: '1px solid var(--border)',
+                    alignItems: 'start',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <Controller
+                      name={`details.${index}.product_uom_id`}
+                      control={control}
+                      render={({ field: f }) => (
+                        <SearchableSelect
+                          value={f.value ?? 0}
+                          onChange={(val) => {
+                            f.onChange(val)
+                            const opt = productUomOptions.find((o: any) => o.value === val)
+                            if (opt && opt.base_price) setValue(`details.${index}.price`, opt.base_price)
+                          }}
+                          options={productUomOptions.filter((o: any) => {
+                            const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                            return !selectedIds.includes(o.value) || o.value === f.value
+                          })}
+                          placeholder="Select product..."
+                          searchPlaceholder="Search products..."
+                          loading={false}
+                          disabled={true}
+                          error={
+                            errors.details?.[index]?.product_uom_id?.message as
+                            | string
+                            | undefined
+                          }
+                        />
+                      )}
+                    />
+                  </div>
 
-              <input
-                type="number"
-                min={0.001}
-                step={0.001}
-                {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                disabled={true}
-                style={{
-                  ...lineInputStyle,
-                  background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)'
-                }}
-                onWheel={(e) => (e.target as HTMLElement).blur()}
-              />
+                  <input
+                    type="text"
+                    {...register(`details.${index}.planned_batch_code`)}
+                    placeholder="Batch code..."
+                    style={{
+                      ...lineInputStyle,
+                      background: 'var(--surface)', color: 'var(--foreground)'
+                    }}
+                  />
+
+                  <input
+                    type="number"
+                    min={0.001}
+                    step={0.001}
+                    {...register(`details.${index}.qty`, { valueAsNumber: true })}
+                    disabled={true}
+                    style={{
+                      ...lineInputStyle,
+                      background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)'
+                    }}
+                    onWheel={(e) => (e.target as HTMLElement).blur()}
+                  />
 
                   <input
                     type="text"
@@ -717,66 +739,65 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     }}
                   />
 
-              <Controller
-                name={`details.${index}.status`}
-                control={control}
-                render={({ field: f }) => (
-                  <select
-                    value={f.value}
-                    onChange={(e) => f.onChange(e.target.value)}
-                    style={{ ...lineInputStyle, cursor: 'pointer' }}
+                  <Controller
+                    name={`details.${index}.status`}
+                    control={control}
+                    render={({ field: f }) => (
+                      <select
+                        value={f.value}
+                        onChange={(e) => f.onChange(e.target.value)}
+                        style={{ ...lineInputStyle, cursor: 'pointer' }}
+                      >
+                        <option value="success">Success</option>
+                        <option value="pending">Pending</option>
+                        <option value="failed">Failed</option>
+                      </select>
+                    )}
+                  />
+
+                  <input
+                    type="date"
+                    {...register(`details.${index}.planned_expiry_date`)}
+                    style={{
+                      ...lineInputStyle,
+                      background: 'var(--surface)', color: 'var(--foreground)'
+                    }}
+                  />
+
+                  <input
+                    {...register(`details.${index}.description`)}
+                    placeholder="Note"
+                    disabled={mode === 'edit'}
+                    style={{
+                      ...lineInputStyle,
+                      ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
+                    }}
+                  />
+
+                  <input type="hidden" {...register(`details.${index}.client_ref`)} />
+
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    disabled={true}
+                    style={{
+                      padding: '6px 8px',
+                      background: 'var(--destructive-bg)',
+                      border: '1px solid var(--destructive)',
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'not-allowed',
+                      color: 'var(--destructive)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: 0.3,
+                    }}
                   >
-                    <option value="success">Success</option>
-                    <option value="pending">Pending</option>
-                    <option value="failed">Failed</option>
-                  </select>
-                )}
-              />
-
-              <input
-                type="date"
-                {...register(`details.${index}.planned_expiry_date`)}
-                disabled={mode === 'edit'}
-                style={{
-                  ...lineInputStyle,
-                  ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
-                }}
-              />
-
-              <input
-                {...register(`details.${index}.description`)}
-                placeholder="Note"
-                disabled={mode === 'edit'}
-                style={{
-                  ...lineInputStyle,
-                  ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
-                }}
-              />
-
-              <input type="hidden" {...register(`details.${index}.client_ref`)} />
-
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                disabled={true}
-                style={{
-                  padding: '6px 8px',
-                  background: 'var(--destructive-bg)',
-                  border: '1px solid var(--destructive)',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'not-allowed',
-                  color: 'var(--destructive)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: 0.3,
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-          </div>
           </div>
 
           {!isInternalReceipt && (
