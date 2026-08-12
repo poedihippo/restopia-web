@@ -52,6 +52,10 @@ interface ReceiptFull {
     product_uom_id?: number
     delivery_detail_id?: number
     delivery_detail?: { id: number; qty: number }
+    product_uom_batch?: {
+      batch_code?: string
+      expiry_date?: string
+    }
   }>
 }
 
@@ -517,7 +521,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                       color: 'var(--foreground-muted)',
                     }}
                   >
-                    {detail.planned_batch_code || '—'}
+                    {detail.product_uom_batch?.batch_code || detail.planned_batch_code || '—'}
                   </td>
                   <td
                     style={{
@@ -526,8 +530,8 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                       color: 'var(--foreground-muted)',
                     }}
                   >
-                    {detail.planned_expiry_date
-                      ? formatDate(detail.planned_expiry_date)
+                    {detail.product_uom_batch?.expiry_date || detail.planned_expiry_date
+                      ? formatDate(detail.product_uom_batch?.expiry_date || detail.planned_expiry_date!)
                       : '—'}
                   </td>
                   <td
