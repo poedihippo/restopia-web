@@ -13,6 +13,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { productUomsService } from '@/services/product-uoms.service'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { companiesService } from '@/services/companies.service'
 import {
   Plus,
   Trash2,
@@ -24,6 +25,8 @@ import {
   BookOpen,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+
+const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -46,6 +49,10 @@ const schema = z.object({
   date: z.string().min(1, 'Date is required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
+  source_owner_ref: z.string().min(1, 'Owner sumber wajib diisi'),
+  source_stage: z.string().min(1, 'Stage sumber wajib diisi'),
+  output_owner_ref: z.string().min(1, 'Owner output wajib diisi'),
+  output_stage: z.string().min(1, 'Stage output wajib diisi'),
   details: z.array(detailSchema).min(1),
 })
 
@@ -502,6 +509,10 @@ export default function ProductionForm({
       date: new Date().toISOString().split('T')[0],
       status: 'final',
       description: '',
+      source_owner_ref: 'GENERAL',
+      source_stage: 'GENERAL',
+      output_owner_ref: 'GENERAL',
+      output_stage: 'GENERAL',
       details: [
         {
           product_uom_id: 0,
@@ -553,6 +564,36 @@ export default function ProductionForm({
   }, [sharedShowUomPicker, sharedShowMaterialUomPicker])
 
   // Queries
+
+  // Dimension pickers: owner (company) + stage
+  const { data: companiesData, isLoading: companiesLoading } = useQuery({
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+  })
+  const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+  const companyOptions = [
+    GENERAL_OWNER_OPTION,
+    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ]
+
+  const { data: stagesData, isLoading: stagesLoading } = useQuery({
+    queryKey: ['stages-all'],
+    queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
+  })
+  const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
+  const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
+
+  // Default Output Ke stage to 'finished' once stages load, for a fresh create
+  // form only — never touches an in-progress edit or a value the user changed.
+  const didDefaultOutputStage = useRef(false)
+  useEffect(() => {
+    if (mode !== 'create' || didDefaultOutputStage.current || stages.length === 0) return
+    didDefaultOutputStage.current = true
+    const hasFinished = stages.some((s) => s.code === 'finished')
+    if (hasFinished) {
+      setValue('output_stage', 'finished')
+    }
+  }, [mode, stages, setValue])
 
   // Finished-product picker options: every product-UOM whose parent product is
   // type=final — NOT filtered by branch inventory, so brand-new products this
@@ -666,7 +707,13 @@ export default function ProductionForm({
   // Edit mode: prefill
   useEffect(() => {
     if (mode === 'edit' && initialData) {
-      reset(initialData)
+      reset({
+        source_owner_ref: 'GENERAL',
+        source_stage: 'GENERAL',
+        output_owner_ref: 'GENERAL',
+        output_stage: 'GENERAL',
+        ...initialData,
+      })
       const indices = (initialData.details ?? []).map((_: any, i: number) => i)
       setExpandedDetails(indices)
       // Seed labels from API response immediately (no need to wait for inventories)
@@ -841,6 +888,12 @@ export default function ProductionForm({
     date: values.date,
     status: values.status,
     description: values.description || undefined,
+    source_owner_ref: values.source_owner_ref,
+    source_stage: values.source_stage,
+    source_location_ref: 'GENERAL',
+    output_owner_ref: values.output_owner_ref,
+    output_stage: values.output_stage,
+    output_location_ref: 'GENERAL',
     details: (values.details ?? [])
       .map((d) => ({
         product_uom_id: d.product_uom_id,
@@ -1066,6 +1119,130 @@ export default function ProductionForm({
                   fontFamily: 'var(--font-sans)',
                 }}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 1b — Dimension Pickers */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'visible',
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
+          <div
+            style={{
+              padding: '14px 20px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--background)',
+            }}
+          >
+            <span style={sectionHeaderStyle}>Dimensi Produksi</span>
+          </div>
+
+          <div
+            style={{
+              padding: 20,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: 16,
+            }}
+          >
+            {/* Konsumsi Dari */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ ...sectionHeaderStyle, fontSize: 10 }}>Konsumsi Dari</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={labelStyle}>
+                    Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+                  </label>
+                  <Controller
+                    name="source_owner_ref"
+                    control={control}
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ?? 'GENERAL'}
+                        onChange={field.onChange}
+                        options={companyOptions}
+                        placeholder="Pilih owner..."
+                        searchPlaceholder="Cari perusahaan..."
+                        loading={companiesLoading}
+                        error={errors.source_owner_ref?.message as string | undefined}
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>
+                    Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+                  </label>
+                  <Controller
+                    name="source_stage"
+                    control={control}
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ?? 'GENERAL'}
+                        onChange={field.onChange}
+                        options={stageOptions}
+                        placeholder="Pilih stage..."
+                        searchPlaceholder="Cari stage..."
+                        loading={stagesLoading}
+                        error={errors.source_stage?.message as string | undefined}
+                      />
+                    )}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Output Ke */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ ...sectionHeaderStyle, fontSize: 10 }}>Output Ke</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={labelStyle}>
+                    Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+                  </label>
+                  <Controller
+                    name="output_owner_ref"
+                    control={control}
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ?? 'GENERAL'}
+                        onChange={field.onChange}
+                        options={companyOptions}
+                        placeholder="Pilih owner..."
+                        searchPlaceholder="Cari perusahaan..."
+                        loading={companiesLoading}
+                        error={errors.output_owner_ref?.message as string | undefined}
+                      />
+                    )}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>
+                    Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+                  </label>
+                  <Controller
+                    name="output_stage"
+                    control={control}
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ?? 'GENERAL'}
+                        onChange={field.onChange}
+                        options={stageOptions}
+                        placeholder="Pilih stage..."
+                        searchPlaceholder="Cari stage..."
+                        loading={stagesLoading}
+                        error={errors.output_stage?.message as string | undefined}
+                      />
+                    )}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
