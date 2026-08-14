@@ -132,9 +132,9 @@ export default function RequestedOrdersView() {
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action, details, total_price }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number }) =>
+    mutationFn: ({ id, action, details, total_price, tax_id }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number }) =>
       action === 'accept'
-        ? purchaseOrdersService.accept(id, { details, total_price })
+        ? purchaseOrdersService.accept(id, { details, total_price, tax_id })
         : purchaseOrdersService.reject(id),
     onSuccess: (_res, vars) => {
       // Refresh the supplier's incoming list AND the requester's PO list.
@@ -803,7 +803,7 @@ export default function RequestedOrdersView() {
         onConfirm={(payload) => {
           if (acceptModalPO) {
             const total_price = payload.details.reduce((sum, d) => sum + d.qty * d.price, 0)
-            actionMutation.mutate({ id: acceptModalPO.id, action: 'accept', details: payload.details, total_price })
+            actionMutation.mutate({ id: acceptModalPO.id, action: 'accept', details: payload.details, total_price, tax_id: payload.tax_id })
           }
         }}
       />

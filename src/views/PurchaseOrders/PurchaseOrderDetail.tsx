@@ -42,6 +42,7 @@ interface PurchaseOrderFull {
   fulfillment_date?: string
   created_at?: string
   updated_at?: string
+  additional_charges?: any[]
   branch?: { id: number; name: string }
   supplier?: { id: number; name: string }
   supplier_branch?: { id: number; name: string }
@@ -127,9 +128,9 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const order = (data as any)?.data as PurchaseOrderFull | undefined
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action, details, total_price }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number }) =>
+    mutationFn: ({ id, action, details, total_price, tax_id }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number }) =>
       action === 'accept'
-        ? purchaseOrdersService.accept(id, { details, total_price })
+        ? purchaseOrdersService.accept(id, { details, total_price, tax_id })
         : purchaseOrdersService.reject(id),
     onSuccess: (_res, vars) => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
@@ -868,8 +869,39 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               </tr>
             ))}
 
-            {/* Total row */}
+            {/* Subtotal */}
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
+              <td
+                colSpan={6}
+                style={{
+                  padding: '14px 16px',
+                  textAlign: 'right',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                Subtotal
+              </td>
+              <td style={{ padding: '14px 16px', fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
+                {formatCurrency(details.reduce((sum, d) => sum + (d.qty * d.price), 0))}
+              </td>
+              <td style={{ padding: '14px 16px' }} />
+            </tr>
+            {(order?.additional_charges || []).map((c: any, i: number) => (
+              <tr key={i} style={{ background: 'var(--background)' }}>
+                <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  {c.name}
+                  {(c as any).tax ? ` (Incl. ${(c as any).tax.name} ${(c as any).tax.rate}%)` : ''}
+                </td>
+                <td style={{ padding: '6px 16px', fontSize: 13, color: 'var(--foreground)' }}>
+                  {formatCurrency(c.amount)}
+                </td>
+                <td style={{ padding: '6px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{c.description || ''}</td>
+              </tr>
+            ))}
+            {/* Total row */}
+            <tr style={{ background: 'var(--background)', borderTop: '1px solid var(--border)' }}>
               <td
                 colSpan={6}
                 style={{
@@ -991,7 +1023,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         onConfirm={(payload) => {
           if (order) {
             const total_price = payload.details.reduce((sum, d) => sum + d.qty * d.price, 0)
-            actionMutation.mutate({ id: order.id, action: 'accept', details: payload.details, total_price })
+            actionMutation.mutate({ id: order.id, action: 'accept', details: payload.details, total_price, tax_id: payload.tax_id })
           }
         }}
       />
@@ -1111,13 +1143,31 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>
+                  <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
+                    Subtotal
+                  </td>
+                  <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
+                    {`Rp ${details.reduce((sum, d) => sum + (Number(d.qty ?? 0) * Number(d.price ?? 0)), 0).toLocaleString('id-ID')}`}
+                  </td>
+                </tr>
+                {(order?.additional_charges || []).map((c: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ padding: '2px 0', fontSize: '9pt', color: '#5c3a21' }}>
+                      {c.name} {c.tax ? `(${c.tax.name})` : ''}
+                    </td>
+                    <td style={{ padding: '2px 0', textAlign: 'right', fontSize: '9pt', color: '#5c3a21' }}>
+                      {`Rp ${Number(c.amount ?? 0).toLocaleString('id-ID')}`}
+                    </td>
+                  </tr>
+                ))}
+                <tr>
                   <td
                     style={{
                       padding: '8px 0',
                       fontSize: '11pt',
                       fontWeight: 700,
                       color: '#5c3a21',
-                      borderTop: '2px dashed #d4c4a8',
+                      borderTop: '1px solid #d4c4a8',
                     }}
                   >
                     Grand Total
@@ -1129,7 +1179,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                       fontSize: '12pt',
                       fontWeight: 800,
                       color: '#5c3a21',
-                      borderTop: '2px dashed #d4c4a8',
+                      borderTop: '1px solid #d4c4a8',
                     }}
                   >
                     {`Rp ${Number(order.total_price ?? 0).toLocaleString('id-ID')}`}

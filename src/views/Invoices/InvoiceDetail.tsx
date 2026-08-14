@@ -29,36 +29,36 @@ interface InvoiceDetailProps {
 
 interface InvoiceDetailLine {
   id: number
+  qty: number
+  price: number
+  dpp: number
+  is_taxable: boolean
+  tax_rate: number
+  tax_amount: number
   total_price?: number
-  receipt?: {
-    id: number
-    code: string
-    total_price?: number
-    delivery?: {
-      id: number
-      code: string
-      date?: string
-    }
-    receipt_details?: {
-      id: number
-      qty: number
-      price: number
-      product_uom_id: number
-      product_uom?: {
-        id: number
-        code?: string
-        product?: { id: number; name: string }
-        uom?: { id: number; name: string; code: string }
-      }
-    }[]
-  }
+  description?: string
   receipt_id?: number
+  sales_order_detail?: {
+    id: number
+    product_inventory_snapshot?: {
+      product_uom_batch?: {
+        product_uom?: {
+          product?: { name: string }
+          uom?: { name: string }
+        }
+      }
+    }
+  }
 }
 
 interface InvoiceFull {
   id: number
   code: string
   date: string
+  subtotal_price?: number
+  discount_price?: number
+  additional_charge_price?: number
+  tax_amount?: number
   total_price: number
   total_payment?: number
   status: 'issued' | 'paid' | 'void'
@@ -66,7 +66,6 @@ interface InvoiceFull {
   created_at?: string
   branch?: { id: number; name: string }
   billed_branch?: { id: number; name: string }
-  delivery?: { id: number; code: string }
   invoice_details?: InvoiceDetailLine[]
 }
 
@@ -469,17 +468,17 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           <thead>
             <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
               <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>Receipt</th>
-              <th style={thStyle}>Delivery</th>
-              <th style={thStyle}>Date</th>
+              <th style={thStyle}>Product</th>
+              <th style={thStyle}>Qty</th>
+              <th style={thStyle}>Unit Price</th>
               <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Subtotal</th>
             </tr>
           </thead>
           <tbody>
             {details.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
-                  No receipts found
+                <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
+                  No items found
                 </td>
               </tr>
             ) : (
@@ -487,32 +486,91 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{index + 1}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {line.receipt?.code ?? '-'}
+                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name ?? `Item #${line.id}`}
+                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {line.receipt?.delivery?.code ?? '-'}
+                    {line.qty.toLocaleString('id-ID')}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {line.receipt?.delivery?.date ? formatDate(line.receipt.delivery.date) : '-'}
+                    {rp(line.price)}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--foreground)', textAlign: 'right' }}>
-                    {rp(line.total_price ?? line.receipt?.total_price)}
+                    {rp(line.dpp ?? (line.qty * line.price))}
                   </td>
                 </tr>
               ))
             )}
 
-            {/* Total row */}
+            {/* Totals */}
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-              <td colSpan={4} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)' }}>
-                Total
+              <td colSpan={4} style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                Subtotal
               </td>
-              <td style={{ padding: '14px 16px' }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>
-                  {rp(invoice.total_price - (invoice.total_payment || 0))}
+              <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
+                {rp(invoice.subtotal_price ?? details.reduce((sum, d) => sum + (d.dpp ?? 0), 0))}
+              </td>
+            </tr>
+            {(invoice.discount_price ?? 0) > 0 && (
+              <tr style={{ background: 'var(--background)' }}>
+                <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  Discount
+                </td>
+                <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
+                  -{rp(invoice.discount_price)}
+                </td>
+              </tr>
+            )}
+            {(invoice.additional_charge_price ?? 0) > 0 && (
+              <tr style={{ background: 'var(--background)' }}>
+                <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  Additional Charges
+                </td>
+                <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
+                  {rp(invoice.additional_charge_price)}
+                </td>
+              </tr>
+            )}
+            <tr style={{ background: 'var(--background)' }}>
+              <td colSpan={4} style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                Tax
+              </td>
+              <td style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
+                {rp(invoice.tax_amount)}
+              </td>
+            </tr>
+            <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+              <td colSpan={4} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+                Grand Total
+              </td>
+              <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
+                  {rp(invoice.total_price)}
                 </span>
               </td>
             </tr>
+            {invoice.total_payment ? (
+              <>
+                <tr style={{ background: 'var(--surface)' }}>
+                  <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--success)' }}>
+                    Total Paid
+                  </td>
+                  <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>
+                    -{rp(invoice.total_payment)}
+                  </td>
+                </tr>
+                <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+                  <td colSpan={4} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
+                    Balance Due
+                  </td>
+                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--destructive)', fontFamily: 'var(--font-display)' }}>
+                      {rp(invoice.total_price - invoice.total_payment)}
+                    </span>
+                  </td>
+                </tr>
+              </>
+            ) : null}
           </tbody>
         </table>
       </div>
@@ -721,11 +779,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
               <strong style={{ color: '#5c3a21' }}>From:</strong> {invoice.branch?.name || '-'}
             </div>
-            {invoice.delivery?.code && (
-              <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-                <strong style={{ color: '#5c3a21' }}>Delivery:</strong> {invoice.delivery.code}
-              </div>
-            )}
           </div>
         </div>
 
@@ -757,13 +810,13 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                   No
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Receipt
+                  Product
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Delivery
+                  Qty
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Date
+                  Unit Price
                 </th>
                 <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
                   Subtotal
@@ -775,12 +828,13 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {line.receipt?.code ?? '-'}
+                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name ?? `Item #${line.id}`}
+                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
                   </td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.receipt?.delivery?.code ?? '-'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.receipt?.delivery?.date ? formatDate(line.receipt.delivery.date) : '-'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.qty.toLocaleString('id-ID')}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{rp(line.price)}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>
-                    {rp(line.total_price ?? line.receipt?.total_price)}
+                    {rp(line.dpp ?? (line.qty * line.price))}
                   </td>
                 </tr>
               ))}
@@ -794,27 +848,34 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      fontSize: '11pt',
-                      fontWeight: 700,
-                      color: '#5c3a21',
-                      borderTop: '2px dashed #d4c4a8',
-                    }}
-                  >
+                  <td style={{ padding: '6px 0', fontSize: '10pt', color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
+                    Subtotal
+                  </td>
+                  <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
+                    {rp(invoice.subtotal_price ?? details.reduce((sum, d) => sum + (d.dpp ?? 0), 0))}
+                  </td>
+                </tr>
+                {(invoice.discount_price ?? 0) > 0 && (
+                  <tr>
+                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Discount</td>
+                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>-{rp(invoice.discount_price)}</td>
+                  </tr>
+                )}
+                {(invoice.additional_charge_price ?? 0) > 0 && (
+                  <tr>
+                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Additional Charges</td>
+                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.additional_charge_price)}</td>
+                  </tr>
+                )}
+                <tr>
+                  <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Tax</td>
+                  <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.tax_amount)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '8px 0', fontSize: '11pt', fontWeight: 700, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
                     Grand Total
                   </td>
-                  <td
-                    style={{
-                      padding: '8px 0',
-                      textAlign: 'right',
-                      fontSize: '12pt',
-                      fontWeight: 800,
-                      color: '#5c3a21',
-                      borderTop: '2px dashed #d4c4a8',
-                    }}
-                  >
+                  <td style={{ padding: '8px 0', textAlign: 'right', fontSize: '12pt', fontWeight: 800, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
                     {rp(invoice.total_price)}
                   </td>
                 </tr>

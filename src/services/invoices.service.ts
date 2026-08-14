@@ -1,14 +1,23 @@
 import api from '@/hooks/useApi'
 import type { ApiResponse, PaginatedData, ListParams } from '@/types/api'
 
-export interface InvoiceLineRequest {
-  delivery_detail_id: number
-  qty?: number
-  price?: number
+export interface InvoiceDetailRequest {
+  sales_order_detail_id: number
+  qty: number
+  description?: string
 }
 
-export interface CreateInvoiceFromReceiptsRequest {
-  receipt_ids: number[]
+export interface InvoiceAdditionalChargeRequest {
+  sales_order_component_id?: number
+  name: string
+  amount?: number
+  description?: string
+}
+
+export interface CreateInvoiceRequest {
+  sales_order_ids: number[]
+  details: InvoiceDetailRequest[]
+  additional_charges?: InvoiceAdditionalChargeRequest[]
   date?: string
   description?: string
 }
@@ -20,6 +29,6 @@ export const invoicesService = {
   get: (id: number, params?: { include?: string }) =>
     api.get<ApiResponse<unknown>>(`/invoices/${id}`, { params }),
 
-  createFromReceipts: (data: CreateInvoiceFromReceiptsRequest) =>
+  create: (data: CreateInvoiceRequest) =>
     api.post<ApiResponse<unknown>>('/invoices', data),
 }

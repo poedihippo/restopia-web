@@ -622,14 +622,14 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
+                  gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 120px 140px minmax(150px, 1fr) 40px`,
                   gap: 10,
                   padding: '10px 20px',
                   borderBottom: '1px solid var(--border)',
                   background: 'var(--background)',
                 }}
               >
-                {['Product / UOM', 'Batch', 'Qty', 'Price', 'Subtotal', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
+                {['Product / UOM', 'Batch', 'Qty', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
                   <span
                     key={i}
                     style={{
@@ -691,9 +691,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     type="text"
                     {...register(`details.${index}.planned_batch_code`)}
                     placeholder="Batch code..."
+                    disabled={mode === 'edit'}
                     style={{
                       ...lineInputStyle,
-                      background: 'var(--surface)', color: 'var(--foreground)'
+                      ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : { background: 'var(--background)', color: 'var(--foreground)' })
                     }}
                   />
 
@@ -710,34 +711,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     onWheel={(e) => (e.target as HTMLElement).blur()}
                   />
 
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatNumber(watch(`details.${index}.price`))}
-                    disabled={true}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/[^\d]/g, '')
-                      setValue(
-                        `details.${index}.price`,
-                        raw === '' ? 0 : parseInt(raw, 10) || 0,
-                      )
-                    }}
-                    style={{
-                      ...lineInputStyle,
-                      background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)'
-                    }}
-                  />
-                  <input
-                    type="text"
-                    readOnly
-                    value={formatNumber((watch(`details.${index}.price`) ?? 0) * (watch(`details.${index}.qty`) ?? 0))}
-                    style={{
-                      ...lineInputStyle,
-                      background: 'var(--surface)',
-                      color: 'var(--foreground-muted)',
-                      cursor: 'not-allowed'
-                    }}
-                  />
+                  {/* price inputs removed */}
 
                   <Controller
                     name={`details.${index}.status`}
@@ -758,19 +732,20 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   <input
                     type="date"
                     {...register(`details.${index}.planned_expiry_date`)}
+                    disabled={mode === 'edit'}
                     style={{
                       ...lineInputStyle,
-                      background: 'var(--surface)', color: 'var(--foreground)'
+                      ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : { background: 'var(--background)', color: 'var(--foreground)' })
                     }}
                   />
 
                   <input
                     {...register(`details.${index}.description`)}
                     placeholder="Note"
-                    disabled={mode === 'edit'}
                     style={{
                       ...lineInputStyle,
-                      ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : {})
+                      background: 'var(--background)',
+                      color: 'var(--foreground)'
                     }}
                   />
 
@@ -800,33 +775,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </div>
           </div>
 
-          {!isInternalReceipt && (
-            <div
-              style={{
-                padding: '14px 20px',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                alignItems: 'center',
-                gap: 12,
-                borderTop: '1px solid var(--border)',
-                background: 'var(--background)',
-              }}
-            >
-              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Total</span>
-              <span
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: 'var(--accent)',
-                  fontFamily: 'var(--font-display)',
-                }}
-              >
-                {canReadPrice
-                  ? 'Rp ' + totalPrice.toLocaleString('id-ID')
-                  : '***'}
-              </span>
-            </div>
-          )}
+          {/* footer removed */}
 
           {errors.details && typeof (errors.details as any).message === 'string' && (
             <div style={{ padding: '8px 20px' }}>

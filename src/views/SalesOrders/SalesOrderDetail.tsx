@@ -1157,6 +1157,23 @@ export default function SalesOrderDetail() {
                   <span style={{ color: 'var(--foreground-muted)' }}>Subtotal</span>
                   <span>Rp {subtotal.toLocaleString('id-ID')}</span>
                 </div>
+                {(order?.additional_charges || []).map((c: any, i: number) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: 8,
+                      fontSize: 14,
+                    }}
+                  >
+                    <span style={{ color: 'var(--foreground-muted)' }}>
+                      {c.name} {c.tax ? `(Incl. ${c.tax.name} ${c.tax.rate}%)` : ''}
+                      {c.description ? <span style={{display: 'block', fontSize: 11}}>{c.description}</span> : null}
+                    </span>
+                    <span>Rp {Number(c.amount ?? 0).toLocaleString('id-ID')}</span>
+                  </div>
+                ))}
                 {discount > 0 && (
                   <div
                     style={{
@@ -1368,6 +1385,16 @@ export default function SalesOrderDetail() {
                   <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Subtotal</td>
                   <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 500 }}>{formatCurrency(subtotal)}</td>
                 </tr>
+                {(order?.additional_charges || []).map((c: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>
+                      {c.name} {c.tax ? `(${c.tax.name})` : ''}
+                    </td>
+                    <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
+                      {formatCurrency(c.amount)}
+                    </td>
+                  </tr>
+                ))}
                 {discount > 0 && (
                   <tr>
                     <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Discount</td>

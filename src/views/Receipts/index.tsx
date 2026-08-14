@@ -338,7 +338,6 @@ export default function ReceiptsView() {
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 160 }}>Delivery</th>
               <th style={{ ...thStyle, width: 120 }}>Date</th>
-              <th style={{ ...thStyle, width: 140 }}>Total</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: 100 }} />
             </tr>
@@ -347,7 +346,7 @@ export default function ReceiptsView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 6 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -364,7 +363,7 @@ export default function ReceiptsView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load receipts.
                   </span>
@@ -372,7 +371,7 @@ export default function ReceiptsView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -432,15 +431,6 @@ export default function ReceiptsView() {
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.date}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                        {isInternal
-                          ? ''
-                          : getCanReadPrice()
-                            ? formatCurrency((item.total_price ?? 0))
-                            : '***'}
                       </span>
                     </td>
                     <td style={tdStyle}>

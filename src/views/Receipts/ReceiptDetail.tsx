@@ -492,8 +492,6 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
               <th style={{ ...thStyle, width: 130 }}>Client Ref</th>
               <th style={{ ...thStyle, width: 80 }}>Qty</th>
               <th style={{ ...thStyle, width: 140 }}>Received / Delivered</th>
-              {!isInternal && <th style={{ ...thStyle, width: 130 }}>Unit Price</th>}
-              {!isInternal && <th style={{ ...thStyle, width: 140 }}>Subtotal</th>}
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: 160 }}>Notes</th>
             </tr>
@@ -576,23 +574,6 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                       )
                     })()}
                   </td>
-                  {!isInternal && (
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {formatCurrency(detail.price)}
-                    </td>
-                  )}
-                  {!isInternal && (
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'var(--foreground)',
-                      }}
-                    >
-                      {formatCurrency(detail.qty * detail.price)}
-                    </td>
-                  )}
                   <td style={{ padding: '12px 16px' }}>
                     <span
                       style={{
@@ -616,36 +597,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
               )
             })}
 
-            {!isInternal && (
-              <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-                <td
-                  colSpan={7}
-                  style={{
-                    padding: '14px 16px',
-                    textAlign: 'right',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--foreground-muted)',
-                  }}
-                >
-                  Total
-                </td>
-                <td style={{ padding: '14px 16px' }}>
-                  <span
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 700,
-                      color: 'var(--accent)',
-                      fontFamily: 'var(--font-display)',
-                    }}
-                  >
-                    {formatCurrency(receipt.total_price)}
-                  </span>
-                </td>
-                <td style={{ padding: '14px 16px' }} />
-                <td style={{ padding: '14px 16px' }} />
-              </tr>
-            )}
+            {/* Footer total removed */}
           </tbody>
         </table>
       </div>

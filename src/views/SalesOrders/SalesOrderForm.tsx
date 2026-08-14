@@ -15,6 +15,7 @@ import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
 import { usersService } from '@/services/users.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
+import { taxesService } from '@/services/taxes.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
@@ -88,6 +89,21 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const [creditById, setCreditById] = useState<number | undefined>(
     editingOrder?.credit_by_id ?? editingOrder?.credit_by?.id ?? undefined,
   )
+
+  // ── Additional Charges state ───────────────────────────────────────────────
+  const [additionalCharges, setAdditionalCharges] = useState<{
+    name: string
+    amount: number
+    tax_id?: number
+    description?: string
+  }[]>(() => {
+    return editingOrder?.additional_charges?.map((c: any) => ({
+      name: c.name,
+      amount: c.amount,
+      tax_id: c.tax_id,
+      description: c.description
+    })) ?? []
+  })
 
   // ── Line items state ───────────────────────────────────────────────────────
   const [items, setItems] = useState<LineItem[]>(() => {
@@ -209,6 +225,12 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   })
   const bundles = (bundleData as any)?.data ?? []
 
+  const { data: taxesData } = useQuery({
+    queryKey: ['taxes-all'],
+    queryFn: () => taxesService.list({ per_page: 50 }).then((r) => r.data),
+  })
+  const taxes = (taxesData as any)?.data ?? []
+
   // ── Prepopulate from PO (if ?po_id=... is in query) ──────────────────────
   useEffect(() => {
     if (router.isReady && router.query.po_id && !isEdit) {
@@ -232,6 +254,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     if (!po || isEdit) return
 
     setBuyerBranchId(po.branch_id)
+    const parsedDate = po.date ? parseApiDate(po.date) : null
+    setDate(parsedDate ? parsedDate.toISOString().substring(0, 10) : today)
+    
+    const parsedFulfillment = po.fulfillment_date ? parseApiDate(po.fulfillment_date) : null
+    setFulfillmentDate(parsedFulfillment ? parsedFulfillment.toISOString().substring(0, 10) : today)
+    
+    setStatus('final')
 
     const poDetails = po.purchase_order_details ?? []
     if (poDetails.length === 0) return
@@ -284,7 +313,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             code: inv?.code ?? d.product_uom?.code ?? '',
             qty: d.qty,
             price: d.price,
-            status: 'pending' as const,
+            status: 'completed' as const,
             description: d.description ?? '',
           }
         })
@@ -301,7 +330,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
   // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
-  const total = Math.max(0, subtotal - discountPrice)
+  const additionalChargesTotal = additionalCharges.reduce((sum, c) => sum + (Number(c.amount) || 0), 0)
+  const total = Math.max(0, subtotal + additionalChargesTotal - discountPrice)
 
   // ── Line item helpers ─────────────────────────────────────────────────────
   const addProduct = useCallback(
@@ -398,6 +428,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         status,
         settlement_status: settlementStatus,
         description: description || undefined,
+        additional_charges: additionalCharges,
         details: items.map((i) => ({
           product_inventory_id: i.product_inventory_id ?? null,
           bundle_id: i.bundle_id ?? null,
@@ -812,29 +843,6 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         )}
       </div>
 
-      {/* ── Section 2.5: Sales Channel ── */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <span style={{ fontSize: 18 }}>📢</span>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Sales Channel</h2>
-        </div>
-        
-        <div>
-          <label style={labelStyle}>Sales Channel (optional)</label>
-          <select
-            value={salesChannelId || ''}
-            onChange={(e) => setSalesChannelId(e.target.value ? Number(e.target.value) : undefined)}
-            style={fieldStyle}
-          >
-            <option value="">Select channel...</option>
-            {salesChannels.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
       {/* ── Section 2b: Inter-branch / PO Reference ── */}
       <div style={sectionStyle}>
@@ -1237,6 +1245,91 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         )}
       </div>
 
+      {/* ── Additional Charges ── */}
+      <div style={{ ...sectionStyle, marginBottom: 20 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)', marginBottom: 12 }}>
+          Additional Charges
+        </h3>
+        {additionalCharges.map((charge, idx) => (
+          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr 40px', gap: 10, marginBottom: 8, alignItems: 'start' }}>
+            <input
+              type="text"
+              value={charge.name}
+              onChange={(e) => {
+                const newCharges = [...additionalCharges]
+                newCharges[idx].name = e.target.value
+                setAdditionalCharges(newCharges)
+              }}
+              placeholder="Charge Name *"
+              style={fieldStyle}
+            />
+            <input
+              type="number"
+              min="0"
+              value={charge.amount}
+              onChange={(e) => {
+                const newCharges = [...additionalCharges]
+                newCharges[idx].amount = Number(e.target.value) || 0
+                setAdditionalCharges(newCharges)
+              }}
+              placeholder="Amount *"
+              style={fieldStyle}
+            />
+            <select
+              value={charge.tax_id || ''}
+              onChange={(e) => {
+                const newCharges = [...additionalCharges]
+                newCharges[idx].tax_id = e.target.value ? Number(e.target.value) : undefined
+                setAdditionalCharges(newCharges)
+              }}
+              style={fieldStyle}
+            >
+              <option value="">No Tax</option>
+              {taxes.map((t: any) => (
+                <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+              ))}
+            </select>
+            <input
+              type="text"
+              value={charge.description || ''}
+              onChange={(e) => {
+                const newCharges = [...additionalCharges]
+                newCharges[idx].description = e.target.value
+                setAdditionalCharges(newCharges)
+              }}
+              placeholder="Optional Note"
+              style={fieldStyle}
+            />
+            <button
+              type="button"
+              onClick={() => setAdditionalCharges(prev => prev.filter((_, i) => i !== idx))}
+              style={{ padding: 8, background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setAdditionalCharges(prev => [...prev, { name: '', amount: 0 }])}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 12px',
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'transparent',
+            color: 'var(--foreground-muted)',
+            fontSize: 13,
+            cursor: 'pointer',
+            marginTop: 8
+          }}
+        >
+          Add Charge
+        </button>
+      </div>
+
       {/* ── Section 4: Totals + Submit ── */}
       <div style={{ ...sectionStyle, display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ width: 320 }}>
@@ -1250,6 +1343,17 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           >
             <span style={{ color: 'var(--foreground-muted)' }}>Subtotal</span>
             <PriceDisplay amount={subtotal} />
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+              fontSize: 14,
+            }}
+          >
+            <span style={{ color: 'var(--foreground-muted)' }}>Additional Charges</span>
+            <PriceDisplay amount={additionalChargesTotal} />
           </div>
           <div
             style={{

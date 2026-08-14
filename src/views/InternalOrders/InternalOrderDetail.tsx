@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
 
 interface InternalOrderDetailProps {
   id: number
@@ -28,7 +29,7 @@ interface InternalOrderFull {
   id: number
   code: string
   date: string
-  status: 'pending' | 'final'
+  status: 'pending' | 'final' | 'accepted' | 'rejected' | 'fulfilled' | 'partially_delivered' | 'delivered'
   description?: string
   created_at?: string
   updated_at?: string
@@ -95,6 +96,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
   const { user } = useAuth()
   const myBranchId = user?.branch?.id
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [acceptModalOpen, setAcceptModalOpen] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['internal-order-detail', id],
@@ -121,22 +123,27 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
   })
 
   const actionMutation = useMutation({
-    mutationFn: (action: 'accept' | 'reject') =>
+    mutationFn: ({ action, details, total_price, tax_id }: { action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number }) =>
       action === 'accept'
-        ? purchaseOrdersService.accept(id)
+        ? purchaseOrdersService.accept(id, { details, total_price, tax_id })
         : purchaseOrdersService.reject(id),
-    onSuccess: (_res, action) => {
+    onSuccess: (_res, vars) => {
       queryClient.invalidateQueries({ queryKey: ['internal-order-detail', id] })
       queryClient.invalidateQueries({ queryKey: ['internal-orders'] })
       queryClient.invalidateQueries({ queryKey: ['requested-orders'] })
-      toast.success(action === 'accept' ? 'Order accepted' : 'Order rejected')
+      toast.success(vars.action === 'accept' ? 'Order accepted' : 'Order rejected')
+      setAcceptModalOpen(false)
     },
     onError: (err: any) => toastMutationApiError(err, 'Action failed'),
   })
 
   const handleAction = (action: 'accept' | 'reject') => {
-    if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
-    actionMutation.mutate(action)
+    if (action === 'accept') {
+      setAcceptModalOpen(true)
+    } else {
+      if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
+      actionMutation.mutate({ action })
+    }
   }
 
   const details = order?.purchase_order_details ?? []
@@ -330,53 +337,53 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
             Edit
           </button>
           
-          {order.supplier_branch?.id === myBranchId && order.status === 'pending' && (
-            <>
-              <button
-                type="button"
-                disabled={actionMutation.isPending}
-                onClick={() => handleAction('accept')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--success)',
-                  color: 'white',
-                  border: '1px solid var(--success)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
-                  opacity: actionMutation.isPending ? 0.6 : 1,
-                }}
-              >
-                <Check size={13} />
-                Accept
-              </button>
-              <button
-                type="button"
-                disabled={actionMutation.isPending}
-                onClick={() => handleAction('reject')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--surface)',
-                  color: 'var(--destructive)',
-                  border: '1px solid var(--destructive)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
-                  opacity: actionMutation.isPending ? 0.6 : 1,
-                }}
-              >
-                <X size={13} />
-                Reject
-              </button>
-            </>
+          {order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
+            <button
+              type="button"
+              disabled={actionMutation.isPending}
+              onClick={() => handleAction('accept')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--success)',
+                color: 'white',
+                border: '1px solid var(--success)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: actionMutation.isPending ? 0.6 : 1,
+              }}
+            >
+              <Check size={13} />
+              Accept
+            </button>
+          )}
+          {order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'accepted') && (
+            <button
+              type="button"
+              disabled={actionMutation.isPending}
+              onClick={() => handleAction('reject')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--surface)',
+                color: 'var(--destructive)',
+                border: '1px solid var(--destructive)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: actionMutation.isPending ? 0.6 : 1,
+              }}
+            >
+              <X size={13} />
+              Reject
+            </button>
           )}
           <button
             type="button"
@@ -798,6 +805,19 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
           </div>
         </div>
       )}
+
+      <AcceptPOModal
+        isOpen={acceptModalOpen}
+        onClose={() => setAcceptModalOpen(false)}
+        purchaseOrder={order}
+        isSubmitting={actionMutation.isPending}
+        onConfirm={(payload) => {
+          if (order) {
+            const total_price = payload.details.reduce((sum, d) => sum + d.qty * d.price, 0)
+            actionMutation.mutate({ action: 'accept', details: payload.details, total_price, tax_id: payload.tax_id })
+          }
+        }}
+      />
 
       <style>{`
         @keyframes spin {

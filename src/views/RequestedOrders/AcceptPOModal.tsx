@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { getCanReadPrice, formatCurrency } from '@/utils/price'
+import { useQuery } from '@tanstack/react-query'
+import { taxesService } from '@/services/taxes.service'
 
 export interface AcceptPODetailPayload {
   id?: number
@@ -7,12 +11,13 @@ export interface AcceptPODetailPayload {
   qty: number
   price: number
   description?: string
+  is_taxable?: boolean
 }
 
 export interface AcceptPOModalProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (payload: { details: AcceptPODetailPayload[] }) => void
+  onConfirm: (payload: { details: AcceptPODetailPayload[], tax_id?: number }) => void
   isSubmitting: boolean
   purchaseOrder: any // RequestedPO object
 }
@@ -25,6 +30,19 @@ export default function AcceptPOModal({
   purchaseOrder,
 }: AcceptPOModalProps) {
   const [details, setDetails] = useState<AcceptPODetailPayload[]>([])
+  
+  const { hasPermission } = useAuth()
+  const canEditExternalPrice = hasPermission('purchase-order.edit-price')
+  const canEditInternalPrice = hasPermission('internal-purchase-order.edit-price')
+  const canEditPrice = purchaseOrder?.type === 'supplier' ? canEditExternalPrice : canEditInternalPrice
+
+  const [taxId, setTaxId] = useState<number | undefined>(undefined)
+
+  const { data: taxesData } = useQuery({
+    queryKey: ['taxes'],
+    queryFn: () => taxesService.list().then((r) => r.data),
+  })
+  const taxes = (taxesData as any)?.data ?? []
 
   useEffect(() => {
     if (isOpen && purchaseOrder?.purchase_order_details) {
@@ -34,10 +52,13 @@ export default function AcceptPOModal({
         qty: d.qty,
         price: d.product_uom?.franchise_price || d.price || 0,
         description: '',
+        is_taxable: d.is_taxable || false,
       }))
       setDetails(initialDetails)
+      setTaxId(purchaseOrder.tax_id || undefined)
     } else {
       setDetails([])
+      setTaxId(undefined)
     }
   }, [isOpen, purchaseOrder])
 
@@ -45,7 +66,7 @@ export default function AcceptPOModal({
 
   const handlePriceChange = (index: number, value: string) => {
     const newDetails = [...details]
-    newDetails[index].price = Number(value)
+    newDetails[index].price = value === '' ? 0 : Number(value)
     setDetails(newDetails)
   }
 
@@ -61,13 +82,25 @@ export default function AcceptPOModal({
     setDetails(newDetails)
   }
 
+  const handleTaxableChange = (index: number, value: boolean) => {
+    const newDetails = [...details]
+    newDetails[index].is_taxable = value
+    setDetails(newDetails)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onConfirm({ details })
+    onConfirm({ details, tax_id: taxId })
   }
 
   const rp = (n: number | string | null | undefined) =>
     `Rp ${Number(n ?? 0).toLocaleString('id-ID')}`
+
+  const subtotal = details.reduce((sum, d) => sum + d.qty * d.price, 0)
+  const taxableSubtotal = details.reduce((sum, d) => sum + (d.is_taxable ? d.qty * d.price : 0), 0)
+  const selectedTax = taxes.find((t: any) => t.id === taxId)
+  const taxRate = selectedTax ? selectedTax.rate : 0
+  const totalPrice = subtotal + (taxableSubtotal * taxRate / 100)
 
   return (
     <div
@@ -137,6 +170,7 @@ export default function AcceptPOModal({
                 <th style={{ textAlign: 'left', padding: '0 8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)' }}>Item</th>
                 <th style={{ textAlign: 'center', padding: '0 8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)' }}>Qty</th>
                 <th style={{ textAlign: 'left', padding: '0 8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)' }}>Price per unit</th>
+                <th style={{ textAlign: 'center', padding: '0 8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)' }}>Taxable</th>
                 <th style={{ textAlign: 'left', padding: '0 8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)' }}>Notes</th>
               </tr>
             </thead>
@@ -180,24 +214,34 @@ export default function AcceptPOModal({
                     </td>
                     <td style={{ padding: '16px 8px' }}>
                       <input
-                        type="number"
-                        value={detail.price.toString()}
-                        onChange={(e) => handlePriceChange(i, e.target.value)}
-                        placeholder="Price..."
+                        type="text"
+                        inputMode="numeric"
+                        value={getCanReadPrice() ? (detail.price !== undefined && detail.price !== null ? String(detail.price) : '') : '***'}
+                        disabled={!getCanReadPrice() || !canEditPrice}
+                        onChange={(e) => handlePriceChange(i, e.target.value.replace(/[^\d]/g, ''))}
                         style={{
-                          width: 120,
+                          width: '100%',
                           padding: '8px 12px',
                           border: '1px solid var(--border)',
                           borderRadius: 'var(--radius-md)',
-                          background: 'var(--surface)',
+                          background: (!getCanReadPrice() || !canEditPrice) ? 'var(--surface)' : 'var(--background)',
                           fontSize: 13,
-                          color: 'var(--foreground)',
                           outline: 'none',
+                          boxSizing: 'border-box',
+                          cursor: (!getCanReadPrice() || !canEditPrice) ? 'not-allowed' : 'text'
                         }}
                       />
                       <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4 }}>
                         Default: {rp(item.product_uom?.franchise_price || item.price)}
                       </div>
+                    </td>
+                    <td style={{ padding: '16px 8px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={detail.is_taxable || false}
+                        onChange={(e) => handleTaxableChange(i, e.target.checked)}
+                        style={{ cursor: 'pointer', width: 16, height: 16 }}
+                      />
                     </td>
                     <td style={{ padding: '16px 8px' }}>
                       <input
@@ -222,8 +266,41 @@ export default function AcceptPOModal({
               })}
             </tbody>
           </table>
-          <div style={{ marginTop: 16, textAlign: 'right', fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>
-            Total: {rp(details.reduce((sum, d) => sum + d.qty * d.price, 0))}
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 16 }}>
+            {getCanReadPrice() && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Tax (PPN):</span>
+                  <select
+                    value={taxId || ''}
+                    onChange={(e) => setTaxId(e.target.value ? Number(e.target.value) : undefined)}
+                    disabled={!canEditPrice}
+                    style={{
+                      padding: '6px 12px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--background)',
+                      fontSize: 13,
+                      outline: 'none',
+                      cursor: !canEditPrice ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    <option value="">No Tax</option>
+                    {taxes.map((t: any) => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>
+                  Total: {rp(totalPrice)}
+                </div>
+              </>
+            )}
+            {!getCanReadPrice() && (
+              <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>
+                Total: ***
+              </div>
+            )}
           </div>
         </div>
 

@@ -32,13 +32,13 @@ import {
   Calculator,
 } from 'lucide-react';
 
-type NavChild = {
+export type NavChild = {
   label: string;
   href: string;
   permission?: string;
 };
 
-type NavItem = {
+export type NavItem = {
   label: string;
   href?: string;
   icon: React.ElementType;
@@ -46,17 +46,17 @@ type NavItem = {
   children?: NavChild[];
 };
 
-type NavGroup = {
+export type NavGroup = {
   title: string;
   items: NavItem[];
 };
 
-const NAV_GROUPS: NavGroup[] = [
+export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'OPERATIONS',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.read' },
-      { label: 'Point of Sale', href: '/pos', icon: ShoppingCart, permission: 'sales-order.create' },
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.menu' },
+      { label: 'Point of Sale', href: '/pos', icon: ShoppingCart, permission: 'sales-order.menu' },
     ],
   },
   {
@@ -66,28 +66,34 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Production',
         icon: Factory,
         children: [
-          { label: 'Production', href: '/production', permission: 'production.read' },
-          { label: 'Recipes', href: '/production/recipes', permission: 'recipe.read' },
+          { label: 'Production', href: '/production', permission: 'production.menu' },
+          { label: 'Recipes', href: '/production/recipes', permission: 'recipe.menu' },
         ],
       },
       {
         label: 'Product Management',
         icon: Boxes,
         children: [
-          { label: 'Products', href: '/products', permission: 'product.read' },
-          { label: 'Product Categories', href: '/products/product-categories', permission: 'product-category.read' },
-          { label: 'Units of Measure', href: '/products/uom', permission: 'uom.read' },
-          { label: 'Stages', href: '/inventory/stages', permission: 'stage.read' },
-          { label: 'Product UOMs', href: '/products/product-uoms', permission: 'product-uom.read' },
-          { label: 'Product UOM Batches', href: '/products/product-uom-batches', permission: 'product-uom-batch.read' },
-          { label: 'Product Conversions', href: '/products/product-conversions', permission: 'product-conversion.read' },
-          { label: 'Raw Material', href: '/products/product-inventory?type=raw', permission: 'product-inventory.read' },
-          { label: 'Unfinish', href: '/products/product-inventory?type=wip', permission: 'product-inventory.read' },
-          { label: 'Finish Good', href: '/products/product-inventory?type=final', permission: 'product-inventory.read' },
-          { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: 'product-inventory.read' },
-          { label: 'Price Lists', href: '/products/price-lists', permission: 'price-list.read' },
-          { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.read' },
-          { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.read' },
+          { label: 'Products', href: '/products', permission: 'product.menu' },
+          { label: 'Product Categories', href: '/products/product-categories', permission: 'product-category.menu' },
+          { label: 'Units of Measure', href: '/products/uom', permission: 'uom.menu' },
+          { label: 'Stages', href: '/inventory/stages', permission: 'stage.menu' },
+          { label: 'Product UOMs', href: '/products/product-uoms', permission: 'product-uom.menu' },
+          { label: 'Product UOM Batches', href: '/products/product-uom-batches', permission: 'product-uom-batch.menu' },
+          { label: 'Product Conversions', href: '/products/product-conversions', permission: 'product-conversion.menu' },
+          { label: 'Price Lists', href: '/products/price-lists', permission: 'price-list.menu' },
+        ],
+      },
+      {
+        label: 'Product Inventory',
+        icon: Warehouse,
+        children: [
+          { label: 'Raw Material', href: '/products/product-inventory?type=raw', permission: 'product-inventory.menu' },
+          { label: 'Unfinish', href: '/products/product-inventory?type=wip', permission: 'product-inventory.menu' },
+          { label: 'Finish Good', href: '/products/product-inventory?type=final', permission: 'product-inventory.menu' },
+          { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: 'product-inventory.menu' },
+          { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.menu' },
+          { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },
         ],
       },
     ],
@@ -99,21 +105,21 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Purchase Orders',
         icon: PackageSearch,
         children: [
-          { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.read' },
-          { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.read' },
-          { label: 'Incoming PO Request', href: '/purchase/requested-orders', permission: 'purchase-order.read' },
-          { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.read' },
-          { label: 'Payment PO', href: '/purchase/po-payments', permission: 'payment.create' },
+          { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.menu' },
+          { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.menu' },
+          { label: 'Incoming PO Request', href: '/purchase/requested-orders', permission: 'purchase-order.menu' },
+          { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.menu' },
+          { label: 'Payment PO', href: '/purchase/po-payments', permission: 'payment.menu' },
         ],
       },
       {
         label: 'Transfer',
         icon: ArrowLeftRight,
         children: [
-          { label: 'Deliveries', href: '/transfer/deliveries', permission: 'delivery.read' },
-          { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.read' },
-          { label: 'Stock Transfer', href: '/transfer/stock-transfer', permission: 'delivery.create' },
-          { label: 'Dimension Transfer', href: '/transfer/dimension-transfer', permission: 'stock-movement.create' },
+          { label: 'Deliveries', href: '/transfer/deliveries', permission: 'delivery.menu' },
+          { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.menu' },
+          { label: 'Stock Transfer', href: '/transfer/stock-transfer', permission: 'delivery.menu' },
+          { label: 'Dimension Transfer', href: '/transfer/dimension-transfer', permission: 'stock-movement.menu' },
         ],
       },
     ],
@@ -125,14 +131,14 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Sales Orders',
         icon: ReceiptText,
         children: [
-          { label: 'Sales Orders', href: '/sales/sales-orders', permission: 'sales-order.read' },
-          { label: 'Sales Channels', href: '/sales/sales-channels', permission: 'sales-channel.read' },
-          { label: 'Customers', href: '/sales/customers', permission: 'customer.read' },
-          { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.read' },
-          { label: 'Payments', href: '/sales/payments', permission: 'payment.read' },
+          { label: 'Sales Orders', href: '/sales/sales-orders', permission: 'sales-order.menu' },
+          { label: 'Sales Channels', href: '/sales/sales-channels', permission: 'sales-channel.menu' },
+          { label: 'Customers', href: '/sales/customers', permission: 'customer.menu' },
+          { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.menu' },
+          { label: 'Payments', href: '/sales/payments', permission: 'payment.menu' },
         ],
       },
-      { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.read' },
+      { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.menu' },
     ],
   },
   {
@@ -142,7 +148,7 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Invoicing',
         icon: ReceiptText,
         children: [
-          { label: 'Invoices', href: '/transfer/invoices', permission: 'invoice.read' },
+          { label: 'Invoices', href: '/transfer/invoices', permission: 'invoice.menu' },
         ],
       },
     ],
@@ -154,18 +160,19 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Accounting',
         icon: Calculator,
         children: [
-          { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts', permission: 'chart-of-account.read' },
-          { label: 'Account Settings', href: '/accounting/account-settings', permission: 'account-setting.read' },
-          { label: 'Account Categories', href: '/accounting/account-categories', permission: 'account-category.read' },
-          { label: 'Account Types', href: '/accounting/account-types', permission: 'account-type.read' },
-          { label: 'Journals', href: '/accounting/journals', permission: 'journal.read' },
-          { label: 'Fiscal Years', href: '/accounting/fiscal-years', permission: 'fiscal-year.read' },
-          { label: 'Periods', href: '/accounting/periods', permission: 'period.read' },
-          { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.read' },
-          { label: 'Trial Balance', href: '/accounting/reports/trial-balance', permission: 'journal.read' },
-          { label: 'Income Statement', href: '/accounting/reports/income-statement', permission: 'journal.read' },
-          { label: 'Balance Sheet', href: '/accounting/reports/balance-sheet', permission: 'journal.read' },
-          { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.read' },
+          { label: 'Taxes', href: '/accounting/taxes', permission: 'tax.menu' },
+          { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts', permission: 'chart-of-account.menu' },
+          { label: 'Account Settings', href: '/accounting/account-settings', permission: 'account-setting.menu' },
+          { label: 'Account Categories', href: '/accounting/account-categories', permission: 'account-category.menu' },
+          { label: 'Account Types', href: '/accounting/account-types', permission: 'account-type.menu' },
+          { label: 'Journals', href: '/accounting/journals', permission: 'journal.menu' },
+          { label: 'Fiscal Years', href: '/accounting/fiscal-years', permission: 'fiscal-year.menu' },
+          { label: 'Periods', href: '/accounting/periods', permission: 'period.menu' },
+          { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.menu' },
+          { label: 'Trial Balance', href: '/accounting/reports/trial-balance', permission: 'journal.menu' },
+          { label: 'Income Statement', href: '/accounting/reports/income-statement', permission: 'journal.menu' },
+          { label: 'Balance Sheet', href: '/accounting/reports/balance-sheet', permission: 'journal.menu' },
+          { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
         ],
       },
     ],
@@ -177,13 +184,13 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Reports',
         icon: BarChart3,
         children: [
-          { label: 'Sales Report', href: '/reports/sales-report', permission: 'sales-order.read' },
-          { label: 'Sales by Product', href: '/reports/sales-by-product', permission: 'sales-order.read' },
-          { label: 'Sales by Invoice', href: '/reports/sales-by-invoice', permission: 'sales-order.read' },
-          { label: 'Transaction History', href: '/reports/transaction-history', permission: 'sales-order.read' },
-          { label: 'Credit Report', href: '/reports/credit-report', permission: 'sales-order.read' },
-          { label: 'Discount & Voucher', href: '/reports/discount-voucher', permission: 'sales-order.read' },
-          { label: 'Stock Position', href: '/reports/stock-position', permission: 'product-inventory.read' },
+          { label: 'Sales Report', href: '/reports/sales-report', permission: 'sales-order.menu' },
+          { label: 'Sales by Product', href: '/reports/sales-by-product', permission: 'sales-order.menu' },
+          { label: 'Sales by Invoice', href: '/reports/sales-by-invoice', permission: 'sales-order.menu' },
+          { label: 'Transaction History', href: '/reports/transaction-history', permission: 'sales-order.menu' },
+          { label: 'Credit Report', href: '/reports/credit-report', permission: 'sales-order.menu' },
+          { label: 'Discount & Voucher', href: '/reports/discount-voucher', permission: 'sales-order.menu' },
+          { label: 'Stock Position', href: '/reports/stock-position', permission: 'product-inventory.menu' },
         ],
       },
     ],
@@ -195,30 +202,30 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Users',
         icon: Users,
         children: [
-          { label: 'Users', href: '/users', permission: 'user.read' },
-          { label: 'Roles', href: '/users/roles', permission: 'role.read' },
+          { label: 'Users', href: '/users', permission: 'user.menu' },
+          { label: 'Roles', href: '/users/roles', permission: 'role.menu' },
         ],
       },
       {
         label: 'Company',
         icon: Building2,
         children: [
-          { label: 'Companies', href: '/users/companies', permission: 'company.read' },
-          { label: 'Branches', href: '/users/branches', permission: 'branch.read' },
+          { label: 'Companies', href: '/users/companies', permission: 'company.menu' },
+          { label: 'Branches', href: '/users/branches', permission: 'branch.menu' },
         ],
       },
-      { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.read' },
-      { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard, permission: 'payment-method.read' },
-      { label: 'Sales Channels', href: '/settings/sales-channels', icon: Store, permission: 'sales-channel.read' },
-      { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.read' },
+      { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.menu' },
+      { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard, permission: 'payment-method.menu' },
+      { label: 'Sales Channels', href: '/settings/sales-channels', icon: Store, permission: 'sales-channel.menu' },
+      { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.menu' },
       {
         label: 'Store Operations',
         icon: Store,
         children: [
-          { label: 'Operation Rules', href: '/settings/operation-rules', permission: 'operation-rule.read' },
-          { label: 'Operations', href: '/settings/operations', permission: 'operation.read' },
-          { label: 'Shift Rules', href: '/settings/shift-rules', permission: 'shift-rule.read' },
-          { label: 'Shifts', href: '/settings/shifts', permission: 'shift.read' },
+          { label: 'Operation Rules', href: '/settings/operation-rules', permission: 'operation-rule.menu' },
+          { label: 'Operations', href: '/settings/operations', permission: 'operation.menu' },
+          { label: 'Shift Rules', href: '/settings/shift-rules', permission: 'shift-rule.menu' },
+          { label: 'Shifts', href: '/settings/shifts', permission: 'shift.menu' },
         ],
       },
     ],
