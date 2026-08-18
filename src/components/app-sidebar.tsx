@@ -255,9 +255,11 @@ export default function AppSidebar() {
       for (const item of group.items) {
         if (item.children) {
           const hasActive = item.children.some(
-            (child) =>
-              router.pathname === child.href ||
-              router.pathname.startsWith(child.href + '/')
+            (child) => {
+              if (router.asPath === child.href || router.asPath.startsWith(child.href + '&')) return true;
+              const basePath = child.href.split('?')[0];
+              return router.pathname === basePath || router.pathname.startsWith(basePath + '/');
+            }
           );
           if (hasActive) {
             initial[item.label] = true;
@@ -273,15 +275,22 @@ export default function AppSidebar() {
   }
 
   function isActive(href: string): boolean {
-    if (router.pathname === href) return true;
-    if (href !== '/dashboard' && router.pathname.startsWith(href + '/')) {
+    if (router.asPath === href) return true;
+    if (href.includes('?') && router.asPath.startsWith(href + '&')) return true;
+    if (!href.includes('?') && router.pathname === href) return true;
+    
+    const hrefBase = href.split('?')[0];
+
+    if (hrefBase !== '/dashboard' && router.pathname.startsWith(hrefBase + '/')) {
       const allHrefs = NAV_GROUPS.flatMap((g) =>
         g.items.flatMap((i) => (i.children ? i.children.map((c) => c.href) : [i.href]))).filter(Boolean) as string[];
 
       const hasLongerMatch = allHrefs.some(
-        (otherHref) =>
-          otherHref.length > href.length &&
-          (router.pathname === otherHref || router.pathname.startsWith(otherHref + '/'))
+        (otherHref) => {
+          const otherBase = otherHref.split('?')[0];
+          return otherBase.length > hrefBase.length &&
+            (router.pathname === otherBase || router.pathname.startsWith(otherBase + '/'))
+        }
       );
 
       if (hasLongerMatch) {

@@ -58,7 +58,17 @@ export default function SearchableSelect({
     }
   }, [value, user, placeholder, options, onChange])
 
-  const selectedOption = options.find((o) => o.value === value)
+  const [cachedOption, setCachedOption] = useState<SearchableSelectOption | null>(null)
+
+  const currentOption = options.find((o) => o.value === value)
+  
+  useEffect(() => {
+    if (currentOption) {
+      setCachedOption(currentOption)
+    }
+  }, [currentOption])
+
+  const selectedOption = currentOption ?? (cachedOption?.value === value ? cachedOption : undefined)
 
   const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect()

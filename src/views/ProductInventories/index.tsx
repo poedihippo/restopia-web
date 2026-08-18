@@ -84,7 +84,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [debouncedStockGte, setDebouncedStockGte] = useState<string>('')
   const [debouncedStockLte, setDebouncedStockLte] = useState<string>('')
   const [debouncedExpiryDateGte, setDebouncedExpiryDateGte] = useState<string>('')
-  const [hideEmpty, setHideEmpty] = useState(true)
+  const [hideEmpty, setHideEmpty] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)

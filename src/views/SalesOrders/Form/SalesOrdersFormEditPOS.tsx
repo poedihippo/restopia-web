@@ -221,7 +221,8 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
 
     if (existingIndex >= 0) {
       const currentQty = form.getValues(`details.${existingIndex}.qty`)
-      if (currentQty < (item.stock ?? Infinity)) {
+      const maxStock = item.stock && item.stock > 0 ? item.stock : Infinity
+      if (currentQty < maxStock) {
         form.setValue(`details.${existingIndex}.qty`, currentQty + 1)
       }
     } else {
@@ -277,7 +278,6 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleAddToCart(item)}
-                    disabled={!item.stock || item.stock <= 0}
                     className="border rounded-lg p-3 text-left hover:bg-accent transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                   >
                     <p className="font-medium text-sm">{item.product_uom?.product?.name}</p>
