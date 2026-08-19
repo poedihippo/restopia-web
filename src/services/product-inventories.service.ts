@@ -27,9 +27,9 @@ export const productInventoriesService = {
 
   update: (id: number, data: Partial<ProductInventoryRequest>) =>
     api.patch<ApiResponse<unknown>>(`/product-inventories/${id}`, data),
-    
+
   bulkUpdate: (data: BulkUpdateProductInventoryRequest) =>
-    api.put<ApiResponse<unknown>>('/product-inventories/bulk', data),
+    api.put<ApiResponse<unknown>>('/product-inventories/stock-opname', data),
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/product-inventories/${id}`),

@@ -71,7 +71,37 @@ export default function GlobalLayout({ children }: Props) {
   });
 
   return (
-    <div
+    <>
+      <style>{`
+        @media print {
+          #__next {
+            display: flex !important;
+            height: auto !important;
+          }
+          .print-hidden {
+            display: none !important;
+          }
+          .print-visible-scroll {
+            overflow: visible !important;
+            height: auto !important;
+            width: auto !important;
+            display: block !important;
+          }
+          main {
+            padding: 0 !important;
+            overflow: visible !important;
+            height: auto !important;
+            display: block !important;
+          }
+          body, html {
+            height: auto !important;
+            overflow: visible !important;
+            background: #fff !important;
+          }
+        }
+      `}</style>
+      <div
+        className="print-visible-scroll"
       style={{
         display: 'flex',
         height: '100vh',
@@ -80,9 +110,12 @@ export default function GlobalLayout({ children }: Props) {
         background: 'var(--background)',
       }}
     >
-      <AppSidebar />
+      <div className="print-hidden">
+        <AppSidebar />
+      </div>
 
       <div
+        className="print-visible-scroll"
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -91,7 +124,9 @@ export default function GlobalLayout({ children }: Props) {
           minWidth: 0,
         }}
       >
-        <TopBar />
+        <div className="print-hidden">
+          <TopBar />
+        </div>
 
         <main
           style={{
@@ -104,6 +139,7 @@ export default function GlobalLayout({ children }: Props) {
           {isDenied ? <PermissionDenied /> : children}
         </main>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
