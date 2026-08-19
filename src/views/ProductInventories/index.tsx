@@ -45,6 +45,7 @@ interface ProductInventory {
   product_uom_batch?: {
     id: number
     code?: string
+    batch_code?: string
     expiry_date?: string
     product_uom?: {
       id: number
@@ -88,6 +89,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+
+
   const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -215,10 +218,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             }}
           >
             {defaultType === 'raw' ? 'Raw Material Inventory' :
-             defaultType === 'wip' ? 'Unfinish Inventory' :
-             defaultType === 'final' ? 'Finish Good Inventory' :
-             defaultType === 'supply' ? 'Supplies Inventory' :
-             'Product Inventory'}
+              defaultType === 'wip' ? 'Unfinish Inventory' :
+                defaultType === 'final' ? 'Finish Good Inventory' :
+                  defaultType === 'supply' ? 'Supplies Inventory' :
+                    'Product Inventory'}
           </h1>
           <p
             style={{
@@ -261,6 +264,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             )}
             <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
           </button>
+
 
         </div>
       </div>
@@ -468,17 +472,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 background: 'var(--background)',
               }}
             >
-              {(
-                [
+              {[
                   { label: 'Product', width: undefined },
                   { label: 'UOM', width: 100 },
+                  { label: 'Batch Code', width: 160 },
                   { label: 'Branch', width: 160 },
                   { label: 'Qty', width: 100 },
                   { label: 'Min Qty', width: 100 },
                   { label: 'Status', width: 110 },
                   { label: '', width: 80 },
-                ] as const
-              ).map(({ label, width }, i) => (
+              ].map(({ label, width }, i) => (
                 <th
                   key={i}
                   style={{
@@ -501,7 +504,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -530,7 +533,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             {isError && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -545,7 +548,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div
                     style={{
                       padding: 48,
@@ -635,6 +638,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           ?? '—'}
                       </span>
                     </td>
+                    {/* Batch Code */}
+                    <td
+                      style={{
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      {canRead ? item.product_uom_batch?.batch_code ?? '—' : "***"}
+                    </td>
                     {/* Branch */}
                     <td
                       style={{
@@ -645,7 +658,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     >
                       {canRead ? item.branch?.name ?? '—' : "***"}
                     </td>
-                    {/* Qty */}
+                    {/* Qty / System Stock */}
                     <td style={{ padding: '12px 16px' }}>
                       <span
                         style={{
@@ -657,94 +670,97 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                         {(item.stock ?? 0).toLocaleString('id-ID')}
                       </span>
                     </td>
-                    {/* Min Qty */}
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        color: 'var(--foreground-muted)',
-                      }}
-                    >
-                      {canRead ? item.min_qty !== undefined && item.min_qty !== null
-                        ? (item.min_qty ?? 0).toLocaleString('id-ID')
-                        : '—' : "***"}
-                    </td>
-                    {/* Status */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '2px 10px',
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 500,
-                          background: isLow
-                            ? 'var(--warning-bg)'
-                            : 'var(--success-bg)',
-                          color: isLow ? 'var(--warning)' : 'var(--success)',
-                        }}
-                      >
-                        {isLow && <AlertTriangle size={10} />}
-                        {isLow ? 'Low Stock' : 'OK'}
-                      </span>
-                    </td>
-                    {/* Actions */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          justifyContent: 'flex-end',
-                        }}
-                      >
-                        <button
-                          onClick={() => setSelectedItem(item)}
+
+                      <>
+                        {/* Min Qty */}
+                        <td
                           style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
+                            padding: '12px 16px',
+                            fontSize: 13,
                             color: 'var(--foreground-muted)',
-                            display: 'flex',
                           }}
                         >
-                          <Eye size={14} />
-                        </button>
-                        {canEdit && (<button
-                          onClick={() => {
-                            setEditData(item)
-                            setSheetOpen(true)
-                          }}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--foreground-muted)',
-                            display: 'flex',
-                          }}>
-                          <Pencil size={14} />
-                        </button>)}
-                        {canDelete && (<button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'flex',
-                          }}>
-                          <Trash2 size={14} />
-                        </button>)}
-                      </div>
-                    </td>
+                          {canRead ? item.min_qty !== undefined && item.min_qty !== null
+                            ? (item.min_qty ?? 0).toLocaleString('id-ID')
+                            : '—' : "***"}
+                        </td>
+                        {/* Status */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '2px 10px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 500,
+                              background: isLow
+                                ? 'var(--warning-bg)'
+                                : 'var(--success-bg)',
+                              color: isLow ? 'var(--warning)' : 'var(--success)',
+                            }}
+                          >
+                            {isLow && <AlertTriangle size={10} />}
+                            {isLow ? 'Low Stock' : 'OK'}
+                          </span>
+                        </td>
+                        {/* Actions */}
+                        <td style={{ padding: '12px 16px' }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              justifyContent: 'flex-end',
+                            }}
+                          >
+                            <button
+                              onClick={() => setSelectedItem(item)}
+                              style={{
+                                padding: 6,
+                                background: 'none',
+                                border: 'none',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                color: 'var(--foreground-muted)',
+                                display: 'flex',
+                              }}
+                            >
+                              <Eye size={14} />
+                            </button>
+                            {canEdit && (<button
+                              onClick={() => {
+                                setEditData(item)
+                                setSheetOpen(true)
+                              }}
+                              style={{
+                                padding: 6,
+                                background: 'none',
+                                border: 'none',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                color: 'var(--foreground-muted)',
+                                display: 'flex',
+                              }}>
+                              <Pencil size={14} />
+                            </button>)}
+                            {canDelete && (<button
+                              onClick={() => setDeleteConfirmId(item.id)}
+                              style={{
+                                padding: 6,
+                                background: 'none',
+                                border: 'none',
+                                borderRadius: 'var(--radius-sm)',
+                                cursor: 'pointer',
+                                color: 'var(--destructive)',
+                                display: 'flex',
+                              }}>
+                              <Trash2 size={14} />
+                            </button>)}
+                          </div>
+                        </td>
+                      </>
                   </tr>
                 );
               })}

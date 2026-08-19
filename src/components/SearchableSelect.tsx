@@ -266,6 +266,7 @@ export default function SearchableSelect({
                     key={option.value}
                     onMouseDown={(e) => {
                       e.preventDefault()
+                      setCachedOption(option)
                       onChange(option.value)
                       setOpen(false)
                       setSearch('')
