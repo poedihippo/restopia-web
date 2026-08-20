@@ -219,6 +219,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard, permission: 'payment-method.menu' },
       { label: 'Sales Channels', href: '/settings/sales-channels', icon: Store, permission: 'sales-channel.menu' },
       { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.menu' },
+      { label: 'Audit Logs', href: '/settings/audit-logs', icon: BookOpen, permission: 'audit-log.menu' },
       {
         label: 'Store Operations',
         icon: Store,
