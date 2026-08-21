@@ -14,6 +14,38 @@ import { useAuth } from '@/hooks/useAuth'
 
 const todayInputDate = () => new Date().toISOString().split('T')[0]
 
+function calculateDueDate(invoiceDateStr: string): string {
+  if (!invoiceDateStr) return ''
+  const dateObj = new Date(invoiceDateStr)
+  if (isNaN(dateObj.getTime())) return ''
+
+  const day = dateObj.getDate()
+  let dueDay = 14
+  let dueMonth = dateObj.getMonth()
+  let dueYear = dateObj.getFullYear()
+
+  if (day >= 1 && day <= 7) {
+    dueDay = 14
+  } else if (day >= 8 && day <= 14) {
+    dueDay = 21
+  } else if (day >= 15 && day <= 21) {
+    dueDay = 28
+  } else {
+    dueDay = 7
+    dueMonth += 1
+    if (dueMonth > 11) {
+      dueMonth = 0
+      dueYear += 1
+    }
+  }
+
+  const result = new Date(dueYear, dueMonth, dueDay)
+  const yyyy = result.getFullYear()
+  const mm = String(result.getMonth() + 1).padStart(2, '0')
+  const dd = String(result.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 interface DetailSelection {
   sales_order_detail_id: number
   qty: number
@@ -39,6 +71,7 @@ export default function InvoiceForm() {
   const canReadPrice = getCanReadPrice()
 
   const [date, setDate] = useState(todayInputDate())
+  const [dueDate, setDueDate] = useState(() => calculateDueDate(todayInputDate()))
   const [description, setDescription] = useState('')
   const [selectedSoIds, setSelectedSoIds] = useState<number[]>([])
 
@@ -195,6 +228,7 @@ export default function InvoiceForm() {
       return invoicesService.create({
         sales_order_ids: selectedSoIds,
         date: date || undefined,
+        due_date: dueDate || undefined,
         description: description || undefined,
         details: payloadDetails,
         additional_charges: payloadCharges.length > 0 ? payloadCharges : undefined
@@ -250,15 +284,31 @@ export default function InvoiceForm() {
           {/* Header Data */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>General Info</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
               <div>
                 <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Date *</label>
                 <input
                   type="date"
                   value={date}
-                  onChange={e => setDate(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value
+                    setDate(val)
+                    if (val) setDueDate(calculateDueDate(val))
+                  }}
                   style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box' }}
                 />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Due Date *</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={e => setDueDate(e.target.value)}
+                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box' }}
+                />
+                <div style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginTop: 4, lineHeight: 1.3 }}>
+                  Patokan: Tgl 1-7 (14), 8-14 (21), 15-21 (28), 22-akhir (7 bulan dpn)
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Description</label>

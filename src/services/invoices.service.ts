@@ -19,6 +19,7 @@ export interface CreateInvoiceRequest {
   details: InvoiceDetailRequest[]
   additional_charges?: InvoiceAdditionalChargeRequest[]
   date?: string
+  due_date?: string
   description?: string
 }
 
