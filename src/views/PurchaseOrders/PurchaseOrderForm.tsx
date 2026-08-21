@@ -22,6 +22,8 @@ import {
   Loader2,
   ChevronDown,
   Save,
+  Lock,
+  Unlock,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { PriceDisplay } from '@/components/PriceDisplay'
@@ -39,6 +41,7 @@ const detailSchema = z.object({
   qty: z.coerce.number().min(1, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
   description: z.string().optional(),
+  is_price_locked: z.boolean().optional(),
 })
 
 const schema = z.object({
@@ -101,7 +104,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       fulfillment_date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
-      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true }],
       additional_charges: [],
       type: 'supplier',
       total_price: 0,
@@ -187,7 +190,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       } else {
         const product = productUoms.find((p: any) => p.id === id)
         const price = product?.base_price ?? 0
-        finalDetails.push({ product_uom_id: id, qty, price, description: '' })
+        finalDetails.push({ product_uom_id: id, qty, price, description: '', is_price_locked: true })
       }
     })
 
@@ -196,7 +199,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     )
 
     if (cleanedDetails.length === 0) {
-      cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+      cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true })
     }
 
     setValue('details', cleanedDetails, { shouldDirty: true, shouldValidate: true })
@@ -740,7 +743,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               <button
                 type="button"
                 onClick={() =>
-                  append({ product_uom_id: 0, qty: 1, price: 0, description: '' })
+                  append({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true })
                 }
                 style={{
                   padding: '6px 12px',
@@ -765,7 +768,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 130px 1fr 40px',
+              gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
@@ -794,7 +797,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 130px 1fr 40px',
+                gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -853,20 +856,44 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               {/* Price */}
               {watchType !== 'branch' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatNumber(watch(`details.${index}.price`), getCanReadPrice())}
-                    disabled={!getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice)}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/[^\d]/g, '')
-                      setValue(
-                        `details.${index}.price`,
-                        raw === '' ? 0 : parseInt(raw, 10) || 0,
-                      )
-                    }}
-                    style={lineInputStyle}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formatNumber(watch(`details.${index}.price`), getCanReadPrice())}
+                      disabled={watch(`details.${index}.is_price_locked`) !== false || !getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice)}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^\d]/g, '')
+                        setValue(
+                          `details.${index}.price`,
+                          raw === '' ? 0 : parseInt(raw, 10) || 0,
+                        )
+                      }}
+                      style={{ ...lineInputStyle, flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentLocked = watch(`details.${index}.is_price_locked`)
+                        setValue(`details.${index}.is_price_locked`, currentLocked === false ? true : false)
+                      }}
+                      title={watch(`details.${index}.is_price_locked`) !== false ? "Unlock price" : "Lock price"}
+                      style={{
+                        padding: 6,
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        color: watch(`details.${index}.is_price_locked`) !== false ? 'var(--foreground-muted)' : 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {watch(`details.${index}.is_price_locked`) !== false ? <Lock size={14} /> : <Unlock size={14} />}
+                    </button>
+                  </div>
                   {(() => {
                     if (watchType !== 'supplier') return null
                     const uomId = Number(watch(`details.${index}.product_uom_id`))

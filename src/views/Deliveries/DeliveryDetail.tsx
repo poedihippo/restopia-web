@@ -36,10 +36,10 @@ interface DeliveryFull {
   total_price: number
   status: 'pending' | 'final'
   source_type?:
-    | 'po_from_supplier'
-    | 'po_from_branch'
-    | 'transfer_to_branch'
-    | 'so_to_branch'
+  | 'po_from_supplier'
+  | 'po_from_branch'
+  | 'transfer_to_branch'
+  | 'so_to_branch'
   target_branch_id?: number
   description?: string
   created_at?: string
@@ -98,8 +98,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,purchase_order,sales_order,created_by,delivery_details,' +
-            'delivery_details.purchase_order_detail,delivery_details.product_uom',
+            'branch,target_branch,purchase_order,sales_order,created_by,delivery_details'
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -301,119 +300,140 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
 
   return (
     <>
-    <div
-      className="dd-screen"
-      style={{
-        padding: '32px 32px 64px',
-        maxWidth: 960,
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 24,
-      }}
-    >
-      {/* Top bar */}
       <div
+        className="dd-screen"
         style={{
+          padding: '32px 32px 64px',
+          maxWidth: 960,
+          margin: '0 auto',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
+          flexDirection: 'column',
+          gap: 24,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" onClick={() => router.back()} style={backBtnStyle}>
-            <ArrowLeft size={14} />
-            Back
-          </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 22,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: 'var(--foreground)',
-                }}
-              >
-                {delivery.code}
-              </h1>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '3px 10px',
-                  borderRadius: 99,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: statusMeta.bg,
-                  color: statusMeta.color,
-                }}
-              >
-                {statusMeta.label}
-              </span>
+        {/* Top bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: 20,
+            borderBottom: '1px solid var(--border)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button type="button" onClick={() => router.back()} style={backBtnStyle}>
+              <ArrowLeft size={14} />
+              Back
+            </button>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h1
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 22,
+                    fontWeight: 500,
+                    margin: 0,
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  {delivery.code}
+                </h1>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '3px 10px',
+                    borderRadius: 99,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: statusMeta.bg,
+                    color: statusMeta.color,
+                  }}
+                >
+                  {statusMeta.label}
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+                Delivery
+              </p>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-              Delivery
-            </p>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          {canFinalize && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {canFinalize && (
+              <button
+                type="button"
+                onClick={handleFinalize}
+                disabled={finalizeMutation.isPending}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--accent)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'white',
+                  cursor: finalizeMutation.isPending ? 'not-allowed' : 'pointer',
+                  opacity: finalizeMutation.isPending ? 0.7 : 1,
+                }}
+              >
+                <CheckCircle2 size={13} />
+                {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
+              </button>
+            )}
+
+            {delivery?.status === 'final' && (
+              <button
+                type="button"
+                onClick={() => router.push(`/transfer/receipts/create?delivery_id=${id}`)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--accent)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'white',
+                  cursor: 'pointer',
+                }}
+              >
+                <ClipboardList size={13} />
+                Create Receipt
+              </button>
+            )}
+
+            {canRead && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Printer size={13} />
+                Print Surat Jalan
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleFinalize}
-              disabled={finalizeMutation.isPending}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--accent)',
-                border: '1px solid var(--accent)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'white',
-                cursor: finalizeMutation.isPending ? 'not-allowed' : 'pointer',
-                opacity: finalizeMutation.isPending ? 0.7 : 1,
-              }}
-            >
-              <CheckCircle2 size={13} />
-              {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
-            </button>
-          )}
-
-          {delivery?.status === 'final' && (
-            <button
-              type="button"
-              onClick={() => router.push(`/transfer/receipts/create?delivery_id=${id}`)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--accent)',
-                border: '1px solid var(--accent)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'white',
-                cursor: 'pointer',
-              }}
-            >
-              <ClipboardList size={13} />
-              Create Receipt
-            </button>
-          )}
-
-          {canRead && (
-            <button
-              type="button"
-              onClick={() => window.print()}
+              onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -428,122 +448,41 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                 cursor: 'pointer',
               }}
             >
-              <Printer size={13} />
-              Print Surat Jalan
+              <Pencil size={13} />
+              Edit
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
-          >
-            <Pencil size={13} />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeleteConfirm(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--destructive-bg)',
-              border: '1px solid var(--destructive)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--destructive)',
-              cursor: 'pointer',
-            }}
-          >
-            <Trash2 size={13} />
-            Delete
-          </button>
-        </div>
-      </div>
-
-      {/* Info grid 2x2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <Building2 size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>From Branch</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {delivery.branch?.name ?? '—'}
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--destructive-bg)',
+                border: '1px solid var(--destructive)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--destructive)',
+                cursor: 'pointer',
+              }}
+            >
+              <Trash2 size={13} />
+              Delete
+            </button>
           </div>
         </div>
 
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <Truck size={15} style={{ color: 'var(--accent-light)' }} />
+        {/* Info grid 2x2 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+          <div style={infoCardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={iconBoxStyle}>
+                <Building2 size={15} style={{ color: 'var(--accent-light)' }} />
+              </div>
+              <span style={sectionLabelStyle}>From Branch</span>
             </div>
-            <span style={sectionLabelStyle}>To Branch</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {delivery.target_branch?.name ?? '—'}
-          </div>
-        </div>
-
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Delivery Date</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {delivery.date
-              ? formatDate(delivery.date)
-              : '—'}
-          </div>
-        </div>
-
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <FileText size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Created By</span>
-          </div>
-          <div>
             <div
               style={{
                 fontSize: 15,
@@ -552,398 +491,458 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                 fontFamily: 'var(--font-display)',
               }}
             >
-              {delivery.created_by?.name ?? '—'}
+              {delivery.branch?.name ?? '—'}
             </div>
-            {delivery.created_at && (
-              <span
+          </div>
+
+          <div style={infoCardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={iconBoxStyle}>
+                <Truck size={15} style={{ color: 'var(--accent-light)' }} />
+              </div>
+              <span style={sectionLabelStyle}>To Branch</span>
+            </div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: 'var(--foreground)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              {delivery.target_branch?.name ?? '—'}
+            </div>
+          </div>
+
+          <div style={infoCardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={iconBoxStyle}>
+                <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
+              </div>
+              <span style={sectionLabelStyle}>Delivery Date</span>
+            </div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: 'var(--foreground)',
+                fontFamily: 'var(--font-display)',
+              }}
+            >
+              {delivery.date
+                ? formatDate(delivery.date)
+                : '—'}
+            </div>
+          </div>
+
+          <div style={infoCardStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={iconBoxStyle}>
+                <FileText size={15} style={{ color: 'var(--accent-light)' }} />
+              </div>
+              <span style={sectionLabelStyle}>Created By</span>
+            </div>
+            <div>
+              <div
                 style={{
-                  fontSize: 11,
-                  color: 'var(--foreground-subtle)',
-                  marginTop: 4,
-                  display: 'block',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: 'var(--foreground)',
+                  fontFamily: 'var(--font-display)',
                 }}
               >
-                {formatDateTime(delivery.created_at)}
-              </span>
-            )}
+                {delivery.created_by?.name ?? '—'}
+              </div>
+              {delivery.created_at && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--foreground-subtle)',
+                    marginTop: 4,
+                    display: 'block',
+                  }}
+                >
+                  {formatDateTime(delivery.created_at)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Linked PO card */}
-      {delivery.purchase_order && (
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16,
-          }}
-        >
-          <span style={sectionLabelStyle}>Linked Purchase Order</span>
-          <span
+        {/* Linked PO card */}
+        {delivery.purchase_order && (
+          <div
             style={{
-              ...pillStyle,
-              fontSize: 13,
-              fontWeight: 600,
-              color: 'var(--accent)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 20,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
             }}
           >
-            {delivery.purchase_order.code}
-          </span>
-        </div>
-      )}
+            <span style={sectionLabelStyle}>Linked Purchase Order</span>
+            <span
+              style={{
+                ...pillStyle,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--accent)',
+              }}
+            >
+              {delivery.purchase_order.code}
+            </span>
+          </div>
+        )}
 
-      {/* Description */}
-      {delivery.description && (
+        {/* Description */}
+        {delivery.description && (
+          <div
+            style={{
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 20,
+            }}
+          >
+            <span style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>Notes</span>
+            <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>
+              {delivery.description}
+            </p>
+          </div>
+        )}
+
+        {/* Line items table */}
         <div
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-lg)',
-            padding: 20,
+            overflow: 'hidden',
+            boxShadow: 'var(--shadow-sm)',
           }}
         >
-          <span style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>Notes</span>
-          <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>
-            {delivery.description}
-          </p>
-        </div>
-      )}
+          <div
+            style={{
+              padding: '14px 20px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--background)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span style={sectionLabelStyle}>Line Items</span>
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              {details.length} item(s)
+            </span>
+          </div>
 
-      {/* Line items table */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        <div
-          style={{
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--background)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={sectionLabelStyle}>Line Items</span>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            {details.length} item(s)
-          </span>
-        </div>
-
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>Product</th>
-              <th style={{ ...thStyle, width: 100 }}>UOM</th>
-              <th style={{ ...thStyle, width: 80 }}>Qty</th>
-              <th style={{ ...thStyle, width: 140 }}>Delivered / Ordered</th>
-              <th style={{ ...thStyle, width: 110 }}>Status</th>
-              <th style={{ ...thStyle, width: 160 }}>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {details.map((detail, index) => {
-              const detailStatus =
-                STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
-              const pu = getProductUom(detail.product_uom_id ?? 0)
-              return (
-                <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {index + 1}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={pillStyle}>
-                      {pu?.uom?.name ?? pu?.uom?.code ?? '—'}
-                    </span>
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    {detail.qty.toLocaleString('id-ID')}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {(() => {
-                      const ordered = detail.purchase_order_detail?.qty
-                      if (ordered == null) {
-                        return <span>{detail.qty.toLocaleString('id-ID')} / —</span>
-                      }
-                      const partial = detail.qty < ordered
-                      return (
-                        <>
-                          <span
-                            style={{
-                              fontWeight: 600,
-                              color: partial ? 'var(--warning)' : 'var(--success)',
-                            }}
-                          >
-                            {detail.qty.toLocaleString('id-ID')}
-                          </span>
-                          <span>{' / ' + ordered.toLocaleString('id-ID')}</span>
-                        </>
-                      )
-                    })()}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
+                <th style={{ ...thStyle, width: 50 }}>#</th>
+                <th style={thStyle}>Product</th>
+                <th style={{ ...thStyle, width: 100 }}>UOM</th>
+                <th style={{ ...thStyle, width: 80 }}>Qty</th>
+                <th style={{ ...thStyle, width: 140 }}>Delivered / Ordered</th>
+                <th style={{ ...thStyle, width: 110 }}>Status</th>
+                <th style={{ ...thStyle, width: 160 }}>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {details.map((detail, index) => {
+                const detailStatus =
+                  STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+                const pu = (detail as any).product_uom ?? getProductUom(detail.product_uom_id ?? 0)
+                return (
+                  <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      {index + 1}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                      {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={pillStyle}>
+                        {pu?.uom?.name ?? pu?.uom?.code ?? '—'}
+                      </span>
+                    </td>
+                    <td
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '3px 10px',
-                        borderRadius: 99,
-                        fontSize: 11,
+                        padding: '12px 16px',
+                        fontSize: 13,
                         fontWeight: 600,
-                        background: detailStatus.bg,
-                        color: detailStatus.color,
+                        color: 'var(--foreground)',
                       }}
                     >
-                      {detailStatus.label}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {detail.description || '—'}
-                  </td>
-                </tr>
-              )
-            })}
+                      {detail.qty.toLocaleString('id-ID')}
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      {(() => {
+                        const ordered = detail.purchase_order_detail?.qty
+                        if (ordered == null) {
+                          return <span>{detail.qty.toLocaleString('id-ID')} / —</span>
+                        }
+                        const partial = detail.qty < ordered
+                        return (
+                          <>
+                            <span
+                              style={{
+                                fontWeight: 600,
+                                color: partial ? 'var(--warning)' : 'var(--success)',
+                              }}
+                            >
+                              {detail.qty.toLocaleString('id-ID')}
+                            </span>
+                            <span>{' / ' + ordered.toLocaleString('id-ID')}</span>
+                          </>
+                        )
+                      })()}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '3px 10px',
+                          borderRadius: 99,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: detailStatus.bg,
+                          color: detailStatus.color,
+                        }}
+                      >
+                        {detailStatus.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      {detail.description || '—'}
+                    </td>
+                  </tr>
+                )
+              })}
 
-            {/* Total footer removed */}
-          </tbody>
-        </table>
-      </div>
+              {/* Total footer removed */}
+            </tbody>
+          </table>
+        </div>
 
-      {/* Delete confirm */}
-      {deleteConfirm && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 60,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            onClick={() => setDeleteConfirm(false)}
-            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
-          />
+        {/* Delete confirm */}
+        {deleteConfirm && (
           <div
             style={{
-              position: 'relative',
-              zIndex: 70,
-              background: 'var(--surface)',
-              borderRadius: 'var(--radius-lg)',
-              padding: '28px 28px 24px',
-              width: 400,
-              boxShadow: 'var(--shadow-lg)',
-              border: '1px solid var(--border)',
+              position: 'fixed',
+              inset: 0,
+              zIndex: 60,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            <h3
+            <div
+              onClick={() => setDeleteConfirm(false)}
+              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
+            />
+            <div
               style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 17,
-                fontWeight: 600,
-                margin: '0 0 8px',
-                color: 'var(--foreground)',
+                position: 'relative',
+                zIndex: 70,
+                background: 'var(--surface)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '28px 28px 24px',
+                width: 400,
+                boxShadow: 'var(--shadow-lg)',
+                border: '1px solid var(--border)',
               }}
             >
-              Delete Delivery
-            </h3>
-            <p
-              style={{
-                fontSize: 13,
-                color: 'var(--foreground-muted)',
-                margin: '0 0 24px',
-                lineHeight: 1.6,
-              }}
-            >
-              This will permanently remove delivery <strong>{delivery.code}</strong> and all its
-              details. This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm(false)}
+              <h3
                 style={{
-                  padding: '7px 16px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 17,
+                  fontWeight: 600,
+                  margin: '0 0 8px',
                   color: 'var(--foreground)',
-                  cursor: 'pointer',
                 }}
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => deleteMutation.mutate()}
-                disabled={deleteMutation.isPending}
+                Delete Delivery
+              </h3>
+              <p
                 style={{
-                  padding: '7px 16px',
-                  background: 'var(--destructive)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
                   fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: 'pointer',
-                  opacity: deleteMutation.isPending ? 0.7 : 1,
+                  color: 'var(--foreground-muted)',
+                  margin: '0 0 24px',
+                  lineHeight: 1.6,
                 }}
               >
-                Delete
-              </button>
+                This will permanently remove delivery <strong>{delivery.code}</strong> and all its
+                details. This action cannot be undone.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm(false)}
+                  style={{
+                    padding: '7px 16px',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--foreground)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={deleteMutation.isPending}
+                  style={{
+                    padding: '7px 16px',
+                    background: 'var(--destructive)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'white',
+                    cursor: 'pointer',
+                    opacity: deleteMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <style>{`
+        <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
       `}</style>
-    </div>
-
-    {/* ── Printable A4 Surat Jalan (hidden on screen, shown only in print) ── */}
-    <div className="surat-jalan-print">
-      {/* Letterhead */}
-      <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '6mm', marginBottom: '6mm' }}>
-        <div style={{ fontSize: '13pt', fontWeight: 700 }}>
-          DELIVERY NOTE
-        </div>
       </div>
 
-      {/* Document meta — two columns */}
-      <table style={{ width: '100%', fontSize: '10pt', marginBottom: '6mm', borderCollapse: 'collapse' }}>
-        <tbody>
-          <tr>
-            <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
-              <strong>No. Surat Jalan:</strong> {delivery.code}
-            </td>
-            <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
-              <strong>Tanggal:</strong>{' '}
-              {delivery.date ? String(delivery.date).slice(0, 10) : '-'}
-            </td>
-          </tr>
-          <tr>
-            <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-              <strong>Dari (From):</strong> {delivery.branch?.name ?? '-'}
-            </td>
-            <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-              <strong>Kepada (To):</strong> {delivery.target_branch?.name ?? '-'}
-            </td>
-          </tr>
-          {delivery.purchase_order?.code && (
+      {/* ── Printable A4 Surat Jalan (hidden on screen, shown only in print) ── */}
+      <div className="surat-jalan-print">
+        {/* Letterhead */}
+        <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '6mm', marginBottom: '6mm' }}>
+          <div style={{ fontSize: '13pt', fontWeight: 700 }}>
+            DELIVERY NOTE
+          </div>
+        </div>
+
+        {/* Document meta — two columns */}
+        <table style={{ width: '100%', fontSize: '10pt', marginBottom: '6mm', borderCollapse: 'collapse' }}>
+          <tbody>
+            <tr>
+              <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
+                <strong>No. Surat Jalan:</strong> {delivery.code}
+              </td>
+              <td style={{ width: '50%', verticalAlign: 'top', padding: '1mm 0' }}>
+                <strong>Tanggal:</strong>{' '}
+                {delivery.date ? String(delivery.date).slice(0, 10) : '-'}
+              </td>
+            </tr>
             <tr>
               <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-                <strong>Ref PO:</strong> {delivery.purchase_order.code}
+                <strong>Dari (From):</strong> {delivery.branch?.name ?? '-'}
               </td>
-              <td />
+              <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
+                <strong>Kepada (To):</strong> {delivery.target_branch?.name ?? '-'}
+              </td>
             </tr>
-          )}
-        </tbody>
-      </table>
-
-      {/* Items table */}
-      <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
-        <thead style={{ display: 'table-header-group' }}>
-          <tr>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center', width: '9mm' }}>NO</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '22mm' }}>ITEM CODE</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left' }}>NAME</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '18mm' }}>UNIT</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>DEL</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>RECV</th>
-            <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '28mm' }}>REMARK</th>
-          </tr>
-        </thead>
-        <tbody>
-          {details.map((detail, index) => {
-            const pu = getProductUom(detail.product_uom_id ?? 0)
-            return (
-              <tr key={detail.id}>
-                <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center' }}>
-                  {index + 1}
+            {delivery.purchase_order?.code && (
+              <tr>
+                <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
+                  <strong>Ref PO:</strong> {delivery.purchase_order.code}
                 </td>
-                <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                  {pu?.product?.code ?? '-'}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                  {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                  {pu?.uom?.name ?? pu?.uom?.code ?? '-'}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right' }}>
-                  {detail.qty.toLocaleString('id-ID')}
-                </td>
-                <td style={{ border: '1px solid #000', padding: '2mm' }} />
-                <td style={{ border: '1px solid #000', padding: '2mm' }} />
+                <td />
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
 
-      {/* Notes */}
-      {delivery.description && (
-        <div style={{ fontSize: '10pt', marginTop: '5mm' }}>
-          <strong>Catatan:</strong> {delivery.description}
-        </div>
-      )}
+        {/* Items table */}
+        <table style={{ width: '100%', fontSize: '10pt', borderCollapse: 'collapse' }}>
+          <thead style={{ display: 'table-header-group' }}>
+            <tr>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center', width: '9mm' }}>NO</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '22mm' }}>ITEM CODE</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left' }}>NAME</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '18mm' }}>UNIT</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>DEL</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>RECV</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '28mm' }}>REMARK</th>
+            </tr>
+          </thead>
+          <tbody>
+            {details.map((detail, index) => {
+              const pu = getProductUom(detail.product_uom_id ?? 0)
+              return (
+                <tr key={detail.id}>
+                  <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center' }}>
+                    {index + 1}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                    {pu?.product?.code ?? '-'}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                    {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                    {pu?.uom?.name ?? pu?.uom?.code ?? '-'}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right' }}>
+                    {detail.qty.toLocaleString('id-ID')}
+                  </td>
+                  <td style={{ border: '1px solid #000', padding: '2mm' }} />
+                  <td style={{ border: '1px solid #000', padding: '2mm' }} />
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
 
-      {/* Signatures — 3 columns */}
-      <table
-        style={{
-          width: '100%',
-          fontSize: '10pt',
-          marginTop: '16mm',
-          marginBottom: 0,
-          borderCollapse: 'collapse',
-          pageBreakInside: 'avoid',
-          breakInside: 'avoid',
-        }}
-      >
-        <tbody>
-          <tr>
-            {['Pengirim', 'Penerima', 'Sopir / Driver'].map((label) => (
-              <td key={label} style={{ width: '33%', textAlign: 'center', verticalAlign: 'top', padding: '0 4mm' }}>
-                <div>{label}</div>
-                <div style={{ height: '22mm' }} />
-                <div>( ____________ )</div>
-                <div style={{ fontSize: '8pt', marginTop: '1mm' }}>Nama Jelas</div>
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-    </div>
+        {/* Notes */}
+        {delivery.description && (
+          <div style={{ fontSize: '10pt', marginTop: '5mm' }}>
+            <strong>Catatan:</strong> {delivery.description}
+          </div>
+        )}
 
-    <style>{`
+        {/* Signatures — 3 columns */}
+        <table
+          style={{
+            width: '100%',
+            fontSize: '10pt',
+            marginTop: '16mm',
+            marginBottom: 0,
+            borderCollapse: 'collapse',
+            pageBreakInside: 'avoid',
+            breakInside: 'avoid',
+          }}
+        >
+          <tbody>
+            <tr>
+              {['Pengirim', 'Penerima', 'Sopir / Driver'].map((label) => (
+                <td key={label} style={{ width: '33%', textAlign: 'center', verticalAlign: 'top', padding: '0 4mm' }}>
+                  <div>{label}</div>
+                  <div style={{ height: '22mm' }} />
+                  <div>( ____________ )</div>
+                  <div style={{ fontSize: '8pt', marginTop: '1mm' }}>Nama Jelas</div>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <style>{`
       .surat-jalan-print { display: none; }
       @media print {
         @page { size: A4 portrait; margin: 18mm; }
