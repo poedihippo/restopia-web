@@ -33,6 +33,7 @@ const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 const materialSchema = z.object({
   product_inventory_id: z.coerce.number().min(0),
   qty: z.coerce.number().min(0.001),
+  base_ratio: z.number().optional(),
 })
 
 const detailSchema = z.object({
@@ -416,6 +417,7 @@ export function MaterialsFieldArray({
                   {...reg}
                   onChange={(e) => {
                     reg.onChange(e)
+                    setValue(`details.${detailIndex}.materials.${matIndex}.base_ratio` as any, undefined)
                   }}
                   placeholder="Qty"
                   style={{
@@ -795,9 +797,11 @@ export default function ProductionForm({
               String(mat.product_uom?.product_id ?? '?')
             )
           }
+          const qty = Number(mat.qty) || 0
           return {
             product_inventory_id: match?.id ?? 0,
-            qty: Number(mat.qty) || 0,
+            qty: qty,
+            base_ratio: recipeQty > 0 ? qty / recipeQty : 0,
           }
         })
         // All-or-nothing: if any material lacks inventory at this branch,
@@ -1310,18 +1314,17 @@ export default function ProductionForm({
                 >
                   {/* Detail header row */}
                   <div
-                    onClick={() => toggleDetail(detailIndex)}
                     style={{
                       padding: '12px 20px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 12,
-                      cursor: 'pointer',
                       background: isExpanded ? 'var(--accent-light-bg)' : 'var(--background)',
                     }}
                   >
                     {/* Expand icon */}
                     <div
+                      onClick={() => toggleDetail(detailIndex)}
                       style={{
                         width: 24,
                         height: 24,
@@ -1331,6 +1334,7 @@ export default function ProductionForm({
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
+                        cursor: 'pointer',
                       }}
                     >
                       {isExpanded ? (
@@ -1534,27 +1538,46 @@ export default function ProductionForm({
                       style={{ width: 100 }}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <input
-                        type="number"
-                        min={0.001}
-                        step={0.001}
-                        {...register(`details.${detailIndex}.qty` as any, {
+                      {(() => {
+                        const reg = register(`details.${detailIndex}.qty` as any, {
                           valueAsNumber: true,
-                        })}
-                        placeholder="Qty"
-                        style={{
-                          width: '100%',
-                          padding: '6px 10px',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 13,
-                          outline: 'none',
-                          color: 'var(--foreground)',
-                          background: 'var(--surface)',
-                          fontFamily: 'var(--font-sans)',
-                          boxSizing: 'border-box',
-                        }}
-                      />
+                        })
+                        return (
+                          <input
+                            type="number"
+                            min={0.001}
+                            step={0.001}
+                            {...reg}
+                            onChange={(e) => {
+                              reg.onChange(e)
+                              const newQty = parseFloat(e.target.value) || 0
+                              const currentMaterials = watchDetails[detailIndex]?.materials || []
+                              currentMaterials.forEach((m: any, mIdx: number) => {
+                                if (m.base_ratio !== undefined) {
+                                  const newMatQty = m.base_ratio * newQty
+                                  setValue(
+                                    `details.${detailIndex}.materials.${mIdx}.qty` as any,
+                                    Number(newMatQty.toFixed(4))
+                                  )
+                                }
+                              })
+                            }}
+                            placeholder="Qty"
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: 13,
+                              outline: 'none',
+                              color: 'var(--foreground)',
+                              background: 'var(--surface)',
+                              fontFamily: 'var(--font-sans)',
+                              boxSizing: 'border-box',
+                            }}
+                          />
+                        )
+                      })()}
                     </div>
 
                     {/* Per-detail status */}

@@ -882,7 +882,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           </thead>
           <tbody>
             {details.map((detail, index) => {
-              const pu = getProductUom(detail.product_uom_id ?? 0)
+              const pu = (detail as any).product_uom ?? getProductUom(detail.product_uom_id ?? 0)
               return (
                 <tr key={detail.id}>
                   <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'center' }}>
