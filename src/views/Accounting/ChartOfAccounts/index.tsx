@@ -12,6 +12,7 @@ import {
 } from '@/services/accounting.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, BookOpen, CheckCircle2, XCircle, GitBranch,
@@ -71,6 +72,7 @@ export default function ChartOfAccountsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<CoA | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -82,17 +84,17 @@ export default function ChartOfAccountsView() {
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['chart-of-accounts', page, debouncedSearch, filterType, filterParent],
-    queryFn: () => chartOfAccountsService.list({ page, per_page: 20, sort: 'code', include: 'account_category,account_type', 'filter[search]': debouncedSearch || undefined, 'filter[account_type_id]': filterType || undefined, 'filter[parent_id]': filterParent || undefined }).then((r) => r.data),
+    queryKey: ['chart-of-accounts', page, perPage, debouncedSearch, filterType, filterParent],
+    queryFn: () => chartOfAccountsService.list({ page, per_page: perPage, sort: 'code', include: 'account_category,account_type', 'filter[search]': debouncedSearch || undefined, 'filter[account_type_id]': filterType || undefined, 'filter[parent_id]': filterParent || undefined }).then((r) => r.data),
   })
 
   const { data: categoriesData } = useQuery({
     queryKey: ['account-categories-all'],
-    queryFn: () => accountCategoriesService.list({ per_page: 999, sort: 'code' }).then((r) => r.data),
+    queryFn: () => accountCategoriesService.list({ per_page: perPage, sort: 'code' }).then((r) => r.data),
   })
   const { data: typesData } = useQuery({
     queryKey: ['account-types-all'],
-    queryFn: () => accountTypesService.list({ per_page: 999, sort: 'code' }).then((r) => r.data),
+    queryFn: () => accountTypesService.list({ per_page: perPage, sort: 'code' }).then((r) => r.data),
   })
 
   const items: CoA[] = (data as any)?.data ?? []
@@ -250,13 +252,7 @@ export default function ChartOfAccountsView() {
         </table>
       </div>
 
-      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page ?? meta.total_pages}</span>
-          <button onClick={() => setPage((p) => Math.min((meta.last_page ?? meta.total_pages), p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
 
       {deleteConfirmId !== null && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

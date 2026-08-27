@@ -21,6 +21,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import TransferOutForm from './TransferOutForm'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: {
@@ -46,6 +47,7 @@ export default function StockTransferView() {
   const [activeTab, setActiveTab] = useState<'out' | 'in'>('out')
   const [showOutForm, setShowOutForm] = useState(false)
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
   const deleteMutation = useMutation({
@@ -76,13 +78,13 @@ export default function StockTransferView() {
 
   // ── Outgoing transfers ──────────────────────────────────────────────────
   const { data: outData, isLoading: outLoading } = useQuery({
-    queryKey: ['deliveries-transfer-out', page, myBranchId],
+    queryKey: ['deliveries-transfer-out', page, perPage, myBranchId],
     enabled: activeTab === 'out',
     queryFn: () =>
       deliveriesService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           include: 'target_branch,delivery_details',
           sort: '-created_at',
           'filter[source_type]': 'transfer_to_branch',
@@ -95,13 +97,13 @@ export default function StockTransferView() {
 
   // ── Incoming transfers ──────────────────────────────────────────────────
   const { data: inData, isLoading: inLoading } = useQuery({
-    queryKey: ['deliveries-transfer-in', page, myBranchId],
+    queryKey: ['deliveries-transfer-in', page, perPage, myBranchId],
     enabled: activeTab === 'in' && !!myBranchId,
     queryFn: () =>
       deliveriesService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           include: 'branch,delivery_details',
           sort: '-created_at',
           'filter[source_type]': 'transfer_to_branch',

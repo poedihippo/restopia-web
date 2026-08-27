@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
   credit: { label: 'Credit', color: 'var(--warning)', bg: 'var(--warning-bg)' },
@@ -94,6 +95,7 @@ export default function TransactionHistoryReport() {
   const [hasSetDefault, setHasSetDefault] = useState(false)
   const [typeFilter, setTypeFilter] = useState<'' | 'offline' | 'online'>('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {
@@ -110,13 +112,13 @@ export default function TransactionHistoryReport() {
       dateTo,
       branchFilter,
       typeFilter,
-      page,
+      page, perPage,
     ],
     queryFn: () =>
       salesOrdersService
         .list({
           page,
-          per_page: 100,
+          per_page: perPage,
           include: 'branch,customer,credit_by,created_by',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,
@@ -606,54 +608,7 @@ export default function TransactionHistoryReport() {
         </table>
       </div>
 
-      {meta && (meta.last_page ?? 1) > 1 && (
-        <div
-          className="no-print"
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            type="button"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            style={{
-              padding: '5px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              fontSize: 12,
-              cursor: page === 1 ? 'not-allowed' : 'pointer',
-              opacity: page === 1 ? 0.5 : 1,
-            }}
-          >
-            Prev
-          </button>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            Page {page} of {meta.last_page ?? 1}
-          </span>
-          <button
-            type="button"
-            disabled={page >= (meta.last_page ?? 1)}
-            onClick={() => setPage((p) => p + 1)}
-            style={{
-              padding: '5px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              fontSize: 12,
-              cursor: page >= (meta.last_page ?? 1) ? 'not-allowed' : 'pointer',
-              opacity: page >= (meta.last_page ?? 1) ? 0.5 : 1,
-            }}
-          >
-            Next
-          </button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
     </div>
   )
 }

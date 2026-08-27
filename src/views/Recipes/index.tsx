@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import RecipeSheet from './RecipeSheet'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Pencil,
@@ -54,6 +55,7 @@ export default function RecipesView() {
   const canDelete = hasPermission('recipe.delete')
 
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [productUomFilter, setProductUomFilter] = useState<number | ''>('')
@@ -79,7 +81,7 @@ export default function RecipesView() {
 
   const { data: productUomsData } = useQuery({
     queryKey: ['product-uoms-list', debouncedPuSearch],
-    queryFn: () => productUomsService.list({ per_page: 50, include: 'product,uom', 'filter[search]': debouncedPuSearch || undefined } as any).then((r) => r.data),
+    queryFn: () => productUomsService.list({ per_page: perPage, include: 'product,uom', 'filter[search]': debouncedPuSearch || undefined } as any).then((r) => r.data),
   })
 
   const productUomOptions = (productUomsData as any)?.data?.map((pu: any) => ({
@@ -88,12 +90,12 @@ export default function RecipesView() {
   })) ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['recipes', page, debouncedSearch, productUomFilter],
+    queryKey: ['recipes', page, perPage, debouncedSearch, productUomFilter],
     queryFn: () =>
       recipesService
         .list({
           page,
-          per_page: 10,
+          per_page: perPage,
           include: 'product_uom,recipe_materials',
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
@@ -488,73 +490,7 @@ export default function RecipesView() {
           ))}
       </div>
       {/* Pagination */}
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingTop: 12,
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            Showing {(page - 1) * 10 + 1}–{Math.min(page * 10, meta.total)} of{' '}
-            {meta.total}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === 1 ? 0.5 : 1,
-              }}
-            >
-              <ChevronLeft size={13} />
-              Prev
-            </button>
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--foreground)',
-                padding: '0 8px',
-                fontWeight: 500,
-              }}
-            >
-              {page} / {meta.last_page ?? meta.total_pages ?? 1}
-            </span>
-            <button
-              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
-              onClick={() => setPage((p) => Math.min(meta.last_page ?? meta.total_pages ?? 1, p + 1))}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
-              }}
-            >
-              Next
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div

@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Printer, ChevronLeft, ChevronRight } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 const firstOfMonth = () =>
   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     .toISOString()
@@ -138,6 +139,7 @@ export default function SalesByInvoiceReport() {
   const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState<boolean>(false)
   const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {
@@ -152,13 +154,13 @@ export default function SalesByInvoiceReport() {
       dateFrom,
       dateTo,
       branchFilter,
-      page,
+      page, perPage,
     ],
     queryFn: () =>
       salesOrdersService
         .list({
           page,
-          per_page: 50,
+          per_page: perPage,
           include: 'branch,customer,credit_by',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,

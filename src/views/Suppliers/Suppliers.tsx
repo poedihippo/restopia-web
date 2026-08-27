@@ -101,12 +101,7 @@ const Suppliers = () => {
         data={suppliers}
         loading={isLoading}
         emptyText="No suppliers found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("supplier")} />
       {/* Modals */}

@@ -136,12 +136,7 @@ const Recipes = () => {
         data={recipes}
         loading={isLoading}
         emptyText="No recipes found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("recipe")} />
       {/* Modals */}

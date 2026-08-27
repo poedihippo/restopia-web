@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { periodsService, fiscalYearsService, type PeriodRequest } from '@/services/accounting.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, Calendar, CheckCircle2, Lock,
@@ -62,6 +63,7 @@ export default function PeriodsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Period | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -70,13 +72,13 @@ export default function PeriodsView() {
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['periods', page, debouncedSearch],
-    queryFn: () => periodsService.list({ page, per_page: 15, sort: '-id', include: 'fiscal_year', 'filter[search]': debouncedSearch || undefined }).then((r) => r.data),
+    queryKey: ['periods', page, perPage, debouncedSearch],
+    queryFn: () => periodsService.list({ page, per_page: perPage, sort: '-id', include: 'fiscal_year', 'filter[search]': debouncedSearch || undefined }).then((r) => r.data),
   })
 
   const { data: fiscalData } = useQuery({
     queryKey: ['fiscal-years-all'],
-    queryFn: () => fiscalYearsService.list({ per_page: 999, sort: '-id' }).then((r) => r.data),
+    queryFn: () => fiscalYearsService.list({ per_page: perPage, sort: '-id' }).then((r) => r.data),
   })
 
   const items: Period[] = (data as any)?.data ?? []
@@ -199,13 +201,7 @@ export default function PeriodsView() {
         </table>
       </div>
 
-      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page ?? meta.total_pages}</span>
-          <button onClick={() => setPage((p) => Math.min((meta.last_page ?? meta.total_pages), p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
 
       {deleteConfirmId !== null && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

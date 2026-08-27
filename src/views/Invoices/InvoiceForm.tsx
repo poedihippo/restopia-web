@@ -90,6 +90,7 @@ export default function InvoiceForm() {
     queryFn: () => salesOrdersService.list({
       per_page: 100,
       'filter[status]': 'final',
+      'filter[has_invoice]': 'false',
       include: 'branch,customer,sales_order_details,additional_charges',
       sort: '-created_at'
     } as any).then(res => res.data),
@@ -327,6 +328,10 @@ export default function InvoiceForm() {
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>Sales Orders</h3>
             {soLoading ? (
               <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading sales orders...</p>
+            ) : availableSOs.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '12px 0', textAlign: 'center' }}>
+                No sales orders available to invoice.
+              </p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {availableSOs.map((so: any) => {

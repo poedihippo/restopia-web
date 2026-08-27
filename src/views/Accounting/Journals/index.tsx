@@ -14,6 +14,7 @@ import {
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye,
@@ -97,6 +98,7 @@ export default function JournalsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Journal | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -106,18 +108,18 @@ export default function JournalsView() {
   useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['journals', page, debouncedSearch, typeFilter],
-    queryFn: () => journalsService.list({ page, per_page: 15, sort: '-id', include: 'period,journal_details', 'filter[search]': debouncedSearch || undefined, 'filter[type]': typeFilter || undefined }).then((r) => r.data),
+    queryKey: ['journals', page, perPage, debouncedSearch, typeFilter],
+    queryFn: () => journalsService.list({ page, per_page: perPage, sort: '-id', include: 'period,journal_details', 'filter[search]': debouncedSearch || undefined, 'filter[type]': typeFilter || undefined }).then((r) => r.data),
   })
 
   const { data: periodsData } = useQuery({
     queryKey: ['periods-all'],
-    queryFn: () => periodsService.list({ per_page: 999, sort: '-id' }).then((r) => r.data),
+    queryFn: () => periodsService.list({ per_page: perPage, sort: '-id' }).then((r) => r.data),
   })
 
   const { data: coaData } = useQuery({
     queryKey: ['chart-of-accounts-all'],
-    queryFn: () => chartOfAccountsService.list({ per_page: 999, sort: 'code', 'filter[is_active]': 'true' } as any).then((r) => r.data),
+    queryFn: () => chartOfAccountsService.list({ per_page: perPage, sort: 'code', 'filter[is_active]': 'true' } as any).then((r) => r.data),
   })
 
   const items: Journal[] = (data as any)?.data ?? []
@@ -324,13 +326,7 @@ export default function JournalsView() {
         </table>
       </div>
 
-      {meta && (meta.last_page ?? meta.total_pages) > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-          <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === 1 ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronLeft size={15} /></button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Page {page} of {meta.last_page ?? meta.total_pages}</span>
-          <button onClick={() => setPage((p) => Math.min((meta.last_page ?? meta.total_pages), p + 1))} disabled={page === (meta.last_page ?? meta.total_pages)} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: page === (meta.last_page ?? meta.total_pages) ? 'var(--foreground-subtle)' : 'var(--foreground)', cursor: page === (meta.last_page ?? meta.total_pages) ? 'not-allowed' : 'pointer', fontSize: 13 }}><ChevronRight size={15} /></button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
 
       {deleteConfirmId !== null && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

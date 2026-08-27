@@ -366,12 +366,7 @@ const ProductInventories = () => {
         data={productInventories}
         loading={isLoading}
         emptyText="No product inventories found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("product-inventory")} />
       {/* Modals */}

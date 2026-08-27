@@ -17,7 +17,7 @@ interface UseDataTableOptions {
 
 const useDataTable = (options?: UseDataTableOptions) => {
   const {
-    defaultPerPage = 10,
+    defaultPerPage = 1000,
     defaultSort = "-id",
     debounceMs = 500,
     extraParams,
@@ -47,15 +47,6 @@ const useDataTable = (options?: UseDataTableOptions) => {
     [currentPage, perPage, debouncedSearch, defaultSort, extraParams],
   );
 
-  const buildPagination = useCallback(
-    (meta?: Meta) => ({
-      current: meta?.current_page ?? 1,
-      pageSize: meta?.per_page ?? perPage,
-      total: meta?.total ?? 0,
-    }),
-    [perPage],
-  );
-
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
   }, []);
@@ -64,6 +55,17 @@ const useDataTable = (options?: UseDataTableOptions) => {
     setPerPage(newPerPage);
     setCurrentPage(1);
   }, []);
+
+  const buildPagination = useCallback(
+    (meta?: Meta) => ({
+      current: meta?.current_page ?? 1,
+      pageSize: meta?.per_page ?? perPage,
+      total: meta?.total ?? 0,
+      onChange: handlePageChange,
+      onPageSizeChange: handlePerPageChange,
+    }),
+    [perPage, handlePageChange, handlePerPageChange],
+  );
 
   const handleSearch = useCallback((searchTerm: string) => {
     setSearch(searchTerm);

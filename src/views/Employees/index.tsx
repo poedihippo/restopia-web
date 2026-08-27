@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { usersService } from '@/services/users.service'
 import UserSheet from '@/views/User/UserSheet'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -45,6 +46,7 @@ export default function EmployeesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Employee | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -59,12 +61,12 @@ export default function EmployeesView() {
   }, [debouncedSearch])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['employees', page, debouncedSearch],
+    queryKey: ['employees', page, perPage, debouncedSearch],
     queryFn: () =>
       usersService
         .list({
           page,
-          per_page: 20,
+          per_page: perPage,
           include: 'branch,roles',
           sort: '-created_at',
           'filter[type]': 'user',
@@ -567,58 +569,7 @@ export default function EmployeesView() {
         </table>
       </div>
       {/* Pagination */}
-      {meta && lastPage > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === 1 ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Page {page} of {lastPage}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-            disabled={page === lastPage}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color:
-                page === lastPage ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === lastPage ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div

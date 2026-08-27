@@ -8,6 +8,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -60,6 +61,7 @@ export default function DeliveriesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('final')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -75,12 +77,12 @@ export default function DeliveriesView() {
   }, [debouncedSearch, statusFilter, dateFrom, dateTo])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['deliveries', page, debouncedSearch, statusFilter, dateFrom, dateTo],
+    queryKey: ['deliveries', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo],
     queryFn: () =>
       deliveriesService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           include: 'branch,target_branch,purchase_order',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
@@ -529,61 +531,7 @@ export default function DeliveriesView() {
         </table>
       </div>
       {/* Pagination */}
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === 1 ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Page {page} of {meta.last_page ?? meta.total_pages ?? 1}
-          </span>
-          <button
-            onClick={() =>
-              setPage((p) => Math.min(meta.last_page ?? meta.total_pages ?? 1, p + 1))
-            }
-            disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color:
-                page === (meta.last_page ?? meta.total_pages ?? 1)
-                  ? 'var(--foreground-subtle)'
-                  : 'var(--foreground)',
-              cursor:
-                page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div

@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import AcceptPOModal, { AcceptPODetailPayload } from './AcceptPOModal'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 
 interface RequestedPO {
   id: number
@@ -95,6 +96,7 @@ export default function RequestedOrdersView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'delivered' | 'rejected' | 'partially_delivered'>('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [acceptModalPO, setAcceptModalPO] = useState<RequestedPO | null>(null)
@@ -109,13 +111,13 @@ export default function RequestedOrdersView() {
   }, [debouncedSearch, statusFilter])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['requested-orders', page, debouncedSearch, statusFilter, myBranchId],
+    queryKey: ['requested-orders', page, perPage, debouncedSearch, statusFilter, myBranchId],
     enabled: !!myBranchId,
     queryFn: () =>
       purchaseOrdersService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           include:
             'branch,supplier_branch,purchase_order_details,purchase_order_details.product_uom',
           sort: '-created_at',
@@ -736,58 +738,7 @@ export default function RequestedOrdersView() {
       </div>
 
       {/* Pagination */}
-      {meta && lastPage > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === 1 ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Page {page} of {lastPage}
-          </span>
-          <button
-            type="button"
-            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-            disabled={page === lastPage}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color:
-                page === lastPage ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === lastPage ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
 
       <style>{`
         @keyframes pulse {

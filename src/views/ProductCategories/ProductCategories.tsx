@@ -100,12 +100,7 @@ const ProductCategories = () => {
         data={productCategories}
         loading={isLoading}
         emptyText="No product categories found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("product-category")} />
       {/* Modals */}

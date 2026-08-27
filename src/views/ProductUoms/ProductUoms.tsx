@@ -320,12 +320,7 @@ const ProductUoms = () => {
         data={productUom}
         loading={isLoading}
         emptyText="No product uoms found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("product-uom")} />
       {/* Modals */}

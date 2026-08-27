@@ -9,6 +9,7 @@ import { salesOrdersService as salesOrderService } from '@/services/sales-orders
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { PriceDisplay } from '@/components/PriceDisplay'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 
 interface SalesOrder {
   id: number
@@ -47,6 +48,7 @@ export default function SalesOrdersView() {
   const canEdit = hasPermission('sales-order.update')
   const canDelete = hasPermission('sales-order.delete')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -102,7 +104,7 @@ export default function SalesOrdersView() {
   const { data, isLoading } = useQuery({
     queryKey: [
       'sales-orders',
-      page,
+      page, perPage,
       searchDebounced,
       statusFilter,
       settlementFilter,
@@ -115,7 +117,7 @@ export default function SalesOrdersView() {
       salesOrderService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           sort: '-created_at',
           include: 'branch,customer',
           'filter[search]': searchDebounced || undefined,
@@ -619,67 +621,7 @@ export default function SalesOrdersView() {
         </table>
       </div>
       {/* Pagination */}
-      {meta && (meta?.last_page ?? meta?.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: 16,
-          }}
-        >
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            {meta.total} orders · Page {page} of{' '}
-            {meta?.last_page ?? meta?.total_pages ?? 1}
-          </span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              style={{
-                height: 32,
-                padding: '0 14px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--surface)',
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
-                color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-                fontSize: 13,
-              }}
-            >
-              ← Prev
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setPage((p) =>
-                  Math.min(meta?.last_page ?? meta?.total_pages ?? 1, p + 1)
-                )
-              }
-              disabled={page === (meta?.last_page ?? meta?.total_pages ?? 1)}
-              style={{
-                height: 32,
-                padding: '0 14px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--surface)',
-                cursor:
-                  page === (meta?.last_page ?? meta?.total_pages ?? 1)
-                    ? 'not-allowed'
-                    : 'pointer',
-                color:
-                  page === (meta?.last_page ?? meta?.total_pages ?? 1)
-                    ? 'var(--foreground-subtle)'
-                    : 'var(--foreground)',
-                fontSize: 13,
-              }}
-            >
-              Next →
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete dialog */}
       {deleteTarget && (
         <div

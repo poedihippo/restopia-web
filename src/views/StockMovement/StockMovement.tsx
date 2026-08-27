@@ -172,12 +172,7 @@ const StockMovement = () => {
         data={stockMovements}
         loading={isLoading}
         emptyText="No stock movements found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
       />
     </div>
   );

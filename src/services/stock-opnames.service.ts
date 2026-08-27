@@ -15,6 +15,7 @@ export interface CreateStockOpnameRequest {
 export interface UpdateStockOpnameDetailItemRequest {
   product_inventory_id: number
   counted_qty?: number
+  count_items?: { uom_id: number; counted_qty: number }[]
   description?: string
 }
 

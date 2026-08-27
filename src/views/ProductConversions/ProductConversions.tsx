@@ -182,12 +182,7 @@ const ProductConversions = () => {
         data={productConversions}
         loading={isLoading}
         emptyText="No product conversions found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("product-conversion")} />
       {/* Modals */}

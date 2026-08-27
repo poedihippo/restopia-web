@@ -247,7 +247,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       let totalPages = 1
       do {
         const res = await salesOrdersService
-          .list({ page, per_page: 100, 'filter[status]': 'final' } as any)
+          .list({ page, per_page: 100, 'filter[status]': 'final', 'filter[has_delivery]': 'false' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allOrders = allOrders.concat(items)

@@ -231,12 +231,7 @@ const PurchaseOrders = () => {
         data={purchaseOrders}
         loading={isLoading}
         emptyText="No purchase orders found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("purchase-order")} />
       {/* Modals */}

@@ -67,6 +67,7 @@ interface InvoiceFull {
   branch?: { id: number; name: string }
   billed_branch?: { id: number; name: string }
   invoice_details?: InvoiceDetailLine[]
+  additional_charges?: { id: number; name: string; amount: number }[]
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -89,7 +90,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     queryFn: () =>
       invoicesService
         .get(id, {
-          include: 'updated_by,billed_branch,invoice_details,created_by',
+          include: 'updated_by,billed_branch,invoice_details,created_by,additional_charges',
         })
         .then((r) => r.data),
     enabled: canRead && !!id && !isNaN(id),
@@ -103,7 +104,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const [paymentDescription, setPaymentDescription] = React.useState<string>('')
 
   const invoiceReceiptIds = invoice?.invoice_details?.map(d => d.receipt_id).filter(Boolean) || []
-  
+
   const { data: paymentsData } = useQuery({
     queryKey: ['invoice-payments', id],
     enabled: canRead && !!id && !isNaN(id),
@@ -116,11 +117,11 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         } as any)
         .then((r) => r.data),
   })
-  
+
   const allPayments = (paymentsData as any)?.data ?? []
-  const payments = allPayments.filter((p: any) => 
-    p.allocations?.some((a: any) => 
-      a.invoice_id === Number(id) || 
+  const payments = allPayments.filter((p: any) =>
+    p.allocations?.some((a: any) =>
+      a.invoice_id === Number(id) ||
       (a.receipt_id && invoiceReceiptIds.includes(a.receipt_id))
     )
   )
@@ -521,7 +522,18 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 </td>
               </tr>
             )}
-            {(invoice.additional_charge_price ?? 0) > 0 && (
+            {invoice.additional_charges?.length ? (
+              invoice.additional_charges.map((ac) => (
+                <tr key={`ac-${ac.id}`} style={{ background: 'var(--background)' }}>
+                  <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                    {ac.name || 'Additional Charges'}
+                  </td>
+                  <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
+                    {rp(ac.amount)}
+                  </td>
+                </tr>
+              ))
+            ) : (invoice.additional_charge_price ?? 0) > 0 ? (
               <tr style={{ background: 'var(--background)' }}>
                 <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   Additional Charges
@@ -530,7 +542,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                   {rp(invoice.additional_charge_price)}
                 </td>
               </tr>
-            )}
+            ) : null}
             <tr style={{ background: 'var(--background)' }}>
               <td colSpan={4} style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                 Tax
@@ -861,12 +873,19 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                     <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>-{rp(invoice.discount_price)}</td>
                   </tr>
                 )}
-                {(invoice.additional_charge_price ?? 0) > 0 && (
+                {invoice.additional_charges?.length ? (
+                  invoice.additional_charges.map((ac) => (
+                    <tr key={`print-ac-${ac.id}`}>
+                      <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>{ac.name || 'Additional Charges'}</td>
+                      <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(ac.amount)}</td>
+                    </tr>
+                  ))
+                ) : (invoice.additional_charge_price ?? 0) > 0 ? (
                   <tr>
                     <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Additional Charges</td>
                     <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.additional_charge_price)}</td>
                   </tr>
-                )}
+                ) : null}
                 <tr>
                   <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Tax</td>
                   <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.tax_amount)}</td>

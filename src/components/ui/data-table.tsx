@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from './skeleton'
 import { Button } from './button'
 import { Card, CardContent } from './card'
+import { Input } from './input'
 
 export interface Column<T = object> {
   title: string

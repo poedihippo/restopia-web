@@ -155,12 +155,7 @@ const Product = () => {
         data={products}
         loading={isLoading}
         emptyText="No products found"
-        pagination={{
-          current: pagination.current,
-          pageSize: pagination.pageSize,
-          total: pagination.total,
-          onChange: handlePageChange,
-        }}
+        pagination={pagination}
         actions={renderActions}
         canRead={canRead("product")} />
       {/* Modals */}

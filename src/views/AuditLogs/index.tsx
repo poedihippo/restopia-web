@@ -5,12 +5,14 @@ import { useQuery } from '@tanstack/react-query'
 import { Search, Eye, X } from 'lucide-react'
 import { auditLogsService } from '@/services/audit-logs.service'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 
 export default function AuditLogsView() {
   const { hasPermission, isSuperadmin } = useAuth()
   const canRead = hasPermission("audit-log.read") || isSuperadmin;
   
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [selectedItem, setSelectedItem] = useState<any | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -26,12 +28,12 @@ export default function AuditLogsView() {
   }, [debouncedSearch, actionFilter])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['audit-logs', page, debouncedSearch, actionFilter],
+    queryKey: ['audit-logs', page, perPage, debouncedSearch, actionFilter],
     queryFn: () =>
       auditLogsService
         .list({
           page,
-          per_page: 20,
+          per_page: perPage,
           sort: '-created_at',
           include: 'created_by',
           'filter[search]': debouncedSearch || undefined,
@@ -237,67 +239,7 @@ export default function AuditLogsView() {
       </div>
 
       {/* Pagination */}
-      {meta && (meta?.last_page ?? meta?.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: 16,
-          }}
-        >
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            {meta.total} logs · Page {page} of{' '}
-            {meta?.last_page ?? meta?.total_pages ?? 1}
-          </span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              style={{
-                height: 32,
-                padding: '0 14px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--surface)',
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
-                color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-                fontSize: 13,
-              }}
-            >
-              ← Prev
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setPage((p) =>
-                  Math.min(meta?.last_page ?? meta?.total_pages ?? 1, p + 1)
-                )
-              }
-              disabled={page === (meta?.last_page ?? meta?.total_pages ?? 1)}
-              style={{
-                height: 32,
-                padding: '0 14px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--surface)',
-                cursor:
-                  page === (meta?.last_page ?? meta?.total_pages ?? 1)
-                    ? 'not-allowed'
-                    : 'pointer',
-                color:
-                  page === (meta?.last_page ?? meta?.total_pages ?? 1)
-                    ? 'var(--foreground-subtle)'
-                    : 'var(--foreground)',
-                fontSize: 13,
-              }}
-            >
-              Next →
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
 
       {selectedItem && (
         <div

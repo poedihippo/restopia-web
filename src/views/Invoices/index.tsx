@@ -11,6 +11,7 @@ import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
 import { useAuth } from '@/hooks/useAuth'
 import { toastMutationApiError } from '@/utils/apiError'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Search,
   ChevronLeft,
@@ -64,6 +65,7 @@ export default function InvoicesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -75,10 +77,10 @@ export default function InvoicesView() {
   }, [debouncedSearch])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['invoices', page, debouncedSearch],
+    queryKey: ['invoices', page, perPage, debouncedSearch],
     enabled: canRead,
     queryFn: () => {
-      const params: any = { page, per_page: 15, sort: '-created_at', include: 'billed_branch,delivery' }
+      const params: any = { page, per_page: perPage, sort: '-created_at', include: 'billed_branch,delivery' }
       if (debouncedSearch && debouncedSearch.trim()) params['filter[search]'] = debouncedSearch.trim()
       return invoicesService.list(params).then((r) => r.data)
     },
@@ -398,61 +400,7 @@ export default function InvoicesView() {
       </div>
 
       {/* Pagination */}
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === 1 ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Page {page} of {meta.last_page ?? meta.total_pages ?? 1}
-          </span>
-          <button
-            onClick={() =>
-              setPage((p) => Math.min(meta.last_page ?? meta.total_pages ?? 1, p + 1))
-            }
-            disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color:
-                page === (meta.last_page ?? meta.total_pages ?? 1)
-                  ? 'var(--foreground-subtle)'
-                  : 'var(--foreground)',
-              cursor:
-                page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
 
       
 

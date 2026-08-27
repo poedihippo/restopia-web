@@ -13,8 +13,11 @@ import {
   Loader2,
   FileText,
   Save,
-  Printer
+  Printer,
+  Plus,
+  Trash2
 } from 'lucide-react'
+import { uomsService } from '@/services/uoms.service'
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   draft: {
@@ -52,17 +55,32 @@ export default function StockOpnameDetail() {
 
   const item = (data as any)?.data
 
-  const [countedQtys, setCountedQtys] = useState<Record<number, number>>({})
+  const { data: uomsData } = useQuery({
+    queryKey: ['uoms', 'all'],
+    queryFn: () => uomsService.list({ per_page: 100 }).then(r => (r.data as any)?.data || []),
+  })
+  const uoms = uomsData || []
+
+  type CountItem = { uom_id: number; counted_qty: number }
+  const [multiUomCounts, setMultiUomCounts] = useState<Record<number, CountItem[]>>({})
 
   useEffect(() => {
     if (item && item.stock_opname_details) {
-      const initial: Record<number, number> = {}
+      const initial: Record<number, CountItem[]> = {}
       item.stock_opname_details.forEach((d: any) => {
-        if (d.counted_qty !== undefined && d.counted_qty !== null) {
-          initial[d.product_inventory_id] = d.counted_qty
+        if (d.count_items && d.count_items.length > 0) {
+          initial[d.product_inventory_id] = d.count_items.map((ci: any) => ({
+            uom_id: ci.uom_id,
+            counted_qty: Number(ci.counted_qty)
+          }))
+        } else if (d.counted_qty !== undefined && d.counted_qty !== null) {
+          const uomId = d.product_inventory?.product_uom_batch?.product_uom?.uom?.id || d.product_inventory?.product_uom?.uom?.id
+          if (uomId) {
+            initial[d.product_inventory_id] = [{ uom_id: uomId, counted_qty: d.counted_qty }]
+          }
         }
       })
-      setCountedQtys(initial)
+      setMultiUomCounts(initial)
     }
   }, [item])
 
@@ -222,7 +240,7 @@ export default function StockOpnameDetail() {
                   const payload = {
                     details: item.stock_opname_details.map((d: any) => ({
                       product_inventory_id: d.product_inventory_id,
-                      counted_qty: countedQtys[d.product_inventory_id] ?? 0,
+                      count_items: multiUomCounts[d.product_inventory_id] || [],
                     }))
                   }
                   updateMutation.mutate(payload)
@@ -356,15 +374,19 @@ export default function StockOpnameDetail() {
                 </tr>
               ) : (
                 item.stock_opname_details.map((detail: any, index: number) => {
-                  const val = countedQtys[detail.product_inventory_id]
-                  const diff = (val ?? 0) - (detail.system_qty ?? 0)
-                  const diffColor = diff > 0 ? 'var(--success)' : diff < 0 ? 'var(--destructive)' : 'var(--foreground-muted)'
-                  const isZeroOrEmpty = val === undefined || val === null || val === 0
+                  const counts = multiUomCounts[detail.product_inventory_id] || []
+                  
+                  // Variance from backend is already calculated in detail.variance, 
+                  // but for draft we might want to just show the backend variance since we don't have base_qty conversion logic in FE.
+                  // Wait, if it's draft, they edit it, we can't easily calculate variance because we need base uom conversion.
+                  // We'll just show the backend returned variance, or "-" if edited.
+                  const isZeroOrEmpty = counts.length === 0
+                  const diffColor = (detail.variance ?? 0) > 0 ? 'var(--success)' : (detail.variance ?? 0) < 0 ? 'var(--destructive)' : 'var(--foreground-muted)'
 
                   return (
                     <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>{index + 1}</td>
-                      <td style={tdStyle}>
+                      <td style={{ ...tdStyle, textAlign: 'center', verticalAlign: 'top' }}>{index + 1}</td>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <span style={{ fontWeight: 500 }}>
                             {detail.product_inventory?.product_uom_batch?.product_uom?.product?.name || 'Unknown Product'}
@@ -374,51 +396,122 @@ export default function StockOpnameDetail() {
                           </span>
                         </div>
                       </td>
-                      <td style={tdStyle}>{detail.product_inventory?.product_uom_batch?.product_uom?.uom?.name || '—'}</td>
-                      <td style={tdStyle}>{detail.product_inventory?.product_uom_batch?.batch_code || '—'}</td>
-                      <td style={tdStyle}>{detail.product_inventory?.product_uom_batch?.expiry_date ? formatDate(detail.product_inventory.product_uom_batch.expiry_date) : '—'}</td>
-                      <td style={tdStyle}>{detail.system_qty ?? 0}</td>
-                      <td style={tdStyle}>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>{detail.product_inventory?.product_uom_batch?.product_uom?.uom?.name || '—'}</td>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>{detail.product_inventory?.product_uom_batch?.batch_code || '—'}</td>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>{detail.product_inventory?.product_uom_batch?.expiry_date ? formatDate(detail.product_inventory.product_uom_batch.expiry_date) : '—'}</td>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>{detail.system_qty ?? 0}</td>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>
                         {isDraft ? (
-                          <>
-                            <div className="print-hidden">
-                              <input
-                                type="number"
-                                value={countedQtys[detail.product_inventory_id] !== undefined ? countedQtys[detail.product_inventory_id] : ''}
-                                onChange={(e) => {
-                                  const inputVal = e.target.value
-                                  if (inputVal === '') {
-                                    const newQtys = { ...countedQtys }
-                                    delete newQtys[detail.product_inventory_id]
-                                    setCountedQtys(newQtys)
-                                  } else {
-                                    setCountedQtys({ ...countedQtys, [detail.product_inventory_id]: Number(inputVal) })
-                                  }
-                                }}
-                                style={{
-                                  width: 100,
-                                  padding: '6px 10px',
-                                  border: '1px solid var(--border)',
-                                  borderRadius: 'var(--radius-sm)',
-                                  fontSize: 13,
-                                  background: 'var(--background)',
-                                  color: 'var(--foreground)',
-                                  outline: 'none',
-                                }}
-                              />
-                            </div>
-                            <div className="print-only" style={{ fontWeight: 600 }}>
-                              {isZeroOrEmpty ? '___________' : val}
-                            </div>
-                          </>
+                          <div className="print-hidden" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {counts.map((c, cIdx) => (
+                              <div key={cIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input
+                                  type="number"
+                                  value={c.counted_qty === 0 && cIdx === counts.length - 1 ? '' : c.counted_qty}
+                                  onChange={(e) => {
+                                    const val = e.target.value === '' ? 0 : Number(e.target.value)
+                                    const newCounts = [...counts]
+                                    newCounts[cIdx] = { ...newCounts[cIdx], counted_qty: val }
+                                    setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                                  }}
+                                  style={{
+                                    width: 80,
+                                    padding: '6px 10px',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: 13,
+                                    background: 'var(--background)',
+                                    color: 'var(--foreground)',
+                                    outline: 'none',
+                                  }}
+                                  placeholder="Qty"
+                                />
+                                <select
+                                  value={c.uom_id}
+                                  onChange={(e) => {
+                                    const newCounts = [...counts]
+                                    newCounts[cIdx] = { ...newCounts[cIdx], uom_id: Number(e.target.value) }
+                                    setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                                  }}
+                                  style={{
+                                    width: 100,
+                                    padding: '6px 10px',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: 13,
+                                    background: 'var(--background)',
+                                    color: 'var(--foreground)',
+                                    outline: 'none',
+                                  }}
+                                >
+                                  <option value={0} disabled>Select UoM</option>
+                                  {uoms.map((u: any) => (
+                                    <option key={u.id} value={u.id}>{u.code || u.name}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => {
+                                    const newCounts = counts.filter((_, i) => i !== cIdx)
+                                    setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                                  }}
+                                  style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'var(--destructive)',
+                                    cursor: 'pointer',
+                                    padding: 4,
+                                    display: 'flex',
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const newCounts = [...counts, { uom_id: detail.product_inventory?.product_uom_batch?.product_uom?.uom?.id || 0, counted_qty: 0 }]
+                                setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--primary)',
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                padding: '4px 0',
+                                width: 'fit-content'
+                              }}
+                            >
+                              <Plus size={14} /> Add UoM Count
+                            </button>
+                          </div>
                         ) : (
-                          <span style={{ fontWeight: 600 }}>
-                            {isZeroOrEmpty ? '___________' : detail.counted_qty}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {detail.count_items && detail.count_items.length > 0 ? (
+                              detail.count_items.map((ci: any, idx: number) => (
+                                <span key={idx} style={{ fontWeight: 600, fontSize: 13 }}>
+                                  {ci.counted_qty} {ci.uom?.code || ci.uom?.name}
+                                </span>
+                              ))
+                            ) : (
+                              <span style={{ fontWeight: 600, fontSize: 13 }}>
+                                {isZeroOrEmpty ? '___________' : detail.counted_qty}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {isDraft && (
+                          <div className="print-only" style={{ fontWeight: 600 }}>
+                            {isZeroOrEmpty ? '___________' : counts.map(c => `${c.counted_qty}`).join(' + ')}
+                          </div>
                         )}
                       </td>
-                      <td className="print-hidden" style={{ ...tdStyle, color: diffColor, fontWeight: 600 }}>
-                        {diff > 0 ? `+${diff}` : diff}
+                      <td className="print-hidden" style={{ ...tdStyle, color: diffColor, fontWeight: 600, verticalAlign: 'top' }}>
+                        {isDraft ? '—' : ((detail.variance ?? 0) > 0 ? `+${detail.variance}` : detail.variance)}
                       </td>
                     </tr>
                   )

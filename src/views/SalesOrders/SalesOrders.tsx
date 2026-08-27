@@ -298,12 +298,7 @@ const SalesOrders = () => {
                 data={salesOrders}
                 loading={isLoading}
                 emptyText="No sales orders found"
-                pagination={{
-                    current: pagination.current,
-                    pageSize: pagination.pageSize,
-                    total: pagination.total,
-                    onChange: handlePageChange,
-                }}
+                pagination={pagination}
                 actions={renderActions}
                 canRead={canRead("sales-order")} />
             {/* Modals */}

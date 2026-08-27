@@ -8,6 +8,7 @@ import { bundlesService } from '@/services/bundles.service'
 import { useAuth } from '@/hooks/useAuth'
 import BundleSheet from './BundleSheet'
 import { toastMutationApiError } from '@/utils/apiError';
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -66,6 +67,7 @@ export default function BundlesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(1000)
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -82,12 +84,12 @@ export default function BundlesView() {
   }, [debouncedSearch, statusFilter])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['bundles', page, debouncedSearch, statusFilter],
+    queryKey: ['bundles', page, perPage, debouncedSearch, statusFilter],
     queryFn: () =>
       bundlesService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           include: 'bundle_details',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
@@ -502,55 +504,7 @@ export default function BundlesView() {
         )}
       </div>
       {/* Pagination */}
-      {meta && lastPage > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === 1 ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Page {page} of {lastPage}
-          </span>
-          <button
-            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-            disabled={page === lastPage}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color: page === lastPage ? 'var(--foreground-subtle)' : 'var(--foreground)',
-              cursor: page === lastPage ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-            }}
-          >
-            <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div
