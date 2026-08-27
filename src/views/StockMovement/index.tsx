@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -76,7 +77,8 @@ export default function StockMovementView() {
   const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
   const [directionFilter, setDirectionFilter] = useState<'' | 'in' | 'out'>('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
@@ -93,12 +95,12 @@ export default function StockMovementView() {
   }, [debouncedSearch, directionFilter])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stock-movements', page, debouncedSearch, directionFilter],
+    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter],
     queryFn: () =>
       stockMovementsService
         .list({
           page,
-          per_page: 20,
+          per_page: perPage,
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
@@ -546,76 +548,7 @@ export default function StockMovementView() {
         </table>
       </div>
       {/* Pagination */}
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingTop: 12,
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            Showing {(page - 1) * 20 + 1}–{Math.min(page * 20, meta.total)} of{' '}
-            {meta.total}
-          </span>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === 1 ? 0.5 : 1,
-              }}
-            >
-              <ChevronLeft size={13} />
-              Prev
-            </button>
-
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--foreground)',
-                padding: '0 8px',
-                fontWeight: 500,
-              }}
-            >
-              {page} / {meta.last_page ?? meta.total_pages ?? 1}
-            </span>
-
-            <button
-              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
-              onClick={() => setPage((p) => p + 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
-              }}
-            >
-              Next
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Sheet */}
       <StockMovementSheet
         open={sheetOpen}

@@ -24,6 +24,7 @@ import { Control, Controller, FormProvider, useFormContext, useWatch, } from "re
 import { SalesOrderFormValues } from "./useEditSalesOrders";
 import { useEditSalesOrders } from "./useEditSalesOrders";
 import { formatCurrency } from '@/utils/price';
+import { CustomPagination } from '@/components/ui/CustomPagination'
 
 
 interface CartItemProps {
@@ -164,7 +165,8 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
   const [priceMap, setPriceMap] = useState<Map<number, { base_price: number, online_price: number, franchise_price: number, price_editable: boolean }>>(new Map())
   const [isNewCustomer, setIsNewCustomer] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
   const cartRef = useRef<HTMLDivElement>(null)
   const watchAll = form.watch()
 
@@ -176,7 +178,7 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
 
   const { data: productInventoryData, isLoading: isLoadingProductInventory } =
     useGetProductInventoriesList({
-      per_page: 20,
+      per_page: perPage,
       page: page,
       include: "branch,product_uom",
       filter: {

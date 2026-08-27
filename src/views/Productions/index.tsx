@@ -10,6 +10,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productsService } from '@/services/products.service'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -55,7 +56,8 @@ export default function ProductionsView() {
   const canDelete = hasPermission('production.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -79,7 +81,7 @@ export default function ProductionsView() {
 
   const { data: productsData } = useQuery({
     queryKey: ['products-finished', debouncedProductSearch],
-    queryFn: () => productsService.list({ per_page: 50, 'filter[type]': 'finished', 'filter[search]': debouncedProductSearch || undefined } as any).then((r) => r.data),
+    queryFn: () => productsService.list({ per_page: perPage, 'filter[type]': 'finished', 'filter[search]': debouncedProductSearch || undefined } as any).then((r) => r.data),
   })
   
   const productOptions = (productsData as any)?.data?.map((p: any) => ({
@@ -88,12 +90,12 @@ export default function ProductionsView() {
   })) ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['productions', page, debouncedSearch, statusFilter, dateFrom, dateTo, productFilter],
+    queryKey: ['productions', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, productFilter],
     queryFn: () =>
       productionsService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           include: 'branch,production_details',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
@@ -533,72 +535,7 @@ export default function ProductionsView() {
         </table>
       </div>
       {/* PAGINATION */}
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingTop: 12,
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            Showing {(page - 1) * 15 + 1}–{Math.min(page * 15, meta.total)} of {meta.total}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === 1 ? 0.5 : 1,
-              }}
-            >
-              <ChevronLeft size={13} />
-              Prev
-            </button>
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--foreground)',
-                padding: '0 8px',
-                fontWeight: 500,
-              }}
-            >
-              {page} / {meta.last_page ?? meta.total_pages ?? 1}
-            </span>
-            <button
-              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
-              onClick={() => setPage((p) => p + 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
-              }}
-            >
-              Next
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* DELETE CONFIRM */}
       {deleteConfirmId !== null && (
         <div

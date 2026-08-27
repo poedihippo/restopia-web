@@ -9,6 +9,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/hooks/useApi'
 import ProductUomBatchSheet from './ProductUomBatchSheet'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -79,7 +80,8 @@ export default function ProductUomBatchesView() {
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
   const [productUomFilter, setProductUomFilter] = useState(0)
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [typeFilter, setTypeFilter] = useState<string | ''>('')
@@ -98,7 +100,7 @@ export default function ProductUomBatchesView() {
   }, [debouncedSearch, productUomFilter, categoryFilter, typeFilter])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-uom-batches', page, debouncedSearch, productUomFilter],
+    queryKey: ['product-uom-batches', page, perPage, debouncedSearch, productUomFilter],
     queryFn: () =>
       productUomBatchesService
         .list({
@@ -120,7 +122,7 @@ export default function ProductUomBatchesView() {
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
     queryFn: () =>
-      api.get('/product-categories', { params: { per_page: 100 } }).then((r) => r.data),
+      api.get('/product-categories', { params: { per_page: perPage } }).then((r) => r.data),
   })
   const categories = (categoriesData as any)?.data ?? []
 
@@ -133,7 +135,7 @@ export default function ProductUomBatchesView() {
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page: p, per_page: 100, include: 'product,uom' } as any)
+          .list({ page: p, per_page: perPage, include: 'product,uom' } as any)
           .then((r) => r.data)
         all = all.concat((res as any)?.data ?? [])
         totalPages =
@@ -655,76 +657,7 @@ export default function ProductUomBatchesView() {
         </table>
       </div>
       {/* Pagination */}
-      {meta && lastPage > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingTop: 12,
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            Showing {(page - 1) * PER_PAGE + 1}–
-            {Math.min(page * PER_PAGE, meta.total)} of {meta.total}
-          </span>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === 1 ? 0.5 : 1,
-              }}
-            >
-              <ChevronLeft size={13} />
-              Prev
-            </button>
-
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--foreground)',
-                padding: '0 8px',
-                fontWeight: 500,
-              }}
-            >
-              {page} / {lastPage}
-            </span>
-
-            <button
-              disabled={page === lastPage}
-              onClick={() => setPage((p) => p + 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === lastPage ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === lastPage ? 0.5 : 1,
-              }}
-            >
-              Next
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete confirm dialog */}
       {deleteTarget !== null && (
         <div

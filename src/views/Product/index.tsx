@@ -9,6 +9,7 @@ import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductSheet from './ProductSheet'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -44,7 +45,8 @@ export default function ProductView() {
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
   const [typeFilter, setTypeFilter] = useState<'' | 'raw' | 'wip' | 'final'>('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -66,18 +68,18 @@ export default function ProductView() {
     queryKey: ['product-categories-all'],
     queryFn: () =>
       productCategoriesService
-        .list({ per_page: 100 })
+        .list({ per_page: perPage })
         .then((r) => r.data),
   })
   const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, debouncedSearch, typeFilter, categoryFilter],
+    queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter],
     queryFn: () =>
       productsService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           sort: '-id',
           include: 'product_category',
           'filter[search]': debouncedSearch || undefined,
@@ -419,58 +421,7 @@ export default function ProductView() {
         </table>
       </div>
       {/* Pagination */}
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12 }}>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            Showing {(page - 1) * 15 + 1}–{Math.min(page * 15, meta.total)} of {meta.total}
-          </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === 1 ? 0.5 : 1,
-              }}
-            >
-              <ChevronLeft size={13} />
-              Prev
-            </button>
-            <span style={{ fontSize: 12, color: 'var(--foreground)', padding: '0 8px', fontWeight: 500 }}>
-              {page} / {meta.last_page ?? meta.total_pages ?? 1}
-            </span>
-            <button
-              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
-              onClick={() => setPage((p) => p + 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
-              }}
-            >
-              Next
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete confirm */}
       {deleteConfirmId !== null && (
         <div

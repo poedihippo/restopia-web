@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { stockOpnamesService } from '@/services/stock-opnames.service'
 import { useAuth } from '@/hooks/useAuth'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -43,7 +44,8 @@ export default function StockOpnamesView() {
   const canCreate = hasPermission('product-inventory.create') // Assuming same permission for now
   const canRead = hasPermission('product-inventory.menu')
 
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
@@ -56,12 +58,12 @@ export default function StockOpnamesView() {
   }, [search])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['stock-opnames', page, debouncedSearch],
+    queryKey: ['stock-opnames', page, perPage, debouncedSearch],
     queryFn: () =>
       stockOpnamesService
         .list({
           page,
-          per_page: 20,
+          per_page: perPage,
           include: 'branch,created_by',
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
@@ -280,38 +282,7 @@ export default function StockOpnamesView() {
         </table>
 
         {/* Pagination */}
-        {meta && meta.last_page > 1 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 16px',
-              borderTop: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-              Showing {meta.from || 0} to {meta.to || 0} of {meta.total} entries
-            </span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                style={paginationBtnStyle(page === 1)}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                onClick={() => setPage(p => Math.min(meta.last_page, p + 1))}
-                disabled={page === meta.last_page}
-                style={paginationBtnStyle(page === meta.last_page)}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
+        <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       </div>
     </div>
   )

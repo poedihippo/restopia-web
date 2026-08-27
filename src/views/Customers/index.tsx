@@ -8,6 +8,7 @@ import { toastMutationApiError } from '@/utils/apiError';
 import { formatDateTime, formatDate } from '@/utils/date';
 import { useAuth } from '@/hooks/useAuth';
 import CustomerSheet from './CustomerSheet';
+import { CustomPagination } from '@/components/ui/CustomPagination'
 
 export default function CustomersView() {
   const qc = useQueryClient();
@@ -16,7 +17,8 @@ export default function CustomersView() {
   const canCreate = hasPermission('customer.create');
   const canEdit = hasPermission('customer.update');
   const canDelete = hasPermission('customer.delete');
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -30,10 +32,10 @@ export default function CustomersView() {
   }, [search]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', page, searchDebounced],
+    queryKey: ['customers', page, perPage, searchDebounced],
     queryFn: () => customerService.list({
       page,
-      per_page: 15,
+      per_page: perPage,
       sort: '-id',
       ...(searchDebounced ? { 'filter[search]': searchDebounced } : {}),
     }).then(r => r.data),
@@ -127,15 +129,7 @@ export default function CustomersView() {
           </tbody>
         </table>
       </div>
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{meta.total} customers · Page {page} of {meta.last_page ?? meta.total_pages ?? 1}</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: page === 1 ? 'not-allowed' : 'pointer', color: page === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)', fontSize: 13 }}>← Prev</button>
-            <button onClick={() => setPage(p => Math.min(meta.last_page ?? meta.total_pages ?? 1, p + 1))} disabled={page === (meta.last_page ?? meta.total_pages ?? 1)} style={{ height: 32, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--surface)', cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer', color: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'var(--foreground-subtle)' : 'var(--foreground)', fontSize: 13 }}>Next →</button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {deleteTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }}>
           <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-xl)', padding: 32, width: 360, boxShadow: 'var(--shadow-lg)' }}>

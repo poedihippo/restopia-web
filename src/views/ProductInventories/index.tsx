@@ -10,6 +10,7 @@ import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductInventorySheet from './ProductInventorySheet'
+import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
@@ -71,7 +72,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState<number>(1)
+  const [perPage, setPerPage] = useState<number>(1000)
   const [stockGte, setStockGte] = useState<string>('')
   const [stockLte, setStockLte] = useState<string>('')
   const [expiryDateGte, setExpiryDateGte] = useState<string>('')
@@ -141,18 +143,18 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     queryKey: ['product-categories-all'],
     queryFn: () =>
       productCategoriesService
-        .list({ per_page: 100 })
+        .list({ per_page: perPage })
         .then((r) => r.data),
   })
   const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter],
+    queryKey: ['product-inventories', page, perPage, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter],
     queryFn: () =>
       productInventoriesService
         .list({
           page,
-          per_page: 15,
+          per_page: perPage,
           sort: '-id',
           include: 'branch,product_uom_batch',
           'filter[search]': debouncedSearch || undefined,
@@ -172,7 +174,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     queryKey: ['product-uoms-all'],
     queryFn: () =>
       productUomsService
-        .list({ per_page: 200, include: 'product,uom' } as any)
+        .list({ per_page: perPage, include: 'product,uom' } as any)
         .then((r) => r.data),
   })
   const productUomsAll = (puData as any)?.data ?? []
