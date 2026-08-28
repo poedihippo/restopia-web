@@ -10,6 +10,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductUomSheet from './ProductUomSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
@@ -34,7 +35,7 @@ interface ProductUom {
   created_at?: string
   product_id: number
   uom_id: number
-  product?: { id: number; name: string; code?: string }
+  product?: { id: number; name: string; code?: string; type?: string; product_category?: { name?: string } }
   uom?: { id: number; name: string; code: string }
 }
 
@@ -46,6 +47,25 @@ export default function ProductUomsView() {
   const canEdit = hasPermission('product-uom.update')
   const canDelete = hasPermission('product-uom.delete')
   const canReadFranchisePrice = hasPermission('common.franchise-price.read')
+  const activeProductTypes = useActiveBranchProductTypes()
+  const allowedTypes = activeProductTypes
+    ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
+    : null
+
+  const allTypeOptions = [
+    { value: 'raw', label: 'Raw' },
+    { value: 'wip', label: 'WIP' },
+    { value: 'final', label: 'Final' },
+    { value: 'supply', label: 'Supply' },
+  ]
+
+  const availableTypeOptions = allowedTypes
+    ? allTypeOptions.filter(
+        (o) =>
+          allowedTypes.includes(o.value) ||
+          (o.value === 'supply' && allowedTypes.includes('supplies')),
+      )
+    : allTypeOptions
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -79,7 +99,7 @@ export default function ProductUomsView() {
   }, [debouncedSearch, categoryFilter, typeFilter, selectedProductId])
 
   const { data: productSearchData } = useQuery({
-    queryKey: ['product-uoms-product-search', productSearchDebounced],
+    queryKey: ['product-uoms-product-search', productSearchDebounced, activeProductTypes],
     enabled: productSearchDebounced.length >= 2 && !selectedProductId,
     queryFn: () =>
       api
@@ -87,6 +107,7 @@ export default function ProductUomsView() {
           params: {
             per_page: perPage,
             'filter[search]': productSearchDebounced,
+            'filter[product_types]': activeProductTypes,
             sort: 'name',
           },
         })
@@ -104,15 +125,15 @@ export default function ProductUomsView() {
   const categories = (categoriesData as any)?.data ?? []
 
   const { data: categoryProductsData } = useQuery({
-    queryKey: ['products-by-category-type', categoryFilter, typeFilter],
+    queryKey: ['products-by-category-type', categoryFilter, typeFilter, activeProductTypes],
     enabled: categoryFilter !== '' || typeFilter !== '',
     queryFn: () =>
       api
         .get('/products', {
           params: {
             per_page: perPage,
+            'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
             'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-            'filter[type]': typeFilter === '' ? undefined : String(typeFilter),
           },
         })
         .then((r) => r.data),
@@ -122,27 +143,32 @@ export default function ProductUomsView() {
   )
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-uoms', page, perPage, debouncedSearch, selectedProductId],
+    queryKey: ['product-uoms', page, perPage, debouncedSearch, selectedProductId, resolvePrice, activeProductTypes],
     queryFn: () =>
       productUomsService
         .list({
           page,
           per_page: perPage,
           sort: '-id',
-          include: 'product,uom',
+          include: 'product,uom,product.product_category',
           'filter[search]': debouncedSearch || undefined,
           'filter[resolve_price]': resolvePrice ? 'true' : undefined,
+          'filter[product_types]': activeProductTypes,
           ...(selectedProductId ? { 'filter[product_id]': selectedProductId } : {}),
-        })
+        } as any)
         .then((r) => r.data),
   })
 
   const items: ProductUom[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
-  const filteredItems = (categoryFilter === '' && typeFilter === '')
-    ? items
-    : items.filter((i) => categoryProductIds.has(i.product_id))
+  const filteredItems = items.filter((i) => {
+    if (!isProductTypeAllowed(i.product, activeProductTypes)) return false
+    if (categoryFilter !== '' || typeFilter !== '') {
+      if (!categoryProductIds.has(i.product_id)) return false
+    }
+    return true
+  })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productUomsService.delete(id),
@@ -384,9 +410,11 @@ export default function ProductUomsView() {
             }}
           >
             <option value="">All Types</option>
-            <option value="raw">Raw</option>
-            <option value="wip">WIP</option>
-            <option value="final">Final</option>
+            {availableTypeOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -439,6 +467,7 @@ export default function ProductUomsView() {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
               {[
+                { label: 'No.', width: 50 },
                 { label: 'Product', width: undefined },
                 { label: 'UOM', width: 100 },
                 { label: 'Code', width: 120 },
@@ -453,7 +482,7 @@ export default function ProductUomsView() {
                   key={i}
                   style={{
                     padding: '10px 16px',
-                    textAlign: 'left',
+                    textAlign: col.label === 'No.' ? 'center' : 'left',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--foreground-muted)',
@@ -471,7 +500,7 @@ export default function ProductUomsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     {[60, 40, 80, 50, 70].map((w, i) => (
                       <div
@@ -492,7 +521,7 @@ export default function ProductUomsView() {
 
             {isError && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                   Failed to load product UOMs
                 </td>
               </tr>
@@ -500,7 +529,7 @@ export default function ProductUomsView() {
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={10}>
                   <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     <Tag size={32} style={{ color: 'var(--foreground-subtle)' }} />
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -512,7 +541,7 @@ export default function ProductUomsView() {
             )}
 
             {!isLoading &&
-              filteredItems.map((item) => (
+              filteredItems.map((item, idx) => (
                 <tr
                   key={item.id}
                   onMouseEnter={() => setHoveredRow(item.id)}
@@ -522,6 +551,9 @@ export default function ProductUomsView() {
                     background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
                   }}
                 >
+                  <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span>{item.product?.name ?? '—'}</span>

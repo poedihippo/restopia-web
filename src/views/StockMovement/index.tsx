@@ -278,7 +278,7 @@ export default function StockMovementView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -307,7 +307,7 @@ export default function StockMovementView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -322,7 +322,7 @@ export default function StockMovementView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div
                     style={{
                       padding: 48,

@@ -16,6 +16,7 @@ import {
   ChevronLeft
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 
 export default function StockOpnameForm() {
   const router = useRouter()
@@ -46,23 +47,49 @@ export default function StockOpnameForm() {
   })
   const categories = (categoriesData as any)?.data ?? []
 
+  const activeProductTypes = useActiveBranchProductTypes()
+  const allowedTypes = activeProductTypes
+    ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
+    : null
+
+  const allTypeOptions = [
+    { value: 'raw', label: 'Raw Material' },
+    { value: 'wip', label: 'Unfinish (WIP)' },
+    { value: 'final', label: 'Finish Good' },
+    { value: 'supply', label: 'Supplies' },
+  ]
+
+  const availableTypeOptions = allowedTypes
+    ? allTypeOptions.filter(
+        (o) =>
+          allowedTypes.includes(o.value) ||
+          (o.value === 'supply' && allowedTypes.includes('supplies')),
+      )
+    : allTypeOptions
+
   const { data: inventoryData, isLoading: isLoadingInventory } = useQuery({
-    queryKey: ['product-inventories', branchId, categoryFilter, debouncedSearch],
+    queryKey: ['product-inventories', branchId, categoryFilter, debouncedSearch, typeFilter, activeProductTypes],
     queryFn: () =>
       productInventoriesService
         .list({
           page: 1,
           per_page: 500,
-          include: 'product_uom_batch',
+          include: 'product_uom,product_uom.product,product_uom.product.product_category,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.product.product_category',
           'filter[branch_id]': branchId === '' ? undefined : String(branchId),
           'filter[search]': debouncedSearch || undefined,
-          'filter[type]': typeFilter || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-        })
+          'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+        } as any)
         .then(r => r.data),
     enabled: branchId !== '',
   })
-  const items = (inventoryData as any)?.data ?? []
+  const rawItems = (inventoryData as any)?.data ?? []
+  const items = rawItems.filter((i: any) => {
+    const productObj =
+      i.product_uom_batch?.product_uom?.product ??
+      i.product_uom?.product
+    return isProductTypeAllowed(productObj, activeProductTypes)
+  })
 
   const createMutation = useMutation({
     mutationFn: stockOpnamesService.create,
@@ -262,10 +289,11 @@ export default function StockOpnameForm() {
               style={inputStyle}
             >
               <option value="">All Types</option>
-              <option value="raw">Raw Material</option>
-              <option value="wip">Unfinish (WIP)</option>
-              <option value="final">Finish Good</option>
-              <option value="supply">Supplies</option>
+              {availableTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -14,6 +14,7 @@ import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
@@ -55,6 +56,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   const { hasPermission } = useAuth()
   const canReadFranchisePrice = hasPermission('common.franchise-price.read')
   const isEdit = !!editData
+  const activeProductTypes = useActiveBranchProductTypes()
 
   const {
     register,
@@ -89,7 +91,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   }, [productSearch])
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['products-all', productSearchDebounced],
+    queryKey: ['products-all', productSearchDebounced, activeProductTypes],
     queryFn: () =>
       productsService
         .list({
@@ -97,6 +99,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
           per_page: 50,
           sort: 'name',
           'filter[search]': productSearchDebounced || undefined,
+          'filter[product_types]': activeProductTypes,
         } as any)
         .then((r) => r.data),
   })

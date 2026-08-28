@@ -272,6 +272,7 @@ export default function UsersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 200 }}>Email</th>
               <th style={{ ...thStyle, width: 110 }}>Type</th>
@@ -286,14 +287,14 @@ export default function UsersView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 8 }).map((__, j) => (
+                  {Array.from({ length: 9 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 7 ? 60 : '75%',
+                          width: j === 8 ? 60 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -303,7 +304,7 @@ export default function UsersView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load users.
                   </span>
@@ -311,7 +312,7 @@ export default function UsersView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -327,7 +328,7 @@ export default function UsersView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              items.map((item, idx) => {
                 const typeKey = (item.type ?? 'user') as 'superadmin' | 'user'
                 const typeMeta = TYPE_META[typeKey]
                 const rolesList = item.roles ?? []
@@ -342,6 +343,9 @@ export default function UsersView() {
                       (e.currentTarget.style.background = 'transparent')
                     }
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <span

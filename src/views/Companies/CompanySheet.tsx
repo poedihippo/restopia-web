@@ -9,11 +9,17 @@ import { toast } from 'sonner'
 import { companiesService } from '@/services/companies.service'
 import { X, Loader2 } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError';
+import {
+  PRODUCT_TYPE_OPTIONS,
+  useProductTypes,
+  type ProductTypeValue,
+} from '@/hooks/useProductTypes';
 
 const schema = z.object({
   name: z.string().min(1, 'Company name is required'),
   credit_reset_cron: z.string().optional(),
   credit_reset_amount: z.coerce.number().min(0).optional(),
+  product_types: z.array(z.string()).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -25,7 +31,16 @@ interface CompanySheetProps {
     name: string
     credit_reset_cron?: string
     credit_reset_amount?: number
+    product_types?: string | null
   } | null
+}
+
+function parseProductTypes(value?: string | null): ProductTypeValue[] {
+  if (!value) return []
+  return value
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => (PRODUCT_TYPE_OPTIONS as readonly string[]).includes(v)) as ProductTypeValue[]
 }
 
 const CRON_PRESETS: { label: string; value: string }[] = [
@@ -36,6 +51,7 @@ const CRON_PRESETS: { label: string; value: string }[] = [
 
 export default function CompanySheet({ open, onClose, editData }: CompanySheetProps) {
   const qc = useQueryClient()
+  const { options: productTypes, isLoading: productTypesLoading } = useProductTypes()
 
   const {
     register,
@@ -50,10 +66,15 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
       name: '',
       credit_reset_cron: '',
       credit_reset_amount: 0,
+      product_types: [],
     },
   })
 
   const watchedCron = watch('credit_reset_cron') ?? ''
+  const watchedProductTypes = watch('product_types') ?? []
+  const allChecked =
+    watchedProductTypes.length === 0 ||
+    productTypes.every((t) => watchedProductTypes.includes(t))
 
   useEffect(() => {
     if (editData) {
@@ -61,12 +82,14 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
         name: editData.name,
         credit_reset_cron: editData.credit_reset_cron ?? '',
         credit_reset_amount: editData.credit_reset_amount ?? 0,
+        product_types: parseProductTypes(editData.product_types),
       })
     } else {
       reset({
         name: '',
         credit_reset_cron: '',
         credit_reset_amount: 0,
+        product_types: [],
       })
     }
   }, [editData, open, reset])
@@ -92,8 +115,16 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
   })
 
   const onSubmit = (data: FormValues) => {
-    if (editData) updateMutation.mutate(data)
-    else createMutation.mutate(data)
+    const productTypesSelected = (data.product_types ?? []).length
+    const payload = {
+      name: data.name,
+      credit_reset_cron: data.credit_reset_cron || undefined,
+      credit_reset_amount: data.credit_reset_amount,
+      product_types:
+        productTypesSelected > 0 ? (data.product_types ?? []).join(',') : null,
+    }
+    if (editData) updateMutation.mutate(payload as any)
+    else createMutation.mutate(payload as any)
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -222,6 +253,93 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
                 style={errors.name ? inputErrorStyle : inputStyle}
               />
               {errors.name && <div style={errorStyle}>{errors.name.message}</div>}
+            </div>
+
+            <div>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Product Types
+              </label>
+              <p style={{ fontSize: 12, color: 'var(--foreground-subtle)', margin: '0 0 8px' }}>
+                Select which product types are available. All are selected by default (allows all types).
+              </p>
+              {productTypesLoading ? (
+                <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading product types…</div>
+              ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  {productTypes.map((type) => {
+                    const isChecked = watchedProductTypes.includes(type)
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                                                onClick={() => {
+                          const isPresent = watchedProductTypes.includes(type)
+                          if (allChecked) {
+                            const next = productTypes.filter((t) => t !== type)
+                            setValue('product_types', next, { shouldDirty: true })
+                          } else if (isPresent) {
+                            const next = watchedProductTypes.filter((t) => t !== type)
+                            if (next.length === 0) {
+                              setValue('product_types', [], { shouldDirty: true })
+                            } else {
+                              setValue('product_types', next, { shouldDirty: true })
+                            }
+                          } else {
+                            const next = [...watchedProductTypes, type]
+                            if (next.length === productTypes.length) {
+                              setValue('product_types', [], { shouldDirty: true })
+                            } else {
+                              setValue('product_types', next, { shouldDirty: true })
+                            }
+                          }
+                        }}
+                        style={{
+                          padding: '5px 12px',
+                          background: allChecked || isChecked
+                            ? 'var(--accent-light-bg)'
+                            : 'var(--background)',
+                          border: allChecked || isChecked
+                            ? '1px solid var(--accent)'
+                            : '1px solid var(--border)',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: allChecked || isChecked ? 'var(--accent)' : 'var(--foreground-muted)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        {(allChecked || isChecked) && (
+                          <span
+                            style={{
+
+
+                              width: 5,
+                              height: 5,
+                              borderRadius: 99,
+                              background: 'var(--accent)',
+                            }}
+                          />
+                        )}
+                        {type}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              <p style={{ fontSize: 11, color: 'var(--foreground-subtle)', margin: '8px 0 0' }}>
+                {allChecked
+                  ? 'All product types allowed (no restriction)'
+                  : `Restricted to: ${watchedProductTypes.join(', ') || '—'}`}
+              </p>
             </div>
 
             <div style={{ marginTop: 4 }}>

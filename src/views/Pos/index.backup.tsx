@@ -1661,8 +1661,8 @@ export default function PosView() {
                             Rp{' '}
                             {(orderType === 'online'
                               ? (item.online_price ?? item.base_price ?? 0)
-                              :formatCurrency((item.base_price ?? 0)
-                            ), '')}
+                              : formatCurrency((item.base_price ?? 0)
+                              ), '')}
                           </span>
                         </div>
                       </div>

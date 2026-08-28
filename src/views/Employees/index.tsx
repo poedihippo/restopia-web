@@ -348,6 +348,7 @@ export default function EmployeesView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ background: 'var(--background)' }}>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Employee</th>
               <th style={{ ...thStyle, width: 140 }}>NIK</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
@@ -361,14 +362,14 @@ export default function EmployeesView() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 6 ? 60 : '75%',
+                          width: j === 7 ? 60 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -379,7 +380,7 @@ export default function EmployeesView() {
             ) : isError ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
@@ -390,7 +391,7 @@ export default function EmployeesView() {
             ) : items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <div
@@ -408,7 +409,7 @@ export default function EmployeesView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr
                   key={item.id}
                   style={{ transition: 'background 120ms' }}
@@ -419,6 +420,9 @@ export default function EmployeesView() {
                     (e.currentTarget.style.background = 'transparent')
                   }
                 >
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <span

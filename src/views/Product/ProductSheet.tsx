@@ -10,6 +10,7 @@ import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import api from '@/hooks/useApi'
+import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
@@ -32,7 +33,7 @@ interface ProductSheetProps {
     name: string
     code?: string
     product_category_id: number
-    type?: 'raw' | 'wip' | 'final'
+    type?: 'raw' | 'wip' | 'final' | 'supply'
     description?: string
     status: 'active' | 'inactive'
     base_uom_id?: number | null
@@ -42,6 +43,25 @@ interface ProductSheetProps {
 
 export default function ProductSheet({ open, onClose, editData }: ProductSheetProps) {
   const queryClient = useQueryClient()
+  const activeProductTypes = useActiveBranchProductTypes()
+  const allowedTypes = activeProductTypes
+    ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
+    : null
+
+  const allTypeOptions = [
+    { value: 'raw', label: 'Raw' },
+    { value: 'wip', label: 'WIP' },
+    { value: 'final', label: 'Final' },
+    { value: 'supply', label: 'Supply' },
+  ]
+
+  const availableTypeOptions = allowedTypes
+    ? allTypeOptions.filter(
+        (o) =>
+          allowedTypes.includes(o.value) ||
+          (o.value === 'supply' && allowedTypes.includes('supplies')),
+      )
+    : allTypeOptions
 
   const {
     register,
@@ -349,9 +369,11 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               }}
             >
               <option value="">Select type...</option>
-              <option value="raw">Raw</option>
-              <option value="wip">WIP</option>
-              <option value="final">Final</option>
+              {availableTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
             {errors.type && (
               <span

@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import * as XLSX from 'xlsx'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { toast } from 'sonner'
 import api from '@/hooks/useApi'
 import { periodsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
@@ -88,18 +90,19 @@ export default function TrialBalanceView() {
 
   const selectedPeriod = periods.find((p) => p.id === periodId)
 
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportTrialBalance({ period_id: periodId }),
+    onSuccess: (res) => {
+      const periodSlug = (selectedPeriod?.name ?? `period-${periodId}`).replace(/\s+/g, '-').toLowerCase()
+      downloadFileFromResponse(res, `trial-balance-${periodSlug}.xlsx`)
+    },
+    onError: () => {
+      toast.error('Gagal mengekspor data.')
+    }
+  })
+
   const handleExport = () => {
-    const sheetRows: (string | number)[][] = [
-      ['Account Code', 'Account Name', 'Debit', 'Credit', 'Balance'],
-      ...rows.map((r) => [r.code, r.name, r.total_debit, r.total_credit, r.balance]),
-      ['', 'Total', totalDebit, totalCredit, ''],
-    ]
-    const ws = XLSX.utils.aoa_to_sheet(sheetRows)
-    ws['!cols'] = [{ wch: 16 }, { wch: 36 }, { wch: 16 }, { wch: 16 }, { wch: 16 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Trial Balance')
-    const periodSlug = (selectedPeriod?.name ?? `period-${periodId}`).replace(/\s+/g, '-').toLowerCase()
-    XLSX.writeFile(wb, `trial-balance-${periodSlug}.xlsx`)
+    exportExcel()
   }
 
   const canExport = rows.length > 0
@@ -127,7 +130,7 @@ export default function TrialBalanceView() {
         <button
           type="button"
           onClick={handleExport}
-          disabled={!canExport}
+          disabled={!canExport || isExporting}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -138,13 +141,13 @@ export default function TrialBalanceView() {
             borderRadius: 'var(--radius-md)',
             fontSize: 13,
             fontWeight: 500,
-            color: canExport ? 'var(--foreground)' : 'var(--foreground-subtle)',
-            cursor: canExport ? 'pointer' : 'not-allowed',
-            opacity: canExport ? 1 : 0.6,
+            color: (canExport && !isExporting) ? 'var(--foreground)' : 'var(--foreground-subtle)',
+            cursor: (canExport && !isExporting) ? 'pointer' : 'not-allowed',
+            opacity: (canExport && !isExporting) ? 1 : 0.6,
           }}
         >
           <Download size={14} />
-          Export Excel
+          {isExporting ? 'Exporting...' : 'Export Excel'}
         </button>
       </div>
 
@@ -219,6 +222,7 @@ export default function TrialBalanceView() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--background)' }}>
+                    <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={thStyle}>Account Code</th>
                     <th style={thStyle}>Account Name</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Debit</th>
@@ -229,24 +233,24 @@ export default function TrialBalanceView() {
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Loading...
                       </td>
                     </tr>
                   ) : isError ? (
                     <tr>
-                      <td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: 'var(--destructive)' }}>
+                      <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--destructive)' }}>
                         Failed to load trial balance
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         No account balances for this period
                       </td>
                     </tr>
                   ) : (
-                    rows.map((row) => (
+                    rows.map((row, idx) => (
                       <tr key={row.chart_of_account_id}>
                         <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{row.code}</td>
                         <td style={tdStyle}>{row.name}</td>

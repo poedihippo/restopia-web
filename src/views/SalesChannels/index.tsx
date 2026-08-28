@@ -227,8 +227,11 @@ export default function SalesChannelsView() {
                 </td>
               </tr>
             )}
-            {items.map((item: any) => (
+            {items.map((item: any, idx: number) => (
               <tr key={item.id}>
+                <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                  {idx + 1}
+                </td>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
                 <td style={tdStyle}>{canRead ? (item.sales_order_type || '—') : "***"}</td>
                 <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>

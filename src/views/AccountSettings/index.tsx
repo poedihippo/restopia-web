@@ -1,9 +1,12 @@
 'use client'
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { accountSettingsService } from '@/services/account-settings.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
 import AccountSettingSheet from './AccountSettingSheet'
-import { Settings, Pencil, Search } from 'lucide-react'
+import { Settings, Pencil, Search, Download } from 'lucide-react'
 
 export default function AccountSettingsView() {
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -13,6 +16,16 @@ export default function AccountSettingsView() {
   const { data, isLoading } = useQuery({
     queryKey: ['account-settings'],
     queryFn: () => accountSettingsService.list({ per_page: 100, include: 'chart_of_account,account_setting_key' } as any).then(r => r.data),
+  })
+
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportAccountSettings(),
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, `account-settings.xlsx`)
+    },
+    onError: () => {
+      toast.error('Gagal mengekspor data.')
+    }
   })
 
   const items: any[] = (data as any)?.data ?? []
@@ -44,7 +57,7 @@ export default function AccountSettingsView() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, justifyContent: 'space-between' }}>
         <div style={{ position: 'relative', width: 320 }}>
           <Search size={16} style={{ position: 'absolute', left: 12, top: 10, color: 'var(--foreground-muted)' }} />
           <input
@@ -54,6 +67,9 @@ export default function AccountSettingsView() {
             style={{ width: '100%', padding: '9px 12px 9px 36px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none' }}
           />
         </div>
+        <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+          <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
+        </button>
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
@@ -61,6 +77,7 @@ export default function AccountSettingsView() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                 <th style={{ ...thStyle, width: 200 }}>Key / Label</th>
                 <th style={{ ...thStyle, width: 180 }}>Key</th>
                 <th style={{ ...thStyle, width: 140 }}>Module</th>
@@ -72,13 +89,13 @@ export default function AccountSettingsView() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 14 }}>
+                  <td colSpan={7} style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 14 }}>
                     Loading...
                   </td>
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: '48px 16px', textAlign: 'center' }}>
+                  <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                       <Settings size={32} style={{ color: 'var(--border)' }} />
                       <div style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>No account settings found</div>
@@ -86,8 +103,11 @@ export default function AccountSettingsView() {
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((item: any) => (
+                filteredItems.map((item: any, idx: number) => (
                   <tr key={item.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--background)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {idx + 1}
+                    </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>
                         {item.account_setting_key_entity?.label || item.account_setting_key}

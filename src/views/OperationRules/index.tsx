@@ -101,7 +101,7 @@ export default function OperationRulesView() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>Loading...</td></tr>
+              <tr><td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>Loading...</td></tr>
             ) : isError ? (
               <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--destructive)' }}>Failed to load.</td></tr>
             ) : items.length === 0 ? (

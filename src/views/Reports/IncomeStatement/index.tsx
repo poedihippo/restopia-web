@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import * as XLSX from 'xlsx'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { toast } from 'sonner'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/price'
@@ -243,31 +245,18 @@ export default function IncomeStatementView() {
     </tr>
   )
 
-  const handleExport = () => {
-    const sheetRows: (string | number)[][] = [['Code', 'Account', 'Amount']]
-
-    const pushTier = (key: string, tier: StatementTier | null | undefined) => {
-      const accounts = tier?.accounts ?? []
-      const subtotal = tier?.subtotal ?? 0
-      sheetRows.push([TIER_LABELS[key], '', ''])
-      accounts.forEach((acc) => sheetRows.push([acc.code, acc.name, acc.amount]))
-      sheetRows.push(['', `Subtotal ${TIER_LABELS[key]}`, subtotal])
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportIncomeStatement({ start_date: startDate, end_date: endDate }),
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, `income-statement-${startDate}_${endDate}.xlsx`)
+    },
+    onError: () => {
+      toast.error('Gagal mengekspor data.')
     }
+  })
 
-    pushTier('operating_revenue', operatingRevenue)
-    pushTier('cost_of_revenue', costOfRevenue)
-    sheetRows.push(['', 'LABA KOTOR', grossProfit])
-    pushTier('operating_expense', operatingExpense)
-    sheetRows.push(['', 'LABA OPERASIONAL', operatingProfit])
-    pushTier('other_income', otherIncome)
-    pushTier('other_expense', otherExpense)
-    sheetRows.push(['', 'LABA BERSIH', netProfit])
-
-    const ws = XLSX.utils.aoa_to_sheet(sheetRows)
-    ws['!cols'] = [{ wch: 16 }, { wch: 36 }, { wch: 18 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Income Statement')
-    XLSX.writeFile(wb, `income-statement-${startDate}_${endDate}.xlsx`)
+  const handleExport = () => {
+    exportExcel()
   }
 
   const canExport = hasStatement
@@ -309,9 +298,9 @@ export default function IncomeStatementView() {
             <Printer size={14} />
             Print
           </button>
-          <button type="button" onClick={handleExport} disabled={!canExport} style={{ ...btnStyle, opacity: canExport ? 1 : 0.6, cursor: canExport ? 'pointer' : 'not-allowed' }}>
+          <button type="button" onClick={handleExport} disabled={!canExport || isExporting} style={{ ...btnStyle, opacity: canExport && !isExporting ? 1 : 0.6, cursor: canExport && !isExporting ? 'pointer' : 'not-allowed' }}>
             <Download size={14} />
-            Export Excel
+            {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
         </div>
       </div>

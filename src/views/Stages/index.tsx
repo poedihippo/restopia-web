@@ -492,7 +492,7 @@ export default function StagesView() {
               <tbody>
                 {isLoading && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                         {[60, 40, 80, 50, 70].map((w, i) => (
                           <div
@@ -513,7 +513,7 @@ export default function StagesView() {
 
                 {isError && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                       Gagal memuat data stages
                     </td>
                   </tr>
@@ -521,7 +521,7 @@ export default function StagesView() {
 
                 {!isLoading && !isError && items.length === 0 && (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={6}>
                       <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                         <Layers size={32} style={{ color: 'var(--foreground-subtle)' }} />
                         <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Belum ada stage</span>
@@ -531,7 +531,7 @@ export default function StagesView() {
                 )}
 
                 {!isLoading &&
-                  items.map((item) => (
+                  items.map((item, idx) => (
                     <tr
                       key={item.id}
                       onMouseEnter={() => setHoveredRow(item.id)}

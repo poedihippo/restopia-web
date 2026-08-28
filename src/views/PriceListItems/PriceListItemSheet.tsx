@@ -12,6 +12,7 @@ import { X, Loader2, Plus, Trash } from 'lucide-react'
 import useGetProductUomsList from '@/hooks/product-uoms/useGetProductUomsList'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -53,7 +54,8 @@ export default function PriceListItemSheet({ priceListId, open, onClose, editDat
     defaultValues: { items: [] },
   })
 
-  const { data: productUomData, isLoading: isLoadingProductUom } = useGetProductUomsList({ include: 'product,uom' }, { enabled: open })
+  const activeProductTypes = useActiveBranchProductTypes()
+  const { data: productUomData, isLoading: isLoadingProductUom } = useGetProductUomsList({ include: 'product,uom,product.product_category' }, { enabled: open })
 
   useEffect(() => {
     if (open) {
@@ -146,10 +148,12 @@ export default function PriceListItemSheet({ priceListId, open, onClose, editDat
                         disabled={!!editData}
                         loading={isLoadingProductUom}
                         placeholder="Select product UOM..."
-                        options={productUomData?.data?.map((uom) => ({
-                          value: uom.id,
-                          label: `${uom.product?.name} - ${uom.uom?.code}`,
-                        })) ?? []}
+                        options={productUomData?.data
+                          ?.filter((uom: any) => isProductTypeAllowed(uom.product, activeProductTypes))
+                          ?.map((uom: any) => ({
+                            value: uom.id,
+                            label: `${uom.product?.name} - ${uom.uom?.code}`,
+                          })) ?? []}
                         value={field.value ?? 0}
                         onChange={field.onChange}
                       />

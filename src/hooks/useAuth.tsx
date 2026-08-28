@@ -170,7 +170,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoggedIn(true);
 
     try {
-      const response = await api.get("auth/me?include=client");
+      const response = await api.get(
+        "auth/me?include=created_by,updated_by,branch,branch.company,roles,permissions,branches",
+      );
       if (response.data && response.data.data) {
         const userData = response.data.data;
         setUser(userData);

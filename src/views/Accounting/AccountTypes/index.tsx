@@ -7,12 +7,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { accountTypesService, accountCategoriesService, type AccountTypeRequest } from '@/services/accounting.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
-  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, Layers,
+  Plus, Search, Pencil, Trash2,
+  X, Loader2, Layers, Download,
 } from 'lucide-react'
 
 interface AccountType {
@@ -66,22 +68,17 @@ export default function AccountTypesView() {
   const [editData, setEditData] = useState<AccountType | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400)
-    return () => clearTimeout(t)
-  }, [search])
+  useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-types', page, perPage, debouncedSearch],
-    queryFn: () =>
-      accountTypesService.list({ page, per_page: perPage, sort: 'code', include: 'account_category', 'filter[search]': debouncedSearch || undefined })
-        .then((r) => r.data),
+    queryFn: () => accountTypesService.list({ page, per_page: perPage, sort: 'code', include: 'account_category', 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
   })
 
   const { data: categoriesData } = useQuery({
     queryKey: ['account-categories-all'],
-    queryFn: () => accountCategoriesService.list({ per_page: perPage, sort: 'code' }).then((r) => r.data),
+    queryFn: () => accountCategoriesService.list({ per_page: 1000, sort: 'code' } as any).then(r => r.data),
   })
 
   const items: AccountType[] = (data as any)?.data ?? []
@@ -90,7 +87,7 @@ export default function AccountTypesView() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => accountTypesService.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Account type deleted'); setDeleteConfirmId(null) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Deleted'); setDeleteConfirmId(null) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
@@ -106,14 +103,20 @@ export default function AccountTypesView() {
 
   const createMutation = useMutation({
     mutationFn: (data: AccountTypeRequest) => accountTypesService.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Account type created'); setSheetOpen(false) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Created'); setSheetOpen(false) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to create'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (data: AccountTypeRequest) => accountTypesService.update(editData!.id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Account type updated'); setSheetOpen(false) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-types'] }); toast.success('Updated'); setSheetOpen(false) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
+  })
+
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportAccountTypes(),
+    onSuccess: (res) => { downloadFileFromResponse(res, 'account-types.xlsx') },
+    onError: () => toast.error('Gagal mengekspor data.'),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -127,17 +130,22 @@ export default function AccountTypesView() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Account Types</h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Sub-groups within account categories</p>
+          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Sub-classification of account categories</p>
         </div>
-        {canCreate && (
-          <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> New Account Type
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
-        )}
+          {canCreate && (
+            <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <Plus size={16} /> New Type
+            </button>
+          )}
+        </div>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ position: 'relative', width: 280 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
+        <div style={{ position: 'relative', width: 300 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account types..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
@@ -148,6 +156,7 @@ export default function AccountTypesView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 100 }}>Code</th>
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 200 }}>Account Categories</th>
@@ -157,28 +166,31 @@ export default function AccountTypesView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 4 }).map((__, j) => (
-                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 3 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
+                <tr key={i}>{Array.from({ length: 5 }).map((__, j) => (
+                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 4 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <Layers size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No account types found</span>
                 </div>
               </td></tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr key={item.id} style={{ transition: 'background 120ms' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--background)', border: '1px solid var(--border)', fontFamily: 'monospace', fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.name}</span></td>
                   <td style={tdStyle}>
                     {item.account_category ? (
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.account_category.code} – {item.account_category.name}</span>
-                    ) : <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>}
+                    ) : <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>—</span>}
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -199,7 +211,7 @@ export default function AccountTypesView() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 360, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Account Types</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Account Type</h3>
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
@@ -214,12 +226,12 @@ export default function AccountTypesView() {
           <div onClick={() => setSheetOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
           <div style={{ position: 'relative', zIndex: 50, width: 460, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Account Types' : 'Account Types Baru'}</h2>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Account Type' : 'New Account Type'}</h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Categories <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Category <span style={{ color: 'var(--destructive)' }}>*</span></label>
                 <select {...register('account_category_id')} style={errors.account_category_id ? inputError : inputStyle}>
                   <option value={0}>-- Select Category --</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}

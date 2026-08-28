@@ -96,13 +96,13 @@ export default function CustomersView() {
           <tbody>
             {isLoading && Array.from({ length: 8 }).map((_, i) => (
               <tr key={i}>
-                {Array.from({ length: 4 }).map((_, j) => (
+                {Array.from({ length: 5 }).map((_, j) => (
                   <td key={j} style={tdStyle}><div style={{ height: 16, background: 'var(--border)', borderRadius: 4, opacity: 0.5 }} /></td>
                 ))}
               </tr>
             ))}
             {!isLoading && items.length === 0 && (
-              <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: 48, color: 'var(--foreground-muted)' }}>No customers found</td></tr>
+              <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: 48, color: 'var(--foreground-muted)' }}>No customers found</td></tr>
             )}
             {items.map((item: any) => (
               <tr key={item.id}>

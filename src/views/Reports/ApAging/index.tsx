@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import * as XLSX from 'xlsx'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { toast } from 'sonner'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/price'
@@ -195,29 +197,18 @@ export default function ApAgingView() {
   const hasStatement = !isLoading && !isError && !!ap
   const canExport = hasStatement
 
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportApAging({ as_of_date: asOfDate }),
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, `ap-aging-${asOfDate}.xlsx`)
+    },
+    onError: () => {
+      toast.error('Gagal mengekspor data.')
+    }
+  })
+
   const handleExport = () => {
-    const sheetRows: (string | number)[][] = [
-      ['Supplier', 'No. PO', 'Tanggal', 'Umur (hari)', 'Bucket', 'Outstanding'],
-    ]
-
-    lines.forEach((ln) => {
-      sheetRows.push([
-        ln.supplier_name || '—',
-        ln.code ?? '',
-        ln.date ? formatDate(ln.date) : '',
-        ln.age_days ?? 0,
-        bucketDisplayLabel(ln.bucket),
-        ln.outstanding ?? 0,
-      ])
-    })
-
-    sheetRows.push(['', '', '', '', 'Grand Total', grandTotal])
-
-    const ws = XLSX.utils.aoa_to_sheet(sheetRows)
-    ws['!cols'] = [{ wch: 24 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 18 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'AP Aging')
-    XLSX.writeFile(wb, `ap-aging-${asOfDate}.xlsx`)
+    exportExcel()
   }
 
   return (
@@ -257,9 +248,9 @@ export default function ApAgingView() {
             <Printer size={14} />
             Print
           </button>
-          <button type="button" onClick={handleExport} disabled={!canExport} style={{ ...btnStyle, opacity: canExport ? 1 : 0.6, cursor: canExport ? 'pointer' : 'not-allowed' }}>
+          <button type="button" onClick={handleExport} disabled={!canExport || isExporting} style={{ ...btnStyle, opacity: canExport && !isExporting ? 1 : 0.6, cursor: canExport && !isExporting ? 'pointer' : 'not-allowed' }}>
             <Download size={14} />
-            Export Excel
+            {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
         </div>
       </div>
@@ -336,25 +327,25 @@ export default function ApAgingView() {
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Loading...
                       </td>
                     </tr>
                   ) : isError ? (
                     <tr>
-                      <td colSpan={6} style={{ ...cellStyle, textAlign: 'center', color: 'var(--destructive)' }}>
+                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--destructive)' }}>
                         Failed to load AP aging report
                       </td>
                     </tr>
                   ) : !hasStatement ? (
                     <tr>
-                      <td colSpan={6} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Select a date to generate the report
                       </td>
                     </tr>
                   ) : lines.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Tidak ada hutang tertunggak
                       </td>
                     </tr>

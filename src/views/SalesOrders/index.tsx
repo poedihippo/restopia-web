@@ -449,7 +449,7 @@ export default function SalesOrdersView() {
             {isLoading &&
               Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 10 }).map((_, j) => (
+                  {Array.from({ length: 11 }).map((_, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -466,7 +466,7 @@ export default function SalesOrdersView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={11}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -478,7 +478,7 @@ export default function SalesOrdersView() {
                 </td>
               </tr>
             )}
-            {items.map((item: any) => {
+            {items.map((item: any, idx: number) => {
               const sc = statusColor(item.status)
               const tc = typeColor(item.type)
               return (

@@ -2331,6 +2331,8 @@ export interface components {
             account_type?: components["schemas"]["AccountTypeSimpleResponse"];
             /** @example 1 */
             account_type_id?: number;
+            /** @example 200000 */
+            balance?: number;
             /** @example 1-1000 */
             code?: string;
             company?: components["schemas"]["CompanySimpleResponse"];
@@ -12349,8 +12351,6 @@ export interface operations {
                 "filter[branch_id]"?: string;
                 /** @description Filter by stock_gte */
                 "filter[stock_gte]"?: string;
-                /** @description Filter by product_type */
-                "filter[product_type]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
                 /** @description Filter by product_uom_batch_id_in */
@@ -12925,7 +12925,7 @@ export interface operations {
                 /** @description Filter by is_default */
                 "filter[is_default]"?: string;
                 /** @description Filter by product_type */
-                "filter[product_type]"?: string;
+                "filter[product_types]"?: string;
             };
             header?: never;
             path?: never;

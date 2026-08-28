@@ -15,6 +15,7 @@ import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { taxesService } from '@/services/taxes.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import {
   Plus,
   Trash2,
@@ -80,7 +81,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   const { user, hasPermission } = useAuth()
   const currentBranchId = (user as any)?.branch?.id
-  
+
   const canEditExternalPrice = hasPermission('purchase-order.edit-price')
   const canEditInternalPrice = hasPermission('internal-purchase-order.edit-price')
 
@@ -119,10 +120,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const watchDetails = watch('details')
   const watchSupplierId = watch('supplier_id')
   const watchAdditionalCharges = watch('additional_charges') || []
-  
+
   const subtotal = watchDetails.reduce((sum, d) => sum + Number(d.qty || 0) * Number(d.price || 0), 0)
   const additionalChargesTotal = watchAdditionalCharges.reduce((sum, c) => sum + Number(c.amount || 0), 0)
   const totalPrice = subtotal + additionalChargesTotal
+
+  const activeProductTypes = useActiveBranchProductTypes()
 
   const { data: taxesData } = useQuery({
     queryKey: ['taxes'],
@@ -144,14 +147,19 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const branches = (branchesData as any)?.data ?? []
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', activeProductTypes],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .list({
+            page,
+            per_page: 100,
+            include: 'product,uom,product.product_category',
+            'filter[product_types]': activeProductTypes,
+          } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -204,7 +212,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
     setValue('details', cleanedDetails, { shouldDirty: true, shouldValidate: true })
   }
-  const productUoms = (productUomsData as any)?.data ?? []
+
+  const allProductUoms = (productUomsData as any)?.data ?? []
+  const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
   // Last-purchase-price history for the selected supplier. Reads existing POs;
   // no backend change. Newest entry per product_uom_id (POs sorted -date).
@@ -1032,40 +1042,40 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           {/* Total row */}
           {/* Additional Charges and Totals section */}
           {watchType !== 'branch' && (
-          <div
-            style={{
-              padding: '14px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-end',
-              alignItems: 'flex-end',
-              gap: 4,
-              borderTop: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
-              <span>Subtotal:</span>
-              <span><PriceDisplay amount={subtotal} prefix="Rp " /></span>
-            </div>
-            <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
-              <span>Additional Charges:</span>
-              <span><PriceDisplay amount={additionalChargesTotal} prefix="Rp " /></span>
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
-            <span
+            <div
               style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: 'var(--accent)',
-                fontFamily: 'var(--font-display)',
+                padding: '14px 20px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                alignItems: 'flex-end',
+                gap: 4,
+                borderTop: '1px solid var(--border)',
+                background: 'var(--background)',
               }}
             >
-              <PriceDisplay amount={totalPrice} prefix="Rp " />
-            </span>
-          </div>
-          </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
+                <span>Subtotal:</span>
+                <span><PriceDisplay amount={subtotal} prefix="Rp " /></span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
+                <span>Additional Charges:</span>
+                <span><PriceDisplay amount={additionalChargesTotal} prefix="Rp " /></span>
+              </div>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+                <span
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: 'var(--accent)',
+                    fontFamily: 'var(--font-display)',
+                  }}
+                >
+                  <PriceDisplay amount={totalPrice} prefix="Rp " />
+                </span>
+              </div>
+            </div>
           )}
 
           {/* Array-level error */}

@@ -12,6 +12,7 @@ import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
 import { PriceDisplay } from '@/components/PriceDisplay'
@@ -77,15 +78,22 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   })
   const branches = (branchesData as any)?.data ?? []
 
+  const activeProductTypes = useActiveBranchProductTypes()
+
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', activeProductTypes],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .list({
+            page,
+            per_page: 100,
+            include: 'product,uom,product.product_category',
+            'filter[product_types]': activeProductTypes,
+          } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -98,7 +106,8 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       return { data: allProductUoms }
     },
   })
-  const productUoms = (productUomsData as any)?.data ?? []
+  const allProductUoms = (productUomsData as any)?.data ?? []
+  const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
   // Available stock at the SOURCE branch (current active branch). We fetch all
   // active inventory rows for this branch once, then pick a FIFO batch per line

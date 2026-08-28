@@ -4,8 +4,10 @@ import { formatDateShort, formatDateTime } from '@/utils/date';
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, X, Search } from 'lucide-react'
+import { Eye, X, Search, Download } from 'lucide-react'
 import { taxesService } from '@/services/taxes.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function TaxesView() {
@@ -93,6 +95,16 @@ export default function TaxesView() {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Error'),
   })
 
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportTaxes(),
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, `taxes.xlsx`)
+    },
+    onError: () => {
+      toast.error('Gagal mengekspor data.')
+    }
+  })
+
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
     textAlign: 'left',
@@ -134,24 +146,29 @@ export default function TaxesView() {
             Manage tax rates and types used in sales and purchases.
           </p>
         </div>
-        {canCreate && (<button
-          type="button"
-          onClick={() => {
-            resetForm()
-            setShowForm(true)
-          }}
-          style={{
-            height: 40,
-            padding: '0 20px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: 'pointer',
-          }}>+ Add Tax
-        </button>)}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 20px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
+          </button>
+          {canCreate && (<button
+            type="button"
+            onClick={() => {
+              resetForm()
+              setShowForm(true)
+            }}
+            style={{
+              height: 40,
+              padding: '0 20px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+            }}>+ Add Tax
+          </button>)}
+        </div>
       </div>
       <div style={{ marginBottom: 16, position: 'relative', maxWidth: 280 }}>
         <Search
@@ -195,6 +212,7 @@ export default function TaxesView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Code</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Rate</th>
@@ -207,7 +225,7 @@ export default function TaxesView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3, 4, 5, 6].map((j) => (
+                  {[1, 2, 3, 4, 5, 6, 7].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -224,7 +242,7 @@ export default function TaxesView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -236,8 +254,11 @@ export default function TaxesView() {
                 </td>
               </tr>
             )}
-            {items.map((item: any) => (
+            {items.map((item: any, idx: number) => (
               <tr key={item.id}>
+                <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                  {idx + 1}
+                </td>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.code : "***"}</td>
                 <td style={tdStyle}>{canRead ? item.name : "***"}</td>
                 <td style={tdStyle}>{canRead ? `${item.rate}%` : "***"}</td>

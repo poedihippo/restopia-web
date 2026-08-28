@@ -9,6 +9,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
@@ -40,7 +41,7 @@ interface ProductInventory {
   product_uom?: {
     id: number
     code?: string
-    product?: { id: number; name: string }
+    product?: { id: number; name: string; type?: string }
     uom?: { id: number; name: string; code: string }
   }
   product_uom_batch?: {
@@ -54,6 +55,7 @@ interface ProductInventory {
       product?: {
         id: number
         name: string
+        type?: string
         product_category?: { id: number; name: string }
       }
       uom?: { id: number; name: string; code: string }
@@ -65,6 +67,26 @@ interface ProductInventory {
 export default function ProductInventoriesView({ defaultType }: { defaultType?: string }) {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const activeProductTypes = useActiveBranchProductTypes()
+  const allowedTypes = activeProductTypes
+    ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
+    : null
+
+  const allTypeOptions = [
+    { value: 'raw', label: 'Raw' },
+    { value: 'wip', label: 'WIP' },
+    { value: 'final', label: 'Final' },
+    { value: 'supply', label: 'Supply' },
+  ]
+
+  const availableTypeOptions = allowedTypes
+    ? allTypeOptions.filter(
+      (o) =>
+        allowedTypes.includes(o.value) ||
+        (o.value === 'supply' && allowedTypes.includes('supplies')),
+    )
+    : allTypeOptions
+
   const canRead = hasPermission("product-inventory.read");
   const canCreate = hasPermission('product-inventory.create')
   const canEdit = hasPermission('product-inventory.update')
@@ -92,7 +114,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
-
   const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [isExporting, setIsExporting] = useState(false)
@@ -112,6 +133,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
       setIsExporting(true)
       const response = await productInventoriesService.exportExcel({
         'filter[search]': debouncedSearch || undefined,
+        'filter[product_types]': activeProductTypes,
       })
 
       const blob = new Blob([response.data], {
@@ -149,7 +171,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, perPage, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter],
+    queryKey: ['product-inventories', page, perPage, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, activeProductTypes],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -162,8 +184,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-          'filter[product_type]': typeFilter === '' ? undefined : String(typeFilter),
-        })
+          'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+        } as any)
         .then((r) => r.data),
   })
 
@@ -171,10 +193,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const meta = (data as any)?.meta
 
   const { data: puData } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', activeProductTypes],
     queryFn: () =>
       productUomsService
-        .list({ per_page: perPage, include: 'product,uom' } as any)
+        .list({ per_page: perPage, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
         .then((r) => r.data),
   })
   const productUomsAll = (puData as any)?.data ?? []
@@ -183,9 +205,14 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
   const filteredItems = items.filter((i) => {
     if (hideEmpty && (!i.qty || i.qty <= 0)) return false
+    const puFallback = getProductUom(i.product_uom_id)
+    const productObj =
+      i.product_uom_batch?.product_uom?.product ??
+      i.product_uom?.product ??
+      puFallback?.product
+    if (!isProductTypeAllowed(productObj, activeProductTypes)) return false
     return true
   })
-
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productInventoriesService.delete(id),
@@ -266,8 +293,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             )}
             <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
           </button>
-
-
         </div>
       </div>
       {/* Toolbar */}
@@ -406,10 +431,11 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             }}
           >
             <option value="">All Types</option>
-            <option value="raw">Raw</option>
-            <option value="wip">WIP</option>
-            <option value="final">Final</option>
-            <option value="supply">Supply</option>
+            {availableTypeOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         )}
 
@@ -475,20 +501,21 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
               }}
             >
               {[
-                  { label: 'Product', width: undefined },
-                  { label: 'UOM', width: 100 },
-                  { label: 'Batch Code', width: 160 },
-                  { label: 'Branch', width: 160 },
-                  { label: 'Qty', width: 100 },
-                  { label: 'Min Qty', width: 100 },
-                  { label: 'Status', width: 110 },
-                  { label: '', width: 80 },
+                { label: 'No.', width: 50 },
+                { label: 'Product', width: undefined },
+                { label: 'UOM', width: 100 },
+                { label: 'Batch Code', width: 160 },
+                { label: 'Branch', width: 160 },
+                { label: 'Qty', width: 100 },
+                { label: 'Min Qty', width: 100 },
+                { label: 'Status', width: 110 },
+                { label: '', width: 80 },
               ].map(({ label, width }, i) => (
                 <th
                   key={i}
                   style={{
                     padding: '10px 16px',
-                    textAlign: 'left',
+                    textAlign: label === 'No.' ? 'center' : 'left',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--foreground-muted)',
@@ -506,7 +533,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -535,7 +562,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             {isError && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -550,7 +577,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div
                     style={{
                       padding: 48,
@@ -570,7 +597,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             )}
 
             {!isLoading &&
-              filteredItems.map((item) => {
+              filteredItems.map((item, idx) => {
                 const isLow =
                   item.min_qty !== undefined &&
                   item.min_qty !== null &&
@@ -592,6 +619,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                             : 'transparent',
                     }}
                   >
+                    <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
                     {/* Product */}
                     <td style={{ padding: '12px 16px' }}>
                       <div>
@@ -673,96 +703,96 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                       </span>
                     </td>
 
-                      <>
-                        {/* Min Qty */}
-                        <td
+                    <>
+                      {/* Min Qty */}
+                      <td
+                        style={{
+                          padding: '12px 16px',
+                          fontSize: 13,
+                          color: 'var(--foreground-muted)',
+                        }}
+                      >
+                        {canRead ? item.min_qty !== undefined && item.min_qty !== null
+                          ? (item.min_qty ?? 0).toLocaleString('id-ID')
+                          : '—' : "***"}
+                      </td>
+                      {/* Status */}
+                      <td style={{ padding: '12px 16px' }}>
+                        <span
                           style={{
-                            padding: '12px 16px',
-                            fontSize: 13,
-                            color: 'var(--foreground-muted)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            padding: '2px 10px',
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 500,
+                            background: isLow
+                              ? 'var(--warning-bg)'
+                              : 'var(--success-bg)',
+                            color: isLow ? 'var(--warning)' : 'var(--success)',
                           }}
                         >
-                          {canRead ? item.min_qty !== undefined && item.min_qty !== null
-                            ? (item.min_qty ?? 0).toLocaleString('id-ID')
-                            : '—' : "***"}
-                        </td>
-                        {/* Status */}
-                        <td style={{ padding: '12px 16px' }}>
-                          <span
+                          {isLow && <AlertTriangle size={10} />}
+                          {isLow ? 'Low Stock' : 'OK'}
+                        </span>
+                      </td>
+                      {/* Actions */}
+                      <td style={{ padding: '12px 16px' }}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 4,
+                            justifyContent: 'flex-end',
+                          }}
+                        >
+                          <button
+                            onClick={() => setSelectedItem(item)}
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              padding: '2px 10px',
-                              borderRadius: 99,
-                              fontSize: 11,
-                              fontWeight: 500,
-                              background: isLow
-                                ? 'var(--warning-bg)'
-                                : 'var(--success-bg)',
-                              color: isLow ? 'var(--warning)' : 'var(--success)',
-                            }}
-                          >
-                            {isLow && <AlertTriangle size={10} />}
-                            {isLow ? 'Low Stock' : 'OK'}
-                          </span>
-                        </td>
-                        {/* Actions */}
-                        <td style={{ padding: '12px 16px' }}>
-                          <div
-                            style={{
+                              padding: 6,
+                              background: 'none',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              color: 'var(--foreground-muted)',
                               display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              justifyContent: 'flex-end',
                             }}
                           >
-                            <button
-                              onClick={() => setSelectedItem(item)}
-                              style={{
-                                padding: 6,
-                                background: 'none',
-                                border: 'none',
-                                borderRadius: 'var(--radius-sm)',
-                                cursor: 'pointer',
-                                color: 'var(--foreground-muted)',
-                                display: 'flex',
-                              }}
-                            >
-                              <Eye size={14} />
-                            </button>
-                            {canEdit && (<button
-                              onClick={() => {
-                                setEditData(item)
-                                setSheetOpen(true)
-                              }}
-                              style={{
-                                padding: 6,
-                                background: 'none',
-                                border: 'none',
-                                borderRadius: 'var(--radius-sm)',
-                                cursor: 'pointer',
-                                color: 'var(--foreground-muted)',
-                                display: 'flex',
-                              }}>
-                              <Pencil size={14} />
-                            </button>)}
-                            {canDelete && (<button
-                              onClick={() => setDeleteConfirmId(item.id)}
-                              style={{
-                                padding: 6,
-                                background: 'none',
-                                border: 'none',
-                                borderRadius: 'var(--radius-sm)',
-                                cursor: 'pointer',
-                                color: 'var(--destructive)',
-                                display: 'flex',
-                              }}>
-                              <Trash2 size={14} />
-                            </button>)}
-                          </div>
-                        </td>
-                      </>
+                            <Eye size={14} />
+                          </button>
+                          {canEdit && (<button
+                            onClick={() => {
+                              setEditData(item)
+                              setSheetOpen(true)
+                            }}
+                            style={{
+                              padding: 6,
+                              background: 'none',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              color: 'var(--foreground-muted)',
+                              display: 'flex',
+                            }}>
+                            <Pencil size={14} />
+                          </button>)}
+                          {canDelete && (<button
+                            onClick={() => setDeleteConfirmId(item.id)}
+                            style={{
+                              padding: 6,
+                              background: 'none',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              color: 'var(--destructive)',
+                              display: 'flex',
+                            }}>
+                            <Trash2 size={14} />
+                          </button>)}
+                        </div>
+                      </td>
+                    </>
                   </tr>
                 );
               })}
@@ -770,76 +800,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
         </table>
       </div>
       {/* Pagination */}
-      {meta && (meta.last_page ?? meta.total_pages ?? 1) > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingTop: 12,
-          }}
-        >
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            Showing {(page - 1) * 15 + 1}–{Math.min(page * 15, meta.total)} of{' '}
-            {meta.total}
-          </span>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === 1 ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === 1 ? 0.5 : 1,
-              }}
-            >
-              <ChevronLeft size={13} />
-              Prev
-            </button>
-
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--foreground)',
-                padding: '0 8px',
-                fontWeight: 500,
-              }}
-            >
-              {page} / {meta.last_page ?? meta.total_pages ?? 1}
-            </span>
-
-            <button
-              disabled={page === (meta.last_page ?? meta.total_pages ?? 1)}
-              onClick={() => setPage((p) => p + 1)}
-              style={{
-                padding: '5px 10px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                cursor: page === (meta.last_page ?? meta.total_pages ?? 1) ? 'not-allowed' : 'pointer',
-                color: 'var(--foreground-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                opacity: page === (meta.last_page ?? meta.total_pages ?? 1) ? 0.5 : 1,
-              }}
-            >
-              Next
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </div>
-      )}
+      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div

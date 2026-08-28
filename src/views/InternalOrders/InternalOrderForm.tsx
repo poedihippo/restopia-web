@@ -12,6 +12,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
@@ -74,15 +75,22 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   })
   const branches = (branchesData as any)?.data ?? []
 
+  const activeProductTypes = useActiveBranchProductTypes()
+
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', activeProductTypes],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .list({
+            page,
+            per_page: 100,
+            include: 'product,uom,product.product_category',
+            'filter[product_types]': activeProductTypes,
+          } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -95,7 +103,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
       return { data: allProductUoms }
     },
   })
-  const productUoms = (productUomsData as any)?.data ?? []
+  const allProductUoms = (productUomsData as any)?.data ?? []
+  const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
   // Internal-source branches: every branch except our own.
   const sourceBranchOptions = branches
@@ -549,7 +558,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                 />
               </div>
 
-            
+
 
               {/* Qty */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -612,7 +621,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               background: 'var(--background)',
             }}
           >
-           
+
           </div>
         </div>
 

@@ -295,7 +295,7 @@ export default function VouchersView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 9 }).map((__, j) => (
+                  {Array.from({ length: 10 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -312,7 +312,7 @@ export default function VouchersView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load vouchers.
                   </span>
@@ -320,7 +320,7 @@ export default function VouchersView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -336,7 +336,7 @@ export default function VouchersView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              items.map((item, idx) => {
                 const isActive = item.status === 'active'
                 return (
                   <tr

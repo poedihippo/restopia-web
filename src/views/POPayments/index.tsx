@@ -578,6 +578,7 @@ export default function POPaymentsView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--background)' }}>
+                  <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                   <th style={thStyle}>Payment No</th>
                   <th style={thStyle}>Date</th>
                   <th style={thStyle}>Method</th>
@@ -587,7 +588,7 @@ export default function POPaymentsView() {
                 </tr>
               </thead>
               <tbody>
-                {history.map((p) => {
+                {history.map((p, idx) => {
                   const isVoiding = voidMutation.isPending && voidMutation.variables?.id === p.id
                   return (
                     <tr key={p.id}>

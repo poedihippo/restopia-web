@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2 } from 'lucide-react'
 
@@ -62,9 +63,11 @@ export default function ProductUomBatchSheet({
   })
   const batch = (batchResp as any)?.data
 
+  const activeProductTypes = useActiveBranchProductTypes()
+
   // Create mode — product UOMs for the picker (paginate all pages)
   const { data: puData, isLoading: puLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', activeProductTypes],
     enabled: open,
     queryFn: async () => {
       let all: any[] = []
@@ -72,7 +75,7 @@ export default function ProductUomBatchSheet({
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page: p, per_page: 100, include: 'product,uom' } as any)
+          .list({ page: p, per_page: 100, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
           .then((r) => r.data)
         all = all.concat((res as any)?.data ?? [])
         totalPages =
@@ -84,7 +87,8 @@ export default function ProductUomBatchSheet({
       return { data: all }
     },
   })
-  const productUoms = (puData as any)?.data ?? []
+  const allProductUoms = (puData as any)?.data ?? []
+  const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,

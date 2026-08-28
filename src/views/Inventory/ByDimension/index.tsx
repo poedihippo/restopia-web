@@ -241,19 +241,19 @@ export default function InventoryByDimensionView() {
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Memuat...
                       </td>
                     </tr>
                   ) : isError ? (
                     <tr>
-                      <td colSpan={6} style={{ ...cellStyle, textAlign: 'center', color: 'var(--destructive)' }}>
+                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--destructive)' }}>
                         Gagal memuat data stok
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Tidak ada data stok
                       </td>
                     </tr>

@@ -37,6 +37,9 @@ export const productInventoriesService = {
   exportExcel: (params?: {
     'filter[search]'?: string
     'filter[branch_id]'?: number
+    'filter[product_types]'?: string
+    product_types?: string
+    [key: string]: any
   }) =>
     api.get('/product-inventories/exports/excel/all', {
       params,

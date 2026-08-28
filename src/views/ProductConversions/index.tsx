@@ -230,7 +230,7 @@ export default function ProductConversionsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -259,7 +259,7 @@ export default function ProductConversionsView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -274,7 +274,7 @@ export default function ProductConversionsView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div
                     style={{
                       padding: 48,
@@ -294,7 +294,7 @@ export default function ProductConversionsView() {
             )}
 
             {!isLoading &&
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr
                   key={item.id}
                   onMouseEnter={() => setHoveredRow(item.id)}

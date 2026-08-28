@@ -198,7 +198,7 @@ export default function PaymentMethodsView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3, 4].map((j) => (
+                  {[1, 2, 3, 4, 5].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -215,7 +215,7 @@ export default function PaymentMethodsView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',

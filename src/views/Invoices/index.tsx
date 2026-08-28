@@ -254,6 +254,7 @@ export default function InvoicesView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 180 }}>Invoice Code</th>
               <th style={{ ...thStyle, width: 160 }}>Billed Branch</th>
               <th style={{ ...thStyle, width: 160 }}>Delivery</th>
@@ -267,7 +268,7 @@ export default function InvoicesView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -284,7 +285,7 @@ export default function InvoicesView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load invoices.
                   </span>
@@ -292,7 +293,7 @@ export default function InvoicesView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -308,7 +309,7 @@ export default function InvoicesView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              items.map((item, idx) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.issued
                 return (
                   <tr

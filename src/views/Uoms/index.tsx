@@ -202,7 +202,7 @@ export default function UomsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     {[60, 40, 80, 50, 70].map((w, i) => (
                       <div
@@ -224,7 +224,7 @@ export default function UomsView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}
                 >
                   Failed to load units of measure
@@ -234,7 +234,7 @@ export default function UomsView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={5}>
                   <div
                     style={{
                       padding: 48,
@@ -254,7 +254,7 @@ export default function UomsView() {
             )}
 
             {!isLoading &&
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr
                   key={item.id}
                   onMouseEnter={() => setHoveredRow(item.id)}

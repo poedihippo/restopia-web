@@ -8,6 +8,7 @@ import { productsService } from '@/services/products.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductSheet from './ProductSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
@@ -26,7 +27,7 @@ interface Product {
   id: number
   name: string
   code?: string
-  type?: 'raw' | 'wip' | 'final'
+  type?: 'raw' | 'wip' | 'final' | 'supply'
   status: 'active' | 'inactive'
   product_category_id: number
   description?: string
@@ -38,6 +39,26 @@ interface Product {
 export default function ProductView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const activeProductTypes = useActiveBranchProductTypes()
+  const allowedTypes = activeProductTypes
+    ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
+    : null
+
+  const allTypeOptions = [
+    { value: 'raw', label: 'Raw' },
+    { value: 'wip', label: 'WIP' },
+    { value: 'final', label: 'Final' },
+    { value: 'supply', label: 'Supply' },
+  ]
+
+  const availableTypeOptions = allowedTypes
+    ? allTypeOptions.filter(
+        (o) =>
+          allowedTypes.includes(o.value) ||
+          (o.value === 'supply' && allowedTypes.includes('supplies')),
+      )
+    : allTypeOptions
+
   const canRead = hasPermission("product.read");
   const canCreate = hasPermission('product.create')
   const canEdit = hasPermission('product.update')
@@ -47,7 +68,7 @@ export default function ProductView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(1000)
-  const [typeFilter, setTypeFilter] = useState<'' | 'raw' | 'wip' | 'final'>('')
+  const [typeFilter, setTypeFilter] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Product | null>(null)
@@ -74,7 +95,7 @@ export default function ProductView() {
   const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter],
+    queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter, activeProductTypes],
     queryFn: () =>
       productsService
         .list({
@@ -83,14 +104,16 @@ export default function ProductView() {
           sort: '-id',
           include: 'product_category',
           'filter[search]': debouncedSearch || undefined,
-          'filter[type]': typeFilter || undefined,
+          'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-        })
+        } as any)
         .then((r) => r.data),
   })
 
-  const items: Product[] = (data as any)?.data ?? []
+  const rawItems: Product[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const items = rawItems.filter((item) => isProductTypeAllowed(item, activeProductTypes))
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productsService.delete(id),
@@ -107,6 +130,7 @@ export default function ProductView() {
     if (type === 'raw') return { ...base, background: 'var(--info-bg)', color: 'var(--info)' }
     if (type === 'wip') return { ...base, background: 'var(--warning-bg)', color: 'var(--warning)' }
     if (type === 'final') return { ...base, background: 'var(--success-bg)', color: 'var(--success)' }
+    if (type === 'supply') return { ...base, background: 'var(--accent-light-bg)', color: 'var(--accent)' }
     return { ...base, background: 'var(--border)', color: 'var(--foreground-muted)' }
   }
 
@@ -206,7 +230,7 @@ export default function ProductView() {
         <select
           value={typeFilter}
           onChange={(e) => {
-            setTypeFilter(e.target.value as '' | 'raw' | 'wip' | 'final')
+            setTypeFilter(e.target.value)
             setPage(1)
           }}
           style={{
@@ -222,9 +246,11 @@ export default function ProductView() {
           }}
         >
           <option value="">All Types</option>
-          <option value="raw">Raw</option>
-          <option value="wip">WIP</option>
-          <option value="final">Final</option>
+          {availableTypeOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
         </select>
 
         <select
@@ -268,6 +294,7 @@ export default function ProductView() {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
               {[
+                { label: 'No.', width: 50 },
                 { label: 'Name', width: undefined },
                 { label: 'Code', width: 120 },
                 { label: 'Category', width: 160 },
@@ -279,7 +306,7 @@ export default function ProductView() {
                   key={i}
                   style={{
                     padding: '10px 16px',
-                    textAlign: 'left',
+                    textAlign: col.label === 'No.' ? 'center' : 'left',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--foreground-muted)',
@@ -297,7 +324,7 @@ export default function ProductView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     {[60, 40, 80, 50, 70].map((w, i) => (
                       <div
@@ -318,7 +345,7 @@ export default function ProductView() {
 
             {isError && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                   Failed to load products
                 </td>
               </tr>
@@ -326,7 +353,7 @@ export default function ProductView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     <Package size={32} style={{ color: 'var(--foreground-subtle)' }} />
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -338,7 +365,7 @@ export default function ProductView() {
             )}
 
             {!isLoading &&
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr
                   key={item.id}
                   onMouseEnter={() => setHoveredRow(item.id)}
@@ -348,6 +375,9 @@ export default function ProductView() {
                     background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
                   }}
                 >
+                  <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                     {canRead ? item.name : "***"}
                   </td>

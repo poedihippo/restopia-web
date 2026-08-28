@@ -46,6 +46,7 @@ export interface CompanyRequest {
   address?: string
   phone?: string
   email?: string
+  product_types?: string | null
 }
 
 // Branches

@@ -344,7 +344,7 @@ export default function InternalOrdersView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -362,7 +362,7 @@ export default function InternalOrdersView() {
             ) : isError ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
@@ -373,7 +373,7 @@ export default function InternalOrdersView() {
             ) : items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <div
@@ -391,7 +391,7 @@ export default function InternalOrdersView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              items.map((item, idx) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending
                 const po = item as any
                 const branchName = po?.supplier_branch?.name

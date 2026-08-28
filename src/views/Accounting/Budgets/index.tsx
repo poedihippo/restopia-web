@@ -10,12 +10,14 @@ import {
   budgetsService, periodsService, chartOfAccountsService,
   type BudgetRequest,
 } from '@/services/accounting.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
-  Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, PiggyBank,
+  Plus, Pencil, Trash2,
+  X, Loader2, PiggyBank, Download,
 } from 'lucide-react'
 
 interface Budget {
@@ -112,6 +114,12 @@ export default function BudgetsView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportBudgets(),
+    onSuccess: (res) => { downloadFileFromResponse(res, 'budgets.xlsx') },
+    onError: () => toast.error('Gagal mengekspor data.'),
+  })
+
   const isPending = createMutation.isPending || updateMutation.isPending
   const onSubmit = (values: FormValues) => {
     if (editData) updateMutation.mutate(values as BudgetRequest)
@@ -122,20 +130,26 @@ export default function BudgetsView() {
     <div style={{ padding: '32px 32px 64px', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Budgets (Budget)</h1>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Budgets</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Budget allocation per account per period for financial planning</p>
         </div>
-        {canCreate && (
-          <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> New Budget
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
-        )}
+          {canCreate && (
+            <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <Plus size={16} /> New Budget
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Account</th>
               <th style={{ ...thStyle, width: 180 }}>Periode</th>
               <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Amount Budgets</th>
@@ -145,22 +159,25 @@ export default function BudgetsView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 4 }).map((__, j) => (
-                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 3 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
+                <tr key={i}>{Array.from({ length: 5 }).map((__, j) => (
+                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 4 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={4} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <PiggyBank size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No budgets found</span>
                 </div>
               </td></tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr key={item.id} style={{ transition: 'background 120ms' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}>
                     {item.chart_of_account
                       ? <div><span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--foreground-muted)', marginRight: 6 }}>{item.chart_of_account.code}</span><span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.chart_of_account.name}</span></div>
@@ -189,7 +206,7 @@ export default function BudgetsView() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 360, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Budgets</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Budget</h3>
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
@@ -204,7 +221,7 @@ export default function BudgetsView() {
           <div onClick={() => setSheetOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
           <div style={{ position: 'relative', zIndex: 50, width: 460, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Budgets' : 'Budgets Baru'}</h2>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Budget' : 'New Budget'}</h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -225,7 +242,7 @@ export default function BudgetsView() {
                 {errors.period_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.period_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Amount Budgets (Rp) <span style={{ color: 'var(--destructive)' }}>*</span></label>
+                <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Amount (Rp) <span style={{ color: 'var(--destructive)' }}>*</span></label>
                 <input type="number" min={0} {...register('amount')} placeholder="e.g. 5000000" style={errors.amount ? { ...inputError, textAlign: 'right' } : { ...inputStyle, textAlign: 'right' }} />
                 {errors.amount && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.amount.message}</span>}
               </div>

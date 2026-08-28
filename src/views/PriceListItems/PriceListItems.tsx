@@ -152,7 +152,7 @@ export default function PriceListItemsView() {
                   </td>
                 </tr>
               ) : (
-                items.map((item: any) => (
+                items.map((item: any, idx: number) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
                       {(() => {

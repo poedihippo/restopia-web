@@ -213,7 +213,7 @@ export default function StockTransferView() {
 
   const renderEmpty = (label: string) => (
     <tr>
-      <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+      <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
         <div
           style={{
             display: 'flex',
@@ -372,6 +372,7 @@ export default function StockTransferView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                   <th style={{ ...thStyle, width: 140 }}>Code</th>
                   <th style={thStyle}>To Branch</th>
                   <th style={{ ...thStyle, width: 80 }}>Items</th>
@@ -383,10 +384,10 @@ export default function StockTransferView() {
               </thead>
               <tbody>
                 {outLoading
-                  ? renderSkeletonRows(7)
+                  ? renderSkeletonRows(8)
                   : outItems.length === 0
                   ? renderEmpty('No outgoing transfers yet')
-                  : outItems.map((item: any) => {
+                  : outItems.map((item: any, idx: number) => {
                       const meta =
                         STATUS_META[item.status as keyof typeof STATUS_META] ??
                         STATUS_META.pending
@@ -568,6 +569,7 @@ export default function StockTransferView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                   <th style={{ ...thStyle, width: 140 }}>Code</th>
                   <th style={thStyle}>From Branch</th>
                   <th style={{ ...thStyle, width: 80 }}>Items</th>
@@ -581,11 +583,11 @@ export default function StockTransferView() {
                 {!myBranchId ? (
                   renderEmpty('No branch assigned to your account')
                 ) : inLoading ? (
-                  renderSkeletonRows(7)
+                  renderSkeletonRows(8)
                 ) : inItems.length === 0 ? (
                   renderEmpty('No incoming transfers')
                 ) : (
-                  inItems.map((item: any) => {
+                  inItems.map((item: any, idx: number) => {
                     const meta =
                       STATUS_META[item.status as keyof typeof STATUS_META] ??
                       STATUS_META.pending

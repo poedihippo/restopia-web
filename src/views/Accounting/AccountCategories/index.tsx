@@ -8,12 +8,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { accountCategoriesService, type AccountCategoryRequest } from '@/services/accounting.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
-  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, Tag, TrendingUp, TrendingDown,
+  Plus, Search, Pencil, Trash2,
+  X, Loader2, Tag, TrendingUp, TrendingDown, Download,
 } from 'lucide-react'
 
 interface AccountCategory {
@@ -74,18 +76,12 @@ export default function AccountCategoriesView() {
   const [editData, setEditData] = useState<AccountCategory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400)
-    return () => clearTimeout(t)
-  }, [search])
-
+  useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-categories', page, perPage, debouncedSearch],
-    queryFn: () =>
-      accountCategoriesService.list({ page, per_page: perPage, sort: 'code', 'filter[search]': debouncedSearch || undefined })
-        .then((r) => r.data),
+    queryFn: () => accountCategoriesService.list({ page, per_page: perPage, sort: 'code', 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
   })
 
   const items: AccountCategory[] = (data as any)?.data ?? []
@@ -93,74 +89,67 @@ export default function AccountCategoriesView() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => accountCategoriesService.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['account-categories'] })
-      toast.success('Account category deleted')
-      setDeleteConfirmId(null)
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-categories'] }); toast.success('Deleted'); setDeleteConfirmId(null) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const {
-    register, handleSubmit, reset,
-    formState: { errors },
-  } = useForm<FormValues>({
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { code: '', name: '', normal_balance: 'debit' },
   })
 
   useEffect(() => {
-    if (editData) {
-      reset({ code: editData.code, name: editData.name, normal_balance: editData.normal_balance })
-    } else {
-      reset({ code: '', name: '', normal_balance: 'debit' })
-    }
+    if (editData) reset({ code: editData.code, name: editData.name, normal_balance: editData.normal_balance })
+    else reset({ code: '', name: '', normal_balance: 'debit' })
   }, [editData, reset])
 
   const createMutation = useMutation({
     mutationFn: (data: AccountCategoryRequest) => accountCategoriesService.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-categories'] }); toast.success('Account category created'); setSheetOpen(false) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-categories'] }); toast.success('Created'); setSheetOpen(false) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to create'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (data: AccountCategoryRequest) => accountCategoriesService.update(editData!.id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-categories'] }); toast.success('Account category updated'); setSheetOpen(false) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['account-categories'] }); toast.success('Updated'); setSheetOpen(false) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportAccountCategories(),
+    onSuccess: (res) => { downloadFileFromResponse(res, 'account-categories.xlsx') },
+    onError: () => toast.error('Gagal mengekspor data.'),
+  })
+
   const isPending = createMutation.isPending || updateMutation.isPending
-
   const onSubmit = (values: FormValues) => {
-    if (editData) updateMutation.mutate(values)
-    else createMutation.mutate(values)
+    if (editData) updateMutation.mutate(values as AccountCategoryRequest)
+    else createMutation.mutate(values as AccountCategoryRequest)
   }
-
-  const openCreate = () => { setEditData(null); setSheetOpen(true) }
   const openEdit = (item: AccountCategory) => { setEditData(item); setSheetOpen(true) }
 
   return (
     <div style={{ padding: '32px 32px 64px', maxWidth: 1100, margin: '0 auto' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>
-            Account Categories
-          </h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-            Main groups in the chart of accounts (Assets, Liabilities, Equity, etc.)
-          </p>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Account Categories</h1>
+          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Accounting category groups (e.g. Aset, Liabilitas, Modal)</p>
         </div>
-        {canCreate && (
-          <button onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> New Category
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
-        )}
+          {canCreate && (
+            <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <Plus size={16} /> New Category
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ position: 'relative', width: 280 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
+        <div style={{ position: 'relative', width: 300 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account categories..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
@@ -172,6 +161,7 @@ export default function AccountCategoriesView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 120 }}>Code</th>
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 150 }}>Normal Balance</th>
@@ -183,16 +173,16 @@ export default function AccountCategoriesView() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 5 }).map((__, j) => (
+                  {Array.from({ length: 6 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
-                      <div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 4 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      <div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 5 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} />
                     </td>
                   ))}
                 </tr>
               ))
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                     <Tag size={32} style={{ opacity: 0.4 }} />
                     <span style={{ fontSize: 14 }}>No account categories found</span>
@@ -200,10 +190,13 @@ export default function AccountCategoriesView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr key={item.id} style={{ transition: 'background 120ms' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}>
                     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--background)', border: '1px solid var(--border)', fontFamily: 'monospace', fontSize: 12, color: 'var(--foreground-muted)' }}>
                       {item.code}
@@ -224,10 +217,10 @@ export default function AccountCategoriesView() {
                     </span>
                   </td>
                   <td style={tdStyle}>
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                        {canUpdate && <button onClick={() => openEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
-                        {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
-                      </div>
+                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      {canUpdate && <button onClick={() => openEdit(item)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
+                      {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
+                    </div>
                   </td>
                 </tr>
               ))
@@ -244,7 +237,7 @@ export default function AccountCategoriesView() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 360, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Account Categories</h3>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Account Category</h3>
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
@@ -261,7 +254,7 @@ export default function AccountCategoriesView() {
           <div style={{ position: 'relative', zIndex: 50, width: 460, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>
-                {editData ? 'Edit Account Categories' : 'Account Categories Baru'}
+                {editData ? 'Edit Account Category' : 'New Account Category'}
               </h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>

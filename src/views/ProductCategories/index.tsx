@@ -216,7 +216,7 @@ export default function ProductCategoriesView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -245,7 +245,7 @@ export default function ProductCategoriesView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -260,7 +260,7 @@ export default function ProductCategoriesView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={5}>
                   <div
                     style={{
                       padding: 48,

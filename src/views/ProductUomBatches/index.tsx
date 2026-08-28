@@ -7,6 +7,7 @@ import { productUomBatchesService } from '@/services/product-uom-batches.service
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import api from '@/hooks/useApi'
 import ProductUomBatchSheet from './ProductUomBatchSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -73,6 +74,26 @@ function getExpiryDisplay(v?: string | null): {
 export default function ProductUomBatchesView() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  const activeProductTypes = useActiveBranchProductTypes()
+  const allowedTypes = activeProductTypes
+    ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
+    : null
+
+  const allTypeOptions = [
+    { value: 'raw', label: 'Raw' },
+    { value: 'wip', label: 'WIP' },
+    { value: 'final', label: 'Final' },
+    { value: 'supply', label: 'Supply' },
+  ]
+
+  const availableTypeOptions = allowedTypes
+    ? allTypeOptions.filter(
+        (o) =>
+          allowedTypes.includes(o.value) ||
+          (o.value === 'supply' && allowedTypes.includes('supplies')),
+      )
+    : allTypeOptions
+
   const canRead = hasPermission("product-uom-batch.read");
   const canCreate = hasPermission('product-uom-batch.create')
   const canEdit = hasPermission('product-uom-batch.update')
@@ -100,7 +121,7 @@ export default function ProductUomBatchesView() {
   }, [debouncedSearch, productUomFilter, categoryFilter, typeFilter])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-uom-batches', page, perPage, debouncedSearch, productUomFilter],
+    queryKey: ['product-uom-batches', page, perPage, debouncedSearch, productUomFilter, activeProductTypes],
     queryFn: () =>
       productUomBatchesService
         .list({
@@ -111,13 +132,15 @@ export default function ProductUomBatchesView() {
           'filter[search]': debouncedSearch || undefined,
           'filter[product_uom_id]': productUomFilter || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-          'filter[type]': typeFilter === '' ? undefined : String(typeFilter),
-        })
+          'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+        } as any)
         .then((r) => r.data),
   })
 
-  const items: any[] = (data as any)?.data ?? []
+  const rawItems: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const items = rawItems.filter((i) => isProductTypeAllowed(i.product_uom?.product, activeProductTypes))
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -128,14 +151,14 @@ export default function ProductUomBatchesView() {
 
   // Product UOMs for the filter dropdown (paginate all pages)
   const { data: puData } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', activeProductTypes],
     queryFn: async () => {
       let all: any[] = []
       let p = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page: p, per_page: perPage, include: 'product,uom' } as any)
+          .list({ page: p, per_page: perPage, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
           .then((r) => r.data)
         all = all.concat((res as any)?.data ?? [])
         totalPages =
@@ -147,7 +170,8 @@ export default function ProductUomBatchesView() {
       return { data: all }
     },
   })
-  const productUoms: any[] = (puData as any)?.data ?? []
+  const allProductUoms: any[] = (puData as any)?.data ?? []
+  const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productUomBatchesService.remove(id),
@@ -159,8 +183,6 @@ export default function ProductUomBatchesView() {
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete batch'),
   })
-
-  const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -324,9 +346,11 @@ export default function ProductUomBatchesView() {
           }}
         >
           <option value="">All Types</option>
-          <option value="raw">Raw</option>
-          <option value="wip">WIP</option>
-          <option value="final">Final</option>
+          {availableTypeOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
         </select>
       </div>
       {/* Table */}
@@ -349,6 +373,7 @@ export default function ProductUomBatchesView() {
             >
               {(
                 [
+                  { label: 'No.', width: 50 },
                   { label: 'Batch Code', width: 160 },
                   { label: 'Product', width: undefined },
                   { label: 'UOM', width: 110 },
@@ -362,7 +387,7 @@ export default function ProductUomBatchesView() {
                   key={i}
                   style={{
                     padding: '10px 16px',
-                    textAlign: 'left',
+                    textAlign: label === 'No.' ? 'center' : 'left',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--foreground-muted)',
@@ -381,7 +406,7 @@ export default function ProductUomBatchesView() {
             {isLoading && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ textAlign: 'center', padding: '48px 16px' }}
                 >
                   <div
@@ -412,7 +437,7 @@ export default function ProductUomBatchesView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -427,7 +452,7 @@ export default function ProductUomBatchesView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div
                     style={{
                       padding: 48,
@@ -452,7 +477,7 @@ export default function ProductUomBatchesView() {
             )}
 
             {!isLoading &&
-              items.map((item: any) => {
+              items.map((item: any, idx: number) => {
                 const productName =
                   item.product_uom?.product?.name ?? '—'
                 const productCode = item.product_uom?.product?.code
@@ -475,6 +500,9 @@ export default function ProductUomBatchesView() {
                           : 'transparent',
                     }}
                   >
+                    <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
                     {/* Batch Code */}
                     <td style={{ padding: '12px 16px' }}>
                       <span

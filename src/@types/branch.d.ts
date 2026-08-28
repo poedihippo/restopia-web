@@ -19,6 +19,7 @@ export interface IBranch {
 export interface ICompanyBranch {
   id: number;
   name: string;
+  product_types?: string | null;
 }
 
 export interface IBranchDTO {

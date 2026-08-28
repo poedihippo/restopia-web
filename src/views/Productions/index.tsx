@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -54,6 +55,7 @@ export default function ProductionsView() {
   const canCreate = hasPermission('production.create')
   const canEdit = hasPermission('production.update')
   const canDelete = hasPermission('production.delete')
+  const activeProductTypes = useActiveBranchProductTypes()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState<number>(1)
@@ -80,8 +82,8 @@ export default function ProductionsView() {
   }, [debouncedSearch, statusFilter, dateFrom, dateTo, productFilter])
 
   const { data: productsData } = useQuery({
-    queryKey: ['products-finished', debouncedProductSearch],
-    queryFn: () => productsService.list({ per_page: perPage, 'filter[type]': 'finished', 'filter[search]': debouncedProductSearch || undefined } as any).then((r) => r.data),
+    queryKey: ['products-finished', debouncedProductSearch, activeProductTypes],
+    queryFn: () => productsService.list({ per_page: perPage, 'filter[product_types]': 'final', 'filter[search]': debouncedProductSearch || undefined } as any).then((r) => r.data),
   })
   
   const productOptions = (productsData as any)?.data?.map((p: any) => ({
@@ -328,7 +330,7 @@ export default function ProductionsView() {
                 background: 'var(--background)',
               }}
             >
-              {['Code', 'Branch', 'Date', 'Status', 'Items', 'Created', ''].map((h, i) => (
+              {['No.', 'Code', 'Branch', 'Date', 'Status', 'Items', 'Created', ''].map((h, i) => (
                 <th
                   key={i}
                   style={{
@@ -339,9 +341,7 @@ export default function ProductionsView() {
                     color: 'var(--foreground-muted)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.6px',
-                    width:
-                      i === 0
-                        ? 160
+                    width: i === 0 ? 50 : i === 1 ? 160
                         : i === 1
                           ? 160
                           : i === 2
@@ -363,7 +363,7 @@ export default function ProductionsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center' }}>
+                <td colSpan={8} style={{ padding: '48px 16px', textAlign: 'center' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -390,7 +390,7 @@ export default function ProductionsView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     padding: '48px 16px',
                     textAlign: 'center',
@@ -404,7 +404,7 @@ export default function ProductionsView() {
             )}
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div
                     style={{
                       padding: 48,
@@ -422,7 +422,7 @@ export default function ProductionsView() {
                 </td>
               </tr>
             )}
-            {items.map((item) => {
+            {items.map((item, idx) => {
               const sm = STATUS_META[item.status] ?? STATUS_META.pending
               return (
                 <tr

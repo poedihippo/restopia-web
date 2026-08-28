@@ -11,6 +11,7 @@ import { vouchersService } from '@/services/vouchers.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
@@ -132,10 +133,12 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
     }
   })
   
+  const activeProductTypes = useActiveBranchProductTypes()
+
   const { data: productUomsData } = useQuery({
-    queryKey: ['product-uoms-list'],
+    queryKey: ['product-uoms-list', activeProductTypes],
     queryFn: async () => {
-      const res = await productUomsService.list({ per_page: 100 })
+      const res = await productUomsService.list({ per_page: 100, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
       return (res.data as any)?.data || []
     }
   })
@@ -145,8 +148,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
   }, [branchesData])
 
   const productUomOptions = React.useMemo(() => {
-    return (productUomsData || []).map((p: any) => ({ label: p.code || p.id, value: p.id }))
-  }, [productUomsData])
+    return (productUomsData || [])
+      .filter((p: any) => isProductTypeAllowed(p.product, activeProductTypes))
+      .map((p: any) => ({ label: p.product?.name ? `${p.product.name} (${p.code || p.uom?.code || p.id})` : (p.code || p.id), value: p.id }))
+  }, [productUomsData, activeProductTypes])
 
   const mapPayload = (data: FormValues) => {
     return {

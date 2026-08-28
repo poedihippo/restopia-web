@@ -104,6 +104,7 @@ export default function PriceListsView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+                <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)', width: 50, textAlign: 'center' }}>No.</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)' }}>Name</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)' }}>Status</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)' }}>Actions</th>
@@ -112,18 +113,18 @@ export default function PriceListsView() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={3} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                  <td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                     Loading...
                   </td>
                 </tr>
               ) : lists.length === 0 ? (
                 <tr>
-                  <td colSpan={3} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                  <td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                     No price lists found
                   </td>
                 </tr>
               ) : (
-                lists.map((item: any) => (
+                lists.map((item: any, idx: number) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
                       {item.name}

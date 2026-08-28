@@ -192,6 +192,7 @@ export default function StockOpnamesView() {
                 background: 'var(--background)',
               }}
             >
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Date</th>
               <th style={thStyle}>Document Code</th>
               <th style={thStyle}>Branch</th>
@@ -203,7 +204,7 @@ export default function StockOpnamesView() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} style={{ padding: 48, textAlign: 'center' }}>
+                <td colSpan={7} style={{ padding: 48, textAlign: 'center' }}>
                   <div
                     style={{
                       width: 24,
@@ -219,14 +220,14 @@ export default function StockOpnamesView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: 48, textAlign: 'center' }}>
+                <td colSpan={7} style={{ padding: 48, textAlign: 'center' }}>
                   <p style={{ margin: 0, fontSize: 13, color: 'var(--foreground-muted)' }}>
                     No stock opnames found.
                   </p>
                 </td>
               </tr>
             ) : (
-              items.map((item: any) => {
+              items.map((item: any, idx: number) => {
                 const statusMeta = STATUS_META[item.status?.toLowerCase()] || STATUS_META.draft
                 return (
                   <tr
@@ -236,6 +237,7 @@ export default function StockOpnamesView() {
                       transition: 'background 0.2s',
                     }}
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>{(page - 1) * perPage + idx + 1}</td>
                     <td style={tdStyle}>{formatDate(item.date)}</td>
                     <td style={tdStyle}>
                       <span style={{ fontWeight: 500 }}>{item.code}</span>

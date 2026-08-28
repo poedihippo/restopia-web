@@ -10,12 +10,15 @@ import {
   chartOfAccountsService, accountCategoriesService, accountTypesService,
   type ChartOfAccountRequest,
 } from '@/services/accounting.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { formatCurrency } from '@/utils/price'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, BookOpen, CheckCircle2, XCircle, GitBranch,
+  X, Loader2, BookOpen, CheckCircle2, XCircle, GitBranch, Download,
 } from 'lucide-react'
 
 interface CoA {
@@ -26,6 +29,7 @@ interface CoA {
   is_active: boolean
   is_header: boolean
   normal_balance: 'debit' | 'credit'
+  balance?: number
   parent_id?: number | null
   account_category_id: number
   account_type_id: number
@@ -154,6 +158,12 @@ export default function ChartOfAccountsView() {
     else createMutation.mutate(payload)
   }
 
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportChartOfAccounts(),
+    onSuccess: (res) => { downloadFileFromResponse(res, 'chart-of-accounts.xlsx') },
+    onError: () => toast.error('Gagal mengekspor data.'),
+  })
+
   return (
     <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
@@ -161,11 +171,16 @@ export default function ChartOfAccountsView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Chart of Accounts (Chart of Accounts)</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Complete list of accounts used in the bookkeeping system</p>
         </div>
-        {canCreate && (
-          <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> New Account
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
-        )}
+          {canCreate && (
+            <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <Plus size={16} /> New Account
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
@@ -188,8 +203,10 @@ export default function ChartOfAccountsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 120 }}>Code</th>
               <th style={thStyle}>Account Name</th>
+              <th style={{ ...thStyle, width: 140, textAlign: 'right' }}>Balance</th>
               <th style={{ ...thStyle, width: 160 }}>Category</th>
               <th style={{ ...thStyle, width: 140 }}>Type</th>
               <th style={{ ...thStyle, width: 110 }}>Normal Balance</th>
@@ -201,22 +218,25 @@ export default function ChartOfAccountsView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 8 }).map((__, j) => (
-                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 7 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
+                <tr key={i}>{Array.from({ length: 10 }).map((__, j) => (
+                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 9 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <BookOpen size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No accounts found</span>
                 </div>
               </td></tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr key={item.id} style={{ transition: 'background 120ms' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--background)', border: '1px solid var(--border)', fontFamily: 'monospace', fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</span></td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -224,6 +244,13 @@ export default function ChartOfAccountsView() {
                       <span style={{ fontSize: 13, fontWeight: item.is_header ? 600 : 400, color: 'var(--foreground)' }}>{item.name}</span>
                     </div>
                     {item.description && <span style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginTop: 2 }}>{item.description}</span>}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>
+                      {item.balance !== undefined && item.balance !== null
+                        ? formatCurrency(Number(item.balance))
+                        : '—'}
+                    </span>
                   </td>
                   <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.account_type?.account_category?.name || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.account_type?.name || '—'}</span></td>

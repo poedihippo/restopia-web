@@ -8,12 +8,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { fiscalYearsService, type FiscalYearRequest } from '@/services/accounting.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, CalendarRange, CheckCircle2, Lock,
+  X, Loader2, CalendarRange, CheckCircle2, Lock, Download,
 } from 'lucide-react'
 
 interface FiscalYear {
@@ -109,6 +111,12 @@ export default function FiscalYearsView() {
     else createMutation.mutate(values)
   }
 
+  const { mutate: exportExcel, isPending: isExporting } = useMutation({
+    mutationFn: () => reportsService.exportFiscalYears(),
+    onSuccess: (res) => { downloadFileFromResponse(res, 'fiscal-years.xlsx') },
+    onError: () => toast.error('Gagal mengekspor data.'),
+  })
+
   return (
     <div style={{ padding: '32px 32px 64px', maxWidth: 1000, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
@@ -116,11 +124,16 @@ export default function FiscalYearsView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Fiscal Years</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Annual accounting period for financial recording</p>
         </div>
-        {canCreate && (
-          <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={16} /> New Fiscal Year
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
-        )}
+          {canCreate && (
+            <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <Plus size={16} /> New Fiscal Year
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ marginBottom: 16 }}>
@@ -135,6 +148,7 @@ export default function FiscalYearsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 160 }}>Start Date</th>
               <th style={{ ...thStyle, width: 160 }}>End Date</th>
@@ -145,22 +159,25 @@ export default function FiscalYearsView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 5 }).map((__, j) => (
-                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 4 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
+                <tr key={i}>{Array.from({ length: 6 }).map((__, j) => (
+                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 5 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <CalendarRange size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No fiscal years found</span>
                 </div>
               </td></tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr key={item.id} style={{ transition: 'background 120ms' }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}><span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{item.name}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.start_date ? fmtDate(item.start_date) : '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.end_date ? fmtDate(item.end_date) : '—'}</span></td>

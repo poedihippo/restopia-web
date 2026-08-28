@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { cn } from '@/lib/utils';
+import { useActiveBranchProductTypes } from '@/hooks/useProductTypes';
 import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
@@ -174,6 +175,15 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Income Statement', href: '/accounting/reports/income-statement', permission: 'journal.menu' },
           { label: 'Balance Sheet', href: '/accounting/reports/balance-sheet', permission: 'journal.menu' },
           { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
+          { label: 'AR Aging', href: '/accounting/reports/ar-aging', permission: 'report.read' },
+          { label: 'Cash Flow', href: '/accounting/reports/cash-flow', permission: 'report.read' },
+          { label: 'General Ledger', href: '/accounting/reports/general-ledger', permission: 'report.read' },
+          { label: 'Customer Statements', href: '/accounting/reports/customer-statements', permission: 'report.read' },
+          { label: 'Supplier Statements', href: '/accounting/reports/supplier-statements', permission: 'report.read' },
+          { label: 'Tax Report', href: '/accounting/reports/tax-report', permission: 'report.read' },
+          { label: 'Budget vs Actual', href: '/accounting/reports/budget-vs-actual', permission: 'report.read' },
+          { label: 'Journal Entries', href: '/accounting/reports/journal-entries', permission: 'report.read' },
+          { label: 'Payments Report', href: '/accounting/reports/payments-report', permission: 'report.read' },
         ],
       },
     ],
@@ -237,6 +247,10 @@ export const NAV_GROUPS: NavGroup[] = [
 export default function AppSidebar() {
   const router = useRouter();
   const { hasPermission, isSuperadmin } = useAuth();
+  const activeProductTypes = useActiveBranchProductTypes();
+  const allowedProductTypes = activeProductTypes
+    ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
+    : null;
   const [collapsed, setCollapsed] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -246,10 +260,26 @@ export default function AppSidebar() {
     return hasPermission(item.permission);
   };
 
+  const isChildAllowedByProductType = (href: string): boolean => {
+    if (!allowedProductTypes) return true;
+    if (href.includes('/products/product-inventory?type=')) {
+      const typeParam = href.split('type=')[1]?.split('&')[0]?.toLowerCase();
+      if (typeParam) {
+        return (
+          allowedProductTypes.includes(typeParam) ||
+          (typeParam === 'supply' && allowedProductTypes.includes('supplies'))
+        );
+      }
+    }
+    return true;
+  };
+
   const visibleChildren = (item: NavItem): NavChild[] =>
-    (item.children ?? []).filter(
-      (child) => isSuperadmin || !child.permission || hasPermission(child.permission),
-    );
+    (item.children ?? [])
+      .filter(
+        (child) => isSuperadmin || !child.permission || hasPermission(child.permission),
+      )
+      .filter((child) => isChildAllowedByProductType(child.href));
 
   useEffect(() => {
     const initial: Record<string, boolean> = {};

@@ -13,6 +13,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { productUomsService } from '@/services/product-uoms.service'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
+import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { companiesService } from '@/services/companies.service'
 import {
   Plus,
@@ -474,6 +475,7 @@ export default function ProductionForm({
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const activeBranchId = user?.branch?.id
+  const activeProductTypes = useActiveBranchProductTypes()
 
   const [expandedDetails, setExpandedDetails] = useState<number[]>([0])
   const [loadingRecipeFor, setLoadingRecipeFor] = useState<number | null>(null)
@@ -602,14 +604,14 @@ export default function ProductionForm({
   // branch has never produced can still be selected. /product-uoms has no
   // Finished product search (Step 1)
   const { data: prodItemData } = useQuery({
-    queryKey: ['prod-item-product-search', sharedProductSearchDebounced],
+    queryKey: ['prod-item-product-search', sharedProductSearchDebounced, activeProductTypes],
     enabled: sharedProductSearchDebounced.length >= 2,
     queryFn: () =>
       api
         .get('/products', {
           params: {
             per_page: 500,
-            'filter[type]': 'final',
+            'filter[product_types]': 'final',
             'filter[search]': sharedProductSearchDebounced,
             sort: 'name',
           },
@@ -667,13 +669,14 @@ export default function ProductionForm({
 
   // Material product search
   const { data: prodMaterialData } = useQuery({
-    queryKey: ['prod-material-search', sharedMaterialSearchDebounced],
+    queryKey: ['prod-material-search', sharedMaterialSearchDebounced, activeProductTypes],
     enabled: sharedMaterialSearchDebounced.length >= 2,
     queryFn: () =>
       api
         .get('/products', {
           params: {
             per_page: 500,
+            'filter[product_types]': activeProductTypes,
             sort: 'name',
             'filter[search]': sharedMaterialSearchDebounced,
           },

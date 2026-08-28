@@ -12,6 +12,7 @@ import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, ArrowRight } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 
 const schema = z.object({
   product_id: z.coerce.number()
@@ -43,6 +44,7 @@ export default function ProductConversionSheet({
   editData,
 }: ProductConversionSheetProps) {
   const queryClient = useQueryClient()
+  const activeProductTypes = useActiveBranchProductTypes()
 
   const {
     register,
@@ -62,14 +64,14 @@ export default function ProductConversionSheet({
   })
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['products-all', 'active'],
+    queryKey: ['products-all', 'active', activeProductTypes],
     queryFn: async () => {
       let allProducts: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productsService
-          .list({ page, per_page: 100, sort: 'name', 'filter[status]': 'active' })
+          .list({ page, per_page: 100, sort: 'name', 'filter[status]': 'active', 'filter[product_types]': activeProductTypes })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProducts = allProducts.concat(items)

@@ -11,6 +11,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { productUomsService } from '@/services/product-uoms.service'
 import api from '@/hooks/useApi'
 import { X, Loader2, Trash2 } from 'lucide-react'
+import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,7 @@ function unwrapProductsList(resp: any): any[] {
 
 export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProps) {
   const queryClient = useQueryClient()
+  const activeProductTypes = useActiveBranchProductTypes()
 
   const [materialSearch, setMaterialSearch] = useState('')
   const [materialSearchDebounced, setMaterialSearchDebounced] = useState('')
@@ -177,13 +179,13 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   }, [finishedSearch])
 
   const { data: finishedData } = useQuery({
-    queryKey: ['products', 'final', finishedSearchDebounced],
+    queryKey: ['products', 'final', finishedSearchDebounced, activeProductTypes],
     enabled: showFinishedDrop === true,
     queryFn: () =>
       api
         .get('/products', {
           params: {
-            'filter[type]': 'final',
+            'filter[product_types]': 'final',
             'filter[search]': finishedSearchDebounced,
             per_page: 20,
             include: 'product_category',
@@ -194,16 +196,16 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   const finishedProducts = unwrapProductsList(finishedData)
 
   const { data: materialSearchData } = useQuery({
-    queryKey: ['recipe-material-search', materialSearchDebounced, materialTypeFilter],
+    queryKey: ['recipe-material-search', materialSearchDebounced, materialTypeFilter, activeProductTypes],
     enabled: showMaterialDrop && materialSearchDebounced.length >= 2,
     queryFn: () => {
       const params: Record<string, any> = {
         per_page: 500,
         include: 'base_uom',
         sort: 'name',
+        'filter[product_types]': materialTypeFilter || activeProductTypes,
       }
       if (materialSearchDebounced) params['filter[search]'] = materialSearchDebounced
-      if (materialTypeFilter) params['filter[type]'] = materialTypeFilter
       return api.get('/products', { params }).then((r) => r.data)
     },
   })

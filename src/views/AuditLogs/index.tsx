@@ -181,7 +181,7 @@ export default function AuditLogsView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -193,8 +193,11 @@ export default function AuditLogsView() {
                 </td>
               </tr>
             )}
-            {items.map((item: any) => (
+            {items.map((item: any, idx: number) => (
               <tr key={item.id}>
+                <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                  {(page - 1) * perPage + idx + 1}
+                </td>
                 <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
                   {item.created_at ? formatDateTime(item.created_at) : '—'}
                 </td>

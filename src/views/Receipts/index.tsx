@@ -336,6 +336,7 @@ export default function ReceiptsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 160 }}>Code</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 160 }}>Delivery</th>
@@ -348,7 +349,7 @@ export default function ReceiptsView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -365,7 +366,7 @@ export default function ReceiptsView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load receipts.
                   </span>
@@ -373,7 +374,7 @@ export default function ReceiptsView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -389,7 +390,7 @@ export default function ReceiptsView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              items.map((item, idx) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending
                 // Internal receipts (from internal deliveries) are price-free.
                 const isInternal = ['po_from_branch', 'transfer_to_branch'].includes(

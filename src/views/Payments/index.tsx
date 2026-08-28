@@ -228,7 +228,7 @@ export default function PaymentsView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -245,7 +245,7 @@ export default function PaymentsView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load payments.
                   </span>
@@ -253,7 +253,7 @@ export default function PaymentsView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -269,7 +269,7 @@ export default function PaymentsView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr
                   key={item.id}
                   style={{ transition: 'background 120ms' }}

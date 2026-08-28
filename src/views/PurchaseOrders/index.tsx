@@ -356,6 +356,7 @@ export default function PurchaseOrdersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 160 }}>Code</th>
               <th style={thStyle}>Order From</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
@@ -369,7 +370,7 @@ export default function PurchaseOrdersView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -387,7 +388,7 @@ export default function PurchaseOrdersView() {
             ) : isError ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
@@ -398,7 +399,7 @@ export default function PurchaseOrdersView() {
             ) : items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <div
@@ -416,7 +417,7 @@ export default function PurchaseOrdersView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => {
+              items.map((item, idx) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.pending
                 // Order source: external supplier, or internal source branch.
                 const po = item as any
