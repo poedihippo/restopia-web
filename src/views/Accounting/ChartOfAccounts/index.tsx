@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
@@ -15,6 +15,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { formatCurrency } from '@/utils/price'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
@@ -113,7 +114,7 @@ export default function ChartOfAccountsView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { account_category_id: 0, account_type_id: 0, code: '', name: '', description: '', is_active: true, is_header: false, normal_balance: 'debit', parent_id: null },
   })
@@ -307,18 +308,53 @@ export default function ChartOfAccountsView() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Categories <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                  <select {...register('account_category_id')} style={errors.account_category_id ? inputError : inputStyle}>
-                    <option value={0}>-- Select --</option>
-                    {categories.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
-                  </select>
+                  <Controller
+                    control={control}
+                    name="account_category_id"
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ? Number(field.value) : 0}
+                        onChange={(val) => {
+                          const numVal = Number(val) || 0
+                          field.onChange(numVal)
+                          setSelectedCategoryId(numVal)
+                          setValue('account_type_id', 0)
+                          if (numVal && !editData) {
+                            const cat = categories.find((c) => c.id === numVal)
+                            if (cat) setValue('normal_balance', cat.normal_balance)
+                          }
+                        }}
+                        options={categories.map((c) => ({
+                          value: c.id,
+                          label: `${c.code} – ${c.name}`,
+                        }))}
+                        placeholder="-- Select --"
+                        searchPlaceholder="Search category..."
+                        error={errors.account_category_id?.message}
+                      />
+                    )}
+                  />
                   {errors.account_category_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_category_id.message}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Types <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                  <select {...register('account_type_id')} style={errors.account_type_id ? inputError : inputStyle}>
-                    <option value={0}>-- Select --</option>
-                    {typesForSheet.map((t) => <option key={t.id} value={t.id}>{t.code} – {t.name}</option>)}
-                  </select>
+                  <Controller
+                    control={control}
+                    name="account_type_id"
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ? Number(field.value) : 0}
+                        onChange={(val) => field.onChange(Number(val) || 0)}
+                        options={typesForSheet.map((t) => ({
+                          value: t.id,
+                          label: `${t.code} – ${t.name}`,
+                        }))}
+                        placeholder="-- Select --"
+                        searchPlaceholder="Search type..."
+                        error={errors.account_type_id?.message}
+                      />
+                    )}
+                  />
                   {errors.account_type_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_type_id.message}</span>}
                 </div>
               </div>
@@ -348,10 +384,27 @@ export default function ChartOfAccountsView() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Parent Account</label>
-                  <select {...register('parent_id')} style={inputStyle}>
-                    <option value="">-- Tidak ada --</option>
-                    {items.filter((i) => i.is_header && i.id !== editData?.id).map((a) => <option key={a.id} value={a.id}>{a.code} – {a.name}</option>)}
-                  </select>
+                  <Controller
+                    control={control}
+                    name="parent_id"
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ? Number(field.value) : ''}
+                        onChange={(val) => field.onChange(val ? Number(val) : null)}
+                        options={[
+                          { value: '', label: '-- Tidak ada --' },
+                          ...items
+                            .filter((i) => i.is_header && i.id !== editData?.id)
+                            .map((a) => ({
+                              value: a.id,
+                              label: `${a.code} – ${a.name}`,
+                            })),
+                        ]}
+                        placeholder="-- Tidak ada --"
+                        searchPlaceholder="Search parent account..."
+                      />
+                    )}
+                  />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 20 }}>
