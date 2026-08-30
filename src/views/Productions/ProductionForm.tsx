@@ -691,8 +691,8 @@ export default function ProductionForm({
 
   // Inventories for selected material product
   const { data: prodMaterialInvData } = useQuery({
-    queryKey: ['prod-material-inventories', sharedMaterialProductId],
-    enabled: !!sharedMaterialProductId,
+    queryKey: ['prod-material-inventories', sharedMaterialProductId, activeBranchId],
+    enabled: !!sharedMaterialProductId && !!activeBranchId,
     queryFn: () =>
       api
         .get('/product-inventories', {
@@ -700,6 +700,7 @@ export default function ProductionForm({
             per_page: 500,
             include: 'product_uom_batch',
             'filter[status]': 'active',
+            'filter[branch_id]': activeBranchId,
           },
         })
         .then((r) => r.data),
@@ -950,7 +951,21 @@ export default function ProductionForm({
       toastMutationApiError(err, 'Failed to update production'),
   })
 
+  const hasIncompleteRows = (values: FormValues) =>
+    (values.details ?? []).some((d) => {
+      if (!d.product_uom_id || d.product_uom_id <= 0) return true
+      const materials = d.materials ?? []
+      if (materials.length === 0) return true
+      return materials.some((m) => !m.product_inventory_id || m.product_inventory_id <= 0)
+    })
+
   const onSubmit = (values: FormValues) => {
+    if (hasIncompleteRows(values)) {
+      toast.error(
+        'Setiap item produksi harus memiliki produk output dan minimal satu material yang lengkap.'
+      )
+      return
+    }
     if (mode === 'edit') {
       updateMutation.mutate(values)
     } else {
@@ -958,7 +973,19 @@ export default function ProductionForm({
     }
   }
 
-  const onInvalid = (_errors: any) => { }
+  const getFirstErrorMessage = (errors: any): string | undefined => {
+    if (!errors || typeof errors !== 'object') return undefined
+    if (typeof errors.message === 'string') return errors.message
+    for (const key of Object.keys(errors)) {
+      const msg = getFirstErrorMessage(errors[key])
+      if (msg) return msg
+    }
+    return undefined
+  }
+
+  const onInvalid = (errors: any) => {
+    toast.error(getFirstErrorMessage(errors) ?? 'Form tidak valid, periksa kembali data.')
+  }
 
   const isPending = createMutation.isPending || updateMutation.isPending
 
