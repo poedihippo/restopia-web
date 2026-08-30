@@ -53,8 +53,10 @@ const schema = z.object({
   description: z.string().optional(),
   source_owner_ref: z.string().min(1, 'Owner sumber wajib diisi'),
   source_stage: z.string().min(1, 'Stage sumber wajib diisi'),
+  source_location_ref: z.string().optional(),
   output_owner_ref: z.string().min(1, 'Owner output wajib diisi'),
   output_stage: z.string().min(1, 'Stage output wajib diisi'),
+  output_location_ref: z.string().optional(),
   details: z.array(detailSchema).min(1),
 })
 
@@ -515,8 +517,10 @@ export default function ProductionForm({
       description: '',
       source_owner_ref: 'GENERAL',
       source_stage: 'GENERAL',
+      source_location_ref: 'GENERAL',
       output_owner_ref: 'GENERAL',
       output_stage: 'GENERAL',
+      output_location_ref: 'GENERAL',
       details: [
         {
           product_uom_id: 0,
@@ -715,8 +719,10 @@ export default function ProductionForm({
       reset({
         source_owner_ref: 'GENERAL',
         source_stage: 'GENERAL',
+        source_location_ref: 'GENERAL',
         output_owner_ref: 'GENERAL',
         output_stage: 'GENERAL',
+        output_location_ref: 'GENERAL',
         ...initialData,
       })
       const indices = (initialData.details ?? []).map((_: any, i: number) => i)
@@ -897,10 +903,10 @@ export default function ProductionForm({
     description: values.description || undefined,
     source_owner_ref: values.source_owner_ref,
     source_stage: values.source_stage,
-    source_location_ref: 'GENERAL',
+    source_location_ref: values.source_location_ref || 'GENERAL',
     output_owner_ref: values.output_owner_ref,
     output_stage: values.output_stage,
-    output_location_ref: 'GENERAL',
+    output_location_ref: values.output_location_ref || 'GENERAL',
     details: (values.details ?? [])
       .map((d) => ({
         product_uom_id: d.product_uom_id,

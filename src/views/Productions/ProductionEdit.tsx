@@ -72,6 +72,12 @@ function mapApiToForm(production: any) {
     date: dateStr,
     status: production.status ?? 'pending',
     description: production.description ?? '',
+    source_owner_ref: production.source_owner_ref ?? 'GENERAL',
+    source_stage: production.source_stage ?? 'GENERAL',
+    source_location_ref: production.source_location_ref ?? 'GENERAL',
+    output_owner_ref: production.output_owner_ref ?? 'GENERAL',
+    output_stage: production.output_stage ?? 'GENERAL',
+    output_location_ref: production.output_location_ref ?? 'GENERAL',
     details,
   }
 }
