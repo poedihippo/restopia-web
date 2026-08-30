@@ -137,13 +137,15 @@ export default function SearchableSelect({
           padding: '9px 12px',
           border: `1px solid ${error ? 'var(--destructive)' : 'var(--border)'}`,
           borderRadius: 'var(--radius-md)',
-          background: disabled ? 'var(--background)' : 'var(--surface)',
+          background: disabled ? 'var(--muted)' : 'var(--surface-raised)',
           cursor: disabled ? 'not-allowed' : 'pointer',
           fontSize: 13,
           textAlign: 'left',
-          color: selectedOption
-            ? 'var(--foreground)'
-            : 'var(--foreground-subtle)',
+          color: disabled
+            ? 'var(--foreground-subtle)'
+            : selectedOption
+              ? 'var(--foreground)'
+              : 'var(--foreground-subtle)',
           fontFamily: 'var(--font-sans)',
           boxSizing: 'border-box',
         }}
@@ -196,7 +198,7 @@ export default function SearchableSelect({
             left: dropdownPos.left,
             width: dropdownPos.width,
             zIndex: 9999,
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
             boxShadow: 'var(--shadow-lg)',
@@ -226,7 +228,7 @@ export default function SearchableSelect({
                 borderRadius: 'var(--radius-md)',
                 fontSize: 12,
                 outline: 'none',
-                background: 'var(--background)',
+                background: 'var(--surface-raised)',
                 fontFamily: 'var(--font-sans)',
                 color: 'var(--foreground)',
                 boxSizing: 'border-box',

@@ -80,7 +80,7 @@ const fieldInputStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-md)',
   fontSize: 13,
   color: 'var(--foreground)',
-  background: 'var(--surface)',
+  background: 'var(--surface-raised)',
   outline: 'none',
   fontFamily: 'var(--font-sans)',
   boxSizing: 'border-box',
@@ -275,7 +275,7 @@ export function MaterialsFieldArray({
                   padding: '0 10px',
                   fontSize: 12,
                   color: 'var(--foreground)',
-                  background: 'var(--surface)',
+                  background: 'var(--surface-raised)',
                   boxSizing: 'border-box',
                   fontFamily: 'var(--font-sans)',
                 }}
@@ -290,7 +290,7 @@ export function MaterialsFieldArray({
                     right: 0,
                     width: '100%',
                     zIndex: 200,
-                    background: 'var(--surface)',
+                    background: 'var(--surface-raised)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
                     boxShadow: 'var(--shadow-lg)',
@@ -319,7 +319,7 @@ export function MaterialsFieldArray({
                         fontSize: 12,
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-raised)')}
                     >
                       <span style={{ fontWeight: 600 }}>{p.name}</span>
                       <span style={{ color: 'var(--foreground-muted)', marginLeft: 6, fontSize: 11 }}>
@@ -339,7 +339,7 @@ export function MaterialsFieldArray({
                     right: 0,
                     width: '100%',
                     zIndex: 200,
-                    background: 'var(--surface)',
+                    background: 'var(--surface-raised)',
                     border: '1px solid var(--accent-light)',
                     borderRadius: 'var(--radius-md)',
                     boxShadow: 'var(--shadow-lg)',
@@ -431,7 +431,7 @@ export function MaterialsFieldArray({
                     outline: 'none',
                     width: '100%',
                     color: 'var(--foreground)',
-                    background: 'var(--surface)',
+                    background: 'var(--surface-raised)',
                     fontFamily: 'var(--font-sans)',
                     boxSizing: 'border-box',
                   }}
@@ -1421,7 +1421,7 @@ export default function ProductionForm({
                                 padding: '0 10px',
                                 fontSize: 13,
                                 color: 'var(--foreground)',
-                                background: 'var(--surface)',
+                                background: 'var(--surface-raised)',
                                 boxSizing: 'border-box',
                                 fontFamily: 'var(--font-sans)',
                               }}
@@ -1435,7 +1435,7 @@ export default function ProductionForm({
                                   top: '100%',
                                   left: 0,
                                   width: '100%',
-                                  background: 'var(--surface)',
+                                  background: 'var(--surface-raised)',
                                   border: '1px solid var(--border)',
                                   borderRadius: 'var(--radius-md)',
                                   boxShadow: 'var(--shadow-lg)',
@@ -1492,7 +1492,7 @@ export default function ProductionForm({
                                   top: '100%',
                                   left: 0,
                                   width: '100%',
-                                  background: 'var(--surface)',
+                                  background: 'var(--surface-raised)',
                                   border: '1px solid var(--accent-light)',
                                   borderRadius: 'var(--radius-md)',
                                   boxShadow: 'var(--shadow-lg)',
@@ -1607,7 +1607,7 @@ export default function ProductionForm({
                               fontSize: 13,
                               outline: 'none',
                               color: 'var(--foreground)',
-                              background: 'var(--surface)',
+                              background: 'var(--surface-raised)',
                               fontFamily: 'var(--font-sans)',
                               boxSizing: 'border-box',
                             }}
