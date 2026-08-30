@@ -17,7 +17,7 @@
     --surface-raised: #1A1A1A;
 
     /* Borders */
-    --border: #2A2A2A;
+    --border: #363636;
     --border-strong: #404040;
 
     /* Text */
@@ -80,7 +80,7 @@
     --card-foreground: #F5F5F5;
     --popover: #151515;
     --popover-foreground: #F5F5F5;
-    --input: #2A2A2A;
+    --input: #363636;
     --ring: #DDB058;
   }
 
