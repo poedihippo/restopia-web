@@ -140,5 +140,39 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
     )
   }
 
+  if (receipt.status === 'final') {
+    return (
+      <div
+        style={{
+          padding: 80,
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <ReceiptText size={40} style={{ color: 'var(--foreground-subtle)' }} />
+        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: 0 }}>
+          Final receipt cannot be edited.
+        </p>
+        <button
+          onClick={() => router.push(`/transfer/receipts/${id}/detail`)}
+          style={{
+            padding: '7px 14px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground-muted)',
+            cursor: 'pointer',
+          }}
+        >
+          Go to detail
+        </button>
+      </div>
+    )
+  }
+
   return <ReceiptForm mode="edit" initialData={initialData} receiptId={id} />
 }

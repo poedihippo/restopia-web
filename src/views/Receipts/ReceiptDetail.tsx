@@ -287,26 +287,28 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => router.push(`/transfer/receipts/${id}/edit`)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
-          >
-            <Pencil size={13} />
-            Edit
-          </button>
+          {receipt.status !== 'final' && (
+            <button
+              type="button"
+              onClick={() => router.push(`/transfer/receipts/${id}/edit`)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                cursor: 'pointer',
+              }}
+            >
+              <Pencil size={13} />
+              Edit
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setDeleteConfirm(true)}

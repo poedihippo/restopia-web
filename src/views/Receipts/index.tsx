@@ -465,16 +465,20 @@ export default function ReceiptsView() {
                           <button
                             type="button"
                             onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
-                            title="Accept (Edit)"
+                            title="Edit / Accept"
                             style={{ ...actionBtnStyle, color: 'var(--success)' }}
                           >
-                            <CheckCircle size={14} />
+                            <Pencil size={14} />
                           </button>
                         ) : (
                           <button
                             type="button"
-                            onClick={() => router.push(`/transfer/receipts/${item.id}/edit`)}
-                            title="Revert to Pending (Edit)"
+                            onClick={() => {
+                              if (confirm('Revert receipt to pending?')) {
+                                toggleStatusMutation.mutate({ id: item.id, status: 'pending' })
+                              }
+                            }}
+                            title="Revert to Pending"
                             style={{ ...actionBtnStyle, color: 'var(--warning)' }}
                           >
                             <RotateCcw size={14} />

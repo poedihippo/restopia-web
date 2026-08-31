@@ -52,16 +52,28 @@ export function CustomPagination({ page, setPage, perPage, setPerPage, meta }: C
             <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Custom:</span>
             <input 
               type="number"
-              defaultValue={perPage}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const val = parseInt(e.currentTarget.value, 10);
-                  if (!isNaN(val) && val > 0) { setPerPage(val); setPage(1); }
+              value={perPage}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val > 0) {
+                  setPerPage(val);
+                } else if (e.target.value === '') {
+                  // Allow empty input while typing
+                  setPerPage(0 as any);
                 }
               }}
-              onBlur={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val > 0) { setPerPage(val); setPage(1); }
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (perPage > 0) setPage(1);
+                }
+              }}
+              onBlur={() => {
+                if (!perPage || perPage <= 0) {
+                  setPerPage(100);
+                  setPage(1);
+                } else {
+                  setPage(1);
+                }
               }}
               style={{ width: 60, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12, background: 'var(--surface)', color: 'var(--foreground)' }}
             />

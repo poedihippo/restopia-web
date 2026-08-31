@@ -713,10 +713,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     type="text"
                     {...register(`details.${index}.planned_batch_code`)}
                     placeholder="Batch code..."
-                    disabled={mode === 'edit'}
                     style={{
                       ...lineInputStyle,
-                      ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : { background: 'var(--background)', color: 'var(--foreground)' })
+                      background: 'var(--background)',
+                      color: 'var(--foreground)'
                     }}
                   />
 
@@ -777,10 +777,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   <input
                     type="date"
                     {...register(`details.${index}.planned_expiry_date`)}
-                    disabled={mode === 'edit'}
                     style={{
                       ...lineInputStyle,
-                      ...(mode === 'edit' ? { background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)' } : { background: 'var(--background)', color: 'var(--foreground)' })
+                      background: 'var(--background)',
+                      color: 'var(--foreground)'
                     }}
                   />
 
