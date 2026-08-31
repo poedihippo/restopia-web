@@ -5,9 +5,11 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
+import { productsService } from '@/services/products.service'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import SearchableSelect from '@/components/SearchableSelect'
 import {
   Plus,
   Search,
@@ -153,6 +155,9 @@ export default function StockMovementView() {
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(1000)
   const [directionFilter, setDirectionFilter] = useState<'' | 'in' | 'out'>('')
+  const [productId, setProductId] = useState<number>(0)
+  const [productSearch, setProductSearch] = useState('')
+  const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
@@ -164,11 +169,35 @@ export default function StockMovementView() {
   }, [search])
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setProductSearchDebounced(productSearch)
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [productSearch])
+
+  useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter])
+  }, [debouncedSearch, directionFilter, productId])
+
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ['stock-movements-product-search', productSearchDebounced],
+    enabled: productSearchDebounced.length >= 2,
+    queryFn: () =>
+      productsService
+        .list({ per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced } as any)
+        .then((r) => r.data),
+  })
+  const productOptions = [
+    { value: 0, label: 'Semua Produk' },
+    ...((productsData as any)?.data ?? []).map((p: any) => ({
+      value: p.id as number,
+      label: (p.name as string) ?? `Product #${p.id}`,
+      sublabel: p.code as string | undefined,
+    })),
+  ]
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter],
+    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, productId],
     queryFn: () =>
       stockMovementsService
         .list({
@@ -177,6 +206,7 @@ export default function StockMovementView() {
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
+          'filter[product_id]': productId || undefined,
           include:
             'branch,product_inventory,' +
             'product_inventory.product_uom_batch,' +
@@ -221,7 +251,7 @@ export default function StockMovementView() {
               margin: '4px 0 0 0',
             }}
           >
-            History of all manual stock adjustments
+            Riwayat semua pergerakan stok
           </p>
         </div>
 
@@ -299,6 +329,19 @@ export default function StockMovementView() {
           <option value="in">Stock In</option>
           <option value="out">Stock Out</option>
         </select>
+
+        {/* Product filter */}
+        <div style={{ width: 260 }}>
+          <SearchableSelect
+            value={productId}
+            onChange={(val) => setProductId(Number(val))}
+            options={productOptions}
+            placeholder="Semua Produk"
+            searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
+            loading={productsLoading}
+            onSearchChange={setProductSearch}
+          />
+        </div>
       </div>
       {/* Table */}
       <div
