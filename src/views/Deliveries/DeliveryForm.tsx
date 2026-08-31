@@ -13,12 +13,16 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
+import { companiesService } from '@/services/companies.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import api from '@/hooks/useApi'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
+
+const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
@@ -51,6 +55,9 @@ const schema = z
     date: z.string().min(1, 'Date required'),
     status: z.literal('final'),
     description: z.string().optional(),
+    source_owner_ref: z.string().min(1, 'Owner sumber wajib diisi'),
+    source_stage: z.string().min(1, 'Stage sumber wajib diisi'),
+    source_location_ref: z.string().optional(),
     details: z.array(detailSchema).min(1, 'At least one item required'),
   })
   .superRefine((data, ctx) => {
@@ -110,6 +117,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       date: new Date().toISOString().split('T')[0],
       status: 'final',
       description: '',
+      source_owner_ref: 'GENERAL',
+      source_stage: 'GENERAL',
+      source_location_ref: 'GENERAL',
       details: [
         {
           product_uom_id: 0,
@@ -138,6 +148,25 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
+
+  // Dimension picker: owner (company) + stage — source only, deliveries have
+  // no output dimension.
+  const { data: companiesData, isLoading: companiesLoading } = useQuery({
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+  })
+  const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+  const companyOptions = [
+    GENERAL_OWNER_OPTION,
+    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ]
+
+  const { data: stagesData, isLoading: stagesLoading } = useQuery({
+    queryKey: ['stages-all'],
+    queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
+  })
+  const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
+  const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all'],
@@ -411,7 +440,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
-      reset(initialData)
+      reset({
+        source_owner_ref: 'GENERAL',
+        source_stage: 'GENERAL',
+        source_location_ref: 'GENERAL',
+        ...initialData,
+      })
     }
   }, [initialData, mode])
 
@@ -422,6 +456,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     total_price: totalPrice,
     purchase_order_id: values.purchase_order_id || undefined,
     sales_order_id: values.sales_order_id || undefined,
+    source_owner_ref: values.source_owner_ref,
+    source_stage: values.source_stage,
+    source_location_ref: values.source_location_ref || 'GENERAL',
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
@@ -790,6 +827,62 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 rows={2}
                 placeholder="Optional delivery notes"
                 style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 1b — Konsumsi Dari */}
+        <div style={cardStyle}>
+          <div style={sectionHeaderStyle}>
+            <span style={sectionLabelStyle}>Konsumsi Dari</span>
+          </div>
+          <div
+            style={{
+              padding: 20,
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 16,
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>
+                Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <Controller
+                name="source_owner_ref"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? 'GENERAL'}
+                    onChange={field.onChange}
+                    options={companyOptions}
+                    placeholder="Pilih owner..."
+                    searchPlaceholder="Cari perusahaan..."
+                    loading={companiesLoading}
+                    error={errors.source_owner_ref?.message as string | undefined}
+                  />
+                )}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>
+                Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <Controller
+                name="source_stage"
+                control={control}
+                render={({ field }) => (
+                  <SearchableSelect
+                    value={field.value ?? 'GENERAL'}
+                    onChange={field.onChange}
+                    options={stageOptions}
+                    placeholder="Pilih stage..."
+                    searchPlaceholder="Cari stage..."
+                    loading={stagesLoading}
+                    error={errors.source_stage?.message as string | undefined}
+                  />
+                )}
               />
             </div>
           </div>

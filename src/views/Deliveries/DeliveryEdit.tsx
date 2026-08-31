@@ -44,6 +44,9 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
       date: parseDate(delivery.date) ? parseDate(delivery.date.substring(0, 10)) : '',
       status: 'final',
       description: delivery.description ?? '',
+      source_owner_ref: delivery.source_owner_ref ?? 'GENERAL',
+      source_stage: delivery.source_stage ?? 'GENERAL',
+      source_location_ref: delivery.source_location_ref ?? 'GENERAL',
       details: rawDetails.length
         ? rawDetails.map((d: any) => ({
           product_uom_id:
