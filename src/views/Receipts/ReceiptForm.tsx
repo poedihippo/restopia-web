@@ -140,6 +140,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   })
   const deliveryDetail = (deliveryData as any)?.data
 
+  // Delivered qty per delivery_detail_id — used to cap received qty so a
+  // receipt can't record more than what was actually shipped. Sourced from
+  // the linked delivery's own lines, so it's available in both create and
+  // edit mode as soon as a delivery is linked.
+  const deliveredQtyByDetailId = useMemo(() => {
+    const map = new Map<number, number>()
+    ;(deliveryDetail?.delivery_details ?? []).forEach((dd: any) => {
+      map.set(dd.id, Number(dd.qty ?? 0))
+    })
+    return map
+  }, [deliveryDetail])
+
   // Internal-branch receipts (from internal deliveries/transfers) are
   // price-free — hide all price UI and don't submit prices. Only known once
   // the delivery loads; price shows until a delivery is selected.
@@ -314,6 +326,15 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     }
     if (deliveryAlreadyReceived) {
       toast.error('A receipt already exists for this delivery.')
+      return
+    }
+
+    const overReceived = values.details.find((d) => {
+      const delivered = deliveredQtyByDetailId.get(d.delivery_detail_id as number)
+      return delivered !== undefined && Number(d.qty) > delivered
+    })
+    if (overReceived) {
+      toast.error('Qty diterima tidak boleh melebihi qty yang dikirim.')
       return
     }
 
@@ -699,18 +720,41 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     }}
                   />
 
-                  <input
-                    type="number"
-                    min={0.001}
-                    step={0.001}
-                    {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                    disabled={true}
-                    style={{
-                      ...lineInputStyle,
-                      background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--foreground-muted)'
-                    }}
-                    onWheel={(e) => (e.target as HTMLElement).blur()}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <input
+                      type="number"
+                      min={0.001}
+                      step={0.001}
+                      max={deliveredQtyByDetailId.get(watchDetails[index]?.delivery_detail_id as number) || undefined}
+                      {...register(`details.${index}.qty`, { valueAsNumber: true })}
+                      style={{
+                        ...lineInputStyle,
+                        background: 'var(--background)',
+                        color: 'var(--foreground)',
+                      }}
+                      onWheel={(e) => (e.target as HTMLElement).blur()}
+                    />
+                    {(() => {
+                      const delivered = deliveredQtyByDetailId.get(
+                        watchDetails[index]?.delivery_detail_id as number,
+                      )
+                      if (delivered === undefined) return null
+                      const received = Number(watchDetails[index]?.qty ?? 0)
+                      return (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color:
+                              received > delivered
+                                ? 'var(--destructive)'
+                                : 'var(--foreground-subtle)',
+                          }}
+                        >
+                          Dikirim: {delivered.toLocaleString('id-ID')}
+                        </span>
+                      )
+                    })()}
+                  </div>
 
                   {/* price inputs removed */}
 
