@@ -628,6 +628,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               padding: '14px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
+    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',

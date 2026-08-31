@@ -591,9 +591,11 @@ export default function PurchaseOrdersView() {
                         </button>
                         {(item.status === 'accepted' || item.status === 'final') && (
                           <button
-                            onClick={() =>
-                              router.push(`/transfer/deliveries/create?po_id=${item.id}`)
-                            }
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const sourceType = item.type === 'branch' ? 'po_from_branch' : 'po_from_supplier'
+                              router.push(`/transfer/deliveries/create?po_id=${item.id}&source_type=${sourceType}`)
+                            }}
                             style={actionBtnStyle}
                             title="Create Delivery"
                           >

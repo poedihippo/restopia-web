@@ -996,9 +996,6 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                           padding: '10px 14px',
                           cursor: 'pointer',
                           borderBottom: '1px solid var(--border)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
                           background: 'var(--surface)',
                         }}
                         onMouseEnter={(e) =>
@@ -1008,26 +1005,38 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                           (e.currentTarget.style.background = 'var(--surface)')
                         }
                       >
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, paddingRight: 8 }}>
                             {p.product_uom_batch?.product_uom?.product?.name
                               ?? p.product_uom?.product?.name
                               ?? p.code}
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                            {p.code} · Stock: {p.stock ?? 0}
-                          </div>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
+                            {formatCurrency(
+                              type === 'online'
+                                ? (p.online_price ?? p.base_price)
+                                : p.base_price
+                            )}
+                          </span>
                         </div>
-                        <span
-                          style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}
-                        >
-                          Rp{' '}
-                          {formatCurrency(
-                            type === 'online'
-                              ? (p.online_price ?? p.base_price)
-                              : p.base_price
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                            Code: {p.product_uom_batch?.product_uom?.code ?? p.product_uom?.code ?? p.code ?? '-'}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                            Stock: {p.stock ?? 0}
+                          </span>
+                          {p.product_uom_batch?.batch_code && (
+                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              Batch: {p.product_uom_batch.batch_code}
+                            </span>
                           )}
-                        </span>
+                          {p.product_uom_batch?.expiry_date && (
+                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              Exp: {p.product_uom_batch.expiry_date}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   {itemTab === 'bundles' &&
@@ -1039,9 +1048,6 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                           padding: '10px 14px',
                           cursor: 'pointer',
                           borderBottom: '1px solid var(--border)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
                           background: 'var(--surface)',
                         }}
                         onMouseEnter={(e) =>
@@ -1051,17 +1057,20 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                           (e.currentTarget.style.background = 'var(--surface)')
                         }
                       >
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>{b.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                            {b.code} · {b.details?.length ?? 0} items
-                          </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, paddingRight: 8 }}>{b.name}</div>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
+                            {formatCurrency(Number(b.price))}
+                          </span>
                         </div>
-                        <span
-                          style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}
-                        >
-                          {formatCurrency(Number(b.price))}
-                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                            Code: {b.code ?? '-'}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                            Items: {b.details?.length ?? 0}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   {itemTab === 'products' && products.length === 0 && (

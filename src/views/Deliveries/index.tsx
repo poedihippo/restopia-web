@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
+import { receiptsService } from '@/services/receipts.service'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
@@ -131,6 +132,21 @@ export default function DeliveriesView() {
     dateTo ||
     debouncedSearch
   )
+
+  const handleEditReceipt = async (deliveryId: number) => {
+    try {
+      const res = await receiptsService.list({ 'filter[delivery_id]': deliveryId, per_page: 1 } as any).then(r => r.data)
+      const receipts = (res as any)?.data ?? []
+      if (receipts.length > 0) {
+        router.push(`/transfer/receipts/${receipts[0].id}/edit`)
+      } else {
+        router.push(`/transfer/receipts/create?delivery_id=${deliveryId}`)
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to fetch receipt data')
+    }
+  }
 
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
@@ -496,9 +512,9 @@ export default function DeliveriesView() {
                         ))}
                         {item.status === 'final' && (
                           <button
-                            onClick={() => router.push(`/transfer/receipts/create?delivery_id=${item.id}`)}
+                            onClick={() => handleEditReceipt(item.id)}
                             style={actionBtnStyle}
-                            title="Create Receipt"
+                            title="Process Receipt"
                           >
                             <ClipboardList size={14} />
                           </button>

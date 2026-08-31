@@ -722,8 +722,15 @@ export function usePosLogic() {
 
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       qc.invalidateQueries({ queryKey: ['pos-history'] })
+      qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
+      qc.invalidateQueries({ queryKey: ['pos-bundles'] })
       toast.success('Order placed!')
       resetCart()
+      
+      // Full page refresh after 1.5 seconds so user can read the success toast
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
     },
     onError: (err: any) => {
       toast.error(getApiErrorMessage(err, 'Failed to place order'))

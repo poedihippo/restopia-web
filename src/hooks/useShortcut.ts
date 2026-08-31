@@ -22,6 +22,8 @@ export function useShortcut({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
+        e.key &&
+        key &&
         e.key.toLowerCase() === key.toLowerCase() &&
         e.ctrlKey === ctrlKey &&
         e.altKey === altKey &&

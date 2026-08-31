@@ -8,7 +8,7 @@
 
   :root {
     /* Fonts */
-    --font-sans: 'Instrument Sans', sans-serif;
+    --font-sans: 'Inter', sans-serif;
     --font-display: 'Playfair Display', serif;
 
     /* Base surfaces */
@@ -17,8 +17,8 @@
     --surface-raised: #FFFFFF;
 
     /* Borders */
-    --border: #D1D5DB;
-    --border-strong: #9CA3AF;
+    --border: #9CA3AF;
+    --border-strong: #6B7280;
 
     /* Text */
     --foreground: #1A1A1A;
@@ -80,7 +80,7 @@
     --card-foreground: #1A1A1A;
     --popover: #FFFFFF;
     --popover-foreground: #1A1A1A;
-    --input: #D1D5DB;
+    --input: #9CA3AF;
     --ring: #B8863A;
   }
 
