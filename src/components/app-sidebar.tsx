@@ -122,6 +122,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.menu' },
           { label: 'Stock Transfer', href: '/transfer/stock-transfer', permission: 'delivery.menu' },
           { label: 'Dimension Transfer', href: '/transfer/dimension-transfer', permission: 'stock-movement.menu' },
+          { label: 'Dimension Requests', href: '/transfer/dimension-transfer-requests', permission: 'dimension-transfer-request.read' },
         ],
       },
     ],
