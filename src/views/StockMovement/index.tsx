@@ -18,7 +18,7 @@ import {
   ArrowUpDown,
 } from 'lucide-react'
 
-interface StockMovement {
+export interface StockMovement {
   id: number
   qty: number
   base_qty?: number | null
@@ -28,19 +28,34 @@ interface StockMovement {
   branch_id?: number
   description?: string
   created_at?: string
+  reference_type?: string
+  reference_id?: number | string
+  reference_code?: string
+  reference?: { code?: string }
+  stock_before?: number
+  stock_after?: number
   product_inventory?: {
     code?: string
+    owner_ref?: string
+    owner_display?: string
+    owner_company_name?: string
+    stage?: string
+    location_ref?: string
     product_uom_batch?: {
       product_uom?: {
         product?: { name: string }
-        uom?: { name: string }
+        uom?: { name: string; code?: string }
       }
+    }
+    product_uom?: {
+      product?: { name: string }
+      uom?: { name: string; code?: string }
     }
   }
 }
 
 // Verified against each module's own detail-route pattern (Productions/Deliveries/Receipts/SalesOrders/PurchaseOrders list views).
-const REFERENCE_ROUTES: Record<string, (id: number | string) => string> = {
+export const REFERENCE_ROUTES: Record<string, (id: number | string) => string> = {
   productions: (id) => `/production/${id}/detail`,
   deliveries: (id) => `/transfer/deliveries/${id}/detail`,
   receipts: (id) => `/transfer/receipts/${id}/detail`,
@@ -48,7 +63,7 @@ const REFERENCE_ROUTES: Record<string, (id: number | string) => string> = {
   purchase_orders: (id) => `/purchase/purchase-orders/${id}/detail`,
 }
 
-const REFERENCE_LABELS: Record<string, string> = {
+export const REFERENCE_LABELS: Record<string, string> = {
   productions: 'Production',
   deliveries: 'Delivery',
   receipts: 'Receipt',
@@ -56,7 +71,7 @@ const REFERENCE_LABELS: Record<string, string> = {
   purchase_orders: 'Purchase Order',
 }
 
-const TYPE_META = {
+export const TYPE_META = {
   in: {
     label: 'Stock In',
     color: 'var(--success)',
@@ -69,6 +84,64 @@ const TYPE_META = {
     bg: 'var(--destructive-bg)',
     icon: TrendingDown,
   },
+}
+
+// Shared qty +/- formatting: prefers base_qty/base_uom_code (the movement's
+// base-UOM figure) and falls back to the raw qty + the product's UOM code.
+export function formatMovementQty(item: StockMovement): string {
+  const sign = item.direction === 'out' ? '−' : '+'
+  if (item.base_qty != null && item.base_uom_code) {
+    return `${sign}${Number(item.base_qty)} ${item.base_uom_code}`
+  }
+  const uomCode =
+    item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
+    item.product_inventory?.product_uom?.uom?.code
+  return `${sign}${(item.qty ?? 0).toLocaleString('id-ID')}${uomCode ? ` ${uomCode}` : ''}`
+}
+
+// Shared "Document" cell content: links to the source document's detail page
+// via REFERENCE_ROUTES when resolvable, otherwise a plain (possibly
+// truncated) label built from REFERENCE_LABELS.
+export function MovementDocumentLink({ item }: { item: StockMovement }) {
+  const refType = item.reference_type
+  const refId = item.reference_id
+  if (!refType) {
+    return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+  }
+  const code = item.reference_code
+  const label =
+    code ||
+    (refId != null
+      ? `${REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' ')} #${refId}`
+      : REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' '))
+  const buildHref = REFERENCE_ROUTES[refType]
+  const linkStyle: React.CSSProperties = {
+    display: 'inline-block',
+    maxWidth: 160,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    verticalAlign: 'bottom',
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--accent)',
+    textDecoration: 'none',
+  }
+  if (buildHref && refId != null) {
+    return (
+      <Link href={buildHref(refId)} title={label} style={linkStyle}>
+        {label}
+      </Link>
+    )
+  }
+  return (
+    <span
+      title={label}
+      style={{ ...linkStyle, color: 'var(--foreground)', fontWeight: 400 }}
+    >
+      {label}
+    </span>
+  )
 }
 
 export default function StockMovementView() {
@@ -397,59 +470,7 @@ export default function StockMovementView() {
                   </td>
                   {/* Document */}
                   <td style={{ padding: '12px 16px' }}>
-                    {(() => {
-                      const refType = item.reference_type as string | undefined
-                      const refId = item.reference_id as number | string | undefined
-                      if (!refType) {
-                        return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
-                      }
-                      const code = item.reference_code
-                      const label =
-                        code ||
-                        (refId != null
-                          ? `${REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' ')} #${refId}`
-                          : REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' '))
-                      const buildHref = REFERENCE_ROUTES[refType]
-                      if (buildHref && refId != null) {
-                        return (
-                          <Link
-                            href={buildHref(refId)}
-                            title={label}
-                            style={{
-                              display: 'inline-block',
-                              maxWidth: 160,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                              verticalAlign: 'bottom',
-                              fontSize: 13,
-                              fontWeight: 500,
-                              color: 'var(--accent)',
-                              textDecoration: 'none',
-                            }}
-                          >
-                            {label}
-                          </Link>
-                        )
-                      }
-                      return (
-                        <span
-                          title={label}
-                          style={{
-                            display: 'inline-block',
-                            maxWidth: 160,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            verticalAlign: 'bottom',
-                            fontSize: 13,
-                            color: 'var(--foreground)',
-                          }}
-                        >
-                          {label}
-                        </span>
-                      )
-                    })()}
+                    <MovementDocumentLink item={item} />
                   </td>
                   {/* Product */}
                   <td style={{ padding: '12px 16px' }}>
@@ -502,17 +523,7 @@ export default function StockMovementView() {
                             ? 'var(--destructive)' : 'var(--success)',
                         }}
                       >
-                        {item.direction === 'out' ? '−' : '+'}
-                        {item.base_qty != null && item.base_uom_code
-                          ? `${Number(item.base_qty)} ${item.base_uom_code}`
-                          : `${(item.qty ?? 0).toLocaleString('id-ID')}${
-                              (() => {
-                                const uomCode =
-                                  item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
-                                  item.product_inventory?.product_uom?.uom?.code
-                                return uomCode ? ` ${uomCode}` : ''
-                              })()
-                            }`}
+                        {formatMovementQty(item)}
                       </span>
                     </td>
                     {/* Notes */}

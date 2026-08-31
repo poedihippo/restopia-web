@@ -94,6 +94,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Finish Good', href: '/products/product-inventory?type=final', permission: 'product-inventory.menu' },
           { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: 'product-inventory.menu' },
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.menu' },
+          { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },
           { label: 'Stock Opname', href: '/products/product-inventory/stock-opname', permission: 'product-inventory.menu' },
         ],
