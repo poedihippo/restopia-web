@@ -407,6 +407,11 @@ export default function ReceiptsView() {
                       (e.currentTarget.style.background = 'transparent')
                     }
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                        {(page - 1) * perPage + idx + 1}
+                      </span>
+                    </td>
                     <td style={tdStyle}>
                       <span
                         style={{
