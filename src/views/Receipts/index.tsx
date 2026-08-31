@@ -32,7 +32,26 @@ interface Receipt {
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
-  delivery?: { id: number; code: string }
+  delivery?: {
+    id: number
+    code: string
+    source_type?: string
+    branch?: { id: number; name: string }
+    purchase_order?: { id: number; code: string; supplier?: { id: number; name: string } }
+  }
+}
+
+// Source of the received goods: the PO's supplier for vendor receipts, or
+// the shipping branch for internal transfer/branch-PO receipts.
+function getSupplierName(item: Receipt): string {
+  const sourceType = item.delivery?.source_type
+  if (sourceType === 'po_from_supplier') {
+    return item.delivery?.purchase_order?.supplier?.name ?? '—'
+  }
+  if (sourceType === 'po_from_branch' || sourceType === 'transfer_to_branch') {
+    return item.delivery?.branch?.name ?? '—'
+  }
+  return '—'
 }
 
 const STATUS_META = {
@@ -81,7 +100,7 @@ export default function ReceiptsView() {
         .list({
           page,
           per_page: perPage,
-          include: 'branch,delivery',
+          include: 'branch,delivery,delivery.branch,delivery.purchase_order,delivery.purchase_order.supplier',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
@@ -340,6 +359,7 @@ export default function ReceiptsView() {
               <th style={{ ...thStyle, width: 160 }}>Code</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 160 }}>Delivery</th>
+              <th style={{ ...thStyle, width: 160 }}>Supplier</th>
               <th style={{ ...thStyle, width: 120 }}>Date</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: 100 }} />
@@ -349,14 +369,14 @@ export default function ReceiptsView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 6 ? 60 : j === 5 ? 70 : '75%',
+                          width: j === 7 ? 60 : j === 6 ? 70 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -366,7 +386,7 @@ export default function ReceiptsView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load receipts.
                   </span>
@@ -374,7 +394,7 @@ export default function ReceiptsView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -435,6 +455,11 @@ export default function ReceiptsView() {
                       ) : (
                         <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>—</span>
                       ) : "***"}
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 13, color: 'var(--foreground)' }}>
+                        {canRead ? getSupplierName(item) : '***'}
+                      </span>
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
