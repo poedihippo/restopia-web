@@ -345,6 +345,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     console.log('PO details array:', poDetail?.purchase_order_details)
     if (!poDetail?.purchase_order_details?.length) return
 
+    // source_type must match the PO's own type — a branch PO needs
+    // po_from_branch, not po_from_supplier, or the backend wrongly demands
+    // a supplier_id that doesn't apply to it.
+    const derivedSourceType = poDetail?.type === 'branch' ? 'po_from_branch' : 'po_from_supplier'
+    setValue('source_type', derivedSourceType)
+
     const newDetails = poDetail.purchase_order_details.map((d: any) => ({
       product_uom_id: d.product_uom_id ?? 0,
       product_uom_batch_id: undefined,
