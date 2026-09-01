@@ -15,13 +15,16 @@ import {
 import { format } from "date-fns";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useMemo } from "react";
+import {useEffect, useState,  useCallback, useMemo } from "react";
 import usePurchaseOrders from "./usePurchaseOrders";
 import usePermission from "@/hooks/usePermission";
 
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 
 const PurchaseOrders = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const {
     purchaseOrders,
     branches,
@@ -156,7 +159,8 @@ const PurchaseOrders = () => {
                 handleBranchChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <SearchableSelect
               key={`supplier-${filterKey}`}
               isClearable
@@ -168,7 +172,8 @@ const PurchaseOrders = () => {
                 handleSupplierChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <Select
               key={`status-${filterKey}`}
               onValueChange={(val) =>

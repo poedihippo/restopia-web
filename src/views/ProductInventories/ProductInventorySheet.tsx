@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -92,6 +92,10 @@ export default function ProductInventorySheet({
   onClose,
   editData,
 }: ProductInventorySheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const isEditMode = !!editData
 
@@ -114,14 +118,14 @@ export default function ProductInventorySheet({
   })
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', debouncedDropdownSearch],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' })
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom' })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -206,6 +210,10 @@ export default function ProductInventorySheet({
   }
 
   const onInvalid = (errs: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     const first = Object.values(errs)[0] as { message?: string } | undefined
     toast.error(first?.message ?? 'Please fill in all required fields')
     if (typeof document !== 'undefined') {
@@ -330,7 +338,8 @@ export default function ProductInventorySheet({
                     searchPlaceholder="Search products..."
                     loading={productUomsLoading}
                     error={errors.product_uom_id?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
             </div>

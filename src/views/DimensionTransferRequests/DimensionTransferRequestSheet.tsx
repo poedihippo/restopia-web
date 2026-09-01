@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect,  useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -57,6 +57,10 @@ export default function DimensionTransferRequestSheet({
   open,
   onClose,
 }: DimensionTransferRequestSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { user } = useAuth()
   const branchId = user?.branch?.id
   const queryClient = useQueryClient()
@@ -112,8 +116,8 @@ export default function DimensionTransferRequestSheet({
   )
 
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all'],
-    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryKey: ['companies-all', debouncedDropdownSearch],
+    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100  } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const companyOptions = [
@@ -122,7 +126,7 @@ export default function DimensionTransferRequestSheet({
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all'],
+    queryKey: ['stages-all', debouncedDropdownSearch],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
   const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
@@ -237,6 +241,10 @@ export default function DimensionTransferRequestSheet({
   }
 
   const handleClose = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     resetForm()
     onClose()
   }
@@ -395,7 +403,8 @@ export default function DimensionTransferRequestSheet({
                   searchPlaceholder="Cari produk atau batch..."
                   loading={inventoryLoading}
                   error={errors.source_inventory_id?.message as string | undefined}
-                />
+                  onSearchChange={setDropdownSearch}
+/>
               )}
             />
             {selectedRow && (
@@ -445,7 +454,8 @@ export default function DimensionTransferRequestSheet({
                     searchPlaceholder="Cari perusahaan..."
                     loading={companiesLoading}
                     error={errors.to_owner_ref?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
             </div>
@@ -465,7 +475,8 @@ export default function DimensionTransferRequestSheet({
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
                     error={errors.to_stage?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
             </div>

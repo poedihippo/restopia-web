@@ -17,7 +17,7 @@ import useGetSupplierList from "@/hooks/suppliers/useGetSupplierList";
 import { ArrowLeft, Trash, X } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { useMemo } from "react";
+import {useEffect, useState,  useMemo } from "react";
 import { Control, Controller, FormProvider, useFormContext, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +32,9 @@ interface DetailRowProps {
 
 const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) => {
   const { setValue } = useFormContext<PurchaseOrdersFormValues>()
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { data: productInventoryData, isLoading: isLoadingProductInventory } =
     useGetProductInventoriesList(
       {
@@ -86,7 +89,8 @@ const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) =>
                   const price = watchedType === 'offline' ? (product?.product_uom?.base_price ?? 0) : watchedType === 'online' ? (product?.product_uom?.online_price ?? 0) : (product?.product_uom?.franchise_price ?? 0);
                   setValue(`details.${index}.price`, price);
                 }}
-              />
+                onSearchChange={setDropdownSearch}
+/>
               {fieldState.error && (
                 <p className="text-destructive text-xs mt-1">
                   {fieldState.error.message}
@@ -189,6 +193,9 @@ const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) =>
 
 const PurchaseOrdersForm = () => {
   const router = useRouter();
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
   const {
     form,
     handleSubmit,
@@ -278,7 +285,8 @@ const PurchaseOrdersForm = () => {
                           selected ? (selected as { value: number }).value : 0,
                         );
                       }}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
                         {fieldState.error.message}
@@ -320,7 +328,8 @@ const PurchaseOrdersForm = () => {
                           selected ? (selected as { value: number }).value : 0,
                         );
                       }}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
                         {fieldState.error.message}

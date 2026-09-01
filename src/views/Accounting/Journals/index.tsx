@@ -90,6 +90,10 @@ const fmtDate = (d: string) => formatDate(d)
 const fmtCurrency = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
 export default function JournalsView() {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const { isSuperadmin, hasPermission } = useAuth()
   const canCreate = isSuperadmin || hasPermission('journal.create')
@@ -105,6 +109,10 @@ export default function JournalsView() {
   const [editData, setEditData] = useState<Journal | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [detailItem, setDetailItem] = useState<Journal | null>(null)
+  const [coaSearch, setCoaSearch] = useState('')
+  const [debouncedCoaSearch, setDebouncedCoaSearch] = useState('')
+
+  useEffect(() => { const t = setTimeout(() => setDebouncedCoaSearch(coaSearch), 400); return () => clearTimeout(t) }, [coaSearch])
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter])
@@ -115,13 +123,13 @@ export default function JournalsView() {
   })
 
   const { data: periodsData } = useQuery({
-    queryKey: ['periods-all'],
-    queryFn: () => periodsService.list({ per_page: perPage, sort: '-id' }).then((r) => r.data),
+    queryKey: ['periods-all', debouncedDropdownSearch],
+    queryFn: () => periodsService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: perPage, sort: '-id' }).then((r) => r.data),
   })
 
   const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-all'],
-    queryFn: () => chartOfAccountsService.list({ per_page: perPage, sort: 'code', 'filter[is_active]': 'true' } as any).then((r) => r.data),
+    queryKey: ['chart-of-accounts-all', debouncedCoaSearch, debouncedDropdownSearch],
+    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true', 'filter[search]': debouncedCoaSearch || undefined } as any).then((r) => r.data),
   })
 
   const items: Journal[] = (data as any)?.data ?? []
@@ -192,6 +200,10 @@ export default function JournalsView() {
   const isPending = createMutation.isPending || updateMutation.isPending
 
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     const payload: JournalRequest = {
       period_id: values.period_id,
       date: values.date,
@@ -382,7 +394,8 @@ export default function JournalsView() {
                         options={periodOptions}
                         placeholder="-- Pilih Periode --"
                         searchPlaceholder="Cari periode..."
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                 </div>
@@ -446,6 +459,7 @@ export default function JournalsView() {
                                     options={accountOptions}
                                     placeholder="-- Pilih Akun --"
                                     searchPlaceholder="Cari akun..."
+                                    onSearchChange={setCoaSearch}
                                   />
                                 )}
                               />

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -40,6 +40,10 @@ interface InternalOrderFormProps {
 }
 
 export default function InternalOrderForm(props: InternalOrderFormProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { mode, initialData, orderId } = props
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -70,27 +74,27 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', debouncedDropdownSearch],
+    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
   const activeProductTypes = useActiveBranchProductTypes()
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes],
+    queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
             include: 'product,uom,product.product_category',
             'filter[product_types]': activeProductTypes,
-          } as any)
+           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -174,6 +178,10 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   })
 
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (mode === 'edit' && orderId) {
       updateMutation.mutate(values)
     } else {
@@ -387,7 +395,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                     searchPlaceholder="Search branches..."
                     loading={branchesLoading}
                     error={errors.supplier_branch_id?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
             </div>
@@ -554,7 +563,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                         | string
                         | undefined
                       }
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               </div>

@@ -1,7 +1,7 @@
 'use client'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 
-import React from 'react'
+import React, { useEffect,  useState } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -40,6 +40,10 @@ interface TransferOutFormProps {
 }
 
 export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const today = new Date().toISOString().split('T')[0]
   const { user } = useAuth()
   const sourceBranchId = user?.branch?.id
@@ -72,23 +76,23 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   )
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', 'company'],
+    queryKey: ['branches-all', 'company', debouncedDropdownSearch],
     queryFn: () =>
-      branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
+      branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
   const activeProductTypes = useActiveBranchProductTypes()
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes],
+    queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
             include: 'product,uom,product.product_category',
@@ -123,13 +127,13 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       let totalPages = 1
       do {
         const res = await productInventoriesService
-          .list({
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
             'filter[branch_id]': sourceBranchId,
             'filter[status]': 'active',
             include: 'branch,product_uom_batch',
-          } as any)
+           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allInv = allInv.concat(items)
@@ -254,6 +258,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   }
 
   const onInvalid = (errs: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     const first = Object.values(errs)[0] as any
     toast.error(first?.message ?? 'Please fill required fields')
   }
@@ -369,7 +377,8 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                 searchPlaceholder="Search branches..."
                 loading={branchesLoading}
                 error={errors.target_branch_id?.message as string | undefined}
-              />
+                onSearchChange={setDropdownSearch}
+/>
             )}
           />
         </div>
@@ -485,7 +494,8 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                           | string
                           | undefined
                         }
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                   {(() => {

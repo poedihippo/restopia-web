@@ -21,6 +21,10 @@ import { LayoutList } from 'lucide-react'
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
 export default function StockCardView() {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { user, hasPermission } = useAuth()
   const canRead = hasPermission('stock-movement.read')
   const branchId = user?.branch?.id
@@ -53,8 +57,8 @@ export default function StockCardView() {
   }))
 
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all'],
-    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryKey: ['companies-all', debouncedDropdownSearch],
+    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const ownerOptions = [
@@ -64,7 +68,7 @@ export default function StockCardView() {
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all'],
+    queryKey: ['stages-all', debouncedDropdownSearch],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
   const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
@@ -82,7 +86,7 @@ export default function StockCardView() {
       let totalPages = 1
       do {
         const res = await stockMovementsService
-          .list({
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 500,
             sort: 'created_at',
@@ -99,7 +103,7 @@ export default function StockCardView() {
               'product_inventory.product_uom.product,' +
               'product_inventory.product_uom.uom,' +
               'branch',
-          } as any)
+           } as any)
           .then((r) => r.data)
         const rows = (res as any)?.data ?? []
         allRows = allRows.concat(rows)
@@ -257,7 +261,8 @@ export default function StockCardView() {
             placeholder="Semua Owner"
             searchPlaceholder="Cari perusahaan..."
             loading={companiesLoading}
-          />
+            onSearchChange={setDropdownSearch}
+/>
         </div>
 
         <div>
@@ -269,7 +274,8 @@ export default function StockCardView() {
             placeholder="Semua Stage"
             searchPlaceholder="Cari stage..."
             loading={stagesLoading}
-          />
+            onSearchChange={setDropdownSearch}
+/>
         </div>
       </div>
 

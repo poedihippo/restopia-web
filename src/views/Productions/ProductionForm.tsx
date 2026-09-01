@@ -166,6 +166,10 @@ export function MaterialsFieldArray({
   materialLabels,
   setValue,
 }: MaterialsFieldArrayProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { fields, append, remove } = useFieldArray({
     control,
     name: `details.${detailIndex}.materials` as any,
@@ -573,10 +577,14 @@ export default function ProductionForm({
 
   // Queries
 
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
+
   // Dimension pickers: owner (company) + stage
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all'],
-    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryKey: ['companies-all', debouncedDropdownSearch],
+    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const companyOptions = [
@@ -585,7 +593,7 @@ export default function ProductionForm({
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all'],
+    queryKey: ['stages-all', debouncedDropdownSearch],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
   const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
@@ -642,7 +650,7 @@ export default function ProductionForm({
   const prodItemUoms = unwrapList(prodItemUomData)
 
   const { data: inventoriesData } = useQuery({
-    queryKey: ['product-inventories-all', activeBranchId],
+    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch],
     enabled: !!activeBranchId,
     queryFn: async () => {
       let allInventories: any[] = []
@@ -650,13 +658,13 @@ export default function ProductionForm({
       let totalPages = 1
       do {
         const res = await productInventoriesService
-          .list({
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
             include:
               'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
             'filter[branch_id]': activeBranchId,
-          } as any)
+           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allInventories = allInventories.concat(items)
@@ -984,6 +992,10 @@ export default function ProductionForm({
   }
 
   const onInvalid = (errors: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     toast.error(getFirstErrorMessage(errors) ?? 'Form tidak valid, periksa kembali data.')
   }
 
@@ -1211,7 +1223,8 @@ export default function ProductionForm({
                         searchPlaceholder="Cari perusahaan..."
                         loading={companiesLoading}
                         error={errors.source_owner_ref?.message as string | undefined}
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                 </div>
@@ -1231,7 +1244,8 @@ export default function ProductionForm({
                         searchPlaceholder="Cari stage..."
                         loading={stagesLoading}
                         error={errors.source_stage?.message as string | undefined}
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                 </div>
@@ -1258,7 +1272,8 @@ export default function ProductionForm({
                         searchPlaceholder="Cari perusahaan..."
                         loading={companiesLoading}
                         error={errors.output_owner_ref?.message as string | undefined}
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                 </div>
@@ -1278,7 +1293,8 @@ export default function ProductionForm({
                         searchPlaceholder="Cari stage..."
                         loading={stagesLoading}
                         error={errors.output_stage?.message as string | undefined}
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                 </div>

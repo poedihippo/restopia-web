@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -43,6 +43,10 @@ export default function ProductConversionSheet({
   onClose,
   editData,
 }: ProductConversionSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const activeProductTypes = useActiveBranchProductTypes()
 
@@ -64,14 +68,14 @@ export default function ProductConversionSheet({
   })
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['products-all', 'active', activeProductTypes],
+    queryKey: ['products-all', 'active', activeProductTypes, debouncedDropdownSearch],
     queryFn: async () => {
       let allProducts: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productsService
-          .list({ page, per_page: 100, sort: 'name', 'filter[status]': 'active', 'filter[product_types]': activeProductTypes })
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, sort: 'name', 'filter[status]': 'active', 'filter[product_types]': activeProductTypes })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProducts = allProducts.concat(items)
@@ -87,14 +91,14 @@ export default function ProductConversionSheet({
   const products = (productsData as any)?.data ?? []
 
   const { data: uomsData, isLoading: uomsLoading } = useQuery({
-    queryKey: ['uoms-all'],
+    queryKey: ['uoms-all', debouncedDropdownSearch],
     queryFn: async () => {
       let allUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await uomsService
-          .list({ page, per_page: 100 })
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100 })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allUoms = allUoms.concat(items)
@@ -162,6 +166,10 @@ export default function ProductConversionSheet({
   })
 
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (editData) {
       updateMutation.mutate(values)
     } else {
@@ -321,7 +329,8 @@ export default function ProductConversionSheet({
                   searchPlaceholder="Search products..."
                   loading={productsLoading}
                   error={errors.product_id?.message as string | undefined}
-                />
+                  onSearchChange={setDropdownSearch}
+/>
               )}
             />
           </div>
@@ -362,7 +371,8 @@ export default function ProductConversionSheet({
                     searchPlaceholder="Search UOMs..."
                     loading={uomsLoading}
                     error={errors.uom_id?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
 
@@ -390,7 +400,8 @@ export default function ProductConversionSheet({
                     searchPlaceholder="Search UOMs..."
                     loading={uomsLoading}
                     error={errors.target_uom_id?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
             </div>

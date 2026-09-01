@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -28,6 +28,10 @@ interface OperationSheetProps {
 }
 
 export default function OperationSheet({ open, onClose, editData }: OperationSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const qc = useQueryClient()
   const {user, isSuperadmin } = useAuth()
 
@@ -111,6 +115,10 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
   })
 
   const onSubmit = (data: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (editData) updateMutation.mutate(data)
     else createMutation.mutate(data)
   }
@@ -147,7 +155,8 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
               placeholder='Select branch...'
               searchPlaceholder='Search branch...'
               loading={branchesLoading}
-              error={errors.branch_id?.message as string | undefined} />
+              error={errors.branch_id?.message as string | undefined}   onSearchChange={setDropdownSearch}
+/>
              )}
              />
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}
@@ -174,7 +183,8 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
               placeholder='Select rule...'
               searchPlaceholder='Search rule...'
               loading={operationRulesLoading}
-              error={errors.operation_rule_id?.message as string | undefined} />
+              error={errors.operation_rule_id?.message as string | undefined}   onSearchChange={setDropdownSearch}
+/>
              )}
              />
               {errors.operation_rule_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.operation_rule_id.message as string}</span>}

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -74,6 +74,10 @@ interface ProductUomOption {
 }
 
 function SlotField({ nestIndex, control, register, errors, watch, productUomOptions, productUomsLoading, removeSlot, canRemoveSlot }: any) {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
   const { fields, remove, append } = useFieldArray({
     control,
     name: `details.${nestIndex}.items`
@@ -115,7 +119,8 @@ function SlotField({ nestIndex, control, register, errors, watch, productUomOpti
                       searchPlaceholder="Search..."
                       loading={productUomsLoading}
                       error={itemError?.product_uom_id?.message as string | undefined}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               </div>
@@ -149,6 +154,10 @@ function SlotField({ nestIndex, control, register, errors, watch, productUomOpti
 }
 
 export default function BundleSheet({ open, onClose, editData }: BundleSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const qc = useQueryClient()
 
   const {
@@ -174,14 +183,14 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', debouncedDropdownSearch],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -296,6 +305,10 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
   }
 
   const onInvalid = (errs: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     const first = Object.values(errs)[0] as { message?: string } | undefined
     toast.error(first?.message ?? 'Please fill in all required fields')
   }
@@ -590,7 +603,8 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                   productUomsLoading={productUomsLoading}
                   removeSlot={remove}
                   canRemoveSlot={fields.length > 1}
-                />
+                      setDropdownSearch={setDropdownSearch}
+                    />
               ))}
 
               {errors.details && !Array.isArray(errors.details) && (errors.details as any).message && (

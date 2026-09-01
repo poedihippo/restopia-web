@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect,  useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import type { ReceiptData } from '@/components/PosReceipt'
@@ -141,6 +141,10 @@ export default function PosModals({
   historyMeta,
   isHistoryLoading,
 }: PosModalsProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const [splitMethodId, setSplitMethodId] = React.useState<number | null>(null)
   const [splitAmount, setSplitAmount] = React.useState<string>('')
   
@@ -181,6 +185,10 @@ export default function PosModals({
   }
 
   const handleRemoveSplit = (index: number) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (setSplitPayments && splitPayments) {
       const updated = [...splitPayments]
       updated.splice(index, 1)
@@ -408,7 +416,8 @@ export default function PosModals({
                           ]}
                           placeholder="Search user..."
                           searchPlaceholder="Search users..."
-                        />
+                          onSearchChange={setDropdownSearch}
+/>
                       </div>
                     )}
                     <button
@@ -495,7 +504,8 @@ export default function PosModals({
                   ]}
                   placeholder="Search user..."
                   searchPlaceholder="Search users..."
-                />
+                  onSearchChange={setDropdownSearch}
+/>
                 <span
                   style={{
                     fontSize: 11,

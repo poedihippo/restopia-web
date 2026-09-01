@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { status } from "@/constants/global";
 import useGetProductUomsList from "@/hooks/product-uoms/useGetProductUomsList";
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import {useState,  useEffect } from "react";
 import { Controller, UseFormReturn } from "react-hook-form";
 import { ProductInventoriesFormValues } from "./useCreateProductInventoriesModal";
 
@@ -43,6 +43,12 @@ export const ProductInventoriesModal = ({
   isSubmitting,
 }: Props) => {
   const isEdit = mode === "edit";
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
 
   const { data: productData, isLoading: isLoadingProduct } =
     useGetProductUomsList(
@@ -115,7 +121,8 @@ export const ProductInventoriesModal = ({
                             : null,
                         );
                       }}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
                         {fieldState.error.message}

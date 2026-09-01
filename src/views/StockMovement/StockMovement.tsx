@@ -12,10 +12,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-import { useMemo } from "react";
+import {useEffect, useState,  useMemo } from "react";
 import useStockMovement from "./useStockMovement";
 
 const StockMovement = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const {
     stockMovements,
     products,
@@ -126,7 +129,8 @@ const StockMovement = () => {
                 handleProductInventoriesChange(option?.value);
               }}
               className="w-full sm:w-80"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <SearchableSelect
               isClearable
               isLoading={isLoadingBranch}
@@ -137,7 +141,8 @@ const StockMovement = () => {
                 handleBranchChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <Select onValueChange={(val) => setDirection(val)}>
               <SelectTrigger className="w-full sm:w-60">
                 <SelectValue placeholder="Select Direction" />

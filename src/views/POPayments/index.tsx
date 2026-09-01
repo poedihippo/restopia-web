@@ -1,7 +1,7 @@
 'use client'
 import { formatDate } from '@/utils/date'
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
@@ -88,6 +88,10 @@ const tdStyle: React.CSSProperties = {
 }
 
 export default function POPaymentsView() {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
   const canPay = hasPermission('payment.create')
@@ -102,8 +106,8 @@ export default function POPaymentsView() {
 
   // ── Dropdown sources ──────────────────────────────────────────────────────
   const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
-    queryKey: ['suppliers-all'],
-    queryFn: () => suppliersService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryKey: ['suppliers-all', debouncedDropdownSearch],
+    queryFn: () => suppliersService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
   const suppliers: any[] = (suppliersData as any)?.data ?? []
   const supplierOptions = suppliers.map((s: any) => ({
@@ -113,9 +117,9 @@ export default function POPaymentsView() {
   }))
 
   const { data: paymentMethodsData } = useQuery({
-    queryKey: ['payment-methods-all'],
+    queryKey: ['payment-methods-all', debouncedDropdownSearch],
     queryFn: () =>
-      paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'purchase_orders' } as any).then((r) => r.data),
+      paymentMethodsService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 50, sort: 'id', 'filter[type]': 'purchase_orders' } as any).then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
 
@@ -245,6 +249,10 @@ export default function POPaymentsView() {
     !createMutation.isPending
 
   const handleSubmit = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (allocationEntries.length === 0) {
       toast.error('Select at least one purchase order to pay')
       return
@@ -268,12 +276,12 @@ export default function POPaymentsView() {
     queryKey: ['po-payments-history'],
     queryFn: () =>
       paymentsService
-        .list({
+        .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
           per_page: 50,
           sort: '-created_at',
           include: 'payment_method,allocations',
           'filter[type]': 'disburse',
-        } as any)
+         } as any)
         .then((r) => r.data),
   })
   const history: DisbursePayment[] = (historyData as any)?.data ?? []
@@ -339,7 +347,8 @@ export default function POPaymentsView() {
               placeholder="Select supplier..."
               searchPlaceholder="Search suppliers..."
               loading={suppliersLoading}
-            />
+              onSearchChange={setDropdownSearch}
+/>
           </div>
 
           {/* Outstanding POs */}

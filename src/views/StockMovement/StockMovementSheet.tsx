@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -58,6 +58,10 @@ const TYPE_OPTIONS = [
 ]
 
 export default function StockMovementSheet({ open, onClose }: StockMovementSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const activeBranchId = (user as any)?.branch?.id
@@ -81,14 +85,14 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   })
 
   const { data: batchesData } = useQuery({
-    queryKey: ['product-uom-batches-all'],
+    queryKey: ['product-uom-batches-all', debouncedDropdownSearch],
     queryFn: async () => {
       let allBatches: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomBatchesService
-          .list({
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
             include: 'product_uom',
@@ -183,6 +187,10 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   }
 
   const getQtyLabel = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (watchDirection === 'in') return 'Quantity to Add'
     return 'Quantity to Remove'
   }
@@ -395,7 +403,8 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                   placeholder="Select batch"
                   searchPlaceholder="Search batch..."
                   error={errors.product_uom_batch_id?.message}
-                />
+                  onSearchChange={setDropdownSearch}
+/>
               )}
             />
             {selectedBatch && (

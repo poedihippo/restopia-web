@@ -93,6 +93,10 @@ interface DeliveryFormProps {
 }
 
 export default function DeliveryForm(props: DeliveryFormProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { mode, initialData, deliveryId, prefill } = props
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -144,16 +148,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   )
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', debouncedDropdownSearch],
+    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
   // Dimension picker: owner (company) + stage — source only, deliveries have
   // no output dimension.
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all'],
-    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryKey: ['companies-all', debouncedDropdownSearch],
+    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const companyOptions = [
@@ -162,21 +166,21 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all'],
+    queryKey: ['stages-all', debouncedDropdownSearch],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
   const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
   const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', debouncedDropdownSearch],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -276,7 +280,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       let totalPages = 1
       do {
         const res = await salesOrdersService
-          .list({ page, per_page: 100, 'filter[status]': 'final', 'filter[has_delivery]': 'false' } as any)
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, 'filter[status]': 'final', 'filter[has_delivery]': 'false'  } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allOrders = allOrders.concat(items)
@@ -521,6 +525,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   }
 
   const onInvalid = (errs: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     console.log('DeliveryForm validation errors:', errs)
   }
 
@@ -756,7 +764,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.target_branch_id?.message as string | undefined}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               )}
@@ -776,7 +785,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       placeholder="No linked PO"
                       searchPlaceholder="Search POs..."
                       loading={purchaseOrdersLoading}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
                 {!!watchPurchaseOrderId && watchPurchaseOrderId > 0 && poDetail && (
@@ -808,7 +818,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       placeholder="No linked SO"
                       searchPlaceholder="Search SOs..."
                       loading={salesOrdersLoading}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
                 {!!watchSalesOrderId && watchSalesOrderId > 0 && soDetail && (
@@ -867,7 +878,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     searchPlaceholder="Cari perusahaan..."
                     loading={companiesLoading}
                     error={errors.source_owner_ref?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
             </div>
@@ -887,7 +899,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
                     error={errors.source_stage?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
             </div>
@@ -1008,7 +1021,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         | string
                         | undefined
                       }
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               </div>

@@ -55,6 +55,10 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
   }, [editData, open, reset])
 
   const [coaSearch, setCoaSearch] = useState('')
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
   useEffect(() => {
@@ -65,7 +69,7 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
   }, [coaSearch])
 
   const { data: coaData, isLoading: isLoadingCoa } = useQuery({
-    queryKey: ['chart-of-accounts-all', debouncedSearch],
+    queryKey: ['chart-of-accounts-all', debouncedSearch, debouncedDropdownSearch],
     queryFn: () => chartOfAccountsService.list({ per_page: 50, 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
     enabled: open
   })
@@ -91,6 +95,10 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
   })
 
   const onSubmit = (data: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (editData) updateMutation.mutate(data)
   }
 
@@ -136,7 +144,8 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
                 }}
                 placeholder="Search account..."
                 isClearable
-              />
+                onSearchChange={setDropdownSearch}
+/>
               {errors.chart_of_account_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.chart_of_account_id.message as string}</span>}
             </div>
 

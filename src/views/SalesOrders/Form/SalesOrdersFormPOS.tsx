@@ -162,6 +162,10 @@ const SalesOrdersFormPOS = () => {
   const [isNewCustomer, setIsNewCustomer] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [page, setPage] = useState<number>(1)
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const [perPage, setPerPage] = useState<number>(20)
   const cartRef = useRef<HTMLDivElement>(null)
   const watchAll = form.watch()
@@ -241,6 +245,10 @@ const SalesOrdersFormPOS = () => {
     );
 
   const handleAddToCart = (item: IProductInventories) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     const existingIndex = detailFields.findIndex(f => f.product_inventory_id === item.id)
 
     if (existingIndex >= 0) {
@@ -488,7 +496,8 @@ const SalesOrdersFormPOS = () => {
                                 selected ? (selected as { value: number }).value : 0,
                               );
                             }}
-                          />
+                            onSearchChange={setDropdownSearch}
+/>
                           {fieldState.error && (
                             <p className="text-destructive text-sm">
                               {fieldState.error.message}
@@ -529,7 +538,8 @@ const SalesOrdersFormPOS = () => {
                               selected ? (selected as { value: number }).value : 0,
                             );
                           }}
-                        />
+                          onSearchChange={setDropdownSearch}
+/>
                         {fieldState.error && (
                           <p className="text-destructive text-sm">
                             {fieldState.error.message}

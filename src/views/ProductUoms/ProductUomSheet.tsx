@@ -2,7 +2,7 @@
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { useAuth } from '@/hooks/useAuth'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -52,6 +52,10 @@ interface ProductUomSheetProps {
 }
 
 export default function ProductUomSheet({ open, onClose, editData }: ProductUomSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canReadFranchisePrice = hasPermission('common.franchise-price.read')
@@ -91,7 +95,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   }, [productSearch])
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
-    queryKey: ['products-all', productSearchDebounced, activeProductTypes],
+    queryKey: ['products-all', productSearchDebounced, activeProductTypes, debouncedDropdownSearch],
     queryFn: () =>
       productsService
         .list({
@@ -106,14 +110,14 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   const products = (productsData as any)?.data ?? []
 
   const { data: uomsData, isLoading: uomsLoading } = useQuery({
-    queryKey: ['uoms-all'],
+    queryKey: ['uoms-all', debouncedDropdownSearch],
     queryFn: async () => {
       let allUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await uomsService
-          .list({ page, per_page: 100 })
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100  })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allUoms = allUoms.concat(items)
@@ -229,6 +233,10 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   })
 
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (editData) {
       updateMutation.mutate(values)
     } else {
@@ -377,7 +385,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                   searchPlaceholder="Search UOMs..."
                   loading={uomsLoading}
                   error={errors.uom_id?.message as string | undefined}
-                />
+                  onSearchChange={setDropdownSearch}
+/>
               )}
             />
           </div>

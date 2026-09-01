@@ -18,11 +18,14 @@ import { formatterIDR } from "@/helper/convertCurrency";
 import usePermission from "@/hooks/usePermission";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import {useEffect, useState,  useCallback, useMemo } from "react";
 import { ProductUomsModal } from "./Modal/ProductUomsModal";
 import useProductUoms from "./useProductUoms";
 
 const ProductUoms = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const {
     productUom,
     products,
@@ -172,7 +175,8 @@ const ProductUoms = () => {
                 handleProductChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <SearchableSelect
               key={`uom-${filterKey}`}
               isClearable
@@ -184,7 +188,8 @@ const ProductUoms = () => {
                 handleUomChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline">More Filters</Button>

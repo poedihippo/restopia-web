@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo } from 'react'
+import React, { useState,  useEffect, useMemo } from 'react'
 import { getCanReadPrice } from '@/utils/price'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
@@ -57,6 +57,10 @@ interface ReceiptFormProps {
 }
 
 export default function ReceiptForm(props: ReceiptFormProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { mode, initialData, receiptId, prefill } = props
   const { canReadPrice } = usePrice()
   const router = useRouter()
@@ -346,6 +350,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   }
 
   const onInvalid = (errs: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     console.log('ReceiptForm validation errors:', errs)
   }
 
@@ -550,7 +558,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     loading={deliveriesLoading}
                     disabled={mode === 'edit'}
                     error={errors.delivery_id?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
               {!!watchDeliveryId && watchDeliveryId > 0 && deliveryDetail && (
@@ -704,7 +713,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                             | string
                             | undefined
                           }
-                        />
+                          onSearchChange={setDropdownSearch}
+/>
                       )}
                     />
                   </div>

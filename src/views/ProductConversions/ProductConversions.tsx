@@ -7,12 +7,15 @@ import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import {useEffect, useState,  useCallback, useMemo } from "react";
 import { ProductConversionsModal } from "./Modal/ProductConversionsModal";
 import useProductConversions from "./useProductConversions";
 import usePermission from "@/hooks/usePermission";
 
 const ProductConversions = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const {
     productConversions,
     products,
@@ -145,7 +148,8 @@ const ProductConversions = () => {
                 handleProductChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <SearchableSelect
               isClearable
               isLoading={isLoadingUom}
@@ -156,7 +160,8 @@ const ProductConversions = () => {
                 handleUomChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <SearchableSelect
               isClearable
               isLoading={isLoadingUom}
@@ -167,7 +172,8 @@ const ProductConversions = () => {
                 handleTargetUomChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
           </div>
           {(<Button
             onClick={() => createModal.openModal()}

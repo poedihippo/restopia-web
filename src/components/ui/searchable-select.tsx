@@ -10,7 +10,9 @@ export interface SelectOption {
 type SearchableSelectProps = Omit<
   ReactSelectProps<SelectOption, boolean>,
   "classNames" | "styles"
->;
+> & {
+  onSearchChange?: (val: string) => void;
+};
 
 export const SearchableSelect = (props: SearchableSelectProps) => {
   const { user } = useAuth();
@@ -35,6 +37,10 @@ export const SearchableSelect = (props: SearchableSelectProps) => {
   return (
     <ReactSelect<SelectOption, boolean>
       {...props}
+      onInputChange={(val, meta) => {
+        if (props.onInputChange) props.onInputChange(val, meta);
+        if (props.onSearchChange && meta.action === 'input-change') props.onSearchChange(val);
+      }}
       classNames={{
         control: () =>
           "!border-input !bg-background !shadow-sm !min-h-9 !rounded-md",

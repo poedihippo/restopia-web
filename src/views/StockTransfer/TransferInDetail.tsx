@@ -2,7 +2,7 @@
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -47,6 +47,10 @@ interface TransferInDetailProps {
 }
 
 export default function TransferInDetail({ id }: TransferInDetailProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const router = useRouter()
   const queryClient = useQueryClient()
   const today = new Date().toISOString().split('T')[0]
@@ -77,14 +81,14 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
   const isFinal = existingReceipts.some((r: any) => r.status === 'final')
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all'],
+    queryKey: ['product-uoms-all', debouncedDropdownSearch],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' } as any)
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)
@@ -192,6 +196,10 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
   const onSubmit = (values: FormValues) => createReceiptMutation.mutate(values)
 
   const onInvalid = (errs: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     const first = Object.values(errs)[0] as any
     toast.error(first?.message ?? 'Please review the form')
   }
@@ -706,7 +714,8 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                       | string
                       | undefined
                     }
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
               <input

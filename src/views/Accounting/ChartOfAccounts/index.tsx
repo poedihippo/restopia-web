@@ -69,6 +69,10 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
 
 export default function ChartOfAccountsView() {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const { isSuperadmin, hasPermission } = useAuth()
   const canCreate = isSuperadmin || hasPermission('chart-of-account.create')
@@ -94,12 +98,12 @@ export default function ChartOfAccountsView() {
   })
 
   const { data: categoriesData } = useQuery({
-    queryKey: ['account-categories-all'],
-    queryFn: () => accountCategoriesService.list({ per_page: perPage, sort: 'code' }).then((r) => r.data),
+    queryKey: ['account-categories-all', debouncedDropdownSearch],
+    queryFn: () => accountCategoriesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: perPage, sort: 'code' }).then((r) => r.data),
   })
   const { data: typesData } = useQuery({
-    queryKey: ['account-types-all'],
-    queryFn: () => accountTypesService.list({ per_page: perPage, sort: 'code' }).then((r) => r.data),
+    queryKey: ['account-types-all', debouncedDropdownSearch],
+    queryFn: () => accountTypesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: perPage, sort: 'code'  }).then((r) => r.data),
   })
 
   const items: CoA[] = (data as any)?.data ?? []
@@ -154,6 +158,10 @@ export default function ChartOfAccountsView() {
 
   const isPending = createMutation.isPending || updateMutation.isPending
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     const payload: ChartOfAccountRequest = { ...values, parent_id: values.parent_id || null }
     if (editData) updateMutation.mutate(payload)
     else createMutation.mutate(payload)
@@ -331,7 +339,8 @@ export default function ChartOfAccountsView() {
                         placeholder="-- Select --"
                         searchPlaceholder="Search category..."
                         error={errors.account_category_id?.message}
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                   {errors.account_category_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_category_id.message}</span>}
@@ -352,7 +361,8 @@ export default function ChartOfAccountsView() {
                         placeholder="-- Select --"
                         searchPlaceholder="Search type..."
                         error={errors.account_type_id?.message}
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                   {errors.account_type_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_type_id.message}</span>}
@@ -402,7 +412,8 @@ export default function ChartOfAccountsView() {
                         ]}
                         placeholder="-- Tidak ada --"
                         searchPlaceholder="Search parent account..."
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                     )}
                   />
                 </div>

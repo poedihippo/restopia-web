@@ -7,13 +7,16 @@ import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { format } from "date-fns";
 import { Pencil, Trash2 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import {useEffect, useState,  useCallback, useMemo } from "react";
 import { ProductModal } from "./Modal/ProductModal";
 import useProduct from "./useProduct";
 import usePermission from "@/hooks/usePermission";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const Product = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const {
     products,
     pagination,
@@ -123,7 +126,8 @@ const Product = () => {
                 handleProductCategoryChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <Select
               onValueChange={(val) =>
                 setType(val === "all" ? undefined : val)

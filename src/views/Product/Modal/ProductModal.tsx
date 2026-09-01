@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,6 +43,9 @@ export const ProductModal = ({
   isSubmitting,
 }: Props) => {
   const isEdit = mode === "edit";
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { data: pcData, isLoading: isLoadingPC } = useGetProductCategoriesList({
     enabled: isOpen,
   });
@@ -96,7 +100,8 @@ export const ProductModal = ({
                             : null,
                         );
                       }}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
                         {fieldState.error.message}

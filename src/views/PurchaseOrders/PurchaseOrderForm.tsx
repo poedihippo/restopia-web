@@ -76,6 +76,10 @@ interface PurchaseOrderFormProps {
 }
 
 export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { mode, initialData, orderId } = props
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -146,26 +150,26 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
 
   const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
-    queryKey: ['suppliers-all'],
-    queryFn: () => suppliersService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['suppliers-all', debouncedDropdownSearch],
+    queryFn: () => suppliersService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
   })
   const suppliers = (suppliersData as any)?.data ?? []
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', debouncedDropdownSearch],
+    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes],
+    queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
             include: 'product,uom,product.product_category',
@@ -235,12 +239,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       watchType === 'supplier' && !!watchSupplierId && watchSupplierId > 0,
     queryFn: () =>
       purchaseOrdersService
-        .list({
+        .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
           'filter[supplier_id]': watchSupplierId,
           include: 'purchase_order_details',
           sort: '-date',
           per_page: 50,
-        } as any)
+         } as any)
         .then((r) => r.data),
   })
   const supplierPOs = (historyData as any)?.data ?? []
@@ -350,6 +354,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
 
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (values.type === 'supplier' && !values.supplier_id) {
       setError('supplier_id', { message: 'Supplier is required' })
       return
@@ -628,7 +636,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       searchPlaceholder="Search suppliers..."
                       loading={suppliersLoading}
                       error={errors.supplier_id?.message as string | undefined}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               </div>
@@ -654,7 +663,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.supplier_branch_id?.message as string | undefined}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               </div>
@@ -857,7 +867,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         | string
                         | undefined
                       }
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               </div>

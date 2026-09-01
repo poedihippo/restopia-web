@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { formatterIDR } from "@/helper/convertCurrency";
 import { format } from "date-fns";
-import { useCallback, useMemo } from "react";
+import {useEffect, useState,  useCallback, useMemo } from "react";
 import { ProductInventoriesModal } from "./Modal/ProductInventoriesModal";
 import useProductInventories from "./useProductInventories";
 import usePermission from "@/hooks/usePermission";
@@ -31,6 +31,9 @@ import { StockMovementModal } from "../StockMovement/Modal/StockMovementModal";
 import Link from "next/link";
 
 const ProductInventories = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const {
     productInventories,
     products,
@@ -217,7 +220,8 @@ const ProductInventories = () => {
                 handleProductChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
             <SearchableSelect
               key={`branch-${filterKey}`}
               isClearable
@@ -229,7 +233,8 @@ const ProductInventories = () => {
                 handleBranchChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
 
             <Popover>
               <PopoverTrigger asChild>

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,6 +28,9 @@ interface DetailRowProps {
 }
 
 const DetailRow = ({ control, index, onRemove, excludeProductsIds }: DetailRowProps) => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { data: productData, isLoading: isLoadingProduct } =
     useGetProductList(
       {
@@ -87,7 +91,8 @@ const DetailRow = ({ control, index, onRemove, excludeProductsIds }: DetailRowPr
                       selected ? (selected as { value: number }).value : null,
                     );
                   }}
-                />
+                  onSearchChange={setDropdownSearch}
+/>
                 {fieldState.error && (
                   <p className="text-destructive text-sm">
                     {fieldState.error.message}
@@ -127,7 +132,8 @@ const DetailRow = ({ control, index, onRemove, excludeProductsIds }: DetailRowPr
                       selected ? (selected as { value: number }).value : null,
                     );
                   }}
-                />
+                  onSearchChange={setDropdownSearch}
+/>
                 {fieldState.error && (
                   <p className="text-destructive text-sm">
                     {fieldState.error.message}
@@ -191,6 +197,10 @@ export const RecipesModal = ({
   fields,
   remove
 }: Props) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
   const isEdit = mode === "edit";
 
   const { data: productData, isLoading: isLoadingProduct } = useGetProductList({
@@ -249,7 +259,8 @@ export const RecipesModal = ({
                             : null,
                         );
                       }}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
                         {fieldState.error.message}

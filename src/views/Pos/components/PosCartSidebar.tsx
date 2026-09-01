@@ -136,6 +136,10 @@ export default function PosCartSidebar({
   paymentMethodsLoading = false,
   paymentMethods = [],
 }: PosCartSidebarProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const [orderDetailsOpen, setOrderDetailsOpen] = useState(false)
   const [lotPickerFor, setLotPickerFor] = useState<number | null>(null)
   const customerDropdownRef = useRef<HTMLDivElement>(null)
@@ -168,6 +172,10 @@ export default function PosCartSidebar({
   }, [setShowCustomerDropdown])
 
   const changeCartLot = (currentInventoryId: number, targetLot: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     // You will need to bring the changeCartLot logic here, or pass it via props.
     // Assuming for now it's passed or simplified:
     // This is part of the logic that the user can learn to implement.
@@ -606,7 +614,8 @@ export default function PosCartSidebar({
                   placeholder="Select voucher..."
                   searchPlaceholder="Search voucher..."
                   loading={vouchersLoadingQuery}
-                />
+                  onSearchChange={setDropdownSearch}
+/>
               </div>
               <button
                 type="button"

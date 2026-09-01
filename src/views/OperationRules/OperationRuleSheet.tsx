@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -29,6 +29,10 @@ interface OperationRuleSheetProps {
 }
 
 export default function OperationRuleSheet({ open, onClose, editData }: OperationRuleSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { user, isSuperadmin } = useAuth()
   const qc = useQueryClient()
 
@@ -103,6 +107,10 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
   })
 
   const onSubmit = (data: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (editData) updateMutation.mutate(data)
     else createMutation.mutate(data)
   }
@@ -140,7 +148,8 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
                     searchPlaceholder="Search branch..."
                     loading={branchesLoading}
                     error={errors.branch_id?.message as string | undefined}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 )}
               />
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}

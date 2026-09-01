@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useState,  useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -34,6 +34,10 @@ export default function ProductUomBatchSheet({
   onClose,
   batchId,
 }: ProductUomBatchSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const isEdit = !!batchId
 
@@ -67,7 +71,7 @@ export default function ProductUomBatchSheet({
 
   // Create mode — product UOMs for the picker (paginate all pages)
   const { data: puData, isLoading: puLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes],
+    queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
     enabled: open,
     queryFn: async () => {
       let all: any[] = []
@@ -75,7 +79,7 @@ export default function ProductUomBatchSheet({
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page: p, per_page: 100, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page: p, per_page: 100, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
           .then((r) => r.data)
         all = all.concat((res as any)?.data ?? [])
         totalPages =
@@ -160,6 +164,10 @@ export default function ProductUomBatchSheet({
   const isPending = createMutation.isPending || updateMutation.isPending
 
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     if (isEdit) updateMutation.mutate(values)
     else createMutation.mutate(values)
   }
@@ -312,7 +320,8 @@ export default function ProductUomBatchSheet({
                       searchPlaceholder="Search product UOM..."
                       loading={puLoading}
                       error={errors.product_uom_id?.message}
-                    />
+                      onSearchChange={setDropdownSearch}
+/>
                   )}
                 />
               </div>

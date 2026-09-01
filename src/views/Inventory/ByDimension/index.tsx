@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import api from '@/hooks/useApi'
 import { companiesService } from '@/services/companies.service'
@@ -77,6 +77,10 @@ const amountCellStyle: React.CSSProperties = {
 }
 
 export default function InventoryByDimensionView() {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { hasPermission, isSuperadmin } = useAuth()
   const canRead = isSuperadmin || hasPermission('product-inventory.read')
 
@@ -85,9 +89,9 @@ export default function InventoryByDimensionView() {
   const [stageFilter, setStageFilter] = useState<string>('')
 
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all'],
+    queryKey: ['companies-all', debouncedDropdownSearch],
     enabled: canRead,
-    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100  } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const ownerOptions = [
@@ -97,7 +101,7 @@ export default function InventoryByDimensionView() {
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all'],
+    queryKey: ['stages-all', debouncedDropdownSearch],
     enabled: canRead,
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
@@ -207,7 +211,8 @@ export default function InventoryByDimensionView() {
                     placeholder="Semua owner..."
                     searchPlaceholder="Cari perusahaan..."
                     loading={companiesLoading}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 260 }}>
@@ -219,7 +224,8 @@ export default function InventoryByDimensionView() {
                     placeholder="Semua stage..."
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
-                  />
+                    onSearchChange={setDropdownSearch}
+/>
                 </div>
               )}
             </div>

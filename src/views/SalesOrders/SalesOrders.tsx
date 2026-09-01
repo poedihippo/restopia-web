@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useEffect,  useState,  useCallback, useMemo } from 'react'
 import useSalesOrders from './useSalesOrders'
 import { Column, DataTable } from '@/components/ui/data-table';
 import { ISalesOrder } from '@/@types/sales-orders';
@@ -14,6 +14,9 @@ import { DeleteConfirmModal } from '@/components/ui/delete-confirm-modal';
 import usePermission from '@/hooks/usePermission';
 
 const SalesOrders = () => {
+    const [dropdownSearch, setDropdownSearch] = useState('')
+    const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+    useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
     const {
         salesOrders,
         branches,
@@ -162,7 +165,8 @@ const SalesOrders = () => {
                                 handleBranchChange(option?.value);
                             }}
                             className="w-full sm:w-60"
-                        />
+                          onSearchChange={setDropdownSearch}
+/>
                         <SearchableSelect
                             key={`voucher-${filterKey}`}
                             isClearable
@@ -174,7 +178,8 @@ const SalesOrders = () => {
                                 handleVoucherChange(option?.value);
                             }}
                             className="w-full sm:w-60"
-                        />
+                          onSearchChange={setDropdownSearch}
+/>
                         <SearchableSelect
                             key={`customer-${filterKey}`}
                             isClearable
@@ -186,7 +191,8 @@ const SalesOrders = () => {
                                 handleCustomerChange(option?.value);
                             }}
                             className="w-full sm:w-60"
-                        />
+                          onSearchChange={setDropdownSearch}
+/>
 
 
                         <Popover>

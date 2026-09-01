@@ -8,11 +8,14 @@ import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Input } from "@/components/ui/input";
 import { IRecipe } from "@/@types/recipes";
-import { useCallback, useMemo } from "react";
+import {useEffect, useState,  useCallback, useMemo } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
 const Recipes = () => {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const {
     recipes,
     products,
@@ -121,7 +124,8 @@ const Recipes = () => {
                 handleProductChange(option?.value);
               }}
               className="w-full sm:w-60"
-            />
+              onSearchChange={setDropdownSearch}
+/>
           </div>
           {(<Button
             onClick={() => createModal.openModal()}

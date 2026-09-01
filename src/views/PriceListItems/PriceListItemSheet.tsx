@@ -37,6 +37,10 @@ interface PriceListItemSheetProps {
 }
 
 export default function PriceListItemSheet({ priceListId, open, onClose, editData }: PriceListItemSheetProps) {
+
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canReadFranchisePrice = hasPermission('common.franchise-price.read')
@@ -81,6 +85,10 @@ export default function PriceListItemSheet({ priceListId, open, onClose, editDat
   })
 
   const onSubmit = (values: FormValues) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     upsertMutation.mutate(values)
   }
 
@@ -156,7 +164,8 @@ export default function PriceListItemSheet({ priceListId, open, onClose, editDat
                           })) ?? []}
                         value={field.value ?? 0}
                         onChange={field.onChange}
-                      />
+                        onSearchChange={setDropdownSearch}
+/>
                       {fieldState.error && <p className="text-destructive text-xs">{fieldState.error.message}</p>}
                     </>
                   )}

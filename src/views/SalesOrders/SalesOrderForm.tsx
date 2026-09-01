@@ -46,6 +46,9 @@ interface LineItem {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SalesOrderForm({ editingOrder }: { editingOrder?: any }): React.ReactElement {
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const router = useRouter()
   const qc = useQueryClient()
   const isEdit = !!editingOrder
@@ -226,8 +229,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const bundles = (bundleData as any)?.data ?? []
 
   const { data: taxesData } = useQuery({
-    queryKey: ['taxes-all'],
-    queryFn: () => taxesService.list({ per_page: 50 }).then((r) => r.data),
+    queryKey: ['taxes-all', debouncedDropdownSearch],
+    queryFn: () => taxesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 50 }).then((r) => r.data),
   })
   const taxes = (taxesData as any)?.data ?? []
 
@@ -284,13 +287,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         let inventories: any[] = []
         if (batches.length > 0) {
           const invPromises = batches.map((b: any) =>
-            productInventoriesService.list({
+            productInventoriesService.list({ 'filter[search]': debouncedDropdownSearch || undefined, 
               'filter[product_uom_batch_id]': b.id,
               'filter[branch_id]': po.branch_id,
               'filter[status]': 'active',
               include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
               per_page: 1,
-            } as any)
+             } as any)
           )
           const invResponses = await Promise.all(invPromises)
           inventories = invResponses.flatMap(res => (res.data as any)?.data ?? [])
@@ -400,6 +403,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   }, [])
 
   const updateItem = (idx: number, field: keyof LineItem, value: any) => {
+  const [dropdownSearch, setDropdownSearch] = useState('');
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)))
   }
 
@@ -665,7 +672,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 ]}
                 placeholder="Search user..."
                 searchPlaceholder="Search users..."
-              />
+                onSearchChange={setDropdownSearch}
+/>
               <span
                 style={{
                   fontSize: 11,
