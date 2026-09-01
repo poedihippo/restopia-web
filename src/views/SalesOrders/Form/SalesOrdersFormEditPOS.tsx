@@ -166,7 +166,7 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
   const [isNewCustomer, setIsNewCustomer] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000)
+  const [perPage, setPerPage] = useState<number>(20)
   const cartRef = useRef<HTMLDivElement>(null)
   const watchAll = form.watch()
 

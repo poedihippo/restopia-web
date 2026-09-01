@@ -153,7 +153,7 @@ export default function StockMovementView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000)
+  const [perPage, setPerPage] = useState<number>(20)
   const [directionFilter, setDirectionFilter] = useState<'' | 'in' | 'out'>('')
   const [productId, setProductId] = useState<number>(0)
   const [productSearch, setProductSearch] = useState('')

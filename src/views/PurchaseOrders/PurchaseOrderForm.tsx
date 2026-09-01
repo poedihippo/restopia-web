@@ -43,6 +43,7 @@ const detailSchema = z.object({
   price: z.coerce.number().min(0, 'Price required'),
   description: z.string().optional(),
   is_price_locked: z.boolean().optional(),
+  is_taxable: z.boolean().optional(),
 })
 
 const schema = z.object({
@@ -59,10 +60,10 @@ const schema = z.object({
   additional_charges: z.array(z.object({
     name: z.string().min(1, 'Name required'),
     amount: z.coerce.number().min(0, 'Amount must be >= 0'),
-    tax_id: z.coerce.number().optional(),
     description: z.string().optional(),
   })).optional(),
   type: z.string().min(1, 'Type is required'),
+  tax_id: z.coerce.number().optional(),
   total_price: z.coerce.number().optional(),
 })
 
@@ -105,9 +106,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       fulfillment_date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
-      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true }],
+      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: true }],
       additional_charges: [],
       type: 'supplier',
+      tax_id: undefined,
       total_price: 0,
     },
   })
@@ -120,18 +122,27 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const watchDetails = watch('details')
   const watchSupplierId = watch('supplier_id')
   const watchAdditionalCharges = watch('additional_charges') || []
-
-  const subtotal = watchDetails.reduce((sum, d) => sum + Number(d.qty || 0) * Number(d.price || 0), 0)
-  const additionalChargesTotal = watchAdditionalCharges.reduce((sum, c) => sum + Number(c.amount || 0), 0)
-  const totalPrice = subtotal + additionalChargesTotal
-
-  const activeProductTypes = useActiveBranchProductTypes()
+  const watchTaxId = watch('tax_id')
 
   const { data: taxesData } = useQuery({
     queryKey: ['taxes'],
     queryFn: () => taxesService.list({ per_page: 50 }).then((r) => r.data),
   })
   const taxes = (taxesData as any)?.data ?? []
+
+  const selectedTax = taxes.find((t: any) => t.id === watchTaxId)
+  const taxRate = selectedTax?.rate ?? 0
+
+  const taxableSubtotal = watchDetails.reduce((sum, d) => sum + (d.is_taxable !== false ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
+  const nonTaxableSubtotal = watchDetails.reduce((sum, d) => sum + (d.is_taxable === false ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
+  const subtotal = taxableSubtotal + nonTaxableSubtotal
+  const taxAmount = (taxableSubtotal * taxRate) / 100
+  const additionalChargesTotal = watchAdditionalCharges.reduce((sum, c) => sum + Number(c.amount || 0), 0)
+  const totalPrice = subtotal + taxAmount + additionalChargesTotal
+
+  const activeProductTypes = useActiveBranchProductTypes()
+
+
 
 
   const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
@@ -198,7 +209,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       } else {
         const product = productUoms.find((p: any) => p.id === id)
         const price = product?.base_price ?? 0
-        finalDetails.push({ product_uom_id: id, qty, price, description: '', is_price_locked: true })
+        finalDetails.push({ product_uom_id: id, qty, price, description: '', is_price_locked: true, is_taxable: true })
       }
     })
 
@@ -207,7 +218,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     )
 
     if (cleanedDetails.length === 0) {
-      cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true })
+      cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: true })
     }
 
     setValue('details', cleanedDetails, { shouldDirty: true, shouldValidate: true })
@@ -297,6 +308,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     fulfillment_date: values.fulfillment_date ? new Date(values.fulfillment_date).toISOString().split('T')[0] : undefined,
     total_price: totalPrice,
     type: values.type,
+    tax_id: values.tax_id,
     supplier_id:
       values.type === 'supplier' ? values.supplier_id || undefined : undefined,
     supplier_branch_id:
@@ -307,6 +319,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         product_uom_id: d.product_uom_id,
         qty: d.qty,
         price: d.price,
+        is_taxable: d.is_taxable,
         description: d.description || undefined,
       })),
   })
@@ -754,7 +767,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               <button
                 type="button"
                 onClick={() =>
-                  append({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true })
+                  append({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: true })
                 }
                 style={{
                   padding: '6px 12px',
@@ -779,14 +792,14 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 1fr 40px',
+              gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 80px 1fr 40px',
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
           >
-            {(watchType === 'branch' ? ['Product / UOM', 'Qty', 'Notes', ''] : ['Product / UOM', 'Qty', 'Unit Price', 'Notes', '']).map((h, i) => (
+            {(watchType === 'branch' ? ['Product / UOM', 'Qty', 'Notes', ''] : ['Product / UOM', 'Qty', 'Unit Price', 'Taxable', 'Notes', '']).map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -795,6 +808,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   color: 'var(--foreground-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
+                  textAlign: h === 'Taxable' ? 'center' : 'left',
                 }}
               >
                 {h}
@@ -808,7 +822,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 1fr 40px',
+                gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 80px 1fr 40px',
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
@@ -933,6 +947,17 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 </div>
               )}
 
+              {/* Taxable Checkbox */}
+              {watchType !== 'branch' && (
+                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
+                  <input
+                    type="checkbox"
+                    {...register(`details.${index}.is_taxable`)}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }}
+                  />
+                </div>
+              )}
+
               {/* Description */}
               <input
                 {...register(`details.${index}.description`)}
@@ -962,82 +987,78 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           ))}
 
           {/* Additional Charges */}
-          <div style={{ marginTop: 32, marginBottom: 16 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)', marginBottom: 12 }}>
-              Additional Charges
-            </h3>
-            {chargeFields.map((field, index) => (
-              <div key={field.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr 40px', gap: 10, marginBottom: 8, alignItems: 'start' }}>
-                <div>
-                  <input
-                    {...register(`additional_charges.${index}.name`)}
-                    placeholder="Charge Name *"
-                    style={lineInputStyle}
-                  />
-                  {errors.additional_charges?.[index]?.name && (
-                    <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{errors.additional_charges[index].name.message}</span>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    min="0"
-                    {...register(`additional_charges.${index}.amount`, { valueAsNumber: true })}
-                    placeholder="Amount *"
-                    style={lineInputStyle}
-                  />
-                  {errors.additional_charges?.[index]?.amount && (
-                    <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{errors.additional_charges[index].amount.message}</span>
-                  )}
-                </div>
-                <Controller
-                  name={`additional_charges.${index}.tax_id`}
-                  control={control}
-                  render={({ field: f }) => (
-                    <select
-                      value={f.value || ''}
-                      onChange={(e) => f.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                      style={lineInputStyle}
+          <div style={{ marginTop: 24, marginBottom: 16, padding: '0 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)', letterSpacing: '0.5px', margin: 0, textTransform: 'uppercase' }}>
+                Additional Charges
+              </h3>
+              <button
+                type="button"
+                onClick={() => appendCharge({ name: '', amount: 0 })}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 12px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Plus size={14} /> Add Charge
+              </button>
+            </div>
+            {chargeFields.length > 0 && (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {chargeFields.map((field, index) => (
+                  <div key={field.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <div style={{ flex: 2 }}>
+                      <input
+                        {...register(`additional_charges.${index}.name`)}
+                        placeholder="Charge Name *"
+                        style={lineInputStyle}
+                      />
+                      {errors.additional_charges?.[index]?.name && (
+                        <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{errors.additional_charges[index].name.message}</span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1.5 }}>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--foreground-muted)' }}>Rp</span>
+                        <input
+                          type="number"
+                          min="0"
+                          {...register(`additional_charges.${index}.amount`, { valueAsNumber: true })}
+                          placeholder="Amount *"
+                          style={{ ...lineInputStyle, paddingLeft: 32 }}
+                        />
+                      </div>
+                      {errors.additional_charges?.[index]?.amount && (
+                        <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{errors.additional_charges[index].amount.message}</span>
+                      )}
+                    </div>
+                    <div style={{ flex: 2 }}>
+                      <input
+                        {...register(`additional_charges.${index}.description`)}
+                        placeholder="Optional Note"
+                        style={lineInputStyle}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeCharge(index)}
+                      style={{ padding: '8px 6px', background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer' }}
                     >
-                      <option value="">No Tax</option>
-                      {taxes.map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
-                      ))}
-                    </select>
-                  )}
-                />
-                <input
-                  {...register(`additional_charges.${index}.description`)}
-                  placeholder="Optional Note"
-                  style={lineInputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeCharge(index)}
-                  style={{ padding: 8, background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer' }}
-                >
-                  <Trash2 size={16} />
-                </button>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => appendCharge({ name: '', amount: 0 })}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 12px',
-                border: '1px dashed var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                background: 'transparent',
-                color: 'var(--foreground-muted)',
-                fontSize: 13,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={14} /> Add Charge
-            </button>
+            )}
           </div>
 
           {/* Total row */}
@@ -1059,10 +1080,37 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 <span>Subtotal:</span>
                 <span><PriceDisplay amount={subtotal} prefix="Rp " /></span>
               </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
-                <span>Additional Charges:</span>
-                <span><PriceDisplay amount={additionalChargesTotal} prefix="Rp " /></span>
+              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)', alignItems: 'center' }}>
+                <span>Tax:</span>
+                <Controller
+                  name="tax_id"
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      style={{ ...selectStyle, padding: '4px 8px', width: 'auto', flex: 1, minWidth: 150 }}
+                    >
+                      <option value="">No Tax</option>
+                      {taxes.map((t: any) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                      ))}
+                    </select>
+                  )}
+                />
               </div>
+              {taxAmount > 0 && (
+                <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  <span>Tax Amount:</span>
+                  <span><PriceDisplay amount={taxAmount} prefix="Rp " /></span>
+                </div>
+              )}
+              {additionalChargesTotal > 0 && (
+                <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  <span>Additional Charges:</span>
+                  <span><PriceDisplay amount={additionalChargesTotal} prefix="Rp " /></span>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
                 <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
                 <span

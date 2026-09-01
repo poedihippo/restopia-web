@@ -92,7 +92,7 @@ export default function PurchaseOrdersView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'delivered' | 'rejected' | 'partially_delivered'>('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -455,6 +455,11 @@ export default function PurchaseOrdersView() {
                       (e.currentTarget.style.background = 'transparent')
                     }
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                        {(page - 1) * perPage + idx + 1}
+                      </span>
+                    </td>
                     <td style={tdStyle}>
                       <span
                         style={{

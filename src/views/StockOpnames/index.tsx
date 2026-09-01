@@ -45,7 +45,7 @@ export default function StockOpnamesView() {
   const canRead = hasPermission('product-inventory.menu')
 
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000)
+  const [perPage, setPerPage] = useState<number>(20)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 

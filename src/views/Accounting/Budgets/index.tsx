@@ -61,7 +61,7 @@ export default function BudgetsView() {
   const canUpdate = isSuperadmin || hasPermission('budget.update')
   const canDelete = isSuperadmin || hasPermission('budget.delete')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Budget | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)

@@ -47,7 +47,7 @@ export default function StockTransferView() {
   const [activeTab, setActiveTab] = useState<'out' | 'in'>('out')
   const [showOutForm, setShowOutForm] = useState(false)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
   const deleteMutation = useMutation({

@@ -88,7 +88,7 @@ export default function InternalOrdersView() {
   const [dateTo, setDateTo] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
 
   useEffect(() => {
     setPage(1)

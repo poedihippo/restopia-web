@@ -95,7 +95,7 @@ export default function TransactionHistoryReport() {
   const [hasSetDefault, setHasSetDefault] = useState(false)
   const [typeFilter, setTypeFilter] = useState<'' | 'offline' | 'online'>('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {

@@ -139,7 +139,7 @@ export default function SalesByInvoiceReport() {
   const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState<boolean>(false)
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000)
+  const [perPage, setPerPage] = useState<number>(20)
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {

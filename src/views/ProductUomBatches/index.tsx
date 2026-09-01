@@ -102,7 +102,7 @@ export default function ProductUomBatchesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000)
+  const [perPage, setPerPage] = useState<number>(20)
   const [productUomFilter, setProductUomFilter] = useState(0)
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [typeFilter, setTypeFilter] = useState<string | ''>('')

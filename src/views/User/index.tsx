@@ -59,7 +59,7 @@ export default function UsersView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [typeFilter, setTypeFilter] = useState<'' | 'superadmin' | 'user'>('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<User | null>(null)

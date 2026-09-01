@@ -100,7 +100,7 @@ export default function JournalsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Journal | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)

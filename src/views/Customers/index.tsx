@@ -18,7 +18,7 @@ export default function CustomersView() {
   const canEdit = hasPermission('customer.update');
   const canDelete = hasPermission('customer.delete');
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000);
+  const [perPage, setPerPage] = useState<number>(20);
   const [search, setSearch] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);

@@ -96,7 +96,7 @@ export default function RequestedOrdersView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'delivered' | 'rejected' | 'partially_delivered'>('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [acceptModalPO, setAcceptModalPO] = useState<RequestedPO | null>(null)

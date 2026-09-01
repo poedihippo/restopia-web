@@ -55,7 +55,7 @@ export default function RecipesView() {
   const canDelete = hasPermission('recipe.delete')
 
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [productUomFilter, setProductUomFilter] = useState<number | ''>('')

@@ -41,7 +41,7 @@ export default function CompaniesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Company | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)

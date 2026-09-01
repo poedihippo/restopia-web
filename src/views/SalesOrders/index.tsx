@@ -48,7 +48,7 @@ export default function SalesOrdersView() {
   const canEdit = hasPermission('sales-order.update')
   const canDelete = hasPermission('sales-order.delete')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
   const [statusFilter, setStatusFilter] = useState('')

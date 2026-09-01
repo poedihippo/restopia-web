@@ -65,7 +65,7 @@ export default function InvoicesView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)

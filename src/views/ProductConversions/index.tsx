@@ -46,7 +46,7 @@ export default function ProductConversionsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000)
+  const [perPage, setPerPage] = useState<number>(20)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductConversion | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)

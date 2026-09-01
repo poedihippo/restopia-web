@@ -55,7 +55,7 @@ export default function VouchersView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
   const [discountTypeFilter, setDiscountTypeFilter] = useState<'' | 'percent' | 'fixed'>('')
   const [sheetOpen, setSheetOpen] = useState(false)

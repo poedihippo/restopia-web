@@ -12,7 +12,7 @@ export default function AuditLogsView() {
   const canRead = hasPermission("audit-log.read") || isSuperadmin;
   
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(1000)
+  const [perPage, setPerPage] = useState(20)
   const [selectedItem, setSelectedItem] = useState<any | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')

@@ -95,7 +95,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(1000)
+  const [perPage, setPerPage] = useState<number>(20)
   const [stockGte, setStockGte] = useState<string>('')
   const [stockLte, setStockLte] = useState<string>('')
   const [expiryDateGte, setExpiryDateGte] = useState<string>('')

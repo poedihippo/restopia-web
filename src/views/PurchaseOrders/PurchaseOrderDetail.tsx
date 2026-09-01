@@ -160,7 +160,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const details = order?.purchase_order_details ?? []
+  const details = (order?.purchase_order_details as any[]) ?? []
   const statusMeta = STATUS_META[order?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
 
   // Print document party resolution: a supplier PO sources from a supplier;
@@ -818,7 +818,14 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                   {index + 1}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                  {detail.product_uom?.product?.name ?? `Item #${detail.product_uom_id ?? detail.id}`}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {detail.product_uom?.product?.name ?? `Item #${detail.product_uom_id ?? detail.id}`}
+                    {detail.is_taxable && (
+                      <span style={{ fontSize: 10, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--foreground-muted)' }}>
+                        Taxable
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={pillStyle}>
@@ -885,10 +892,21 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                 Subtotal
               </td>
               <td style={{ padding: '14px 16px', fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
-                {formatCurrency(details.reduce((sum, d) => sum + (d.qty * d.price), 0))}
+                {formatCurrency((order as any).subtotal_price ?? details.reduce((sum, d) => sum + (d.qty * d.price), 0))}
               </td>
               <td style={{ padding: '14px 16px' }} />
             </tr>
+            {Number((order as any).tax_amount) > 0 && (
+              <tr style={{ background: 'var(--background)' }}>
+                <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  Tax
+                </td>
+                <td style={{ padding: '6px 16px', fontSize: 13, color: 'var(--foreground)' }}>
+                  {formatCurrency((order as any).tax_amount)}
+                </td>
+                <td style={{ padding: '6px 16px' }} />
+              </tr>
+            )}
             {(order?.additional_charges || []).map((c: any, i: number) => (
               <tr key={i} style={{ background: 'var(--background)' }}>
                 <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -1122,6 +1140,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
                     {d.product_uom?.product?.name ?? `Item #${d.product_uom_id ?? d.id}`}
                     {d.product_uom?.uom?.name ? ` (${d.product_uom.uom.name})` : ''}
+                    {d.is_taxable && <span style={{ fontSize: '8pt', color: '#666', marginLeft: 4 }}>(Taxable)</span>}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', color: '#444' }}>
                     {d.qty.toLocaleString('id-ID')}
@@ -1148,9 +1167,19 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                     Subtotal
                   </td>
                   <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    {`Rp ${details.reduce((sum, d) => sum + (Number(d.qty ?? 0) * Number(d.price ?? 0)), 0).toLocaleString('id-ID')}`}
+                    {`Rp ${Number((order as any).subtotal_price ?? details.reduce((sum, d) => sum + (Number(d.qty ?? 0) * Number(d.price ?? 0)), 0)).toLocaleString('id-ID')}`}
                   </td>
                 </tr>
+                {Number((order as any).tax_amount) > 0 && (
+                  <tr>
+                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>
+                      Tax
+                    </td>
+                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', color: '#5c3a21' }}>
+                      {`Rp ${Number((order as any).tax_amount).toLocaleString('id-ID')}`}
+                    </td>
+                  </tr>
+                )}
                 {(order?.additional_charges || []).map((c: any, i: number) => (
                   <tr key={i}>
                     <td style={{ padding: '2px 0', fontSize: '9pt', color: '#5c3a21' }}>
