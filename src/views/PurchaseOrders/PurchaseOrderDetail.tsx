@@ -896,17 +896,15 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               </td>
               <td style={{ padding: '14px 16px' }} />
             </tr>
-            {Number((order as any).tax_amount) > 0 && (
-              <tr style={{ background: 'var(--background)' }}>
-                <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  Tax
-                </td>
-                <td style={{ padding: '6px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                  {formatCurrency((order as any).tax_amount)}
-                </td>
-                <td style={{ padding: '6px 16px' }} />
-              </tr>
-            )}
+            <tr style={{ background: 'var(--background)' }}>
+                  <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    Tax
+                  </td>
+                  <td style={{ padding: '6px 16px', fontSize: 13, color: 'var(--foreground)' }}>
+                    {formatCurrency((order as any).tax_amount ?? 0)}
+                  </td>
+                  <td style={{ padding: '6px 16px' }} />
+                </tr>
             {(order?.additional_charges || []).map((c: any, i: number) => (
               <tr key={i} style={{ background: 'var(--background)' }}>
                 <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -1170,16 +1168,14 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                     {`Rp ${Number((order as any).subtotal_price ?? details.reduce((sum, d) => sum + (Number(d.qty ?? 0) * Number(d.price ?? 0)), 0)).toLocaleString('id-ID')}`}
                   </td>
                 </tr>
-                {Number((order as any).tax_amount) > 0 && (
-                  <tr>
-                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>
-                      Tax
-                    </td>
-                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', color: '#5c3a21' }}>
-                      {`Rp ${Number((order as any).tax_amount).toLocaleString('id-ID')}`}
-                    </td>
-                  </tr>
-                )}
+                <tr>
+                      <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>
+                        Tax
+                      </td>
+                      <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', color: '#5c3a21' }}>
+                        {`Rp ${Number((order as any).tax_amount ?? 0).toLocaleString('id-ID')}`}
+                      </td>
+                    </tr>
                 {(order?.additional_charges || []).map((c: any, i: number) => (
                   <tr key={i}>
                     <td style={{ padding: '2px 0', fontSize: '9pt', color: '#5c3a21' }}>
@@ -1255,3 +1251,4 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
     </div>
   )
 }
+

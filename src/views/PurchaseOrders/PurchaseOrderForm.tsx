@@ -172,7 +172,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
-            include: 'product,uom,product.product_category',
+            include: 'product,uom',
             'filter[product_types]': activeProductTypes,
           } as any)
           .then((r) => r.data)
@@ -354,10 +354,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
 
   const onSubmit = (values: FormValues) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
-
     if (values.type === 'supplier' && !values.supplier_id) {
       setError('supplier_id', { message: 'Supplier is required' })
       return
@@ -1110,12 +1106,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   )}
                 />
               </div>
-              {taxAmount > 0 && (
-                <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
+              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
                   <span>Tax Amount:</span>
                   <span><PriceDisplay amount={taxAmount} prefix="Rp " /></span>
                 </div>
-              )}
               {additionalChargesTotal > 0 && (
                 <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
                   <span>Additional Charges:</span>
@@ -1211,3 +1205,4 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     </div>
   )
 }
+

@@ -74,7 +74,7 @@ export default function StockOpnameForm() {
         .list({
           page: 1,
           per_page: 500,
-          include: 'product_uom,product_uom.product,product_uom.product.product_category,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.product.product_category',
+          include: 'product_uom,product_uom.product,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
           'filter[branch_id]': branchId === '' ? undefined : String(branchId),
           'filter[search]': debouncedSearch || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),

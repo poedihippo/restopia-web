@@ -92,7 +92,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
           .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
             page,
             per_page: 100,
-            include: 'product,uom,product.product_category',
+            include: 'product,uom',
             'filter[product_types]': activeProductTypes,
            } as any)
           .then((r) => r.data)

@@ -150,7 +150,7 @@ export default function ProductUomsView() {
           page,
           per_page: perPage,
           sort: '-id',
-          include: 'product,uom,product.product_category',
+          include: 'product,uom',
           'filter[search]': debouncedSearch || undefined,
           'filter[resolve_price]': resolvePrice ? 'true' : undefined,
           'filter[product_types]': activeProductTypes,

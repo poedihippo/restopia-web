@@ -59,7 +59,7 @@ export default function PriceListItemSheet({ priceListId, open, onClose, editDat
   })
 
   const activeProductTypes = useActiveBranchProductTypes()
-  const { data: productUomData, isLoading: isLoadingProductUom } = useGetProductUomsList({ include: 'product,uom,product.product_category' }, { enabled: open })
+  const { data: productUomData, isLoading: isLoadingProductUom } = useGetProductUomsList({ include: 'product,uom' }, { enabled: open })
 
   useEffect(() => {
     if (open) {

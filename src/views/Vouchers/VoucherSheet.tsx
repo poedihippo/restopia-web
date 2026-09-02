@@ -138,7 +138,7 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
   const { data: productUomsData } = useQuery({
     queryKey: ['product-uoms-list', activeProductTypes],
     queryFn: async () => {
-      const res = await productUomsService.list({ per_page: 100, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
+      const res = await productUomsService.list({ per_page: 100, include: 'product,uom', 'filter[product_types]': activeProductTypes } as any)
       return (res.data as any)?.data || []
     }
   })

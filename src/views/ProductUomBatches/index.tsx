@@ -22,7 +22,7 @@ import {
 } from 'lucide-react'
 
 const INCLUDE =
-  'product_uom,product_uom.product,product_uom.product.product_category,product_uom.uom,created_by'
+  'product_uom,product_uom.product,product_uom.uom,created_by'
 const PER_PAGE = 20
 
 function formatDate(v?: string | null): string {
@@ -158,7 +158,7 @@ export default function ProductUomBatchesView() {
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page: p, per_page: perPage, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
+          .list({ page: p, per_page: perPage, include: 'product,uom', 'filter[product_types]': activeProductTypes } as any)
           .then((r) => r.data)
         all = all.concat((res as any)?.data ?? [])
         totalPages =

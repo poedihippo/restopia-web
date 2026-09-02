@@ -434,6 +434,9 @@ export default function ProductionsView() {
                   onMouseEnter={() => setHoveredRow(item.id)}
                   onMouseLeave={() => setHoveredRow(null)}
                 >
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span
                       style={{

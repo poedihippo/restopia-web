@@ -133,7 +133,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
       setIsExporting(true)
       const response = await productInventoriesService.exportExcel({
         'filter[search]': debouncedSearch || undefined,
-        'filter[product_types]': activeProductTypes,
+        'filter[product_type]': activeProductTypes,
       })
 
       const blob = new Blob([response.data], {
@@ -178,13 +178,13 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           page,
           per_page: perPage,
           sort: '-id',
-          include: 'branch,product_uom_batch',
+          include: 'branch,product_uom_batch,product_uom,product,uom',
           'filter[search]': debouncedSearch || undefined,
           'filter[stock_gte]': debouncedStockGte || undefined,
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-          'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+          'filter[product_type]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
         } as any)
         .then((r) => r.data),
   })
@@ -196,7 +196,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     queryKey: ['product-uoms-all', activeProductTypes],
     queryFn: () =>
       productUomsService
-        .list({ per_page: perPage, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
+        .list({ per_page: perPage, include: 'product,uom', 'filter[product_types]': activeProductTypes } as any)
         .then((r) => r.data),
   })
   const productUomsAll = (puData as any)?.data ?? []

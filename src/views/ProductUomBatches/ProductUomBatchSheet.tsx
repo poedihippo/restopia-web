@@ -14,7 +14,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2 } from 'lucide-react'
 
 const INCLUDE =
-  'product_uom,product_uom.product,product_uom.product.product_category,product_uom.uom,created_by'
+  'product_uom,product_uom.product,product_uom.uom,created_by'
 
 const schema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Product UOM is required'),
@@ -79,7 +79,7 @@ export default function ProductUomBatchSheet({
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page: p, per_page: 100, include: 'product,uom,product.product_category', 'filter[product_types]': activeProductTypes } as any)
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page: p, per_page: 100, include: 'product,uom', 'filter[product_types]': activeProductTypes } as any)
           .then((r) => r.data)
         all = all.concat((res as any)?.data ?? [])
         totalPages =

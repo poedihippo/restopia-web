@@ -1174,16 +1174,27 @@ export default function SalesOrderDetail() {
                     <span>Rp {Number(c.amount ?? 0).toLocaleString('id-ID')}</span>
                   </div>
                 ))}
-                {discount > 0 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: 8,
-                      fontSize: 14,
-                    }}
-                  >
-                    <span style={{ color: 'var(--foreground-muted)' }}>Discount</span>
+                <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: 8,
+                        fontSize: 14,
+                      }}
+                    >
+                      <span style={{ color: 'var(--foreground-muted)' }}>Tax</span>
+                      <span>Rp {Number((order as any)?.tax_amount ?? 0).toLocaleString('id-ID')}</span>
+                    </div>
+                  {discount > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: 8,
+                        fontSize: 14,
+                      }}
+                    >
+                      <span style={{ color: 'var(--foreground-muted)' }}>Discount</span>
                     <span style={{ color: 'var(--success)' }}>
                       - Rp {discount.toLocaleString('id-ID')}
                     </span>
@@ -1395,9 +1406,13 @@ export default function SalesOrderDetail() {
                     </td>
                   </tr>
                 ))}
-                {discount > 0 && (
-                  <tr>
-                    <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Discount</td>
+                <tr>
+                      <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Tax</td>
+                      <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 500 }}>{formatCurrency((order as any)?.tax_amount ?? 0)}</td>
+                    </tr>
+                  {discount > 0 && (
+                    <tr>
+                      <td style={{ padding: '6px 0', fontSize: '10pt', color: '#555' }}>Discount</td>
                     <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', color: '#e11d48', fontWeight: 500 }}>- {formatCurrency(discount)}</td>
                   </tr>
                 )}
@@ -1449,3 +1464,4 @@ export default function SalesOrderDetail() {
     </div>
   );
 }
+

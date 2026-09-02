@@ -94,16 +94,15 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   )
 
   // ── Additional Charges state ───────────────────────────────────────────────
+  const [taxId, setTaxId] = useState<number | undefined>(editingOrder?.tax_id ?? undefined)
   const [additionalCharges, setAdditionalCharges] = useState<{
     name: string
     amount: number
-    tax_id?: number
     description?: string
   }[]>(() => {
     return editingOrder?.additional_charges?.map((c: any) => ({
       name: c.name,
       amount: c.amount,
-      tax_id: c.tax_id,
       description: c.description
     })) ?? []
   })
@@ -257,6 +256,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     if (!po || isEdit) return
 
     setBuyerBranchId(po.branch_id)
+    setTaxId(po.tax_id || undefined)
     const parsedDate = po.date ? parseApiDate(po.date) : null
     setDate(parsedDate ? parsedDate.toISOString().substring(0, 10) : today)
     
@@ -334,7 +334,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   // ── Totals ────────────────────────────────────────────────────────────────
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
   const additionalChargesTotal = additionalCharges.reduce((sum, c) => sum + (Number(c.amount) || 0), 0)
-  const total = Math.max(0, subtotal + additionalChargesTotal - discountPrice)
+  const taxRate = taxes.find((t: any) => t.id === taxId)?.rate ?? 0
+  const taxAmount = (subtotal * taxRate) / 100
+  const total = Math.max(0, subtotal + taxAmount + additionalChargesTotal - discountPrice)
 
   // ── Line item helpers ─────────────────────────────────────────────────────
   const addProduct = useCallback(
@@ -403,10 +405,6 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   }, [])
 
   const updateItem = (idx: number, field: keyof LineItem, value: any) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
-
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)))
   }
 
@@ -435,6 +433,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         status,
         settlement_status: settlementStatus,
         description: description || undefined,
+        tax_id: taxId,
         additional_charges: additionalCharges,
         details: items.map((i) => ({
           product_inventory_id: i.product_inventory_id ?? null,
@@ -673,7 +672,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 placeholder="Search user..."
                 searchPlaceholder="Search users..."
                 onSearchChange={setDropdownSearch}
-/>
+              />
               <span
                 style={{
                   fontSize: 11,
@@ -1268,7 +1267,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           Additional Charges
         </h3>
         {additionalCharges.map((charge, idx) => (
-          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr 40px', gap: 10, marginBottom: 8, alignItems: 'start' }}>
+          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 40px', gap: 10, marginBottom: 8, alignItems: 'start' }}>
             <input
               type="text"
               value={charge.name}
@@ -1292,20 +1291,6 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               placeholder="Amount *"
               style={fieldStyle}
             />
-            <select
-              value={charge.tax_id || ''}
-              onChange={(e) => {
-                const newCharges = [...additionalCharges]
-                newCharges[idx].tax_id = e.target.value ? Number(e.target.value) : undefined
-                setAdditionalCharges(newCharges)
-              }}
-              style={fieldStyle}
-            >
-              <option value="">No Tax</option>
-              {taxes.map((t: any) => (
-                <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
-              ))}
-            </select>
             <input
               type="text"
               value={charge.description || ''}
@@ -1371,6 +1356,30 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           >
             <span style={{ color: 'var(--foreground-muted)' }}>Additional Charges</span>
             <PriceDisplay amount={additionalChargesTotal} />
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 8,
+              fontSize: 14,
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ color: 'var(--foreground-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              Tax
+              <select
+                value={taxId || ''}
+                onChange={(e) => setTaxId(e.target.value ? Number(e.target.value) : undefined)}
+                style={{ ...fieldStyle, height: 28, fontSize: 12, padding: '0 8px', width: 'auto', minWidth: 120 }}
+              >
+                <option value="">No Tax</option>
+                {taxes.map((t: any) => (
+                  <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                ))}
+              </select>
+            </span>
+            <PriceDisplay amount={taxAmount} />
           </div>
           <div
             style={{
