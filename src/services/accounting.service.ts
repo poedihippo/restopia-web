@@ -150,6 +150,8 @@ export const journalsService = {
     api.delete<ApiResponse<unknown>>(`/journals/${id}`),
   post: (id: number) =>
     api.post<ApiResponse<unknown>>(`/journals/${id}/post`),
+  reverse: (id: number) =>
+    api.post<ApiResponse<unknown>>(`/journals/${id}/reverse`),
 }
 
 // ─── Budgets ──────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye, Download,
+  RotateCcw, Copy,
 } from 'lucide-react'
 //trigger
 interface JournalDetail {
@@ -100,6 +101,7 @@ export default function JournalsView() {
   const canUpdate = isSuperadmin || hasPermission('journal.update')
   const canDelete = isSuperadmin || hasPermission('journal.delete')
   const canPost = isSuperadmin || hasPermission('journal.update')
+  const canReverse = isSuperadmin || hasPermission('journal.reverse') || hasPermission('journal.update')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
@@ -108,6 +110,7 @@ export default function JournalsView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Journal | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [reverseConfirmId, setReverseConfirmId] = useState<number | null>(null)
   const [detailItem, setDetailItem] = useState<Journal | null>(null)
   const [coaSearch, setCoaSearch] = useState('')
   const [debouncedCoaSearch, setDebouncedCoaSearch] = useState('')
@@ -150,6 +153,50 @@ export default function JournalsView() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['journals'] }); toast.success('Journal posted') },
     onError: (err: any) => toastMutationApiError(err, 'Failed to post journal'),
   })
+
+  const reverseMutation = useMutation({
+    mutationFn: (id: number) => journalsService.reverse(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['journals'] })
+      toast.success('Journal reversed successfully')
+      setReverseConfirmId(null)
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to reverse journal'),
+  })
+
+  const handleDuplicateForEdit = async (item: Journal) => {
+    let journalToCopy = item
+    if (!item.journal_details || item.journal_details.length === 0) {
+      try {
+        const res = await journalsService.findById(item.id, { include: 'period,journal_details' })
+        journalToCopy = (res.data as any)?.data ?? (res.data as any) ?? item
+      } catch (e) {
+        console.error('Failed to load journal details for correction', e)
+      }
+    }
+
+    setEditData(null)
+    reset({
+      period_id: journalToCopy.period_id,
+      date: new Date().toISOString().split('T')[0],
+      type: (journalToCopy.type as any) || 'manual',
+      description: journalToCopy.description
+        ? `Correction of ${journalToCopy.journal_number}: ${journalToCopy.description}`
+        : `Correction of ${journalToCopy.journal_number}`,
+      details: journalToCopy.journal_details?.length
+        ? journalToCopy.journal_details.map((d) => ({
+            chart_of_account_id: d.chart_of_account_id,
+            debit: Number(d.debit) || 0,
+            credit: Number(d.credit) || 0,
+            description: d.description ?? '',
+          }))
+        : [
+            { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+            { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+          ],
+    })
+    setSheetOpen(true)
+  }
 
   const { register, handleSubmit, reset, control, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -215,19 +262,20 @@ export default function JournalsView() {
   const numInputStyle: React.CSSProperties = { ...inputStyle, textAlign: 'right' }
   const smallInputStyle: React.CSSProperties = { ...inputStyle, padding: '7px 10px', fontSize: 13 }
 
-  // Detail modal: fetch the journal by id for its lines — the list query is kept light and doesn't include them.
+  // Detail modal: fetch the journal by id for its lines
   const { data: detailData, isLoading: detailLoading } = useQuery({
     queryKey: ['journal-detail', detailItem?.id],
     enabled: !!detailItem?.id,
     queryFn: () =>
       journalsService
-        .findById(detailItem!.id, { include: 'period,journal_details,journal_details.chart_of_account' })
+        .findById(detailItem!.id, { include: 'period,journal_details' })
         .then((r) => r.data),
   })
+
   const fetchedJournal: Journal | undefined = (detailData as any)?.data ?? (detailData as any)
 
   // Detail modal: debit/credit lines, standard journal presentation (debits first, then credits).
-  const detailLines = fetchedJournal?.journal_details ?? []
+  const detailLines = fetchedJournal?.journal_details ?? detailItem?.journal_details ?? []
   const sortedDetailLines = [...detailLines].sort((a, b) => {
     const aIsDebit = Number(a.debit) > 0 ? 0 : 1
     const bIsDebit = Number(b.debit) > 0 ? 0 : 1
@@ -326,10 +374,19 @@ export default function JournalsView() {
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.description || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.period?.name || '—'}</span></td>
                   <td style={tdStyle}>
-                    {item.is_posted
-                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}><CheckCircle2 size={11} /> Posted</span>
-                      : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#f59e0b', padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.1)' }}><AlertCircle size={11} /> Draft</span>
-                    }
+                    {item.is_reversed ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8b5cf6', padding: '2px 8px', borderRadius: 99, background: 'rgba(139,92,246,0.1)' }}>
+                        <RotateCcw size={11} /> Reversed
+                      </span>
+                    ) : item.is_posted ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}>
+                        <CheckCircle2 size={11} /> Posted
+                      </span>
+                    ) : (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#f59e0b', padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.1)' }}>
+                        <AlertCircle size={11} /> Draft
+                      </span>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
@@ -339,9 +396,19 @@ export default function JournalsView() {
                         <>
                           {canPost && <button onClick={() => postMutation.mutate(item.id)} disabled={postMutation.isPending} title="Post Journal"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: '#10b981', display: 'flex' }}><Send size={13} /></button>}
-                          {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
-                          {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
+                          {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} title="Edit Journal"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
+                          {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} title="Delete Journal"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
                         </>
+                      )}
+                      {item.is_posted && !item.is_reversed && canReverse && (
+                        <button onClick={() => setReverseConfirmId(item.id)} disabled={reverseMutation.isPending} title="Reverse Journal"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: '#8b5cf6', display: 'flex' }}><RotateCcw size={14} /></button>
+                      )}
+                      {item.is_reversed && canCreate && (
+                        <button onClick={() => handleDuplicateForEdit(item)} title="Koreksi / Buat Ulang Jurnal"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--accent)', display: 'flex' }}><Copy size={14} /></button>
                       )}
                     </div>
                   </td>
@@ -363,6 +430,24 @@ export default function JournalsView() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
               <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reverseConfirmId !== null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setReverseConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 400, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Reverse Journal</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px', lineHeight: 1.5 }}>
+              Apakah Anda yakin ingin membalikkan (reverse) jurnal ini? Sistem akan membuat entri jurnal pembalik dan menandai jurnal ini sebagai reversed.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setReverseConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => reverseMutation.mutate(reverseConfirmId)} disabled={reverseMutation.isPending} style={{ padding: '7px 16px', background: '#8b5cf6', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: reverseMutation.isPending ? 0.7 : 1 }}>
+                {reverseMutation.isPending ? 'Reversing...' : 'Reverse'}
+              </button>
             </div>
           </div>
         </div>
@@ -557,14 +642,53 @@ export default function JournalsView() {
               <button onClick={() => setDetailItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 20px' }}>
-              {detailItem.is_posted
-                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}><CheckCircle2 size={11} /> Posted</span>
-                : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#f59e0b', padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.1)' }}><AlertCircle size={11} /> Draft</span>
-              }
-              {detailItem.description && (
-                <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{detailItem.description}</span>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 20px', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {detailItem.is_reversed ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8b5cf6', padding: '2px 8px', borderRadius: 99, background: 'rgba(139,92,246,0.1)' }}>
+                    <RotateCcw size={11} /> Reversed
+                  </span>
+                ) : detailItem.is_posted ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}>
+                    <CheckCircle2 size={11} /> Posted
+                  </span>
+                ) : (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#f59e0b', padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,0.1)' }}>
+                    <AlertCircle size={11} /> Draft
+                  </span>
+                )}
+                {detailItem.description && (
+                  <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{detailItem.description}</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {detailItem.is_posted && !detailItem.is_reversed && canReverse && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const id = detailItem.id
+                      setDetailItem(null)
+                      setReverseConfirmId(id)
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                  >
+                    <RotateCcw size={12} /> Reverse Journal
+                  </button>
+                )}
+                {detailItem.is_reversed && canCreate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const item = detailItem
+                      setDetailItem(null)
+                      handleDuplicateForEdit(item)
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                  >
+                    <Copy size={12} /> Koreksi / Buat Ulang
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
