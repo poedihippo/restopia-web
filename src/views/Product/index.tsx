@@ -21,6 +21,9 @@ import {
   Package,
   Eye,
   X,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react'
 
 interface Product {
@@ -70,11 +73,25 @@ export default function ProductView() {
   const [perPage, setPerPage] = useState<number>(20)
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
+  const [sortBy, setSortBy] = useState<'id' | 'name' | 'code'>('id')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Product | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<Product | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+
+  const sortParam = sortOrder === 'desc' ? `-${sortBy}` : sortBy
+
+  const handleSort = (field: 'id' | 'name' | 'code') => {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(field)
+      setSortOrder(field === 'id' ? 'desc' : 'asc')
+    }
+    setPage(1)
+  }
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
@@ -95,13 +112,13 @@ export default function ProductView() {
   const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter, activeProductTypes],
+    queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter, activeProductTypes, sortParam],
     queryFn: () =>
       productsService
         .list({
           page,
           per_page: perPage,
-          sort: '-id',
+          sort: sortParam,
           include: 'product_category',
           'filter[search]': debouncedSearch || undefined,
           'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
@@ -294,30 +311,58 @@ export default function ProductView() {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
               {[
-                { label: 'No.', width: 50 },
-                { label: 'Name', width: undefined },
-                { label: 'Code', width: 120 },
+                { label: 'No.', width: 65, sortKey: 'id' as const },
+                { label: 'Name', width: undefined, sortKey: 'name' as const },
+                { label: 'Code', width: 120, sortKey: 'code' as const },
                 { label: 'Category', width: 160 },
                 { label: 'Type', width: 100 },
                 { label: 'Created', width: 140 },
                 { label: '', width: 80 },
-              ].map((col, i) => (
-                <th
-                  key={i}
-                  style={{
-                    padding: '10px 16px',
-                    textAlign: col.label === 'No.' ? 'center' : 'left',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--foreground-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.6,
-                    width: col.width,
-                  }}
-                >
-                  {col.label}
-                </th>
-              ))}
+              ].map((col, i) => {
+                const isSortable = !!col.sortKey
+                const isActive = sortBy === col.sortKey
+                return (
+                  <th
+                    key={i}
+                    onClick={isSortable ? () => handleSort(col.sortKey!) : undefined}
+                    style={{
+                      padding: col.label === 'No.' ? '10px 8px' : '10px 16px',
+                      textAlign: col.label === 'No.' ? 'center' : 'left',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: isActive ? 'var(--foreground)' : 'var(--foreground-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: 0.6,
+                      width: col.width,
+                      cursor: isSortable ? 'pointer' : 'default',
+                      userSelect: 'none',
+                      transition: 'color 0.15s ease',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: col.label === 'No.' ? 'center' : 'flex-start',
+                        gap: 4,
+                      }}
+                    >
+                      <span>{col.label}</span>
+                      {isSortable && (
+                        isActive ? (
+                          sortOrder === 'asc' ? (
+                            <ArrowUp size={12} style={{ color: 'var(--accent)' }} />
+                          ) : (
+                            <ArrowDown size={12} style={{ color: 'var(--accent)' }} />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
+                        )
+                      )}
+                    </div>
+                  </th>
+                )
+              })}
             </tr>
           </thead>
 
@@ -375,7 +420,7 @@ export default function ProductView() {
                     background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
                   }}
                 >
-                  <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                  <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 65 }}>
                     {(page - 1) * perPage + idx + 1}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
