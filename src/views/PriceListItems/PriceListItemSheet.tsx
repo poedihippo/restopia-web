@@ -85,9 +85,6 @@ export default function PriceListItemSheet({ priceListId, open, onClose, editDat
   })
 
   const onSubmit = (values: FormValues) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     upsertMutation.mutate(values)
   }

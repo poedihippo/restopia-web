@@ -158,9 +158,6 @@ export default function ChartOfAccountsView() {
 
   const isPending = createMutation.isPending || updateMutation.isPending
   const onSubmit = (values: FormValues) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     const payload: ChartOfAccountRequest = { ...values, parent_id: values.parent_id || null }
     if (editData) updateMutation.mutate(payload)

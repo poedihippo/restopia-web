@@ -242,9 +242,6 @@ export default function DimensionTransferView() {
   }
 
   const onInvalid = (errs: any) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     const first = Object.values(errs)[0] as any
     toast.error(first?.message ?? 'Mohon lengkapi field yang wajib diisi')

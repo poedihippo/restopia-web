@@ -223,9 +223,6 @@ const SalesOrdersFormEditPOS = ({ id }: Props) => {
     );
 
   const handleAddToCart = (item: IProductInventories) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     const existingIndex = detailFields.findIndex(f => f.product_inventory_id === item.id)
 

@@ -249,9 +249,6 @@ export default function POPaymentsView() {
     !createMutation.isPending
 
   const handleSubmit = () => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     if (allocationEntries.length === 0) {
       toast.error('Select at least one purchase order to pay')

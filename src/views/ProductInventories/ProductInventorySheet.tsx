@@ -210,9 +210,6 @@ export default function ProductInventorySheet({
   }
 
   const onInvalid = (errs: any) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     const first = Object.values(errs)[0] as { message?: string } | undefined
     toast.error(first?.message ?? 'Please fill in all required fields')

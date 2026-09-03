@@ -128,9 +128,6 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
   })
 
   const onSubmit = (data: FormValues) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     if (editData) updateMutation.mutate(data)
     else createMutation.mutate(data)

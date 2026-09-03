@@ -172,9 +172,6 @@ export default function PosCartSidebar({
   }, [setShowCustomerDropdown])
 
   const changeCartLot = (currentInventoryId: number, targetLot: any) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     // You will need to bring the changeCartLot logic here, or pass it via props.
     // Assuming for now it's passed or simplified:

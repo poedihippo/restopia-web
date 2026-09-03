@@ -187,10 +187,6 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   }
 
   const getQtyLabel = () => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
-
     if (watchDirection === 'in') return 'Quantity to Add'
     return 'Quantity to Remove'
   }

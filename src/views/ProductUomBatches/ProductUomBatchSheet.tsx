@@ -164,10 +164,6 @@ export default function ProductUomBatchSheet({
   const isPending = createMutation.isPending || updateMutation.isPending
 
   const onSubmit = (values: FormValues) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
-
     if (isEdit) updateMutation.mutate(values)
     else createMutation.mutate(values)
   }

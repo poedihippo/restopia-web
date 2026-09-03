@@ -43,6 +43,9 @@ const schema = z.object({
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
   total_price: z.coerce.number().optional(),
+  location_ref: z.string().optional(),
+  owner_ref: z.string().optional(),
+  stage: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -81,6 +84,9 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       date: new Date().toISOString().split('T')[0],
       status: 'final',
       description: '',
+      location_ref: 'GENERAL',
+      owner_ref: 'GENERAL',
+      stage: 'GENERAL',
       details: [
         {
           id: undefined,
@@ -259,32 +265,58 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         description: initialData.description ?? '',
         details: initialData.details,
         total_price: initialData.total_price ?? 0,
+        location_ref: initialData.location_ref ?? 'GENERAL',
+        owner_ref: initialData.owner_ref ?? 'GENERAL',
+        stage: initialData.stage ?? 'GENERAL',
       })
     }
   }, [initialData, mode])
 
-  const buildPayload = (values: FormValues) => ({
-    ...values,
-    status: values.status,
-    total_price: values.total_price || totalPrice,
-    details: values.details
+  const buildPayload = (values: FormValues) => {
+    const isEdit = mode === 'edit'
+    const details = values.details
       .filter((d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0)
-      .map((d) => ({
-        id: d.id || undefined,
-        delivery_detail_id: d.delivery_detail_id || undefined,
-        product_uom_batch_id: d.product_uom_batch_id || undefined,
-        planned_batch_code: d.planned_batch_code || undefined,
-        planned_expiry_date: d.planned_expiry_date || undefined,
-        qty: d.qty,
-        price: d.price,
-        status: d.status,
-        description: d.description || undefined,
-        client_ref: d.client_ref || undefined,
-        ...(['po_from_supplier', 'po_from_branch'].includes(deliveryDetail?.source_type)
-          ? { product_uom_id: d.product_uom_id || undefined }
-          : {}),
-      })),
-  })
+      .map((d) => {
+        const detailBase: any = {
+          id: d.id || undefined,
+          delivery_detail_id: d.delivery_detail_id || undefined,
+          product_uom_batch_id: d.product_uom_batch_id || undefined,
+          planned_batch_code: d.planned_batch_code || undefined,
+          planned_expiry_date: d.planned_expiry_date || undefined,
+          qty: d.qty,
+          status: d.status,
+          description: d.description || undefined,
+          client_ref: d.client_ref || undefined,
+        }
+        if (!isEdit) {
+          detailBase.price = d.price
+        }
+        if (['po_from_supplier', 'po_from_branch'].includes(deliveryDetail?.source_type)) {
+          detailBase.product_uom_id = d.product_uom_id || undefined
+        }
+        return detailBase
+      })
+
+    const basePayload = {
+      date: values.date,
+      description: values.description,
+      status: values.status,
+      details,
+    }
+
+    if (isEdit) {
+      return basePayload
+    }
+
+    return {
+      ...basePayload,
+      delivery_id: values.delivery_id,
+      location_ref: values.location_ref,
+      owner_ref: values.owner_ref,
+      stage: values.stage,
+      total_price: values.total_price || totalPrice,
+    }
+  }
 
   const createMutation = useMutation({
     mutationFn: (values: FormValues) =>
@@ -350,9 +382,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   }
 
   const onInvalid = (errs: any) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     console.log('ReceiptForm validation errors:', errs)
   }

@@ -233,9 +233,6 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   })
 
   const onSubmit = (values: FormValues) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     if (editData) {
       updateMutation.mutate(values)

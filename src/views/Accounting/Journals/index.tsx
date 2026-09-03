@@ -200,9 +200,6 @@ export default function JournalsView() {
   const isPending = createMutation.isPending || updateMutation.isPending
 
   const onSubmit = (values: FormValues) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     const payload: JournalRequest = {
       period_id: values.period_id,

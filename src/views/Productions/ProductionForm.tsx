@@ -992,9 +992,6 @@ export default function ProductionForm({
   }
 
   const onInvalid = (errors: any) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     toast.error(getFirstErrorMessage(errors) ?? 'Form tidak valid, periksa kembali data.')
   }

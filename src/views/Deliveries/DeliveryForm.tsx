@@ -525,9 +525,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   }
 
   const onInvalid = (errs: any) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     console.log('DeliveryForm validation errors:', errs)
   }

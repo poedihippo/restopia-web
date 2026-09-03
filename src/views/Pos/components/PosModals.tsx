@@ -185,9 +185,6 @@ export default function PosModals({
   }
 
   const handleRemoveSplit = (index: number) => {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
 
     if (setSplitPayments && splitPayments) {
       const updated = [...splitPayments]
