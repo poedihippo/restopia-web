@@ -1,5 +1,5 @@
 'use client'
-import { formatDate, toInputDate } from '@/utils/date';
+import { formatDate, toInputDate, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -22,7 +22,7 @@ import {
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye, Download,
   RotateCcw, Copy,
 } from 'lucide-react'
-//trigger
+
 interface JournalDetail {
   id?: number
   chart_of_account_id: number
@@ -44,9 +44,17 @@ interface Journal {
   period?: { id: number; name: string }
   journal_details?: JournalDetail[]
   created_at?: string
+  created_by?: { id: number; name: string; email?: string }
 }
 
-interface Period { id: number; name: string }
+interface Period {
+  id: number
+  name: string
+  start_date?: string
+  end_date?: string
+  is_active?: boolean
+  is_closed?: boolean
+}
 interface CoA { id: number; code: string; name: string }
 
 const detailSchema = z.object({
@@ -67,7 +75,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 const JOURNAL_TYPE_LABELS: Record<string, string> = {
-  manual: 'Manual',
+  manual: 'General',
   sales: 'Sales',
   purchase: 'Purchase',
   receipt: 'Receipt',
@@ -76,10 +84,47 @@ const JOURNAL_TYPE_LABELS: Record<string, string> = {
   closing: 'Closing',
 }
 
+const JOURNAL_TYPE_OPTIONS = [
+  { value: 'manual', label: 'General' },
+  { value: 'adjustment', label: 'Adjustment' },
+  { value: 'closing', label: 'Closing' },
+  { value: 'payment', label: 'Payment' },
+  { value: 'purchase', label: 'Purchase' },
+]
+
+const getTodayDateString = () => {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const findPeriodForDate = (dateStr: string, periodList: Period[]): Period | undefined => {
+  if (!dateStr || !periodList.length) return undefined
+  const target = toInputDate(dateStr)
+  if (!target) return undefined
+
+  return periodList.find((p) => {
+    if (!p.start_date || !p.end_date) return false
+    const start = toInputDate(p.start_date)
+    const end = toInputDate(p.end_date)
+    return start <= target && target <= end
+  })
+}
+
+const sortJournalLinesDebitFirst = <T extends { debit?: number | string; credit?: number | string }>(lines: T[]): T[] => {
+  return [...lines].sort((a, b) => {
+    const aIsDebit = Number(a.debit) > 0 ? 0 : 1
+    const bIsDebit = Number(b.debit) > 0 ? 0 : 1
+    return aIsDebit - bIsDebit
+  })
+}
+
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--foreground)',
-  background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
+  borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)',
+  background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
 }
 const thStyle: React.CSSProperties = {
   padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600,
@@ -122,12 +167,12 @@ export default function JournalsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['journals', page, perPage, debouncedSearch, typeFilter],
-    queryFn: () => journalsService.list({ page, per_page: perPage, sort: '-id', include: 'period,journal_details', 'filter[search]': debouncedSearch || undefined, 'filter[type]': typeFilter || undefined }).then((r) => r.data),
+    queryFn: () => journalsService.list({ page, per_page: perPage, sort: '-id', include: 'period,journal_details,created_by', 'filter[search]': debouncedSearch || undefined, 'filter[type]': typeFilter || undefined }).then((r) => r.data),
   })
 
   const { data: periodsData } = useQuery({
     queryKey: ['periods-all', debouncedDropdownSearch],
-    queryFn: () => periodsService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: perPage, sort: '-id' }).then((r) => r.data),
+    queryFn: () => periodsService.list({ 'filter[search]': debouncedDropdownSearch || undefined, per_page: 1000, sort: '-id' }).then((r) => r.data),
   })
 
   const { data: coaData } = useQuery({
@@ -164,27 +209,64 @@ export default function JournalsView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to reverse journal'),
   })
 
-  const handleDuplicateForEdit = async (item: Journal) => {
-    let journalToCopy = item
+  const { register, handleSubmit, reset, control, watch, setValue, formState: { errors } } = useForm<FormValues>({
+    resolver: zodResolver(schema) as any,
+    defaultValues: {
+      period_id: 0, date: '', type: 'manual', description: '',
+      details: [
+        { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+        { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+      ],
+    },
+  })
+
+  const { fields, append, remove } = useFieldArray({ control, name: 'details' })
+  const watchedDetails = watch('details')
+  const watchedDate = watch('date')
+  const watchedPeriodId = watch('period_id')
+
+  const totalDebit = watchedDetails?.reduce((s, d) => s + (Number(d.debit) || 0), 0) ?? 0
+  const totalCredit = watchedDetails?.reduce((s, d) => s + (Number(d.credit) || 0), 0) ?? 0
+  const isBalanced = totalDebit === totalCredit && totalDebit > 0
+
+  const handleOpenCreate = () => {
+    setEditData(null)
+    const today = getTodayDateString()
+    const matched = findPeriodForDate(today, periods)
+    reset({
+      period_id: matched ? matched.id : 0,
+      date: today,
+      type: 'manual',
+      description: '',
+      details: [
+        { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+        { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+      ],
+    })
+    setSheetOpen(true)
+  }
+
+  const handleEditJournal = async (item: Journal) => {
+    let journalToEdit = item
     if (!item.journal_details || item.journal_details.length === 0) {
       try {
-        const res = await journalsService.findById(item.id, { include: 'period,journal_details' })
-        journalToCopy = (res.data as any)?.data ?? (res.data as any) ?? item
+        const res = await journalsService.findById(item.id, { include: 'period,journal_details,created_by' })
+        journalToEdit = (res.data as any)?.data ?? (res.data as any) ?? item
       } catch (e) {
-        console.error('Failed to load journal details for correction', e)
+        console.error('Failed to load journal details for edit', e)
       }
     }
 
-    setEditData(null)
+    const sorted = sortJournalLinesDebitFirst(journalToEdit.journal_details ?? [])
+    setEditData({ ...journalToEdit, journal_details: sorted })
     reset({
-      period_id: journalToCopy.period_id,
-      date: new Date().toISOString().split('T')[0],
-      type: (journalToCopy.type as any) || 'manual',
-      description: journalToCopy.description
-        ? `Correction of ${journalToCopy.journal_number}: ${journalToCopy.description}`
-        : `Correction of ${journalToCopy.journal_number}`,
-      details: journalToCopy.journal_details?.length
-        ? journalToCopy.journal_details.map((d) => ({
+      period_id: journalToEdit.period_id,
+      date: toInputDate(journalToEdit.date),
+      type: journalToEdit.type as any,
+      description: journalToEdit.description ?? '',
+      details: sorted.length
+        ? sorted.map((d) => ({
+            id: d.id,
             chart_of_account_id: d.chart_of_account_id,
             debit: Number(d.debit) || 0,
             credit: Number(d.credit) || 0,
@@ -198,39 +280,77 @@ export default function JournalsView() {
     setSheetOpen(true)
   }
 
-  const { register, handleSubmit, reset, control, watch, formState: { errors } } = useForm<FormValues>({
-    resolver: zodResolver(schema) as any,
-    defaultValues: {
-      period_id: 0, date: '', type: 'manual', description: '',
-      details: [
-        { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
-        { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
-      ],
-    },
-  })
+  const handleDuplicateForEdit = async (item: Journal) => {
+    let journalToCopy = item
+    if (!item.journal_details || item.journal_details.length === 0) {
+      try {
+        const res = await journalsService.findById(item.id, { include: 'period,journal_details,created_by' })
+        journalToCopy = (res.data as any)?.data ?? (res.data as any) ?? item
+      } catch (e) {
+        console.error('Failed to load journal details for correction', e)
+      }
+    }
 
-  const { fields, append, remove } = useFieldArray({ control, name: 'details' })
-  const watchedDetails = watch('details')
-
-  const totalDebit = watchedDetails?.reduce((s, d) => s + (Number(d.debit) || 0), 0) ?? 0
-  const totalCredit = watchedDetails?.reduce((s, d) => s + (Number(d.credit) || 0), 0) ?? 0
-  const isBalanced = totalDebit === totalCredit && totalDebit > 0
+    const sorted = sortJournalLinesDebitFirst(journalToCopy.journal_details ?? [])
+    setEditData(null)
+    const today = getTodayDateString()
+    const matched = findPeriodForDate(today, periods)
+    reset({
+      period_id: matched ? matched.id : journalToCopy.period_id,
+      date: today,
+      type: (journalToCopy.type as any) || 'manual',
+      description: journalToCopy.description
+        ? `Correction of ${journalToCopy.journal_number}: ${journalToCopy.description}`
+        : `Correction of ${journalToCopy.journal_number}`,
+      details: sorted.length
+        ? sorted.map((d) => ({
+            chart_of_account_id: d.chart_of_account_id,
+            debit: Number(d.debit) || 0,
+            credit: Number(d.credit) || 0,
+            description: d.description ?? '',
+          }))
+        : [
+            { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+            { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+          ],
+    })
+    setSheetOpen(true)
+  }
 
   useEffect(() => {
     if (editData) {
+      const sorted = sortJournalLinesDebitFirst(editData.journal_details ?? [])
       reset({
         period_id: editData.period_id,
         date: toInputDate(editData.date),
         type: editData.type as any,
         description: editData.description ?? '',
-        details: editData.journal_details?.length
-          ? editData.journal_details.map((d) => ({ id: d.id, chart_of_account_id: d.chart_of_account_id, debit: d.debit, credit: d.credit, description: d.description ?? '' }))
-          : [{ chart_of_account_id: 0, debit: 0, credit: 0, description: '' }, { chart_of_account_id: 0, debit: 0, credit: 0, description: '' }],
+        details: sorted.length
+          ? sorted.map((d) => ({
+              id: d.id,
+              chart_of_account_id: d.chart_of_account_id,
+              debit: Number(d.debit) || 0,
+              credit: Number(d.credit) || 0,
+              description: d.description ?? '',
+            }))
+          : [
+              { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+              { chart_of_account_id: 0, debit: 0, credit: 0, description: '' },
+            ],
       })
-    } else {
-      reset({ period_id: 0, date: '', type: 'manual', description: '', details: [{ chart_of_account_id: 0, debit: 0, credit: 0, description: '' }, { chart_of_account_id: 0, debit: 0, credit: 0, description: '' }] })
     }
   }, [editData, reset])
+
+  // Liveness sync: If period is not yet set on create mode, auto match from date
+  useEffect(() => {
+    if (sheetOpen && !editData && (!watchedPeriodId || watchedPeriodId === 0) && periods.length > 0) {
+      const targetDate = watchedDate || getTodayDateString()
+      const matched = findPeriodForDate(targetDate, periods)
+      if (matched) {
+        setValue('period_id', matched.id, { shouldValidate: true })
+      }
+    }
+  }, [sheetOpen, editData, watchedPeriodId, watchedDate, periods, setValue])
 
   const createMutation = useMutation({
     mutationFn: (data: JournalRequest) => journalsService.create(data),
@@ -268,19 +388,16 @@ export default function JournalsView() {
     enabled: !!detailItem?.id,
     queryFn: () =>
       journalsService
-        .findById(detailItem!.id, { include: 'period,journal_details' })
+        .findById(detailItem!.id, { include: 'period,journal_details,created_by' })
         .then((r) => r.data),
   })
 
   const fetchedJournal: Journal | undefined = (detailData as any)?.data ?? (detailData as any)
+  const activeDetailJournal: Journal | undefined = fetchedJournal ?? (detailItem || undefined)
 
   // Detail modal: debit/credit lines, standard journal presentation (debits first, then credits).
   const detailLines = fetchedJournal?.journal_details ?? detailItem?.journal_details ?? []
-  const sortedDetailLines = [...detailLines].sort((a, b) => {
-    const aIsDebit = Number(a.debit) > 0 ? 0 : 1
-    const bIsDebit = Number(b.debit) > 0 ? 0 : 1
-    return aIsDebit - bIsDebit
-  })
+  const sortedDetailLines = sortJournalLinesDebitFirst(detailLines)
   const detailTotalDebit = detailLines.reduce((s, l) => s + Number(l.debit || 0), 0)
   const detailTotalCredit = detailLines.reduce((s, l) => s + Number(l.credit || 0), 0)
   const detailIsBalanced = detailTotalDebit === detailTotalCredit
@@ -303,7 +420,7 @@ export default function JournalsView() {
             <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
           </button>
           {canCreate && (
-            <button onClick={() => { setEditData(null); setSheetOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            <button onClick={handleOpenCreate} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
               <Plus size={16} /> New Journal Entry
             </button>
           )}
@@ -314,12 +431,12 @@ export default function JournalsView() {
         <div style={{ position: 'relative', width: 300 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search journal number or description..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          style={{ width: 160, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none' }}
+          style={{ width: 160, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', cursor: 'pointer' }}
         >
           <option value="">All Types</option>
           {Object.entries(JOURNAL_TYPE_LABELS).map(([k, v]) => (
@@ -338,6 +455,7 @@ export default function JournalsView() {
               <th style={{ ...thStyle, width: 130 }}>Type</th>
               <th style={thStyle}>Description</th>
               <th style={{ ...thStyle, width: 110 }}>Periode</th>
+              <th style={{ ...thStyle, width: 140 }}>Created By</th>
               <th style={{ ...thStyle, width: 90 }}>Status</th>
               <th style={{ ...thStyle, width: 100 }} />
             </tr>
@@ -345,12 +463,12 @@ export default function JournalsView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 8 }).map((__, j) => (
-                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 7 ? 60 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
+                <tr key={i}>{Array.from({ length: 9 }).map((__, j) => (
+                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 8 ? 60 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <FileText size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No journals found</span>
@@ -374,6 +492,12 @@ export default function JournalsView() {
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.description || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.period?.name || '—'}</span></td>
                   <td style={tdStyle}>
+                    <div style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.created_by?.name || '—'}</div>
+                    {item.created_at && (
+                      <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{formatDate(item.created_at)}</div>
+                    )}
+                  </td>
+                  <td style={tdStyle}>
                     {item.is_reversed ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8b5cf6', padding: '2px 8px', borderRadius: 99, background: 'rgba(139,92,246,0.1)' }}>
                         <RotateCcw size={11} /> Reversed
@@ -396,7 +520,7 @@ export default function JournalsView() {
                         <>
                           {canPost && <button onClick={() => postMutation.mutate(item.id)} disabled={postMutation.isPending} title="Post Journal"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: '#10b981', display: 'flex' }}><Send size={13} /></button>}
-                          {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} title="Edit Journal"
+                          {canUpdate && <button onClick={() => handleEditJournal(item)} title="Edit Journal"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
                           {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} title="Delete Journal"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
@@ -477,25 +601,45 @@ export default function JournalsView() {
                         placeholder="-- Pilih Periode --"
                         searchPlaceholder="Cari periode..."
                         onSearchChange={setDropdownSearch}
-/>
+                      />
                     )}
                   />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Date <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                  <input type="date" {...register('date')} style={inputStyle} />
+                  <input
+                    type="date"
+                    {...register('date')}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setValue('date', val, { shouldValidate: true })
+                      if (val) {
+                        const matched = findPeriodForDate(val, periods)
+                        if (matched) {
+                          setValue('period_id', matched.id, { shouldValidate: true })
+                        }
+                      }
+                    }}
+                    style={inputStyle}
+                  />
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Journal Type</label>
-                  <select {...register('type')} style={inputStyle}>
-                    <option value="manual">General</option>
-                    <option value="adjustment">Adjustment</option>
-                    <option value="closing">Closing</option>
-                    <option value="payment">Payment</option>
-                    <option value="purchase">Purchase</option>
-                  </select>
+                  <Controller
+                    control={control}
+                    name="type"
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value}
+                        onChange={(val) => field.onChange(val)}
+                        options={JOURNAL_TYPE_OPTIONS}
+                        placeholder="Select type..."
+                        searchPlaceholder="Cari tipe jurnal..."
+                      />
+                    )}
+                  />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Description</label>
@@ -559,7 +703,14 @@ export default function JournalsView() {
                                       const val = e.target.value.replace(/\D/g, '')
                                       field.onChange(val ? Number(val) : 0)
                                     }}
-                                    style={{ ...smallInputStyle, textAlign: 'right', fontSize: 12, opacity: currentCredit > 0 ? 0.5 : 1, cursor: currentCredit > 0 ? 'not-allowed' : 'text' }}
+                                    style={{
+                                      ...smallInputStyle,
+                                      textAlign: 'right',
+                                      fontSize: 12,
+                                      background: currentCredit > 0 ? 'var(--muted)' : 'var(--surface-raised)',
+                                      opacity: currentCredit > 0 ? 0.6 : 1,
+                                      cursor: currentCredit > 0 ? 'not-allowed' : 'text',
+                                    }}
                                     placeholder="0"
                                   />
                                 )}
@@ -578,7 +729,14 @@ export default function JournalsView() {
                                       const val = e.target.value.replace(/\D/g, '')
                                       field.onChange(val ? Number(val) : 0)
                                     }}
-                                    style={{ ...smallInputStyle, textAlign: 'right', fontSize: 12, opacity: currentDebit > 0 ? 0.5 : 1, cursor: currentDebit > 0 ? 'not-allowed' : 'text' }}
+                                    style={{
+                                      ...smallInputStyle,
+                                      textAlign: 'right',
+                                      fontSize: 12,
+                                      background: currentDebit > 0 ? 'var(--muted)' : 'var(--surface-raised)',
+                                      opacity: currentDebit > 0 ? 0.6 : 1,
+                                      cursor: currentDebit > 0 ? 'not-allowed' : 'text',
+                                    }}
                                     placeholder="0"
                                   />
                                 )}
@@ -633,10 +791,16 @@ export default function JournalsView() {
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
               <div>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
-                  {detailItem.journal_number}
+                  {activeDetailJournal?.journal_number}
                 </h3>
                 <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-                  {detailItem.date ? fmtDate(detailItem.date) : '—'} · {JOURNAL_TYPE_LABELS[detailItem.type] ?? detailItem.type} · {detailItem.period?.name || '—'}
+                  {activeDetailJournal?.date ? fmtDate(activeDetailJournal.date) : '—'} · {JOURNAL_TYPE_LABELS[activeDetailJournal?.type || ''] ?? activeDetailJournal?.type} · {activeDetailJournal?.period?.name || '—'}
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+                  Created by: <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>{activeDetailJournal?.created_by?.name || '—'}</span>
+                  {activeDetailJournal?.created_at && (
+                    <span style={{ marginLeft: 6 }}>({formatDateTime(activeDetailJournal.created_at)})</span>
+                  )}
                 </p>
               </div>
               <button onClick={() => setDetailItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
@@ -644,11 +808,11 @@ export default function JournalsView() {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 20px', flexWrap: 'wrap', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {detailItem.is_reversed ? (
+                {activeDetailJournal?.is_reversed ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8b5cf6', padding: '2px 8px', borderRadius: 99, background: 'rgba(139,92,246,0.1)' }}>
                     <RotateCcw size={11} /> Reversed
                   </span>
-                ) : detailItem.is_posted ? (
+                ) : activeDetailJournal?.is_posted ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#10b981', padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,0.1)' }}>
                     <CheckCircle2 size={11} /> Posted
                   </span>
@@ -657,16 +821,16 @@ export default function JournalsView() {
                     <AlertCircle size={11} /> Draft
                   </span>
                 )}
-                {detailItem.description && (
-                  <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{detailItem.description}</span>
+                {activeDetailJournal?.description && (
+                  <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{activeDetailJournal.description}</span>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                {detailItem.is_posted && !detailItem.is_reversed && canReverse && (
+                {activeDetailJournal?.is_posted && !activeDetailJournal?.is_reversed && canReverse && (
                   <button
                     type="button"
                     onClick={() => {
-                      const id = detailItem.id
+                      const id = activeDetailJournal.id
                       setDetailItem(null)
                       setReverseConfirmId(id)
                     }}
@@ -675,11 +839,11 @@ export default function JournalsView() {
                     <RotateCcw size={12} /> Reverse Journal
                   </button>
                 )}
-                {detailItem.is_reversed && canCreate && (
+                {activeDetailJournal?.is_reversed && canCreate && (
                   <button
                     type="button"
                     onClick={() => {
-                      const item = detailItem
+                      const item = activeDetailJournal
                       setDetailItem(null)
                       handleDuplicateForEdit(item)
                     }}
