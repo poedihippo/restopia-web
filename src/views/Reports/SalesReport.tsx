@@ -2,11 +2,15 @@
 import { formatCurrency } from '@/utils/price';
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { useAuth } from '@/hooks/useAuth'
 import { salesOrdersService } from '@/services/sales-orders.service'
-import { ArrowLeft, Printer } from 'lucide-react'
+import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { toastMutationApiError } from '@/utils/apiError'
+import { toast } from 'sonner'
 const today = () => new Date().toISOString().split('T')[0]
 
 export default function SalesReport() {
@@ -43,6 +47,20 @@ export default function SalesReport() {
     enabled,
   })
   const orders: any[] = (data as any)?.data ?? []
+
+  const exportMutation = useMutation({
+    mutationFn: () =>
+      reportsService.exportOutletTransactions({
+        start_date: dateFrom || undefined,
+        end_date: dateTo || undefined,
+        'filter[branch_id]': branchFilter ? Number(branchFilter) : undefined,
+      }),
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, `outlet-transactions-${dateFrom}_${dateTo}.xlsx`)
+      toast.success('Outlet transactions report exported')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to export outlet transactions'),
+  })
 
   // ── Aggregation (all client-side) ─────────────────────────────────────────
   const aggregated = useMemo(() => {
@@ -313,9 +331,20 @@ export default function SalesReport() {
         <button type="button" onClick={() => router.back()} style={topBtnStyle}>
           <ArrowLeft size={14} /> Reports
         </button>
-        <button type="button" onClick={() => window.print()} style={topBtnStyle}>
-          <Printer size={14} /> Print
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            style={topBtnStyle}
+          >
+            {exportMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            Export Excel
+          </button>
+          <button type="button" onClick={() => window.print()} style={topBtnStyle}>
+            <Printer size={14} /> Print
+          </button>
+        </div>
       </div>
 
       {/* Report header */}

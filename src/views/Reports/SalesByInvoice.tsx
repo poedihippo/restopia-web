@@ -4,9 +4,13 @@ import { formatDateShort } from '@/utils/date';
 
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Printer, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { ArrowLeft, Printer, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { toastMutationApiError } from '@/utils/apiError'
+import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 const firstOfMonth = () =>
@@ -194,6 +198,20 @@ export default function SalesByInvoiceReport() {
 
   const lastPage = meta?.last_page ?? 1
 
+  const exportMutation = useMutation({
+    mutationFn: () =>
+      reportsService.exportSalesInvoices({
+        start_date: dateFrom || undefined,
+        end_date: dateTo || undefined,
+        'filter[branch_id]': branchFilter ? Number(branchFilter) : undefined,
+      }),
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, `sales-by-invoice-${dateFrom}_${dateTo}.xlsx`)
+      toast.success('Sales by invoice report exported')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to export sales by invoice'),
+  })
+
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>
       <style>{`
@@ -218,14 +236,29 @@ export default function SalesByInvoiceReport() {
           <ArrowLeft size={14} />
           Back
         </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          style={ghostBtnStyle}
-        >
-          <Printer size={14} />
-          Print
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            style={ghostBtnStyle}
+          >
+            {exportMutation.isPending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Download size={14} />
+            )}
+            Export Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            style={ghostBtnStyle}
+          >
+            <Printer size={14} />
+            Print
+          </button>
+        </div>
       </div>
 
       <div

@@ -166,6 +166,8 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Taxes', href: '/accounting/taxes', permission: 'tax.menu' },
           { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts', permission: 'chart-of-account.menu' },
+          { label: 'Bank Accounts', href: '/accounting/bank-accounts', permission: 'bank_account.read' },
+          { label: 'Cash Transactions', href: '/accounting/cash-transactions', permission: 'cash_transaction.read' },
           { label: 'Account Settings', href: '/accounting/account-settings', permission: 'account-setting.menu' },
           { label: 'Account Categories', href: '/accounting/account-categories', permission: 'account-category.menu' },
           { label: 'Account Types', href: '/accounting/account-types', permission: 'account-type.menu' },
@@ -176,6 +178,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Trial Balance', href: '/accounting/reports/trial-balance', permission: 'journal.menu' },
           { label: 'Income Statement', href: '/accounting/reports/income-statement', permission: 'journal.menu' },
           { label: 'Balance Sheet', href: '/accounting/reports/balance-sheet', permission: 'journal.menu' },
+          { label: 'Comparative Reports', href: '/accounting/reports/comparative', permission: 'report.read' },
           { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
           { label: 'AR Aging', href: '/accounting/reports/ar-aging', permission: 'report.read' },
           { label: 'Cash Flow', href: '/accounting/reports/cash-flow', permission: 'report.read' },
@@ -204,6 +207,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Credit Report', href: '/reports/credit-report', permission: 'sales-order.menu' },
           { label: 'Discount & Voucher', href: '/reports/discount-voucher', permission: 'sales-order.menu' },
           { label: 'Stock Position', href: '/reports/stock-position', permission: 'product-inventory.menu' },
+          { label: 'Purchasing Reports', href: '/reports/purchasing', permission: 'report.read' },
         ],
       },
     ],
@@ -225,6 +229,7 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Companies', href: '/users/companies', permission: 'company.menu' },
           { label: 'Branches', href: '/users/branches', permission: 'branch.menu' },
+          { label: 'Departments', href: '/settings/departments', permission: 'department.read' },
         ],
       },
       { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.menu' },

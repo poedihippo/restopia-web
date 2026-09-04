@@ -35,8 +35,10 @@ interface User {
   created_at?: string
   branch?: { id: number; name: string }
   branches?: Array<{ id: number; name: string }>
+  departments?: Array<{ id: number; name: string; code?: string }>
   roles?: Array<{ id: number; name: string }>
   branch_ids?: number[]
+  department_ids?: number[]
   role_ids?: number[]
 }
 
@@ -82,7 +84,7 @@ export default function UsersView() {
         .list({
           page,
           per_page: perPage,
-          include: 'branch,branches,roles',
+          include: 'branch,branches,roles,departments',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
@@ -107,10 +109,12 @@ export default function UsersView() {
     const branchIds =
       (item.branches ?? []).map((b) => b.id).filter((id) => typeof id === 'number')
     const fallback = item.branch ? [item.branch.id] : []
+    const deptIds = (item.departments ?? []).map((d) => d.id).filter((id) => typeof id === 'number')
     setEditData({
       ...item,
       credit: item.credit ?? 0,
       branch_ids: branchIds.length > 0 ? branchIds : fallback,
+      department_ids: deptIds,
       role_ids: (item.roles ?? []).map((r) => r.id),
     })
     setSheetOpen(true)
@@ -276,8 +280,9 @@ export default function UsersView() {
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 200 }}>Email</th>
               <th style={{ ...thStyle, width: 110 }}>Type</th>
-              <th style={{ ...thStyle, width: 160 }}>Branch</th>
-              <th style={{ ...thStyle, width: 200 }}>Roles</th>
+              <th style={{ ...thStyle, width: 150 }}>Branch</th>
+              <th style={{ ...thStyle, width: 170 }}>Departments</th>
+              <th style={{ ...thStyle, width: 180 }}>Roles</th>
               <th style={{ ...thStyle, width: 140 }}>Phone</th>
               <th style={{ ...thStyle, width: 120 }}>Credit</th>
               <th style={{ ...thStyle, width: 80 }} />
@@ -287,14 +292,14 @@ export default function UsersView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 9 }).map((__, j) => (
+                  {Array.from({ length: 10 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 8 ? 60 : '75%',
+                          width: j === 9 ? 60 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -304,7 +309,7 @@ export default function UsersView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load users.
                   </span>
@@ -312,7 +317,7 @@ export default function UsersView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -395,6 +400,43 @@ export default function UsersView() {
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.branch?.name ?? '—'}
                       </span>
+                    </td>
+                    <td style={tdStyle}>
+                      {canRead ? (item.departments ?? []).length === 0 ? (
+                        <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>—</span>
+                      ) : (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: 4,
+                            alignItems: 'center',
+                          }}
+                        >
+                          {(item.departments ?? []).slice(0, 2).map((dept) => (
+                            <span
+                              key={dept.id}
+                              style={{
+                                padding: '1px 8px',
+                                background: 'var(--accent-light-bg)',
+                                color: 'var(--accent)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: 11,
+                                fontWeight: 500,
+                              }}
+                            >
+                              {dept.name}
+                            </span>
+                          ))}
+                          {(item.departments ?? []).length > 2 && (
+                            <span
+                              style={{ fontSize: 11, color: 'var(--foreground-muted)' }}
+                            >
+                              +{(item.departments ?? []).length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      ) : '***'}
                     </td>
                     <td style={tdStyle}>
                       {canRead ? rolesList.length === 0 ? (
@@ -674,6 +716,40 @@ export default function UsersView() {
                   </span>
                 </div>
               ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.6px',
+                  }}
+                >
+                  Departments
+                </span>
+                {(selectedItem.departments ?? []).length === 0 ? (
+                  <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>—</span>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {(selectedItem.departments ?? []).map((d) => (
+                      <span
+                        key={d.id}
+                        style={{
+                          padding: '2px 10px',
+                          background: 'var(--accent-light-bg)',
+                          color: 'var(--accent)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: 11,
+                          fontWeight: 500,
+                        }}
+                      >
+                        {d.code ? `[${d.code}] ` : ''}{d.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span
                   style={{

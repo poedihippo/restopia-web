@@ -2,9 +2,13 @@
 
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Printer, Search } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { ArrowLeft, Printer, Search, Download, Loader2 } from 'lucide-react'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { toastMutationApiError } from '@/utils/apiError'
+import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 
 const inputStyle: React.CSSProperties = {
@@ -132,6 +136,18 @@ export default function StockPositionReport() {
     refetch()
   }
 
+  const exportMutation = useMutation({
+    mutationFn: () =>
+      reportsService.exportStockPositions({
+        'filter[branch_id]': branchFilter ? Number(branchFilter) : undefined,
+      }),
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, 'stock-positions.xlsx')
+      toast.success('Stock positions exported')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to export stock positions'),
+  })
+
   return (
     <div
       style={{
@@ -179,26 +195,54 @@ export default function StockPositionReport() {
           <ArrowLeft size={14} />
           Back
         </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '7px 16px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}
-        >
-          <Printer size={14} />
-          Print
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => exportMutation.mutate()}
+            disabled={exportMutation.isPending}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 16px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: 'var(--foreground)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: exportMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: exportMutation.isPending ? 0.7 : 1,
+            }}
+          >
+            {exportMutation.isPending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Download size={14} />
+            )}
+            Export Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 16px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Printer size={14} />
+            Print
+          </button>
+        </div>
       </div>
 
       <div

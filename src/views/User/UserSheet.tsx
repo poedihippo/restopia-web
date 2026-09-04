@@ -9,8 +9,9 @@ import { toast } from 'sonner'
 import { usersService } from '@/services/users.service'
 import { rolesService } from '@/services/roles.service'
 import { branchesService } from '@/services/branches.service'
+import { departmentsService, Department } from '@/services/departments.service'
 import { X, Loader2 } from 'lucide-react'
-import { toastMutationApiError } from '@/utils/apiError';
+import { toastMutationApiError } from '@/utils/apiError'
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -23,6 +24,7 @@ const schema = z.object({
   gender: z.enum(['male', 'female']).optional(),
   credit: z.coerce.number().min(0).optional(),
   branch_ids: z.array(z.number()).optional(),
+  department_ids: z.array(z.number()).optional(),
   role_ids: z.array(z.number()).optional(),
 })
 type FormValues = z.infer<typeof schema>
@@ -41,6 +43,7 @@ interface UserSheetProps {
     gender?: 'male' | 'female'
     credit?: number
     branch_ids?: number[]
+    department_ids?: number[]
     role_ids?: number[]
   } | null
 }
@@ -85,6 +88,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
       gender: undefined,
       credit: 0,
       branch_ids: [],
+      department_ids: [],
       role_ids: [],
     },
   })
@@ -101,6 +105,12 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
   })
   const branches: BranchOption[] = (branchesData as any)?.data ?? []
 
+  const { data: departmentsData } = useQuery({
+    queryKey: ['departments-active'],
+    queryFn: () => departmentsService.list({ per_page: 100, 'filter[is_active]': 1 } as any).then((r) => r.data),
+  })
+  const departments: Department[] = (departmentsData as any)?.data ?? []
+
   useEffect(() => {
     if (editData) {
       reset({
@@ -114,6 +124,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         gender: editData.gender ?? undefined,
         credit: editData.credit ?? 0,
         branch_ids: editData.branch_ids ?? [],
+        department_ids: editData.department_ids ?? [],
         role_ids: editData.role_ids ?? [],
       })
     } else {
@@ -128,6 +139,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         gender: undefined,
         credit: 0,
         branch_ids: [],
+        department_ids: [],
         role_ids: [],
       })
     }
@@ -164,10 +176,9 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         birth: values.birth || undefined,
         gender: values.gender || undefined,
         credit: values.credit ?? 0,
-        branch_ids: values.branch_ids?.length
-          ? values.branch_ids : undefined,
-        role_ids: values.role_ids?.length
-          ? values.role_ids : undefined,
+        branch_ids: values.branch_ids ?? [],
+        department_ids: values.department_ids ?? [],
+        role_ids: values.role_ids?.length ? values.role_ids : undefined,
       }
       if (values.password && values.password.length > 0) {
         payload.password = values.password
@@ -189,7 +200,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
     borderRadius: 'var(--radius-md)',
     fontSize: 13,
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised, #ffffff)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
@@ -228,7 +239,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
-    background: selected ? activeBg : 'var(--background)',
+    background: selected ? activeBg : 'var(--surface-raised, #ffffff)',
     color: selected ? activeColor : 'var(--foreground-muted)',
     border: selected ? `1px solid ${activeBorder}` : '1px solid var(--border)',
   })
@@ -507,7 +518,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                                     fontSize: 12,
                                     fontWeight: 500,
                                     cursor: 'pointer',
-                                    background: selected ? 'var(--accent)' : 'var(--background)',
+                                    background: selected ? 'var(--accent)' : 'var(--surface-raised, #ffffff)',
                                     color: selected ? 'white' : 'var(--foreground-muted)',
                                     border: selected
                                       ? '1px solid var(--accent)'
@@ -521,6 +532,56 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )
+                }}
+              />
+            </div>
+
+            {/* Departments */}
+            <div>
+              <label style={labelStyle}>Departments</label>
+              <span style={noteStyle}>Select one or more departments this user belongs to</span>
+              <Controller
+                control={control}
+                name="department_ids"
+                render={({ field }) => {
+                  const value = field.value ?? []
+                  if (departments.length === 0) {
+                    return (
+                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                        No departments available
+                      </span>
+                    )
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {departments.map((dept) => {
+                        const selected = value.includes(dept.id)
+                        return (
+                          <button
+                            type="button"
+                            key={dept.id}
+                            onClick={() => field.onChange(toggleId(value, dept.id))}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: 12,
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              background: selected ? 'var(--accent)' : 'var(--surface-raised, #ffffff)',
+                              color: selected ? 'white' : 'var(--foreground-muted)',
+                              border: selected
+                                ? '1px solid var(--accent)'
+                                : '1px solid var(--border)',
+                            }}
+                          >
+                            <span style={{ opacity: 0.8, marginRight: 4, fontFamily: 'monospace' }}>[{dept.code}]</span>
+                            {dept.name}
+                          </button>
+                        )
+                      })}
                     </div>
                   )
                 }}
@@ -560,7 +621,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
                               cursor: 'pointer',
                               background: selected
                                 ? 'var(--accent-light-bg)'
-                                : 'var(--background)',
+                                : 'var(--surface-raised, #ffffff)',
                               color: selected ? 'var(--accent)' : 'var(--foreground-muted)',
                               border: selected
                                 ? '1px solid var(--accent)'

@@ -18,6 +18,45 @@ export const reportsService = {
   exportCashFlow: (params: { start_date: string; end_date: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/cash-flow/exports', { params, responseType: 'blob' }),
 
+  // Comparative & Cards Reports
+  exportComparativeIncomeStatement: (params?: { fiscal_year_id?: number; year?: number; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/comparative-income-statement/exports', { params, responseType: 'blob' }),
+
+  exportComparativeBalanceSheet: (params?: { fiscal_year_id?: number; year?: number; as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/comparative-balance-sheet/exports', { params, responseType: 'blob' }),
+
+  exportArCard: (params: { customer_id: number; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/ar-card/exports', { params, responseType: 'blob' }),
+
+  exportApCard: (params: { supplier: string; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/ap-card/exports', { params, responseType: 'blob' }),
+
+  // Purchasing Reports
+  exportPurchaseProducts: (params?: { start_date?: string; end_date?: string; 'filter[supplier]'?: string; 'filter[category_id]'?: number; 'filter[status]'?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/purchase-products/exports', { params, responseType: 'blob' }),
+
+  exportSupplierPurchases: (params?: { start_date?: string; end_date?: string; 'filter[supplier]'?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/supplier-purchases/exports', { params, responseType: 'blob' }),
+
+  exportPurchaseInvoices: (params?: { start_date?: string; end_date?: string; 'filter[supplier]'?: string; 'filter[status]'?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/purchase-invoices/exports', { params, responseType: 'blob' }),
+
+  // Inventory & Sales Reports
+  exportStockPositions: (params?: { as_of_date?: string; 'filter[category_id]'?: number; 'filter[branch_id]'?: number; 'filter[is_low_stock]'?: number }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/stock-positions/exports', { params, responseType: 'blob' }),
+
+  exportStockCards: (params: { product_id: number; start_date?: string; end_date?: string; 'filter[branch_id]'?: number }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/stock-cards/exports', { params, responseType: 'blob' }),
+
+  exportSalesProducts: (params?: { start_date?: string; end_date?: string; 'filter[branch_id]'?: number; 'filter[category_id]'?: number }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/sales-products/exports', { params, responseType: 'blob' }),
+
+  exportSalesInvoices: (params?: { start_date?: string; end_date?: string; 'filter[branch_id]'?: number; 'filter[status]'?: string }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/sales-invoices/exports', { params, responseType: 'blob' }),
+
+  exportOutletTransactions: (params?: { start_date?: string; end_date?: string; 'filter[branch_id]'?: number }): Promise<AxiosResponse<Blob>> =>
+    api.get('/reports/outlet-transactions/exports', { params, responseType: 'blob' }),
+
   // Aging & Statements
   exportArAging: (params?: { as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/ar-aging/exports', { params, responseType: 'blob' }),
@@ -50,7 +89,6 @@ export const reportsService = {
 
   exportJournals: (): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/journal-entries/exports', { responseType: 'blob' }),
-
 
   // Master Data Reference
   exportChartOfAccounts: (): Promise<AxiosResponse<Blob>> =>

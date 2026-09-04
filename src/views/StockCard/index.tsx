@@ -1,10 +1,14 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
 import { companiesService } from '@/services/companies.service'
+import { reportsService } from '@/services/reports.service'
+import { downloadFileFromResponse } from '@/utils/file'
+import { toastMutationApiError } from '@/utils/apiError'
+import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDate } from '@/utils/date'
 import api from '@/hooks/useApi'
@@ -16,7 +20,7 @@ import {
   MovementDocumentLink,
 } from '@/views/StockMovement'
 import type { StockMovement } from '@/views/StockMovement'
-import { LayoutList } from 'lucide-react'
+import { LayoutList, Download, Loader2 } from 'lucide-react'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -175,24 +179,64 @@ export default function StockCardView() {
     display: 'block',
   }
 
+  const exportMutation = useMutation({
+    mutationFn: () => {
+      if (!productId) throw new Error('Silakan pilih produk terlebih dahulu')
+      return reportsService.exportStockCards({
+        product_id: productId,
+        'filter[branch_id]': branchId,
+      })
+    },
+    onSuccess: (res) => {
+      downloadFileFromResponse(res, `stock-card-product-${productId}.xlsx`)
+      toast.success('Kartu stok berhasil diexport')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Gagal mengexport kartu stok'),
+  })
+
   return (
     <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Page header */}
-      <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 20 }}>
-        <h1
+      <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h1
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 24,
+              fontWeight: 500,
+              margin: 0,
+              color: 'var(--foreground)',
+            }}
+          >
+            Kartu Stok
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+            Riwayat pergerakan stok per produk dengan saldo berjalan
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => exportMutation.mutate()}
+          disabled={exportMutation.isPending || !productId}
           style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 24,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 16px',
+            background: 'var(--accent)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
             fontWeight: 500,
-            margin: 0,
-            color: 'var(--foreground)',
+            cursor: exportMutation.isPending || !productId ? 'not-allowed' : 'pointer',
+            opacity: exportMutation.isPending || !productId ? 0.6 : 1,
+            boxShadow: 'var(--shadow-sm)',
           }}
         >
-          Kartu Stok
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-          Riwayat pergerakan stok per produk dengan saldo berjalan
-        </p>
+          {exportMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          Export Excel
+        </button>
       </div>
 
       {/* Filters */}

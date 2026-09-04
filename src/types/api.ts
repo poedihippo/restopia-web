@@ -70,6 +70,7 @@ export interface UserRequest {
   birth?: string
   gender?: 'male' | 'female'
   branch_ids?: number[]
+  department_ids?: number[]
   role_ids?: number[]
 }
 
