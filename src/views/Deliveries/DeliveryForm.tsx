@@ -325,7 +325,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryFn: () =>
       purchaseOrdersService
         .findById(watchPurchaseOrderId as number, {
-          include: 'purchase_order_details',
+          include: 'purchase_order_details,purchase_order_details.product_uom',
         })
         .then((r) => r.data),
     enabled: !!watchPurchaseOrderId && (watchPurchaseOrderId as number) > 0,
@@ -345,8 +345,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const soDetail = (soData as any)?.data
 
   useEffect(() => {
-    console.log('PO detail:', poDetail)
-    console.log('PO details array:', poDetail?.purchase_order_details)
     if (!poDetail?.purchase_order_details?.length) return
 
     // source_type must match the PO's own type — a branch PO needs
@@ -355,8 +353,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     const derivedSourceType = poDetail?.type === 'branch' ? 'po_from_branch' : 'po_from_supplier'
     setValue('source_type', derivedSourceType)
 
+    // purchase_order_details rows don't reliably carry a flat product_uom_id
+    // FK — fall back to the nested product_uom.id (requested via the
+    // purchase_order_details.product_uom include above), same as
+    // PurchaseOrderEdit's initialData mapping. Without this every row
+    // resolved to product_uom_id: 0, so the product dropdown showed
+    // "Select product..." and, since the batch picker is keyed off the
+    // selected product_uom_id, its options list was empty too.
     const newDetails = poDetail.purchase_order_details.map((d: any) => ({
-      product_uom_id: d.product_uom_id ?? 0,
+      product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
       product_uom_batch_id: undefined,
       purchase_order_detail_id: d.id,
       sales_order_detail_id: undefined,
