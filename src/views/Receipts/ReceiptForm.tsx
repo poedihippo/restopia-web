@@ -29,7 +29,10 @@ const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   planned_batch_code: z.string().optional(),
   planned_expiry_date: z.string().optional(),
-  qty: z.coerce.number().min(0.001, 'Qty required'),
+  // A fully-received line defaults to qty 0 (nothing left to receive) and
+  // must stay valid so it doesn't block submitting the rest of the receipt
+  // — "at least one line has qty > 0" is enforced separately, not per-line.
+  qty: z.coerce.number().min(0, 'Qty tidak boleh negatif'),
   price: z.coerce.number().min(0, 'Price required'),
   status: z.enum(['pending', 'success', 'failed']),
   description: z.string().optional(),
@@ -150,10 +153,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   })
   const deliveryDetail = (deliveryData as any)?.data
 
-  // Delivered qty per delivery_detail_id — used to cap received qty so a
-  // receipt can't record more than what was actually shipped. Sourced from
-  // the linked delivery's own lines, so it's available in both create and
-  // edit mode as soon as a delivery is linked.
+  // Delivered / received / remaining qty per delivery_detail_id. The
+  // backend now supports multiple partial receipts per delivery (e8b1caad)
+  // and returns received_qty per line, so "remaining" (delivered - received)
+  // — not the full delivered qty — is what caps a new receipt's qty and
+  // what a fresh line should default to. Sourced from the linked delivery's
+  // own lines, so available in both create and edit mode as soon as a
+  // delivery is linked.
   const deliveredQtyByDetailId = useMemo(() => {
     const map = new Map<number, number>()
     ;(deliveryDetail?.delivery_details ?? []).forEach((dd: any) => {
@@ -161,6 +167,30 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     })
     return map
   }, [deliveryDetail])
+
+  const receivedQtyByDetailId = useMemo(() => {
+    const map = new Map<number, number>()
+    ;(deliveryDetail?.delivery_details ?? []).forEach((dd: any) => {
+      map.set(dd.id, Number(dd.received_qty ?? 0))
+    })
+    return map
+  }, [deliveryDetail])
+
+  const remainingQtyByDetailId = useMemo(() => {
+    const map = new Map<number, number>()
+    ;(deliveryDetail?.delivery_details ?? []).forEach((dd: any) => {
+      map.set(dd.id, Math.max(0, Number(dd.qty ?? 0) - Number(dd.received_qty ?? 0)))
+    })
+    return map
+  }, [deliveryDetail])
+
+  // Every line fully received -> nothing left to create a new receipt for.
+  // Only meaningful once the delivery's lines have actually loaded.
+  const isFullyReceived =
+    (deliveryDetail?.delivery_details?.length ?? 0) > 0 &&
+    (deliveryDetail?.delivery_details ?? []).every(
+      (dd: any) => Number(dd.qty ?? 0) - Number(dd.received_qty ?? 0) <= 0,
+    )
 
   // Internal-branch receipts (from internal deliveries/transfers) are
   // price-free — hide all price UI and don't submit prices. Only known once
@@ -177,10 +207,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     (deliveryDetailLoading || !deliveryDetail)
 
   // Duplicate guard: does this delivery already have a receipt of ANY status?
-  // A po_from_supplier delivery auto-creates a PENDING receipt when finalized,
-  // so checking only 'final' misses it and lets the user try to create a
-  // second one, which the backend rejects. Only relevant when creating —
-  // editing naturally matches its own delivery.
+  // The backend now supports multiple partial receipts per delivery
+  // (e8b1caad), so an existing receipt no longer means "block" by itself —
+  // it only matters combined with isFullyReceived below. Only relevant when
+  // creating — editing naturally matches its own delivery.
   const { data: receiptExistsData } = useQuery({
     queryKey: ['receipt-exists-for-delivery', watchDeliveryId],
     enabled:
@@ -201,18 +231,22 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     mode === 'edit'
       ? existingReceipts.filter((r: any) => r.id !== receiptId).length
       : ((receiptExistsData as any)?.meta?.total ?? 0)
+  // Only block when the delivery is FULLY received — a partially received
+  // delivery should let the user create an additional receipt for the
+  // remainder instead of being treated as a duplicate.
   const deliveryAlreadyReceived =
-    mode === 'create' && otherReceiptCount > 0
+    mode === 'create' && otherReceiptCount > 0 && isFullyReceived
 
-  // A receipt already exists for the selected delivery (pending or final) —
+  // The delivery is fully received and a receipt already exists for it —
   // don't let the user create a duplicate, open the existing one instead.
   useEffect(() => {
     if (mode !== 'create') return
+    if (!isFullyReceived) return
     const existing = existingReceipts[0]
     if (!existing) return
-    toast.error('Receipt untuk pengiriman ini sudah ada, membuka untuk diedit')
+    toast.error('Pengiriman ini sudah diterima sepenuhnya, membuka receipt yang sudah ada')
     router.replace(`/transfer/receipts/${existing.id}/edit`)
-  }, [mode, existingReceipts, router])
+  }, [mode, existingReceipts, isFullyReceived, router])
 
   useEffect(() => {
     if (!deliveryDetail?.delivery_details?.length) return
@@ -224,7 +258,11 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       product_uom_id: d.product_uom_id ?? 0,
       planned_batch_code: d.planned_batch_code ?? d.product_uom_batch?.batch_code ?? d.product_uom_batch?.code ?? '',
       planned_expiry_date: '',
-      qty: d.qty ?? 1,
+      // Default to what's still remaining (delivered - received), not the
+      // full delivered qty — a partially received line should only offer
+      // the leftover for this new receipt. A fully received line defaults
+      // to 0 and stays visible rather than being hidden.
+      qty: Math.max(0, Number(d.qty ?? 0) - Number(d.received_qty ?? 0)),
       price: d.price ?? 0,
       status: 'success' as const,
       description: d.description ?? '',
@@ -287,7 +325,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const buildPayload = (values: FormValues) => {
     const isEdit = mode === 'edit'
     const details = values.details
-      .filter((d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0)
+      // A fully received line defaults to qty 0 so it stays visible — but
+      // it must never actually be submitted as a receipt detail row.
+      .filter(
+        (d) =>
+          (Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0) &&
+          Number(d.qty) > 0,
+      )
       .map((d) => {
         const detailBase: any = {
           id: d.id || undefined,
@@ -367,9 +411,12 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const onSubmit = (values: FormValues) => {
     console.log('ReceiptForm onSubmit called', { ...values, total_price: totalPrice })
     // Guard against a stock-less receipt: the payload applies the same
-    // product_uom_id filter, so an empty result here means nothing would save.
+    // product_uom_id + qty>0 filter, so an empty result here means nothing
+    // would save (including when every line is already fully received).
     const validDetails = values.details.filter(
-      (d) => Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0,
+      (d) =>
+        (Number(d.delivery_detail_id) > 0 || Number(d.product_uom_id) > 0) &&
+        Number(d.qty) > 0,
     )
     if (validDetails.length === 0) {
       toast.error(
@@ -378,16 +425,16 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       return
     }
     if (deliveryAlreadyReceived) {
-      toast.error('Receipt untuk pengiriman ini sudah ada.')
+      toast.error('Pengiriman ini sudah diterima sepenuhnya.')
       return
     }
 
     const overReceived = values.details.find((d) => {
-      const delivered = deliveredQtyByDetailId.get(d.delivery_detail_id as number)
-      return delivered !== undefined && Number(d.qty) > delivered
+      const remaining = remainingQtyByDetailId.get(d.delivery_detail_id as number)
+      return remaining !== undefined && Number(d.qty) > remaining
     })
     if (overReceived) {
-      toast.error('Qty diterima tidak boleh melebihi qty yang dikirim.')
+      toast.error('Qty diterima melebihi sisa yang belum diterima.')
       return
     }
 
@@ -629,7 +676,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     display: 'block',
                   }}
                 >
-                  Pengiriman ini sudah memiliki receipt. Membuka receipt yang sudah ada...
+                  Pengiriman ini sudah diterima sepenuhnya. Membuka receipt yang sudah ada...
                 </span>
               )}
             </div>
@@ -647,6 +694,27 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         </div>
 
         {/* Section 2 — Receipt Items */}
+        {mode === 'create' && !!watchDeliveryId && watchDeliveryId > 0 && deliveryDetail && isFullyReceived ? (
+          <div style={cardStyle}>
+            <div
+              style={{
+                padding: 32,
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
+                Pengiriman ini sudah diterima sepenuhnya
+              </span>
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)', maxWidth: 420 }}>
+                Semua item pada pengiriman ini sudah tercatat diterima sepenuhnya — tidak ada sisa qty untuk dibuat receipt baru.
+              </span>
+            </div>
+          </div>
+        ) : (
         <div style={cardStyle}>
           <div
             style={{
@@ -776,36 +844,46 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   />
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <input
-                      type="number"
-                      min={0.001}
-                      step={0.001}
-                      max={deliveredQtyByDetailId.get(watchDetails[index]?.delivery_detail_id as number) || undefined}
-                      {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                      style={{
-                        ...lineInputStyle,
-                        background: 'var(--background)',
-                        color: 'var(--foreground)',
-                      }}
-                      onWheel={(e) => (e.target as HTMLElement).blur()}
-                    />
                     {(() => {
-                      const delivered = deliveredQtyByDetailId.get(
-                        watchDetails[index]?.delivery_detail_id as number,
+                      const detailId = watchDetails[index]?.delivery_detail_id as number
+                      const remaining = remainingQtyByDetailId.get(detailId)
+                      const isDone = remaining === 0
+                      return (
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.001}
+                          max={remaining ?? undefined}
+                          disabled={isDone}
+                          {...register(`details.${index}.qty`, { valueAsNumber: true })}
+                          style={{
+                            ...lineInputStyle,
+                            ...(isDone
+                              ? { background: 'var(--surface)', cursor: 'not-allowed' }
+                              : { background: 'var(--background)', color: 'var(--foreground)' }),
+                          }}
+                          onWheel={(e) => (e.target as HTMLElement).blur()}
+                        />
                       )
+                    })()}
+                    {(() => {
+                      const detailId = watchDetails[index]?.delivery_detail_id as number
+                      const delivered = deliveredQtyByDetailId.get(detailId)
                       if (delivered === undefined) return null
-                      const received = Number(watchDetails[index]?.qty ?? 0)
+                      const received = receivedQtyByDetailId.get(detailId) ?? 0
+                      const remaining = remainingQtyByDetailId.get(detailId) ?? 0
+                      const entered = Number(watchDetails[index]?.qty ?? 0)
                       return (
                         <span
                           style={{
                             fontSize: 10,
                             color:
-                              received > delivered
+                              entered > remaining
                                 ? 'var(--destructive)'
                                 : 'var(--foreground-subtle)',
                           }}
                         >
-                          Dikirim: {delivered.toLocaleString('id-ID')}
+                          Dikirim: {delivered.toLocaleString('id-ID')} · Diterima: {received.toLocaleString('id-ID')} · Sisa: {remaining.toLocaleString('id-ID')}
                         </span>
                       )
                     })()}
@@ -885,6 +963,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </div>
           )}
         </div>
+        )}
 
         {/* Form actions */}
         <div
@@ -913,7 +992,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           </button>
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || (mode === 'create' && isFullyReceived)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -925,8 +1004,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: isPending ? 'not-allowed' : 'pointer',
-              opacity: isPending ? 0.7 : 1,
+              cursor: isPending || (mode === 'create' && isFullyReceived) ? 'not-allowed' : 'pointer',
+              opacity: isPending || (mode === 'create' && isFullyReceived) ? 0.7 : 1,
             }}
           >
             {isPending && (
