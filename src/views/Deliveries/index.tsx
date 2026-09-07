@@ -30,11 +30,44 @@ interface Delivery {
   date: string
   total_price: number
   status: 'pending' | 'final'
+  source_type?:
+  | 'po_from_supplier'
+  | 'po_from_branch'
+  | 'transfer_to_branch'
+  | 'so_to_branch'
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
   target_branch?: { id: number; name: string }
-  purchase_order?: { id: number; code: string }
+  purchase_order?: { id: number; code: string; supplier?: { id: number; name: string } }
+  sales_order?: { id: number; code: string; customer_name?: string }
+}
+
+// FROM/TO derivation per source_type — mirrors the delivery detail page's
+// branch/target_branch fields, plus the supplier fallback a plain PO
+// delivery needs: a po_from_supplier delivery has no distinct "source
+// branch" (branch_id defaults server-side to the same receiving branch as
+// target_branch_id), so FROM there must come from purchase_order.supplier
+// instead, or every supplier delivery shows warehouse -> warehouse.
+const getFromTo = (item: Delivery): { from: string; to: string } => {
+  if (item.source_type === 'po_from_supplier') {
+    return {
+      from: item.purchase_order?.supplier?.name ?? 'Supplier',
+      to: item.target_branch?.name ?? item.branch?.name ?? '—',
+    }
+  }
+  if (item.source_type === 'so_to_branch') {
+    return {
+      from: item.branch?.name ?? '—',
+      to: item.target_branch?.name ?? item.sales_order?.customer_name ?? '—',
+    }
+  }
+  // po_from_branch / transfer_to_branch (and any other/legacy record):
+  // branch = source, target_branch = destination.
+  return {
+    from: item.branch?.name ?? '—',
+    to: item.target_branch?.name ?? '—',
+  }
 }
 
 const STATUS_META = {
@@ -84,7 +117,7 @@ export default function DeliveriesView() {
         .list({
           page,
           per_page: perPage,
-          include: 'branch,target_branch,purchase_order',
+          include: 'branch,target_branch,purchase_order,purchase_order.supplier,sales_order',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
@@ -409,6 +442,7 @@ export default function DeliveriesView() {
                 const isInternal = ['po_from_branch', 'transfer_to_branch'].includes(
                   (item as any).source_type,
                 )
+                const { from: fromLabel, to: toLabel } = getFromTo(item)
                 return (
                   <tr
                     key={item.id}
@@ -434,12 +468,12 @@ export default function DeliveriesView() {
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                        {item.branch?.name ?? '—'}
+                        {fromLabel}
                       </span>
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                        {item.target_branch?.name ?? '—'}
+                        {toLabel}
                       </span>
                     </td>
                     <td style={tdStyle}>
