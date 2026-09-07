@@ -313,6 +313,12 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       date: values.date,
       description: values.description,
       status: values.status,
+      // Receipts always land in the GENERAL pool — earmarking stock to a
+      // specific company owner (e.g. Tridaya) is a deliberate Dimension
+      // Transfer action, not a receipt-time choice. A receipt earmarked to
+      // a company blocks GENERAL-only fulfillment with false "no stock"
+      // errors, so this is hardcoded rather than read from form state.
+      owner_ref: 'GENERAL',
       details,
     }
 
@@ -324,7 +330,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       ...basePayload,
       delivery_id: values.delivery_id,
       location_ref: values.location_ref,
-      owner_ref: values.owner_ref,
       stage: values.stage,
       total_price: values.total_price || totalPrice,
     }
