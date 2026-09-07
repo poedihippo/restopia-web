@@ -26,10 +26,10 @@ export const reportsService = {
     api.get('/reports/comparative-balance-sheet/exports', { params, responseType: 'blob' }),
 
   exportArCard: (params: { customer_id: number; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
-    api.get('/reports/ar-card/exports', { params, responseType: 'blob' }),
+    api.get('/reports/ar-cards/exports', { params, responseType: 'blob' }),
 
   exportApCard: (params: { supplier: string; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
-    api.get('/reports/ap-card/exports', { params, responseType: 'blob' }),
+    api.get('/reports/ap-cards/exports', { params, responseType: 'blob' }),
 
   // Purchasing Reports
   exportPurchaseProducts: (params?: { start_date?: string; end_date?: string; 'filter[supplier]'?: string; 'filter[category_id]'?: number; 'filter[status]'?: string }): Promise<AxiosResponse<Blob>> =>

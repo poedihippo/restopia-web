@@ -204,7 +204,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     productUomsAll.find((pu: any) => pu.id === id)
 
   const filteredItems = items.filter((i) => {
-    if (hideEmpty && (!i.qty || i.qty <= 0)) return false
+    const currentStock = Number(i.stock ?? i.qty ?? 0)
+    if (hideEmpty && currentStock <= 0) return false
     const puFallback = getProductUom(i.product_uom_id)
     const productObj =
       i.product_uom_batch?.product_uom?.product ??

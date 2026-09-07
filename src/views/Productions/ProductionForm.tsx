@@ -666,7 +666,7 @@ export default function ProductionForm({
             'filter[branch_id]': activeBranchId,
            } as any)
           .then((r) => r.data)
-        const items = (res as any)?.data ?? []
+        const items = unwrapList(res)
         allInventories = allInventories.concat(items)
         totalPages =
           (res as any)?.meta?.last_page ??
@@ -706,7 +706,7 @@ export default function ProductionForm({
         .get('/product-inventories', {
           params: {
             per_page: 500,
-            include: 'product_uom_batch',
+            include: 'product_uom_batch,product_uom_batch.product_uom',
             'filter[status]': 'active',
             'filter[branch_id]': activeBranchId,
           },
@@ -719,8 +719,6 @@ export default function ProductionForm({
       inv.product_uom?.product_id === sharedMaterialProductId ||
       inv.product_uom_batch?.product_uom?.product_id === sharedMaterialProductId
   )
-  console.log('all material inv:', allMaterialInventories);
-  console.log('material inv:', materialInventories);
 
   // Edit mode: prefill
   useEffect(() => {

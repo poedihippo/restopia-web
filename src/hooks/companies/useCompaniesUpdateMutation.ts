@@ -14,7 +14,7 @@ const useCompaniesUpdateMutation = () => {
 
   return useMutation({
     mutationFn: ({ id, data }: UpdateUserParams) =>
-      api.patch(`companies/${id}`, data),
+      api.put(`companies/${id}`, data),
 
     onSuccess: (res: AxiosResponse<ISuccessResponseMessage>) => {
       queryClient.invalidateQueries({ queryKey: ["companies"] });

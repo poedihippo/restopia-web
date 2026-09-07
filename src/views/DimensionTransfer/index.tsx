@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect,  useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -14,12 +14,13 @@ import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Loader2, ArrowRightLeft } from 'lucide-react'
 
-const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
+const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'General (Umum)' }
 
 interface DimensionInventoryRow {
   id: number
   product_uom_batch_id?: number
   stock?: number
+  qty?: number
   owner_ref?: string
   owner_display?: string
   owner_company_name?: string
@@ -28,6 +29,7 @@ interface DimensionInventoryRow {
   product_uom_batch?: {
     id: number
     code?: string
+    batch_code?: string
     product_uom?: {
       id: number
       code?: string
@@ -40,18 +42,25 @@ interface DimensionInventoryRow {
 const schema = z.object({
   source_inventory_id: z.coerce.number().min(1, 'Pilih item sumber'),
   qty: z.coerce.number().min(1, 'Qty minimal 1'),
+  from_owner_ref: z.string().min(1, 'Owner asal wajib diisi'),
+  from_stage: z.string().min(1, 'Stage asal wajib diisi'),
+  from_location_ref: z.string().default('GENERAL'),
   to_owner_ref: z.string().min(1, 'Owner tujuan wajib diisi'),
   to_stage: z.string().min(1, 'Stage tujuan wajib diisi'),
+  to_location_ref: z.string().default('GENERAL'),
   description: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
 
 export default function DimensionTransferView() {
-
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400)
+    return () => clearTimeout(t)
+  }, [dropdownSearch])
+
   const { user } = useAuth()
   const branchId = user?.branch?.id
   const queryClient = useQueryClient()
@@ -69,14 +78,18 @@ export default function DimensionTransferView() {
     defaultValues: {
       source_inventory_id: 0,
       qty: 1,
+      from_owner_ref: 'GENERAL',
+      from_stage: 'GENERAL',
+      from_location_ref: 'GENERAL',
       to_owner_ref: '',
       to_stage: '',
+      to_location_ref: 'GENERAL',
       description: '',
     },
   })
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['dimension-transfer-source-inventory', branchId],
+    queryKey: ['dimension-transfer-source-inventory', branchId, debouncedDropdownSearch],
     enabled: !!branchId,
     queryFn: async () => {
       let allInv: any[] = []
@@ -88,27 +101,32 @@ export default function DimensionTransferView() {
             page,
             per_page: 100,
             'filter[branch_id]': branchId,
-            'filter[status]': 'active',
-            include: 'product_uom_batch.product_uom.product',
+            'filter[search]': debouncedDropdownSearch || undefined,
+            include:
+              'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
           } as any)
           .then((r) => r.data)
-        const items = (res as any)?.data ?? []
+        const d = (res as any)?.data
+        const items = Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : []
         allInv = allInv.concat(items)
         totalPages =
-          (res as any)?.meta?.last_page ?? (res as any)?.meta?.total_pages ?? 1
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          (d as any)?.meta?.last_page ??
+          1
         page += 1
-      } while (page <= totalPages)
+      } while (page <= totalPages && page <= 5)
       return { data: allInv }
     },
   })
 
   const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
-    (r: any) => Number(r.stock ?? 0) > 0,
+    (r: any) => Number(r.stock ?? r.qty ?? 0) > 0,
   )
 
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all', debouncedDropdownSearch],
-    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100  } as any).then((r) => r.data),
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const companyOptions = [
@@ -117,11 +135,21 @@ export default function DimensionTransferView() {
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all', debouncedDropdownSearch],
+    queryKey: ['stages-all'],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
-  const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
-  const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
+  const stages: { code?: string; name: string }[] = (stagesData as any)?.data ?? []
+  const stageOptions =
+    stages.length > 0
+      ? stages.map((s) => ({ value: s.code || s.name, label: s.name }))
+      : [
+          { value: 'GENERAL', label: 'General' },
+          { value: 'RAW', label: 'Raw' },
+          { value: 'WIP', label: 'WIP' },
+          { value: 'FINISHED', label: 'Finished' },
+          { value: 'CHILLED', label: 'Chilled' },
+          { value: 'NORMAL', label: 'Normal' },
+        ]
 
   const ownerLabel = (row: DimensionInventoryRow | undefined): string => {
     if (!row) return '—'
@@ -129,8 +157,8 @@ export default function DimensionTransferView() {
     if (row.owner_company_name) return row.owner_company_name
     const ownerRef = row.owner_ref
     if (!ownerRef) return '—'
-    if (ownerRef === 'GENERAL') return 'Umum'
-    const match = companies.find((c) => String(c.id) === String(ownerRef))
+    if (ownerRef === 'GENERAL') return 'General (Umum)'
+    const match = companies.find((c) => String(c.id) === String(ownerRef) || c.name === ownerRef)
     return match?.name ?? ownerRef
   }
 
@@ -138,12 +166,19 @@ export default function DimensionTransferView() {
   const selectedRow = inventoryRows.find((r) => r.id === Number(sourceInventoryId))
 
   const sourceOptions = inventoryRows.map((row) => {
-    const product = row.product_uom_batch?.product_uom?.product
-    const batchCode = row.product_uom_batch?.code ?? '—'
+    const product =
+      row.product_uom_batch?.product_uom?.product ||
+      (row as any).product_uom?.product ||
+      (row as any).product
+    const batchCode =
+      row.product_uom_batch?.batch_code ??
+      row.product_uom_batch?.code ??
+      (row as any).batch_code ??
+      '—'
     const owner = ownerLabel(row)
     const stage = row.stage ?? '—'
     const location = row.location_ref ?? '—'
-    const stock = row.stock ?? 0
+    const stock = row.stock ?? row.qty ?? 0
     return {
       value: row.id,
       label: `${product?.code ?? ''} ${product?.name ?? ''}`.trim() || `Item #${row.id}`,
@@ -151,23 +186,35 @@ export default function DimensionTransferView() {
     }
   })
 
+  const fromOwner = watch('from_owner_ref')
+  const fromStage = watch('from_stage')
+  const fromLocation = watch('from_location_ref') || 'GENERAL'
+
   const toOwnerRef = watch('to_owner_ref')
   const toStage = watch('to_stage')
+  const toLocationRef = watch('to_location_ref') || 'GENERAL'
   const qtyWatched = watch('qty')
+
+  const isSameDimension =
+    !!fromOwner &&
+    !!toOwnerRef &&
+    fromOwner === toOwnerRef &&
+    fromStage === toStage &&
+    fromLocation === toLocationRef
 
   const targetBatchId = selectedRow?.product_uom_batch_id ?? selectedRow?.product_uom_batch?.id
   const targetRow = inventoryRows.find((r) => {
     const batchId = r.product_uom_batch_id ?? r.product_uom_batch?.id
     return (
       batchId === targetBatchId &&
-      r.owner_ref === toOwnerRef &&
-      r.stage === toStage &&
-      (r.location_ref ?? 'GENERAL') === 'GENERAL'
+      (r.owner_ref ?? 'GENERAL') === toOwnerRef &&
+      (r.stage ?? 'GENERAL') === toStage &&
+      (r.location_ref ?? 'GENERAL') === toLocationRef
     )
   })
-  const targetCurrentStock = targetRow?.stock ?? 0
+  const targetCurrentStock = targetRow?.stock ?? targetRow?.qty ?? 0
   const targetAfterStock = targetCurrentStock + Number(qtyWatched || 0)
-  const showTargetCaption = !!selectedRow && !!toOwnerRef && !!toStage
+  const showTargetCaption = !!selectedRow && !!toOwnerRef && !!toStage && !isSameDimension
 
   const createMutation = useMutation({
     mutationFn: (payload: {
@@ -183,8 +230,12 @@ export default function DimensionTransferView() {
       reset({
         source_inventory_id: 0,
         qty: 1,
+        from_owner_ref: 'GENERAL',
+        from_stage: 'GENERAL',
+        from_location_ref: 'GENERAL',
         to_owner_ref: '',
         to_stage: '',
+        to_location_ref: 'GENERAL',
         description: '',
       })
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
@@ -207,18 +258,19 @@ export default function DimensionTransferView() {
       return
     }
 
-    const stock = Number(row.stock ?? 0)
+    const stock = Number(row.stock ?? row.qty ?? 0)
     if (Number(values.qty) > stock) {
       toast.error(`Qty melebihi stok tersedia (${stock})`)
       return
     }
 
-    const fromOwner = row.owner_ref ?? ''
-    const fromStage = row.stage ?? ''
-    const fromLocation = row.location_ref ?? ''
-    const noOp = values.to_owner_ref === fromOwner && values.to_stage === fromStage
+    const noOp =
+      values.from_owner_ref === values.to_owner_ref &&
+      values.from_stage === values.to_stage &&
+      (values.from_location_ref || 'GENERAL') === (values.to_location_ref || 'GENERAL')
+
     if (noOp) {
-      toast.error('Dimensi tujuan harus berbeda dari sumber')
+      toast.error('Dimensi tujuan harus berbeda dari dimensi asal')
       return
     }
 
@@ -231,18 +283,21 @@ export default function DimensionTransferView() {
       branch_id: branchId,
       product_uom_batch_id: batchId,
       qty: values.qty,
-      from: { owner_ref: fromOwner, stage: fromStage, location_ref: fromLocation },
+      from: {
+        owner_ref: values.from_owner_ref,
+        stage: values.from_stage,
+        location_ref: values.from_location_ref || 'GENERAL',
+      },
       to: {
         owner_ref: values.to_owner_ref,
         stage: values.to_stage,
-        location_ref: 'GENERAL',
+        location_ref: values.to_location_ref || 'GENERAL',
       },
       description: values.description || undefined,
     })
   }
 
   const onInvalid = (errs: any) => {
-
     const first = Object.values(errs)[0] as any
     toast.error(first?.message ?? 'Mohon lengkapi field yang wajib diisi')
   }
@@ -275,7 +330,16 @@ export default function DimensionTransferView() {
   }
 
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div
+      style={{
+        padding: '32px 32px 64px',
+        maxWidth: 780,
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 20,
+      }}
+    >
       <div>
         <h1
           style={{
@@ -289,7 +353,7 @@ export default function DimensionTransferView() {
           Dimension Transfer
         </h1>
         <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-          Pindahkan stok antar owner/stage/lokasi untuk item yang sama
+          Pindahkan stok antar owner/stage/lokasi untuk item yang sama sesuai skema OpenAPI
         </p>
       </div>
 
@@ -304,11 +368,12 @@ export default function DimensionTransferView() {
       >
         <form
           onSubmit={handleSubmit(onSubmit, onInvalid)}
-          style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
         >
+          {/* Item Sumber */}
           <div>
             <label style={labelStyle}>
-              Item Sumber <span style={{ color: 'var(--destructive)' }}>*</span>
+              Item Sumber (Produk / Batch) <span style={{ color: 'var(--destructive)' }}>*</span>
             </label>
             <Controller
               name="source_inventory_id"
@@ -320,8 +385,12 @@ export default function DimensionTransferView() {
                     field.onChange(val)
                     const row = inventoryRows.find((r) => r.id === Number(val))
                     if (row) {
-                      setValue('to_owner_ref', row.owner_ref ?? 'GENERAL')
-                      setValue('to_stage', row.stage ?? '')
+                      setValue('from_owner_ref', row.owner_ref ?? 'GENERAL')
+                      setValue('from_stage', row.stage ?? 'GENERAL')
+                      setValue('from_location_ref', row.location_ref ?? 'GENERAL')
+                      setValue('to_owner_ref', '')
+                      setValue('to_stage', '')
+                      setValue('to_location_ref', 'GENERAL')
                     }
                   }}
                   options={sourceOptions}
@@ -330,17 +399,17 @@ export default function DimensionTransferView() {
                   loading={inventoryLoading}
                   error={errors.source_inventory_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
-/>
+                />
               )}
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Dari: {ownerLabel(selectedRow)}/{selectedRow.stage ?? '—'}/{selectedRow.location_ref ?? '—'},
-                {' '}stok {selectedRow.stock ?? 0}
+                Dimensi Asal Terdeteksi: {ownerLabel(selectedRow)} / {selectedRow.stage ?? '—'} / {selectedRow.location_ref ?? '—'} · Stok: {selectedRow.stock ?? selectedRow.qty ?? 0}
               </span>
             )}
           </div>
 
+          {/* Qty */}
           <div>
             <label style={labelStyle}>
               Qty <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -357,70 +426,188 @@ export default function DimensionTransferView() {
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Tersedia: {selectedRow.stock ?? 0}
+                Tersedia: {selectedRow.stock ?? selectedRow.qty ?? 0}
               </span>
             )}
             {errors.qty && <span style={errorStyle}>{errors.qty.message}</span>}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            <div>
-              <label style={labelStyle}>
-                Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <Controller
-                name="to_owner_ref"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    options={companyOptions}
-                    placeholder="Pilih owner..."
-                    searchPlaceholder="Cari perusahaan..."
-                    loading={companiesLoading}
-                    error={errors.to_owner_ref?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
-/>
-                )}
-              />
+          {/* SECTION FROM (Dimensi Asal) */}
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--muted)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                Dimensi Asal (From)
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                Diisi otomatis dari inventori sumber
+              </span>
             </div>
-            <div>
-              <label style={labelStyle}>
-                Stage Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <Controller
-                name="to_stage"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    options={stageOptions}
-                    placeholder="Pilih stage..."
-                    searchPlaceholder="Cari stage..."
-                    loading={stagesLoading}
-                    error={errors.to_stage?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
-/>
-                )}
-              />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>
+                  Owner Asal (owner_ref) <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="from_owner_ref"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={companyOptions}
+                      placeholder="Pilih owner..."
+                      searchPlaceholder="Cari perusahaan..."
+                      loading={companiesLoading}
+                      error={errors.from_owner_ref?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Stage Asal (stage) <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="from_stage"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={stageOptions}
+                      placeholder="Pilih stage..."
+                      searchPlaceholder="Cari stage..."
+                      loading={stagesLoading}
+                      error={errors.from_stage?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Lokasi Asal (location_ref)
+                </label>
+                <input
+                  type="text"
+                  placeholder="GENERAL"
+                  {...register('from_location_ref')}
+                  style={inputStyle}
+                />
+              </div>
             </div>
           </div>
 
-          {showTargetCaption && (
-            <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-              Tujuan saat ini: {targetCurrentStock.toLocaleString('id-ID')} → akan menjadi{' '}
-              {targetAfterStock.toLocaleString('id-ID')}
-            </span>
-          )}
+          {/* SECTION TO (Dimensi Tujuan) */}
+          <div
+            style={{
+              padding: 16,
+              background: 'var(--surface-raised)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                Dimensi Tujuan (To)
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                Target perpindahan stok barang
+              </span>
+            </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>
+                  Owner Tujuan (owner_ref) <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="to_owner_ref"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={companyOptions}
+                      placeholder="Pilih owner tujuan..."
+                      searchPlaceholder="Cari perusahaan..."
+                      loading={companiesLoading}
+                      error={errors.to_owner_ref?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Stage Tujuan (stage) <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="to_stage"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={stageOptions}
+                      placeholder="Pilih stage tujuan..."
+                      searchPlaceholder="Cari stage..."
+                      loading={stagesLoading}
+                      error={errors.to_stage?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Lokasi Tujuan (location_ref)
+                </label>
+                <input
+                  type="text"
+                  placeholder="GENERAL"
+                  {...register('to_location_ref')}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            {isSameDimension && (
+              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                ⚠️ Dimensi tujuan sama persis dengan dimensi asal. Harap ubah owner, stage, atau lokasi tujuan.
+              </span>
+            )}
+
+            {showTargetCaption && (
+              <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 500 }}>
+                ℹ️ Stok dimensi tujuan saat ini: {targetCurrentStock.toLocaleString('id-ID')} → akan menjadi{' '}
+                {targetAfterStock.toLocaleString('id-ID')}
+              </span>
+            )}
+          </div>
+
+          {/* Catatan */}
           <div>
-            <label style={labelStyle}>Catatan</label>
+            <label style={labelStyle}>Catatan / Deskripsi</label>
             <textarea
               {...register('description')}
               rows={2}
-              placeholder="Catatan opsional"
+              placeholder="Catatan opsional (misal: Transfer stok dari GENERAL ke mitra / pindah stage)"
               style={{ ...inputStyle, resize: 'vertical', minHeight: 56 }}
             />
           </div>
@@ -428,26 +615,26 @@ export default function DimensionTransferView() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button
               type="submit"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || isSameDimension}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '8px 16px',
+                padding: '9px 18px',
                 background: 'var(--accent)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 13,
                 fontWeight: 500,
-                cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
-                opacity: createMutation.isPending ? 0.7 : 1,
+                cursor: createMutation.isPending || isSameDimension ? 'not-allowed' : 'pointer',
+                opacity: createMutation.isPending || isSameDimension ? 0.6 : 1,
               }}
             >
               {createMutation.isPending ? (
-                <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
               ) : (
-                <ArrowRightLeft size={13} />
+                <ArrowRightLeft size={14} />
               )}
               Pindahkan
             </button>

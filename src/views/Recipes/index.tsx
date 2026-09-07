@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import RecipeSheet from './RecipeSheet'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
+import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
@@ -58,9 +59,9 @@ export default function RecipesView() {
   const [perPage, setPerPage] = useState(20)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [productUomFilter, setProductUomFilter] = useState<number | ''>('')
-  const [puSearch, setPuSearch] = useState('')
-  const [debouncedPuSearch, setDebouncedPuSearch] = useState('')
+  const [selectedProductId, setSelectedProductId] = useState<number | ''>('')
+  const [productSearch, setProductSearch] = useState('')
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
   
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -70,42 +71,110 @@ export default function RecipesView() {
   React.useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(search)
-      setDebouncedPuSearch(puSearch)
+      setDebouncedProductSearch(productSearch)
     }, 400)
     return () => clearTimeout(t)
-  }, [search, puSearch])
+  }, [search, productSearch])
 
-  React.useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, productUomFilter])
-
-  const { data: productUomsData } = useQuery({
-    queryKey: ['product-uoms-list', debouncedPuSearch],
-    queryFn: () => productUomsService.list({ per_page: perPage, include: 'product,uom', 'filter[search]': debouncedPuSearch || undefined } as any).then((r) => r.data),
-  })
-
-  const productUomOptions = (productUomsData as any)?.data?.map((pu: any) => ({
-    value: pu.id,
-    label: `${pu.product?.name ?? 'Unknown'} - ${pu.uom?.name ?? 'Unknown'}`,
-  })) ?? []
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['recipes', page, perPage, debouncedSearch, productUomFilter],
+  // 1. Search products for the filter dropdown via /v1/products (Product Search)
+  const { data: productsData } = useQuery({
+    queryKey: ['products-for-recipes-filter', debouncedProductSearch],
     queryFn: () =>
-      recipesService
+      productsService
         .list({
-          page,
-          per_page: perPage,
-          include: 'product_uom,recipe_materials',
-          sort: '-id',
-          'filter[search]': debouncedSearch || undefined,
-          'filter[product_uom_id]': productUomFilter || undefined,
+          per_page: 50,
+          sort: 'name',
+          'filter[search]': debouncedProductSearch || undefined,
         } as any)
         .then((r) => r.data),
   })
 
-  const items: Recipe[] = (data as any)?.data ?? []
-  const meta = (data as any)?.meta
+  const productOptions = (productsData as any)?.data?.map((p: any) => ({
+    value: p.id,
+    label: p.name,
+    sublabel: p.code ? `SKU: ${p.code}` : undefined,
+  })) ?? []
+
+  React.useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, selectedProductId])
+
+  // Fetch all recipes (there are only 178 total recipes, fetched in 2 quick batches of 100)
+  const { data: allRecipes = [], isLoading, isError } = useQuery({
+    queryKey: ['all-recipes-list'],
+    queryFn: async () => {
+      let currentPage = 1
+      let totalPages = 1
+      let results: any[] = []
+      do {
+        const res = await recipesService
+          .list({
+            page: currentPage,
+            per_page: 100,
+            include: 'product_uom,recipe_materials',
+            sort: '-id',
+          } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        results = results.concat(items)
+        totalPages = (res as any)?.meta?.last_page ?? (res as any)?.meta?.total_pages ?? 1
+        currentPage++
+      } while (currentPage <= totalPages && currentPage <= 10)
+      return results
+    },
+    staleTime: 60 * 1000,
+  })
+
+  // Instant filtering across all 178 recipes
+  const filteredRecipes = React.useMemo(() => {
+    let list = allRecipes
+    if (selectedProductId) {
+      list = list.filter(
+        (r: any) =>
+          r.product_uom?.product_id === selectedProductId ||
+          r.product_uom?.product?.id === selectedProductId
+      )
+    }
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase().trim()
+      list = list.filter((r: any) => {
+        const prodName = (r.product_uom?.product?.name || '').toLowerCase()
+        const prodCode = (r.product_uom?.product?.code || '').toLowerCase()
+        const uomCode = (r.product_uom?.code || '').toLowerCase()
+        const rName = (r.name || '').toLowerCase()
+        const rId = String(r.id)
+        const matMatch = (r.recipe_materials || []).some((m: any) => {
+          const mName = (m.product_uom?.product?.name || '').toLowerCase()
+          const mCode = (m.product_uom?.product?.code || '').toLowerCase()
+          return mName.includes(q) || mCode.includes(q)
+        })
+        return (
+          prodName.includes(q) ||
+          prodCode.includes(q) ||
+          uomCode.includes(q) ||
+          rName.includes(q) ||
+          rId === q ||
+          matMatch
+        )
+      })
+    }
+    return list
+  }, [allRecipes, selectedProductId, debouncedSearch])
+
+  const totalItems = filteredRecipes.length
+  const totalPages = Math.ceil(totalItems / perPage) || 1
+
+  const items: Recipe[] = React.useMemo(() => {
+    const start = (page - 1) * perPage
+    return filteredRecipes.slice(start, start + perPage)
+  }, [filteredRecipes, page, perPage])
+
+  const meta = {
+    current_page: page,
+    last_page: totalPages,
+    per_page: perPage,
+    total: totalItems,
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => recipesService.delete(id),
@@ -199,13 +268,14 @@ export default function RecipesView() {
             }}
           />
         </div>
-        <div style={{ width: 220 }}>
+        <div style={{ width: 260 }}>
           <SearchableSelect
-            value={productUomFilter}
-            onChange={(val) => setProductUomFilter(val)}
-            onSearchChange={(val) => setPuSearch(val)}
-            options={[{ value: '', label: 'All Products' }, ...productUomOptions]}
-            placeholder="Filter by Product UOM"
+            value={selectedProductId}
+            onChange={(val) => setSelectedProductId(val)}
+            onSearchChange={(val) => setProductSearch(val)}
+            options={[{ value: '', label: 'All Products' }, ...productOptions]}
+            placeholder="Filter by Product"
+            searchPlaceholder="Search product by name..."
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect,  useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,18 +9,20 @@ import { toast } from 'sonner'
 import { dimensionTransferRequestsService } from '@/services/dimension-transfer-requests.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
+import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2 } from 'lucide-react'
 
-const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
+const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'General (Umum)' }
 
 interface DimensionInventoryRow {
   id: number
   product_uom_batch_id?: number
   stock?: number
+  qty?: number
   owner_ref?: string
   owner_display?: string
   owner_company_name?: string
@@ -29,6 +31,7 @@ interface DimensionInventoryRow {
   product_uom_batch?: {
     id: number
     code?: string
+    batch_code?: string
     product_uom?: {
       id: number
       code?: string
@@ -41,8 +44,12 @@ interface DimensionInventoryRow {
 const schema = z.object({
   source_inventory_id: z.coerce.number().min(1, 'Pilih item sumber'),
   qty: z.coerce.number().min(1, 'Qty minimal 1'),
+  from_owner_ref: z.string().min(1, 'Owner asal wajib diisi'),
+  from_stage: z.string().min(1, 'Stage asal wajib diisi'),
+  from_location_ref: z.string().default('GENERAL'),
   to_owner_ref: z.string().min(1, 'Owner tujuan wajib diisi'),
   to_stage: z.string().min(1, 'Stage tujuan wajib diisi'),
+  to_location_ref: z.string().default('GENERAL'),
   description: z.string().optional(),
 })
 
@@ -57,12 +64,30 @@ export default function DimensionTransferRequestSheet({
   open,
   onClose,
 }: DimensionTransferRequestSheetProps) {
-
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
-  const { user } = useAuth()
-  const branchId = user?.branch?.id
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400)
+    return () => clearTimeout(t)
+  }, [dropdownSearch])
+
+  const { user, isSuperadmin } = useAuth()
+  const [selectedBranchId, setSelectedBranchId] = useState<number | undefined>(user?.branch?.id)
+
+  useEffect(() => {
+    if (!selectedBranchId && user?.branch?.id) {
+      setSelectedBranchId(user.branch.id)
+    }
+  }, [user?.branch?.id, selectedBranchId])
+
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const allBranches: any[] = (branchesData as any)?.data ?? []
+  const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
+  const effectiveBranchId = selectedBranchId || user?.branch?.id
+
   const queryClient = useQueryClient()
 
   const {
@@ -78,15 +103,19 @@ export default function DimensionTransferRequestSheet({
     defaultValues: {
       source_inventory_id: 0,
       qty: 1,
+      from_owner_ref: 'GENERAL',
+      from_stage: 'GENERAL',
+      from_location_ref: 'GENERAL',
       to_owner_ref: '',
       to_stage: '',
+      to_location_ref: 'GENERAL',
       description: '',
     },
   })
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['dimension-transfer-source-inventory', branchId],
-    enabled: !!branchId && open,
+    queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, debouncedDropdownSearch],
+    enabled: !!effectiveBranchId && open,
     queryFn: async () => {
       let allInv: any[] = []
       let page = 1
@@ -96,28 +125,33 @@ export default function DimensionTransferRequestSheet({
           .list({
             page,
             per_page: 100,
-            'filter[branch_id]': branchId,
-            'filter[status]': 'active',
-            include: 'product_uom_batch.product_uom.product',
+            'filter[branch_id]': effectiveBranchId,
+            'filter[search]': debouncedDropdownSearch || undefined,
+            include:
+              'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
           } as any)
           .then((r) => r.data)
-        const items = (res as any)?.data ?? []
+        const d = (res as any)?.data
+        const items = Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : []
         allInv = allInv.concat(items)
         totalPages =
-          (res as any)?.meta?.last_page ?? (res as any)?.meta?.total_pages ?? 1
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          (d as any)?.meta?.last_page ??
+          1
         page += 1
-      } while (page <= totalPages)
+      } while (page <= totalPages && page <= 5)
       return { data: allInv }
     },
   })
 
   const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
-    (r: any) => Number(r.stock ?? 0) > 0,
+    (r: any) => Number(r.stock ?? r.qty ?? 0) > 0,
   )
 
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all', debouncedDropdownSearch],
-    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100  } as any).then((r) => r.data),
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const companyOptions = [
@@ -126,11 +160,21 @@ export default function DimensionTransferRequestSheet({
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all', debouncedDropdownSearch],
+    queryKey: ['stages-all'],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
-  const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
-  const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
+  const stages: { code?: string; name: string }[] = (stagesData as any)?.data ?? []
+  const stageOptions =
+    stages.length > 0
+      ? stages.map((s) => ({ value: s.code || s.name, label: s.name }))
+      : [
+          { value: 'GENERAL', label: 'General' },
+          { value: 'RAW', label: 'Raw' },
+          { value: 'WIP', label: 'WIP' },
+          { value: 'FINISHED', label: 'Finished' },
+          { value: 'CHILLED', label: 'Chilled' },
+          { value: 'NORMAL', label: 'Normal' },
+        ]
 
   const ownerLabel = (row: DimensionInventoryRow | undefined): string => {
     if (!row) return '—'
@@ -138,8 +182,8 @@ export default function DimensionTransferRequestSheet({
     if (row.owner_company_name) return row.owner_company_name
     const ownerRef = row.owner_ref
     if (!ownerRef) return '—'
-    if (ownerRef === 'GENERAL') return 'Umum'
-    const match = companies.find((c) => String(c.id) === String(ownerRef))
+    if (ownerRef === 'GENERAL') return 'General (Umum)'
+    const match = companies.find((c) => String(c.id) === String(ownerRef) || c.name === ownerRef)
     return match?.name ?? ownerRef
   }
 
@@ -147,12 +191,19 @@ export default function DimensionTransferRequestSheet({
   const selectedRow = inventoryRows.find((r) => r.id === Number(sourceInventoryId))
 
   const sourceOptions = inventoryRows.map((row) => {
-    const product = row.product_uom_batch?.product_uom?.product
-    const batchCode = row.product_uom_batch?.code ?? '—'
+    const product =
+      row.product_uom_batch?.product_uom?.product ||
+      (row as any).product_uom?.product ||
+      (row as any).product
+    const batchCode =
+      row.product_uom_batch?.batch_code ??
+      row.product_uom_batch?.code ??
+      (row as any).batch_code ??
+      '—'
     const owner = ownerLabel(row)
     const stage = row.stage ?? '—'
     const location = row.location_ref ?? '—'
-    const stock = row.stock ?? 0
+    const stock = row.stock ?? row.qty ?? 0
     return {
       value: row.id,
       label: `${product?.code ?? ''} ${product?.name ?? ''}`.trim() || `Item #${row.id}`,
@@ -164,8 +215,12 @@ export default function DimensionTransferRequestSheet({
     reset({
       source_inventory_id: 0,
       qty: 1,
+      from_owner_ref: 'GENERAL',
+      from_stage: 'GENERAL',
+      from_location_ref: 'GENERAL',
       to_owner_ref: '',
       to_stage: '',
+      to_location_ref: 'GENERAL',
       description: '',
     })
 
@@ -179,19 +234,49 @@ export default function DimensionTransferRequestSheet({
       description?: string
     }) => dimensionTransferRequestsService.create(payload),
     onSuccess: () => {
-      toast.success('Permintaan transfer dimensi dibuat')
-      resetForm()
+      toast.success('Permintaan transfer dimensi berhasil diajukan')
       queryClient.invalidateQueries({ queryKey: ['dimension-transfer-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['dimension-transfer-source-inventory'] })
+      resetForm()
       onClose()
     },
-    onError: (err: any) =>
-      toastMutationApiError(err, 'Gagal membuat permintaan transfer dimensi'),
+    onError: (err: any) => toastMutationApiError(err, 'Gagal mengajukan permintaan transfer'),
   })
+
+  const fromOwner = watch('from_owner_ref')
+  const fromStage = watch('from_stage')
+  const fromLocation = watch('from_location_ref') || 'GENERAL'
+
+  const toOwnerRef = watch('to_owner_ref')
+  const toStage = watch('to_stage')
+  const toLocationRef = watch('to_location_ref') || 'GENERAL'
+  const qtyWatched = watch('qty')
+
+  const isSameDimension =
+    !!fromOwner &&
+    !!toOwnerRef &&
+    fromOwner === toOwnerRef &&
+    fromStage === toStage &&
+    fromLocation === toLocationRef
+
+  const targetBatchId = selectedRow?.product_uom_batch_id ?? selectedRow?.product_uom_batch?.id
+  const targetRow = inventoryRows.find((r) => {
+    const batchId = r.product_uom_batch_id ?? r.product_uom_batch?.id
+    return (
+      batchId === targetBatchId &&
+      (r.owner_ref ?? 'GENERAL') === toOwnerRef &&
+      (r.stage ?? 'GENERAL') === toStage &&
+      (r.location_ref ?? 'GENERAL') === toLocationRef
+    )
+  })
+  const targetCurrentStock = targetRow?.stock ?? targetRow?.qty ?? 0
+  const targetAfterStock = targetCurrentStock + Number(qtyWatched || 0)
+  const showTargetCaption = !!selectedRow && !!toOwnerRef && !!toStage && !isSameDimension
 
   const onSubmit = (values: FormValues) => {
     const row = inventoryRows.find((r) => r.id === Number(values.source_inventory_id))
     if (!row) {
-      toast.error('Pilih item sumber yang valid')
+      toast.error('Pilih item sumber terlebih dahulu')
       return
     }
 
@@ -201,35 +286,41 @@ export default function DimensionTransferRequestSheet({
       return
     }
 
-    const stock = Number(row.stock ?? 0)
+    const stock = Number(row.stock ?? row.qty ?? 0)
     if (Number(values.qty) > stock) {
       toast.error(`Qty melebihi stok tersedia (${stock})`)
       return
     }
 
-    const fromOwner = row.owner_ref ?? ''
-    const fromStage = row.stage ?? ''
-    const fromLocation = row.location_ref ?? ''
-    const noOp = values.to_owner_ref === fromOwner && values.to_stage === fromStage
+    const noOp =
+      values.from_owner_ref === values.to_owner_ref &&
+      values.from_stage === values.to_stage &&
+      (values.from_location_ref || 'GENERAL') === (values.to_location_ref || 'GENERAL')
+
     if (noOp) {
-      toast.error('Dimensi tujuan harus berbeda dari sumber')
+      toast.error('Dimensi tujuan harus berbeda dari dimensi asal')
       return
     }
 
-    if (!branchId) {
+    const branchToSend = effectiveBranchId || (row as any).branch_id || user?.branch?.id
+    if (!branchToSend) {
       toast.error('Tidak ada cabang aktif')
       return
     }
 
     createMutation.mutate({
-      branch_id: branchId,
+      branch_id: branchToSend,
       product_uom_batch_id: batchId,
       qty: values.qty,
-      from: { owner_ref: fromOwner, stage: fromStage, location_ref: fromLocation },
+      from: {
+        owner_ref: values.from_owner_ref,
+        stage: values.from_stage,
+        location_ref: values.from_location_ref || 'GENERAL',
+      },
       to: {
         owner_ref: values.to_owner_ref,
         stage: values.to_stage,
-        location_ref: 'GENERAL',
+        location_ref: values.to_location_ref || 'GENERAL',
       },
       description: values.description || undefined,
     })
@@ -241,7 +332,6 @@ export default function DimensionTransferRequestSheet({
   }
 
   const handleClose = () => {
-
     resetForm()
     onClose()
   }
@@ -260,10 +350,10 @@ export default function DimensionTransferRequestSheet({
   }
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 500,
     color: 'var(--foreground)',
-    marginBottom: 6,
+    marginBottom: 4,
     display: 'block',
   }
 
@@ -274,24 +364,6 @@ export default function DimensionTransferRequestSheet({
   }
 
   const isPending = createMutation.isPending
-
-  const toOwnerRef = watch('to_owner_ref')
-  const toStage = watch('to_stage')
-  const qtyWatched = watch('qty')
-
-  const targetBatchId = selectedRow?.product_uom_batch_id ?? selectedRow?.product_uom_batch?.id
-  const targetRow = inventoryRows.find((r) => {
-    const batchId = r.product_uom_batch_id ?? r.product_uom_batch?.id
-    return (
-      batchId === targetBatchId &&
-      r.owner_ref === toOwnerRef &&
-      r.stage === toStage &&
-      (r.location_ref ?? 'GENERAL') === 'GENERAL'
-    )
-  })
-  const targetCurrentStock = targetRow?.stock ?? 0
-  const targetAfterStock = targetCurrentStock + Number(qtyWatched || 0)
-  const showTargetCaption = !!selectedRow && !!toOwnerRef && !!toStage
 
   if (!open) return null
 
@@ -314,7 +386,7 @@ export default function DimensionTransferRequestSheet({
         style={{
           position: 'relative',
           zIndex: 50,
-          width: 460,
+          width: 520,
           height: '100%',
           background: 'var(--surface)',
           borderLeft: '1px solid var(--border)',
@@ -369,17 +441,51 @@ export default function DimensionTransferRequestSheet({
             padding: 24,
             display: 'flex',
             flexDirection: 'column',
-            gap: 20,
+            gap: 18,
           }}
         >
           <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: 0 }}>
-            Ajukan permintaan untuk memindahkan stok antar owner/stage. Transfer baru
-            dijalankan setelah disetujui.
+            Ajukan permintaan untuk memindahkan stok antar owner/stage/lokasi sesuai spesifikasi OpenAPI.
           </p>
 
+          {/* Cabang Asal (Lokasi Stok) */}
           <div>
             <label style={labelStyle}>
-              Item Sumber <span style={{ color: 'var(--destructive)' }}>*</span>
+              Cabang Asal (Lokasi Stok) <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <select
+              value={effectiveBranchId || ''}
+              onChange={(e) => {
+                const newBranchId = Number(e.target.value) || undefined
+                setSelectedBranchId(newBranchId)
+                setValue('source_inventory_id', 0)
+                setValue('from_owner_ref', 'GENERAL')
+                setValue('from_stage', 'GENERAL')
+                setValue('from_location_ref', 'GENERAL')
+                setValue('to_owner_ref', '')
+                setValue('to_stage', '')
+                setValue('to_location_ref', 'GENERAL')
+              }}
+              style={inputStyle}
+            >
+              {availableBranches.length > 0 ? (
+                availableBranches.map((b: any) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} {b.company?.name ? `(${b.company.name})` : ''}
+                  </option>
+                ))
+              ) : (
+                <option value={user?.branch?.id || ''}>
+                  {user?.branch?.name ?? 'Cabang Aktif'}
+                </option>
+              )}
+            </select>
+          </div>
+
+          {/* Item Sumber */}
+          <div>
+            <label style={labelStyle}>
+              Item Sumber (Produk / Batch) <span style={{ color: 'var(--destructive)' }}>*</span>
             </label>
             <Controller
               name="source_inventory_id"
@@ -391,8 +497,12 @@ export default function DimensionTransferRequestSheet({
                     field.onChange(val)
                     const row = inventoryRows.find((r) => r.id === Number(val))
                     if (row) {
-                      setValue('to_owner_ref', row.owner_ref ?? 'GENERAL')
-                      setValue('to_stage', row.stage ?? '')
+                      setValue('from_owner_ref', row.owner_ref ?? 'GENERAL')
+                      setValue('from_stage', row.stage ?? 'GENERAL')
+                      setValue('from_location_ref', row.location_ref ?? 'GENERAL')
+                      setValue('to_owner_ref', '')
+                      setValue('to_stage', '')
+                      setValue('to_location_ref', 'GENERAL')
                     }
                   }}
                   options={sourceOptions}
@@ -401,17 +511,17 @@ export default function DimensionTransferRequestSheet({
                   loading={inventoryLoading}
                   error={errors.source_inventory_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
-/>
+                />
               )}
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Dari: {ownerLabel(selectedRow)}/{selectedRow.stage ?? '—'}/{selectedRow.location_ref ?? '—'},
-                {' '}stok {selectedRow.stock ?? 0}
+                Dimensi Asal: {ownerLabel(selectedRow)} / {selectedRow.stage ?? '—'} / {selectedRow.location_ref ?? '—'} · Stok: {selectedRow.stock ?? selectedRow.qty ?? 0}
               </span>
             )}
           </div>
 
+          {/* Qty */}
           <div>
             <label style={labelStyle}>
               Qty <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -428,64 +538,168 @@ export default function DimensionTransferRequestSheet({
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Tersedia: {selectedRow.stock ?? 0}
+                Tersedia: {selectedRow.stock ?? selectedRow.qty ?? 0}
               </span>
             )}
             {errors.qty && <span style={errorStyle}>{errors.qty.message}</span>}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            <div>
-              <label style={labelStyle}>
-                Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <Controller
-                name="to_owner_ref"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    options={companyOptions}
-                    placeholder="Pilih owner..."
-                    searchPlaceholder="Cari perusahaan..."
-                    loading={companiesLoading}
-                    error={errors.to_owner_ref?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
-/>
-                )}
-              />
+          {/* SECTION FROM (Dimensi Asal) */}
+          <div
+            style={{
+              padding: 14,
+              background: 'var(--muted)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>
+              Dimensi Asal (From)
+            </span>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>
+                  Owner Asal <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="from_owner_ref"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={companyOptions}
+                      placeholder="Pilih owner..."
+                      searchPlaceholder="Cari perusahaan..."
+                      loading={companiesLoading}
+                      error={errors.from_owner_ref?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Stage Asal <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="from_stage"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={stageOptions}
+                      placeholder="Pilih stage..."
+                      searchPlaceholder="Cari stage..."
+                      loading={stagesLoading}
+                      error={errors.from_stage?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
             </div>
+
             <div>
-              <label style={labelStyle}>
-                Stage Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <Controller
-                name="to_stage"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    options={stageOptions}
-                    placeholder="Pilih stage..."
-                    searchPlaceholder="Cari stage..."
-                    loading={stagesLoading}
-                    error={errors.to_stage?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
-/>
-                )}
+              <label style={labelStyle}>Lokasi Asal (location_ref)</label>
+              <input
+                type="text"
+                placeholder="GENERAL"
+                {...register('from_location_ref')}
+                style={inputStyle}
               />
             </div>
           </div>
 
-          {showTargetCaption && (
-            <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-              Tujuan saat ini: {targetCurrentStock.toLocaleString('id-ID')} → akan menjadi{' '}
-              {targetAfterStock.toLocaleString('id-ID')}
+          {/* SECTION TO (Dimensi Tujuan) */}
+          <div
+            style={{
+              padding: 14,
+              background: 'var(--surface-raised)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}
+          >
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>
+              Dimensi Tujuan (To)
             </span>
-          )}
 
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>
+                  Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="to_owner_ref"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={companyOptions}
+                      placeholder="Pilih owner tujuan..."
+                      searchPlaceholder="Cari perusahaan..."
+                      loading={companiesLoading}
+                      error={errors.to_owner_ref?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>
+                  Stage Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <Controller
+                  name="to_stage"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      options={stageOptions}
+                      placeholder="Pilih stage tujuan..."
+                      searchPlaceholder="Cari stage..."
+                      loading={stagesLoading}
+                      error={errors.to_stage?.message as string | undefined}
+                    />
+                  )}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Lokasi Tujuan (location_ref)</label>
+              <input
+                type="text"
+                placeholder="GENERAL"
+                {...register('to_location_ref')}
+                style={inputStyle}
+              />
+            </div>
+
+            {isSameDimension && (
+              <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
+                ⚠️ Dimensi tujuan sama dengan dimensi asal. Harap ubah owner, stage, atau lokasi tujuan.
+              </span>
+            )}
+
+            {showTargetCaption && (
+              <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 500 }}>
+                ℹ️ Stok dimensi tujuan saat ini: {targetCurrentStock.toLocaleString('id-ID')} → akan menjadi{' '}
+                {targetAfterStock.toLocaleString('id-ID')}
+              </span>
+            )}
+          </div>
+
+          {/* Catatan */}
           <div>
             <label style={labelStyle}>Catatan</label>
             <textarea
@@ -525,7 +739,7 @@ export default function DimensionTransferRequestSheet({
           </button>
           <button
             type="button"
-            disabled={isPending}
+            disabled={isPending || isSameDimension}
             onClick={handleSubmit(onSubmit, onInvalid)}
             style={{
               padding: '8px 16px',
@@ -535,11 +749,11 @@ export default function DimensionTransferRequestSheet({
               fontSize: 13,
               fontWeight: 500,
               color: 'white',
-              cursor: isPending ? 'not-allowed' : 'pointer',
+              cursor: isPending || isSameDimension ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              opacity: isPending ? 0.7 : 1,
+              opacity: isPending || isSameDimension ? 0.6 : 1,
             }}
           >
             {isPending && (

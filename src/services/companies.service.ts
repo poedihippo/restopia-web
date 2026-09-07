@@ -12,7 +12,7 @@ export const companiesService = {
     api.post<ApiResponse<unknown>>('/companies', data),
 
   update: (id: number, data: Partial<CompanyRequest>) =>
-    api.patch<ApiResponse<unknown>>(`/companies/${id}`, data),
+    api.put<ApiResponse<unknown>>(`/companies/${id}`, data),
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/companies/${id}`),
