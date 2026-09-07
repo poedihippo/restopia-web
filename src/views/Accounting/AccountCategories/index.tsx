@@ -45,7 +45,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-md)',
   fontSize: 14,
   color: 'var(--foreground)',
-  background: 'var(--surface)',
+  background: 'var(--surface-raised)',
   outline: 'none',
   fontFamily: 'var(--font-sans)',
   boxSizing: 'border-box',
@@ -152,7 +152,7 @@ export default function AccountCategoriesView() {
         <div style={{ position: 'relative', width: 300 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account categories..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
       </div>
 

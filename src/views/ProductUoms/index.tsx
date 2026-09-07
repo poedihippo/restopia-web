@@ -263,7 +263,7 @@ export default function ProductUomsView() {
                 padding: '0 12px',
                 fontSize: 13,
                 color: 'var(--foreground)',
-                background: 'var(--surface)',
+                background: 'var(--surface-raised)',
               }}
             />
             {selectedProductId && (
@@ -360,7 +360,7 @@ export default function ProductUomsView() {
               padding: '0 12px',
               fontSize: 13,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
             }}
           />
 
@@ -378,7 +378,7 @@ export default function ProductUomsView() {
               padding: '0 12px',
               fontSize: 13,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
               cursor: 'pointer',
               fontFamily: 'var(--font-sans)',
@@ -403,7 +403,7 @@ export default function ProductUomsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
               cursor: 'pointer',
               fontFamily: 'var(--font-sans)',

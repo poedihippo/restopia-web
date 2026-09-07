@@ -268,7 +268,7 @@ export default function SalesOrdersView() {
             padding: '0 12px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
           }}
         />
         <select
@@ -284,7 +284,7 @@ export default function SalesOrdersView() {
             padding: '0 10px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
           }}
         >
           <option value="">All Status</option>
@@ -306,7 +306,7 @@ export default function SalesOrdersView() {
             padding: '0 10px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
           }}
         >
           <option value="">All Settlements</option>
@@ -330,7 +330,7 @@ export default function SalesOrdersView() {
             padding: '0 10px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
           }}
         >
           <option value="">All Payments</option>
@@ -351,7 +351,7 @@ export default function SalesOrdersView() {
             padding: '0 10px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
           }}
         >
           <option value="">All Types</option>
@@ -372,7 +372,7 @@ export default function SalesOrdersView() {
             padding: '0 10px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
           }}
         />
         <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>–</span>
@@ -390,7 +390,7 @@ export default function SalesOrdersView() {
             padding: '0 10px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
           }}
         />
         {(search || statusFilter || settlementFilter || paymentStatusFilter || typeFilter || dateGte || dateLte) && (

@@ -43,7 +43,7 @@ type FormValues = z.infer<typeof schema>
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--foreground)',
-  background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
+  background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
 }
 const inputError: React.CSSProperties = { ...inputStyle, border: '1px solid var(--destructive)' }
 const thStyle: React.CSSProperties = {

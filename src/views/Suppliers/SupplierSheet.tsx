@@ -108,7 +108,7 @@ export default function SupplierSheet({ open, onClose, editData }: SupplierSheet
     borderRadius: 'var(--radius-md)',
     fontSize: 14,
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',

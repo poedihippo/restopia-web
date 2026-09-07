@@ -52,7 +52,7 @@ export default function CustomerSheet({ open, onClose, editing }: Props) {
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-sm)',
     padding: '0 12px', fontSize: 14,
-    color: 'var(--foreground)', background: 'var(--surface)',
+    color: 'var(--foreground)', background: 'var(--surface-raised)',
     boxSizing: 'border-box',
   };
   const labelStyle: React.CSSProperties = {

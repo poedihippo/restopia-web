@@ -567,7 +567,7 @@ export default function PosModals({
                       fontSize: 16,
                       fontWeight: 600,
                       color: 'var(--foreground)',
-                      background: 'var(--surface)',
+                      background: 'var(--surface-raised)',
                       boxSizing: 'border-box',
                     }}
                   />

@@ -203,7 +203,7 @@ export default function ProductionsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
             fontFamily: 'var(--font-sans)',
             }}
@@ -235,7 +235,7 @@ export default function ProductionsView() {
             borderRadius: 'var(--radius-md)',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
             outline: 'none',
             cursor: 'pointer',
             fontFamily: 'var(--font-sans)',
@@ -261,7 +261,7 @@ export default function ProductionsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 12,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
               fontFamily: 'var(--font-sans)',
             }}
@@ -283,7 +283,7 @@ export default function ProductionsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 12,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
               fontFamily: 'var(--font-sans)',
             }}

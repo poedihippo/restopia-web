@@ -192,7 +192,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     borderRadius: 'var(--radius-md)',
     fontSize: 14,
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
@@ -323,7 +323,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 padding: '0 12px',
                 fontSize: 14,
                 color: 'var(--foreground)',
-                background: 'var(--surface)',
+                background: 'var(--surface-raised)',
                 boxSizing: 'border-box' as const,
               }}
             >
@@ -364,7 +364,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 padding: '0 12px',
                 fontSize: 14,
                 color: 'var(--foreground)',
-                background: 'var(--surface)',
+                background: 'var(--surface-raised)',
                 boxSizing: 'border-box' as const,
               }}
             >
@@ -409,7 +409,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                     padding: '0 12px',
                     fontSize: 14,
                     color: 'var(--foreground)',
-                    background: 'var(--surface)',
+                    background: 'var(--surface-raised)',
                     boxSizing: 'border-box' as const,
                   }}
                 >

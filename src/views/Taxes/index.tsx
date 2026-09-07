@@ -193,7 +193,7 @@ export default function TaxesView() {
             borderRadius: 'var(--radius-md)',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
             outline: 'none',
             fontFamily: 'var(--font-sans)',
             boxSizing: 'border-box',
@@ -409,7 +409,7 @@ export default function TaxesView() {
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="e.g. PPN-11"
                   style={{
-                    width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box',
+                    width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box',
                   }}
                 />
               </div>
@@ -423,7 +423,7 @@ export default function TaxesView() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. PPN"
                   style={{
-                    width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box',
+                    width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box',
                   }}
                 />
               </div>
@@ -439,7 +439,7 @@ export default function TaxesView() {
                   placeholder="e.g. 11"
                   min="0"
                   style={{
-                    width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box',
+                    width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box',
                   }}
                 />
               </div>
@@ -477,7 +477,7 @@ export default function TaxesView() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   style={{
-                    width: '100%', minHeight: 80, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', resize: 'vertical'
+                    width: '100%', minHeight: 80, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', resize: 'vertical'
                   }}
                 />
               </div>

@@ -167,7 +167,7 @@ export default function ProductCategoriesView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
               fontFamily: 'var(--font-sans)',
               boxSizing: 'border-box',

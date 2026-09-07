@@ -296,7 +296,7 @@ export default function InvoiceForm() {
                     setDate(val)
                     if (val) setDueDate(calculateDueDate(val))
                   }}
-                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
                 />
               </div>
               <div>
@@ -305,7 +305,7 @@ export default function InvoiceForm() {
                   type="date"
                   value={dueDate}
                   onChange={e => setDueDate(e.target.value)}
-                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
                 />
                 <div style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginTop: 4, lineHeight: 1.3 }}>
                   Patokan: Tgl 1-7 (14), 8-14 (21), 15-21 (28), 22-akhir (7 bulan dpn)
@@ -317,7 +317,7 @@ export default function InvoiceForm() {
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Optional note"
-                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box' }}
+                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
                 />
               </div>
             </div>

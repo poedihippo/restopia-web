@@ -1472,7 +1472,7 @@ export default function PosView() {
                   padding: '0 8px',
                   fontSize: 13,
                   color: 'var(--foreground)',
-                  background: 'var(--surface)',
+                  background: 'var(--surface-raised)',
                   cursor: 'pointer',
                   outline: 'none',
                   fontFamily: 'var(--font-sans)',
@@ -2232,7 +2232,7 @@ export default function PosView() {
                         fontSize: 14,
                         fontWeight: 600,
                         color: 'var(--foreground)',
-                        background: 'var(--surface)',
+                        background: 'var(--surface-raised)',
                       }}
                     />
                     <button
@@ -2390,7 +2390,7 @@ export default function PosView() {
                     fontSize: 14,
                     fontWeight: 600,
                     color: 'var(--foreground)',
-                    background: 'var(--surface)',
+                    background: 'var(--surface-raised)',
                   }}
                 />
                 <button
@@ -2740,7 +2740,7 @@ export default function PosView() {
                   fontSize: 13,
                   fontFamily: 'var(--font-sans)',
                   color: 'var(--foreground)',
-                  background: 'var(--surface)',
+                  background: 'var(--surface-raised)',
                   boxSizing: 'border-box',
                 }}
               />
@@ -2770,7 +2770,7 @@ export default function PosView() {
                   fontSize: 13,
                   fontFamily: 'var(--font-sans)',
                   color: 'var(--foreground)',
-                  background: 'var(--surface)',
+                  background: 'var(--surface-raised)',
                   boxSizing: 'border-box',
                 }}
               />
@@ -3018,7 +3018,7 @@ export default function PosView() {
                       fontSize: 16,
                       fontWeight: 600,
                       color: 'var(--foreground)',
-                      background: 'var(--surface)',
+                      background: 'var(--surface-raised)',
                       boxSizing: 'border-box',
                     }}
                   />
@@ -3390,7 +3390,7 @@ export default function PosView() {
                     width: '100%', height: 40,
                     border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
                     padding: '0 12px', fontSize: 14,
-                    color: 'var(--foreground)', background: 'var(--surface)',
+                    color: 'var(--foreground)', background: 'var(--surface-raised)',
                     boxSizing: 'border-box',
                   }}
                 />
@@ -3411,7 +3411,7 @@ export default function PosView() {
                       width: '100%', height: 38,
                       border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
                       padding: '0 12px', fontSize: 14,
-                      color: 'var(--foreground)', background: 'var(--surface)',
+                      color: 'var(--foreground)', background: 'var(--surface-raised)',
                       boxSizing: 'border-box',
                     }}
                   />
@@ -3444,7 +3444,7 @@ export default function PosView() {
                       placeholder="Guest name"
                       style={{
                         height: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                        padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)',
+                        padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)',
                       }}
                     />
                     <input
@@ -3453,7 +3453,7 @@ export default function PosView() {
                       placeholder="Guest phone"
                       style={{
                         height: 38, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                        padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)',
+                        padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)',
                       }}
                     />
                   </div>
@@ -3634,7 +3634,7 @@ export default function PosView() {
                   style={{
                     width: '100%', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
                     padding: '8px 12px', fontSize: 14, resize: 'none',
-                    color: 'var(--foreground)', background: 'var(--surface)',
+                    color: 'var(--foreground)', background: 'var(--surface-raised)',
                     boxSizing: 'border-box',
                   }}
                 />

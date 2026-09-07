@@ -469,7 +469,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     padding: '0 12px',
     fontSize: 14,
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised)',
     boxSizing: 'border-box' as const,
   }
   const labelStyle = {
@@ -1219,7 +1219,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                         padding: '0 8px',
                         fontSize: 12,
                         color: 'var(--foreground)',
-                        background: 'var(--surface)',
+                        background: 'var(--surface-raised)',
                       }}
                     >
                       <option value="pending">Pending</option>

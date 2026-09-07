@@ -144,7 +144,7 @@ export default function DashboardView() {
     borderRadius: 'var(--radius-md)',
     fontSize: 12,
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
   }

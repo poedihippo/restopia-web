@@ -169,7 +169,7 @@ export default function PaymentMethodsView() {
             borderRadius: 'var(--radius-md)',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
             outline: 'none',
             fontFamily: 'var(--font-sans)',
             boxSizing: 'border-box',
@@ -374,7 +374,7 @@ export default function PaymentMethodsView() {
                   padding: '0 12px',
                   fontSize: 14,
                   color: 'var(--foreground)',
-                  background: 'var(--surface)',
+                  background: 'var(--surface-raised)',
                   boxSizing: 'border-box',
                 }}
               />
@@ -388,7 +388,7 @@ export default function PaymentMethodsView() {
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
-                style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)', boxSizing: 'border-box' }}
+                style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
               >
                 <option value="all">All</option>
                 <option value="sales_orders">Sales Orders</option>

@@ -369,7 +369,7 @@ export default function PosCartSidebar({
                       fontSize: 14,
                       fontWeight: 600,
                       color: 'var(--foreground)',
-                      background: 'var(--surface)',
+                      background: 'var(--surface-raised)',
                     }}
                   />
                   <button
@@ -488,7 +488,7 @@ export default function PosCartSidebar({
                     fontSize: 14,
                     fontWeight: 600,
                     color: 'var(--foreground)',
-                    background: 'var(--surface)',
+                    background: 'var(--surface-raised)',
                   }}
                 />
                 <button

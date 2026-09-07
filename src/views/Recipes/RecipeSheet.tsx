@@ -68,7 +68,7 @@ const fieldStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-md)',
   fontSize: 13,
   color: 'var(--foreground)',
-  background: 'var(--surface)',
+  background: 'var(--surface-raised)',
   outline: 'none',
   fontFamily: 'var(--font-sans)',
   boxSizing: 'border-box',
@@ -829,7 +829,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                   padding: '0 12px',
                   fontSize: 14,
                   color: 'var(--foreground)',
-                  background: 'var(--surface)',
+                  background: 'var(--surface-raised)',
                   boxSizing: 'border-box',
                 }}
               />

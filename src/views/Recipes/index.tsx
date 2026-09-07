@@ -261,7 +261,7 @@ export default function RecipesView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
               boxSizing: 'border-box',
               fontFamily: 'var(--font-sans)',

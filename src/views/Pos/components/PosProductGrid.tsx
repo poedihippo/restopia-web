@@ -186,7 +186,7 @@ export default function PosProductGrid({
                 padding: '0 8px',
                 fontSize: 13,
                 color: 'var(--foreground)',
-                background: 'var(--surface)',
+                background: 'var(--surface-raised)',
                 cursor: 'pointer',
                 outline: 'none',
                 fontFamily: 'var(--font-sans)',

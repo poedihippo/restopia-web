@@ -113,7 +113,7 @@ export default function AuditLogsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               color: 'var(--foreground)',
-              background: 'var(--surface)',
+              background: 'var(--surface-raised)',
               outline: 'none',
               fontFamily: 'var(--font-sans)',
               boxSizing: 'border-box',
@@ -130,7 +130,7 @@ export default function AuditLogsView() {
             padding: '0 12px',
             fontSize: 13,
             color: 'var(--foreground)',
-            background: 'var(--surface)',
+            background: 'var(--surface-raised)',
             outline: 'none',
           }}
         >

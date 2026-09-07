@@ -40,7 +40,7 @@ type FormValues = z.infer<typeof schema>
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--foreground)',
-  background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
+  background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
 }
 const inputError: React.CSSProperties = { ...inputStyle, border: '1px solid var(--destructive)' }
 const thStyle: React.CSSProperties = {
@@ -140,7 +140,7 @@ export default function FiscalYearsView() {
         <div style={{ position: 'relative', width: 280 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fiscal years..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
+            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
       </div>
 

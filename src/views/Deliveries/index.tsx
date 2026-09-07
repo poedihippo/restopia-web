@@ -170,7 +170,7 @@ export default function DeliveriesView() {
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
   }
