@@ -7,6 +7,7 @@ import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
+import { receiptsService } from '@/services/receipts.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
@@ -167,6 +168,24 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to finalize transfer'),
   })
+
+  const handleReceiptClick = async () => {
+    try {
+      const res = await receiptsService
+        .list({ 'filter[delivery_id]': id, per_page: 1 } as any)
+        .then((r) => r.data)
+      const receipts = (res as any)?.data ?? []
+      if (receipts.length > 0) {
+        toast.success('Receipt untuk pengiriman ini sudah ada, membuka untuk diedit')
+        router.push(`/transfer/receipts/${receipts[0].id}/edit`)
+      } else {
+        router.push(`/transfer/receipts/create?delivery_id=${id}`)
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Gagal memuat data receipt')
+    }
+  }
 
   const handleFinalize = () => {
     if (
@@ -389,7 +408,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
             {delivery?.status === 'final' && (
               <button
                 type="button"
-                onClick={() => router.push(`/transfer/receipts/create?delivery_id=${id}`)}
+                onClick={handleReceiptClick}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -405,7 +424,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                 }}
               >
                 <ClipboardList size={13} />
-                Create Receipt
+                Process Receipt
               </button>
             )}
 

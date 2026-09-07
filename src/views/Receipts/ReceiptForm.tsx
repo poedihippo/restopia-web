@@ -176,8 +176,11 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     (watchDeliveryId as number) > 0 &&
     (deliveryDetailLoading || !deliveryDetail)
 
-  // Duplicate guard: does this delivery already have a final receipt?
-  // Only relevant when creating — editing naturally matches its own delivery.
+  // Duplicate guard: does this delivery already have a receipt of ANY status?
+  // A po_from_supplier delivery auto-creates a PENDING receipt when finalized,
+  // so checking only 'final' misses it and lets the user try to create a
+  // second one, which the backend rejects. Only relevant when creating —
+  // editing naturally matches its own delivery.
   const { data: receiptExistsData } = useQuery({
     queryKey: ['receipt-exists-for-delivery', watchDeliveryId],
     enabled:
@@ -188,7 +191,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       receiptsService
         .list({
           'filter[delivery_id]': watchDeliveryId,
-          'filter[status]': 'final',
           per_page: 1,
         } as any)
         .then((r) => r.data),
@@ -201,6 +203,16 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       : ((receiptExistsData as any)?.meta?.total ?? 0)
   const deliveryAlreadyReceived =
     mode === 'create' && otherReceiptCount > 0
+
+  // A receipt already exists for the selected delivery (pending or final) —
+  // don't let the user create a duplicate, open the existing one instead.
+  useEffect(() => {
+    if (mode !== 'create') return
+    const existing = existingReceipts[0]
+    if (!existing) return
+    toast.error('Receipt untuk pengiriman ini sudah ada, membuka untuk diedit')
+    router.replace(`/transfer/receipts/${existing.id}/edit`)
+  }, [mode, existingReceipts, router])
 
   useEffect(() => {
     if (!deliveryDetail?.delivery_details?.length) return
@@ -361,7 +373,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       return
     }
     if (deliveryAlreadyReceived) {
-      toast.error('A receipt already exists for this delivery.')
+      toast.error('Receipt untuk pengiriman ini sudah ada.')
       return
     }
 
@@ -612,8 +624,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     display: 'block',
                   }}
                 >
-                  This delivery already has a final receipt. Creating another will
-                  double-count stock.
+                  Pengiriman ini sudah memiliki receipt. Membuka receipt yang sudah ada...
                 </span>
               )}
             </div>
