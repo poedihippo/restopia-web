@@ -424,12 +424,32 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     label: (b.name as string) ?? `Branch #${b.id}`,
     sublabel: b.code as string | undefined,
   }))
-  const productUomOptions = productUoms.map((pu: any) => ({
+  const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
     sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
     base_price: pu.base_price ?? 0,
-  }))
+  })
+  // The paginated product-uoms query may not (yet, or ever, if a page
+  // request fails) contain the products a linked PO/SO already loaded into
+  // the delivery-item rows — SearchableSelect can only show a selected
+  // value's label if a matching option exists, so seed extra options
+  // straight from the PO/SO detail's own nested product_uom object. That
+  // way the pre-filled rows always display regardless of what the
+  // paginated list returned.
+  const poProductUoms = (poDetail?.purchase_order_details ?? [])
+    .map((d: any) => d.product_uom)
+    .filter(Boolean)
+  const soProductUoms = (soDetail?.sales_order_details ?? [])
+    .map((d: any) => d.product_uom)
+    .filter(Boolean)
+  const productUomOptionsMap = new Map<number, ReturnType<typeof toProductUomOption>>()
+  ;[...productUoms, ...poProductUoms, ...soProductUoms].forEach((pu: any) => {
+    if (pu?.id && !productUomOptionsMap.has(pu.id)) {
+      productUomOptionsMap.set(pu.id, toProductUomOption(pu))
+    }
+  })
+  const productUomOptions = Array.from(productUomOptionsMap.values())
   const purchaseOrderOptions = [
     { value: 0, label: 'No linked PO' },
     ...purchaseOrders.map((po: any) => ({
