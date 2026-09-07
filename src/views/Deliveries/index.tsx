@@ -242,7 +242,7 @@ export default function DeliveriesView() {
             Deliveries
           </h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-            Track outgoing shipments to other branches
+            Kelola pengiriman masuk (dari supplier) dan keluar (ke cabang)
           </p>
         </div>
         {canCreate && (<button
