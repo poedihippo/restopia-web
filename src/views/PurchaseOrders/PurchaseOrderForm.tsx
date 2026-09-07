@@ -380,7 +380,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     borderRadius: 'var(--radius-md)',
     fontSize: 13,
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
@@ -441,7 +441,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     borderRadius: 'var(--radius-md)',
     fontSize: 13,
     color: 'var(--foreground)',
-    background: 'var(--surface)',
+    background: 'var(--surface-raised)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
@@ -901,7 +901,13 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                           raw === '' ? 0 : parseInt(raw, 10) || 0,
                         )
                       }}
-                      style={{ ...lineInputStyle, flex: 1 }}
+                      style={{
+                        ...lineInputStyle,
+                        flex: 1,
+                        ...((watch(`details.${index}.is_price_locked`) !== false || !getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice))
+                          ? { background: 'var(--surface)', cursor: 'not-allowed' }
+                          : {}),
+                      }}
                     />
                     <button
                       type="button"
