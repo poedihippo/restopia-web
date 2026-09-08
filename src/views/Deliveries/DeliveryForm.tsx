@@ -1231,15 +1231,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                             f.onChange(Number(e.target.value) || undefined)
                           }
                           style={{
-                            width: '100%',
-                            padding: '8px 10px',
-                            border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'
-                              }`,
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 12,
-                            background: 'var(--surface)',
-                            outline: 'none',
-                            fontFamily: 'var(--font-sans)',
+                            ...lineInputStyle,
+                            border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'}`,
                             cursor: 'pointer',
                           }}
                         >
