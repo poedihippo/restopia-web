@@ -1,10 +1,10 @@
 'use client'
 import { formatDate } from '@/utils/date'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
-import { stockOpnamesService } from '@/services/stock-opnames.service'
+import { stockOpnamesService, UpdateStockOpnameRequest } from '@/services/stock-opnames.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import {
   ChevronLeft,
@@ -18,6 +18,8 @@ import {
   Trash2
 } from 'lucide-react'
 import { uomsService } from '@/services/uoms.service'
+import { productUomsService } from '@/services/product-uoms.service'
+import { productConversionsService } from '@/services/product-conversions.service'
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   draft: {
@@ -57,11 +59,127 @@ export default function StockOpnameDetail() {
 
   const { data: uomsData } = useQuery({
     queryKey: ['uoms', 'all'],
-    queryFn: () => uomsService.list({ per_page: 100 }).then(r => (r.data as any)?.data || []),
+    queryFn: () => uomsService.list({ per_page: 200 }).then(r => (r.data as any)?.data || []).catch(() => []),
   })
-  const uoms = uomsData || []
 
-  type CountItem = { uom_id: number; counted_qty: number }
+  const { data: productUomsData } = useQuery({
+    queryKey: ['product-uoms', 'stock-opname'],
+    queryFn: () => productUomsService.list({ per_page: 200, include: 'product,uom' }).then(r => (r.data as any)?.data || []).catch(() => []),
+  })
+
+  const { data: productConversionsData } = useQuery({
+    queryKey: ['product-conversions', 'stock-opname'],
+    queryFn: () => productConversionsService.list({ per_page: 200, include: 'product,uom,target_uom' }).then(r => (r.data as any)?.data || []).catch(() => []),
+  })
+
+  interface UomOption {
+    id: number
+    name: string
+    code: string
+  }
+
+  const rawGlobalUoms: any[] = (uomsData as any) || []
+  const rawProductUoms: any[] = (productUomsData as any) || []
+  const rawConversions: any[] = (productConversionsData as any) || []
+
+  // Collect all known UOMs across all sources (including items and relations in this document)
+  const allKnownUomsMap = useMemo(() => {
+    const map = new Map<number, UomOption>()
+
+    const addUom = (u: any) => {
+      if (u && typeof u.id === 'number' && u.id > 0) {
+        if (!map.has(u.id)) {
+          map.set(u.id, {
+            id: u.id,
+            name: u.name || u.code || `UoM #${u.id}`,
+            code: u.code || u.name || `UoM #${u.id}`,
+          })
+        }
+      }
+    }
+
+    rawGlobalUoms.forEach(addUom)
+    rawProductUoms.forEach((pu: any) => addUom(pu.uom))
+    rawConversions.forEach((conv: any) => {
+      addUom(conv.uom)
+      addUom(conv.target_uom)
+    })
+
+    if (item?.stock_opname_details) {
+      item.stock_opname_details.forEach((d: any) => {
+        addUom(d.product_inventory?.product_uom_batch?.product_uom?.uom)
+        addUom(d.product_inventory?.product_uom?.uom)
+        addUom(d.product_inventory?.product_uom_batch?.product_uom?.product?.base_uom)
+        addUom(d.product_inventory?.product_uom?.product?.base_uom)
+        if (Array.isArray(d.count_items)) {
+          d.count_items.forEach((ci: any) => addUom(ci.uom))
+        }
+      })
+    }
+
+    return map
+  }, [rawGlobalUoms, rawProductUoms, rawConversions, item?.stock_opname_details])
+
+  const getDetailUomOptions = (detail: any): UomOption[] => {
+    const rowMap = new Map<number, UomOption>()
+
+    const addRowUom = (u: any) => {
+      if (u && typeof u.id === 'number' && u.id > 0) {
+        if (!rowMap.has(u.id)) {
+          rowMap.set(u.id, {
+            id: u.id,
+            name: u.name || u.code || `UoM #${u.id}`,
+            code: u.code || u.name || `UoM #${u.id}`,
+          })
+        }
+      }
+    }
+
+    // 1. Current batch product_uom uom
+    addRowUom(detail.product_inventory?.product_uom_batch?.product_uom?.uom)
+    // 2. Direct product_uom uom
+    addRowUom(detail.product_inventory?.product_uom?.uom)
+    // 3. Product base UOM
+    addRowUom(detail.product_inventory?.product_uom_batch?.product_uom?.product?.base_uom)
+    addRowUom(detail.product_inventory?.product_uom?.product?.base_uom)
+
+    // 4. Any UOMs currently in count_items
+    if (Array.isArray(detail.count_items)) {
+      detail.count_items.forEach((ci: any) => addRowUom(ci.uom))
+    }
+
+    // 5. Associated product conversions & product UOMs
+    const productId =
+      detail.product_inventory?.product_uom_batch?.product_uom?.product_id ||
+      detail.product_inventory?.product_uom?.product_id ||
+      detail.product_inventory?.product_uom_batch?.product_uom?.product?.id ||
+      detail.product_inventory?.product_uom?.product?.id
+
+    if (productId) {
+      rawConversions.forEach((conv: any) => {
+        if (conv.product_id === productId) {
+          addRowUom(conv.uom)
+          addRowUom(conv.target_uom)
+        }
+      })
+      rawProductUoms.forEach((pu: any) => {
+        if (pu.product_id === productId) {
+          addRowUom(pu.uom)
+        }
+      })
+    }
+
+    // 6. Include all other known UOMs so user can count in any unit if needed
+    allKnownUomsMap.forEach((uom, uomId) => {
+      if (!rowMap.has(uomId)) {
+        rowMap.set(uomId, uom)
+      }
+    })
+
+    return Array.from(rowMap.values())
+  }
+
+  type CountItem = { id?: number; uom_id: number; counted_qty: number }
   const [multiUomCounts, setMultiUomCounts] = useState<Record<number, CountItem[]>>({})
 
   useEffect(() => {
@@ -70,13 +188,20 @@ export default function StockOpnameDetail() {
       item.stock_opname_details.forEach((d: any) => {
         if (d.count_items && d.count_items.length > 0) {
           initial[d.product_inventory_id] = d.count_items.map((ci: any) => ({
-            uom_id: ci.uom_id,
-            counted_qty: Number(ci.counted_qty)
+            id: ci.id,
+            uom_id: Number(ci.uom_id),
+            counted_qty: ci.counted_qty !== undefined && ci.counted_qty !== null ? Number(ci.counted_qty) : 0,
           }))
         } else if (d.counted_qty !== undefined && d.counted_qty !== null) {
-          const uomId = d.product_inventory?.product_uom_batch?.product_uom?.uom?.id || d.product_inventory?.product_uom?.uom?.id
+          const uomId =
+            d.product_inventory?.product_uom_batch?.product_uom?.uom?.id ||
+            d.product_inventory?.product_uom?.uom?.id ||
+            d.product_inventory?.product_uom_batch?.product_uom?.product?.base_uom?.id ||
+            d.product_inventory?.product_uom?.product?.base_uom?.id
           if (uomId) {
-            initial[d.product_inventory_id] = [{ uom_id: uomId, counted_qty: d.counted_qty }]
+            initial[d.product_inventory_id] = [
+              { uom_id: Number(uomId), counted_qty: Number(d.counted_qty) },
+            ]
           }
         }
       })
@@ -237,11 +362,23 @@ export default function StockOpnameDetail() {
             <>
               <button
                 onClick={() => {
-                  const payload = {
-                    details: item.stock_opname_details.map((d: any) => ({
-                      product_inventory_id: d.product_inventory_id,
-                      count_items: multiUomCounts[d.product_inventory_id] || [],
-                    }))
+                  const payload: UpdateStockOpnameRequest = {
+                    date: item.date ? item.date.split('T')[0] : undefined,
+                    description: item.description || undefined,
+                    details: item.stock_opname_details.map((d: any) => {
+                      const counts = (multiUomCounts[d.product_inventory_id] || []).filter(
+                        (c: any) => c.uom_id && Number(c.uom_id) > 0
+                      )
+                      return {
+                        product_inventory_id: Number(d.product_inventory_id),
+                        count_items: counts.map((c: any) => ({
+                          ...(c.id ? { id: c.id } : {}),
+                          uom_id: Number(c.uom_id),
+                          counted_qty: Number(c.counted_qty ?? 0),
+                        })),
+                        ...(d.description ? { description: d.description } : {}),
+                      }
+                    }),
                   }
                   updateMutation.mutate(payload)
                 }}
@@ -403,100 +540,128 @@ export default function StockOpnameDetail() {
                       <td style={{ ...tdStyle, verticalAlign: 'top' }}>
                         {isDraft ? (
                           <div className="print-hidden" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            {counts.map((c, cIdx) => (
-                              <div key={cIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <input
-                                  type="number"
-                                  value={c.counted_qty === 0 && cIdx === counts.length - 1 ? '' : c.counted_qty}
-                                  onChange={(e) => {
-                                    const val = e.target.value === '' ? 0 : Number(e.target.value)
-                                    const newCounts = [...counts]
-                                    newCounts[cIdx] = { ...newCounts[cIdx], counted_qty: val }
-                                    setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
-                                  }}
-                                  style={{
-                                    width: 80,
-                                    padding: '6px 10px',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    fontSize: 13,
-                                    background: 'var(--background)',
-                                    color: 'var(--foreground)',
-                                    outline: 'none',
-                                  }}
-                                  placeholder="Qty"
-                                />
-                                <select
-                                  value={c.uom_id}
-                                  onChange={(e) => {
-                                    const newCounts = [...counts]
-                                    newCounts[cIdx] = { ...newCounts[cIdx], uom_id: Number(e.target.value) }
-                                    setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
-                                  }}
-                                  style={{
-                                    width: 100,
-                                    padding: '6px 10px',
-                                    border: '1px solid var(--border)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    fontSize: 13,
-                                    background: 'var(--background)',
-                                    color: 'var(--foreground)',
-                                    outline: 'none',
-                                  }}
-                                >
-                                  <option value={0} disabled>Select UoM</option>
-                                  {uoms.map((u: any) => (
-                                    <option key={u.id} value={u.id}>{u.code || u.name}</option>
+                            {(() => {
+                              const uomOptions = getDetailUomOptions(detail)
+                              return (
+                                <>
+                                  {counts.map((c, cIdx) => (
+                                    <div key={cIdx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <input
+                                        type="number"
+                                        value={c.counted_qty === 0 && cIdx === counts.length - 1 ? '' : c.counted_qty}
+                                        onChange={(e) => {
+                                          const val = e.target.value === '' ? 0 : Number(e.target.value)
+                                          const newCounts = [...counts]
+                                          newCounts[cIdx] = { ...newCounts[cIdx], counted_qty: val }
+                                          setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                                        }}
+                                        style={{
+                                          width: 80,
+                                          padding: '6px 10px',
+                                          border: '1px solid var(--border)',
+                                          borderRadius: 'var(--radius-sm)',
+                                          fontSize: 13,
+                                          background: 'var(--background)',
+                                          color: 'var(--foreground)',
+                                          outline: 'none',
+                                        }}
+                                        placeholder="Qty"
+                                      />
+                                      <select
+                                        value={c.uom_id || 0}
+                                        onChange={(e) => {
+                                          const val = Number(e.target.value)
+                                          const newCounts = [...counts]
+                                          newCounts[cIdx] = { ...newCounts[cIdx], uom_id: val }
+                                          setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                                        }}
+                                        style={{
+                                          width: 120,
+                                          padding: '6px 10px',
+                                          border: '1px solid var(--border)',
+                                          borderRadius: 'var(--radius-sm)',
+                                          fontSize: 13,
+                                          background: 'var(--background)',
+                                          color: 'var(--foreground)',
+                                          outline: 'none',
+                                        }}
+                                      >
+                                        <option value={0} disabled>Select UoM</option>
+                                        {uomOptions.map((u: any) => (
+                                          <option key={u.id} value={u.id}>{u.code || u.name}</option>
+                                        ))}
+                                        {c.uom_id > 0 && !uomOptions.some((u: any) => u.id === c.uom_id) && (
+                                          <option value={c.uom_id}>
+                                            {allKnownUomsMap.get(c.uom_id)?.code || `UoM #${c.uom_id}`}
+                                          </option>
+                                        )}
+                                      </select>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newCounts = counts.filter((_, i) => i !== cIdx)
+                                          setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                                        }}
+                                        style={{
+                                          background: 'transparent',
+                                          border: 'none',
+                                          color: 'var(--destructive)',
+                                          cursor: 'pointer',
+                                          padding: 4,
+                                          display: 'flex',
+                                        }}
+                                        title="Delete count row"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
                                   ))}
-                                </select>
-                                <button
-                                  onClick={() => {
-                                    const newCounts = counts.filter((_, i) => i !== cIdx)
-                                    setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
-                                  }}
-                                  style={{
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: 'var(--destructive)',
-                                    cursor: 'pointer',
-                                    padding: 4,
-                                    display: 'flex',
-                                  }}
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            ))}
-                            <button
-                              onClick={() => {
-                                const newCounts = [...counts, { uom_id: detail.product_inventory?.product_uom_batch?.product_uom?.uom?.id || 0, counted_qty: 0 }]
-                                setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
-                              }}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--primary)',
-                                fontSize: 12,
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                                padding: '4px 0',
-                                width: 'fit-content'
-                              }}
-                            >
-                              <Plus size={14} /> Add UoM Count
-                            </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const defaultUomId =
+                                        detail.product_inventory?.product_uom_batch?.product_uom?.uom?.id ||
+                                        detail.product_inventory?.product_uom?.uom?.id ||
+                                        uomOptions[0]?.id ||
+                                        0
+                                      const newCounts = [...counts, { uom_id: Number(defaultUomId), counted_qty: 0 }]
+                                      setMultiUomCounts({ ...multiUomCounts, [detail.product_inventory_id]: newCounts })
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: 'var(--primary)',
+                                      fontSize: 12,
+                                      fontWeight: 500,
+                                      cursor: 'pointer',
+                                      padding: '4px 0',
+                                      width: 'fit-content'
+                                    }}
+                                  >
+                                    <Plus size={14} /> Add UoM Count
+                                  </button>
+                                </>
+                              )
+                            })()}
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                             {detail.count_items && detail.count_items.length > 0 ? (
-                              detail.count_items.map((ci: any, idx: number) => (
-                                <span key={idx} style={{ fontWeight: 600, fontSize: 13 }}>
-                                  {ci.counted_qty} {ci.uom?.code || ci.uom?.name}
-                                </span>
-                              ))
+                              detail.count_items.map((ci: any, idx: number) => {
+                                const uomLabel =
+                                  ci.uom?.code ||
+                                  ci.uom?.name ||
+                                  allKnownUomsMap.get(ci.uom_id)?.code ||
+                                  `UoM #${ci.uom_id}`
+                                return (
+                                  <span key={idx} style={{ fontWeight: 600, fontSize: 13 }}>
+                                    {ci.counted_qty} {uomLabel}
+                                  </span>
+                                )
+                              })
                             ) : (
                               <span style={{ fontWeight: 600, fontSize: 13 }}>
                                 {isZeroOrEmpty ? '___________' : detail.counted_qty}
@@ -506,7 +671,17 @@ export default function StockOpnameDetail() {
                         )}
                         {isDraft && (
                           <div className="print-only" style={{ fontWeight: 600 }}>
-                            {isZeroOrEmpty ? '___________' : counts.map(c => `${c.counted_qty}`).join(' + ')}
+                            {isZeroOrEmpty
+                              ? '___________'
+                              : counts
+                                  .map((c) => {
+                                    const uomLabel =
+                                      allKnownUomsMap.get(c.uom_id)?.code ||
+                                      allKnownUomsMap.get(c.uom_id)?.name ||
+                                      ''
+                                    return `${c.counted_qty} ${uomLabel}`.trim()
+                                  })
+                                  .join(' + ')}
                           </div>
                         )}
                       </td>

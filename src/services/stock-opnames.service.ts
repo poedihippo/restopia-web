@@ -12,10 +12,16 @@ export interface CreateStockOpnameRequest {
   details: CreateStockOpnameDetailItemRequest[]
 }
 
+export interface UpdateStockOpnameCountItemRequest {
+  id?: number
+  uom_id: number
+  counted_qty: number
+}
+
 export interface UpdateStockOpnameDetailItemRequest {
   product_inventory_id: number
   counted_qty?: number
-  count_items?: { uom_id: number; counted_qty: number }[]
+  count_items?: UpdateStockOpnameCountItemRequest[]
   description?: string
 }
 
