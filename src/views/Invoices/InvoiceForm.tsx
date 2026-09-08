@@ -135,20 +135,24 @@ export default function InvoiceForm() {
           setDetails(d => {
             const copy = { ...d }
             newSo.sales_order_details?.forEach((line: any) => {
-              const maxQty = line.remaining_qty ?? (line.qty - (line.delivered_qty || 0))
-              if (maxQty > 0) {
-                const productName = line.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name 
-                  || line.bundle_snapshot?.name 
-                  || `Item #${line.id}`
-                  
-                copy[line.id] = {
-                  sales_order_detail_id: line.id,
-                  qty: maxQty,
-                  max_qty: maxQty,
-                  price: line.price,
-                  product_name: productName,
-                  description: ''
-                }
+              // billable_qty = received - already invoiced, from the SO
+              // detail response. remaining_qty/delivered_qty never existed
+              // on this payload, so that derivation always fell through to
+              // the full line qty. A line with billable_qty 0 (not yet
+              // received, or already fully invoiced) still shows up below,
+              // just disabled at qty 0 — it's not simply skipped.
+              const maxQty = Number(line.billable_qty ?? 0)
+              const productName = line.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name
+                || line.bundle_snapshot?.name
+                || `Item #${line.id}`
+
+              copy[line.id] = {
+                sales_order_detail_id: line.id,
+                qty: maxQty,
+                max_qty: maxQty,
+                price: line.price,
+                product_name: productName,
+                description: ''
               }
             })
             return copy
@@ -375,30 +379,54 @@ export default function InvoiceForm() {
                 <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>No billable lines remaining in selected orders.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {Object.values(details).map(d => (
-                    <div key={d.sales_order_detail_id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 12, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>{d.product_name}</div>
-                        <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Max: {d.max_qty} remaining</div>
+                  {Object.values(details).map(d => {
+                    const isBillable = d.max_qty > 0
+                    return (
+                      <div key={d.sales_order_detail_id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 12, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>{d.product_name}</div>
+                          <div style={{ fontSize: 12, color: isBillable ? 'var(--foreground-muted)' : 'var(--foreground-subtle)' }}>
+                            {isBillable
+                              ? `Max: ${d.max_qty} (diterima, belum ditagih)`
+                              : 'Belum bisa ditagih (belum diterima / sudah ditagih penuh)'}
+                          </div>
+                        </div>
+                        <div>
+                          <input
+                            type="number"
+                            value={d.qty}
+                            min="0"
+                            max={d.max_qty}
+                            disabled={!isBillable}
+                            onChange={e => setDetails({
+                              ...details,
+                              [d.sales_order_detail_id]: {
+                                ...d,
+                                qty: Math.max(0, Math.min(Number(e.target.value), d.max_qty)),
+                              },
+                            })}
+                            style={{
+                              width: '100%',
+                              height: 32,
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-sm)',
+                              padding: '0 8px',
+                              fontSize: 13,
+                              color: 'var(--foreground)',
+                              background: isBillable ? 'var(--surface-raised)' : 'var(--surface)',
+                              cursor: isBillable ? 'text' : 'not-allowed',
+                            }}
+                          />
+                        </div>
+                        <div style={{ fontSize: 13, textAlign: 'right' }}>
+                          <PriceDisplay amount={d.price} />
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>
+                          <PriceDisplay amount={d.qty * d.price} />
+                        </div>
                       </div>
-                      <div>
-                        <input
-                          type="number"
-                          value={d.qty}
-                          min="0"
-                          max={d.max_qty}
-                          onChange={e => setDetails({ ...details, [d.sales_order_detail_id]: { ...d, qty: Number(e.target.value) } })}
-                          style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
-                        />
-                      </div>
-                      <div style={{ fontSize: 13, textAlign: 'right' }}>
-                        <PriceDisplay amount={d.price} />
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>
-                        <PriceDisplay amount={d.qty * d.price} />
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
