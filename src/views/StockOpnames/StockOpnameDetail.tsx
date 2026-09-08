@@ -1,5 +1,5 @@
 'use client'
-import { formatDate } from '@/utils/date'
+import { formatDate, toInputDate } from '@/utils/date'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
@@ -363,7 +363,7 @@ export default function StockOpnameDetail() {
               <button
                 onClick={() => {
                   const payload: UpdateStockOpnameRequest = {
-                    date: item.date ? item.date.split('T')[0] : undefined,
+                    date: toInputDate(item.date) || undefined,
                     description: item.description || undefined,
                     details: item.stock_opname_details.map((d: any) => {
                       const counts = (multiUomCounts[d.product_inventory_id] || []).filter(
