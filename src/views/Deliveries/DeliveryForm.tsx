@@ -195,13 +195,25 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
+  // The branch stock/batches are sourced from for this delivery. On create,
+  // the creating user IS the source branch (they're shipping their own
+  // stock), so myBranchId is correct. On edit, the delivery's own branch_id
+  // (read off initialData, since DeliveryForm has no branch_id form field)
+  // is the real source — it may differ from whoever happens to be editing
+  // the delivery, e.g. an admin or the receiving branch's own staff.
+  // Without this, editing fell back to the editor's own branch and showed
+  // "No stock available" even when the delivery's actual source branch had
+  // plenty.
+  const sourceBranchId =
+    mode === 'edit' ? (initialData?.branch_id ?? myBranchId) : myBranchId
+
   // Source-branch inventory — the batch picker must show only batches that
   // actually have stock at the supplying branch, with the REAL per-branch
   // quantity (not the global batch stock). Per-branch stock lives in
   // product_inventory, so we source the picker from there.
   const { data: inventoryData } = useQuery({
-    queryKey: ['source-branch-inventory', myBranchId],
-    enabled: !!myBranchId,
+    queryKey: ['source-branch-inventory', sourceBranchId],
+    enabled: !!sourceBranchId,
     queryFn: async () => {
       let allRows: any[] = []
       let page = 1
@@ -211,7 +223,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           .list({
             page,
             per_page: 100,
-            'filter[branch_id]': myBranchId,
+            'filter[branch_id]': sourceBranchId,
             include: 'product_uom_batch,product_uom_batch.product_uom',
           } as any)
           .then((r) => r.data)

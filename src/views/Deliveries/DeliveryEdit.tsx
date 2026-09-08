@@ -36,6 +36,11 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
     ? {
       code: delivery.code,
       source_type: delivery.source_type ?? 'po_from_supplier',
+      // The delivery's own source branch — where its stock/batches actually
+      // are. Not a form field (DeliveryForm has no branch_id input), but
+      // read directly off initialData so the batch query can use it instead
+      // of the editing user's own branch.
+      branch_id: delivery.branch?.id ?? delivery.branch_id ?? undefined,
       target_branch_id: delivery.target_branch?.id ?? delivery.target_branch_id ?? 0,
       purchase_order_id:
         delivery.purchase_order?.id ?? delivery.purchase_order_id ?? undefined,
