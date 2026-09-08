@@ -195,17 +195,43 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
-  // The branch stock/batches are sourced from for this delivery. On create,
-  // the creating user IS the source branch (they're shipping their own
-  // stock), so myBranchId is correct. On edit, the delivery's own branch_id
-  // (read off initialData, since DeliveryForm has no branch_id form field)
-  // is the real source — it may differ from whoever happens to be editing
-  // the delivery, e.g. an admin or the receiving branch's own staff.
-  // Without this, editing fell back to the editor's own branch and showed
-  // "No stock available" even when the delivery's actual source branch had
-  // plenty.
+  // When creating from a linked branch-PO (the Fulfill flow), the PO's own
+  // supplier_branch_id is the actual fulfilling/source branch — it does NOT
+  // necessarily equal myBranchId. A user can be assigned to more than one
+  // branch (branch_ids, plural) or otherwise act on a PO that isn't
+  // specifically theirs, so "whoever is fulfilling" isn't a reliable proxy
+  // for "which branch this PO is being fulfilled from". Fetched as its own
+  // lightweight lookup (rather than reordering the larger
+  // po-detail-for-delivery query below, which doesn't request this field).
+  const watchPurchaseOrderIdForSource = watch('purchase_order_id')
+  const { data: poSourceBranchData } = useQuery({
+    queryKey: ['po-supplier-branch-for-delivery', watchPurchaseOrderIdForSource],
+    queryFn: () =>
+      purchaseOrdersService
+        .findById(watchPurchaseOrderIdForSource as number, { include: 'supplier_branch' })
+        .then((r) => r.data),
+    enabled:
+      !!watchPurchaseOrderIdForSource && (watchPurchaseOrderIdForSource as number) > 0,
+  })
+  const poSourceBranchId =
+    (poSourceBranchData as any)?.data?.supplier_branch_id ??
+    (poSourceBranchData as any)?.data?.supplier_branch?.id
+
+  // The branch stock/batches are sourced from for this delivery.
+  // - Edit: the delivery's own branch_id (read off initialData, since
+  //   DeliveryForm has no branch_id form field) is the real source — it may
+  //   differ from whoever happens to be editing the delivery, e.g. an admin
+  //   or the receiving branch's own staff. Without this, editing fell back
+  //   to the editor's own branch and showed "No stock available" even when
+  //   the delivery's actual source branch had plenty.
+  // - Create from a linked branch-PO (Fulfill): the PO's own
+  //   supplier_branch_id, per above.
+  // - Any other create (manual transfer, supplier delivery, no PO yet): the
+  //   creating user's own branch, since they ARE the source.
   const sourceBranchId =
-    mode === 'edit' ? (initialData?.branch_id ?? myBranchId) : myBranchId
+    mode === 'edit'
+      ? (initialData?.branch_id ?? myBranchId)
+      : (poSourceBranchId ?? myBranchId)
 
   // Source-branch inventory — the batch picker must show only batches that
   // actually have stock at the supplying branch, with the REAL per-branch
