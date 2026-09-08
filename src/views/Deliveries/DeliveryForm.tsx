@@ -110,6 +110,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     watch,
     control,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -432,16 +433,21 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     // resolved to product_uom_id: 0, so the product dropdown showed
     // "Select product..." and, since the batch picker is keyed off the
     // selected product_uom_id, its options list was empty too.
-    const newDetails = poDetail.purchase_order_details.map((d: any) => ({
-      product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
-      product_uom_batch_id: undefined,
-      purchase_order_detail_id: d.id,
-      sales_order_detail_id: undefined,
-      qty: d.qty ?? 1,
-      price: d.price ?? d.product_uom?.franchise_price ?? 0,
-      status: 'packed' as const,
-      description: d.description ?? '',
-    }))
+    const isBatchRequired = derivedSourceType !== 'po_from_supplier'
+    const newDetails = poDetail.purchase_order_details.map((d: any) => {
+      const uomId = d.product_uom_id ?? d.product_uom?.id ?? 0
+      const batches = isBatchRequired ? getBatchOptionsForUom(uomId) : []
+      return {
+        product_uom_id: uomId,
+        product_uom_batch_id: batches.length === 1 ? batches[0].batchId : undefined,
+        purchase_order_detail_id: d.id,
+        sales_order_detail_id: undefined,
+        qty: d.qty ?? 1,
+        price: d.price ?? d.product_uom?.franchise_price ?? 0,
+        status: 'packed' as const,
+        description: d.description ?? '',
+      }
+    })
 
     replace(newDetails)
 
@@ -464,16 +470,20 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     }
 
     if (soDetail.sales_order_details?.length) {
-      const newDetails = soDetail.sales_order_details.map((d: any) => ({
-        product_uom_id: d.product_uom_id ?? 0,
-        product_uom_batch_id: undefined,
-        purchase_order_detail_id: undefined,
-        sales_order_detail_id: d.id,
-        qty: d.qty ?? 1,
-        price: d.price ?? 0,
-        status: 'packed' as const,
-        description: d.description ?? '',
-      }))
+      const newDetails = soDetail.sales_order_details.map((d: any) => {
+        const uomId = d.product_uom_id ?? 0
+        const batches = requiresBatch ? getBatchOptionsForUom(uomId) : []
+        return {
+          product_uom_id: uomId,
+          product_uom_batch_id: batches.length === 1 ? batches[0].batchId : undefined,
+          purchase_order_detail_id: undefined,
+          sales_order_detail_id: d.id,
+          qty: d.qty ?? 1,
+          price: d.price ?? 0,
+          status: 'packed' as const,
+          description: d.description ?? '',
+        }
+      })
       replace(newDetails)
       toast.info('Items loaded from Sales Order')
     }
@@ -490,6 +500,31 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       setValue('sales_order_id', undefined)
     }
   }, [showLinkedSO])
+
+  // Auto-select batch if a line has product_uom_id set and there is exactly 1
+  // available batch for that UOM. If there are >1 batches, do not auto-select
+  // (leave undefined) so user selects manually.
+  useEffect(() => {
+    if (!requiresBatch || !sourceInventory.length) return
+    const currentDetails = getValues('details') || []
+    currentDetails.forEach((d, idx) => {
+      if (d.product_uom_id) {
+        const batches = getBatchOptionsForUom(Number(d.product_uom_id))
+        const batchStillValid = batches.some((b) => b.batchId === d.product_uom_batch_id)
+        if (!d.product_uom_batch_id || !batchStillValid) {
+          if (batches.length === 1) {
+            setValue(`details.${idx}.product_uom_batch_id`, batches[0].batchId, {
+              shouldValidate: true,
+            })
+          } else if (!batchStillValid && d.product_uom_batch_id) {
+            setValue(`details.${idx}.product_uom_batch_id`, undefined, {
+              shouldValidate: true,
+            })
+          }
+        }
+      }
+    })
+  }, [sourceInventory, requiresBatch])
 
   const branchOptions = branches.map((b: any) => ({
     value: b.id as number,
@@ -702,11 +737,25 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     boxSizing: 'border-box',
   }
 
+  const formatBatchOptionLabel = (b: any) => {
+    const rawCode = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
+    const shortCode = rawCode.length > 7 ? `${rawCode.substring(0, 7)}...` : rawCode
+    if (b.stock !== undefined) {
+      return `${shortCode} (${b.stock.toLocaleString('id-ID')})`
+    }
+    return shortCode
+  }
+
+  const deliveryGridCols = requiresBatch
+    ? '36px minmax(260px, 3fr) minmax(140px, 1.2fr) 90px 120px minmax(160px, 1.8fr) 40px'
+    : '36px minmax(280px, 3.5fr) 90px 120px minmax(180px, 2fr) 40px'
+
   return (
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 1000,
+        maxWidth: 1400,
+        width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
@@ -1048,18 +1097,17 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: requiresBatch
-                ? '2fr 1fr 90px 110px 1fr 40px'
-                : '2fr 90px 110px 1fr 40px',
+              gridTemplateColumns: deliveryGridCols,
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
+              alignItems: 'center',
             }}
           >
             {(requiresBatch
-              ? ['Product', 'Batch', 'Qty', 'Status', 'Notes', '']
-              : ['Product', 'Qty', 'Status', 'Notes', '']
+              ? ['#', 'Product', 'Batch', 'Qty', 'Status', 'Notes', '']
+              : ['#', 'Product', 'Qty', 'Status', 'Notes', '']
             ).map((h, i) => (
               <span
                 key={i}
@@ -1069,6 +1117,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   color: 'var(--foreground-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
+                  textAlign: h === '#' || h === '' ? 'center' : 'left',
                 }}
               >
                 {h}
@@ -1081,16 +1130,29 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               key={field.id}
               style={{
                 display: 'grid',
-                gridTemplateColumns: requiresBatch
-                ? '2fr 1fr 90px 120px 110px 1fr 40px'
-                : '2fr 90px 130px 110px 1fr 40px',
+                gridTemplateColumns: deliveryGridCols,
                 gap: 10,
                 padding: '12px 20px',
                 borderBottom: '1px solid var(--border)',
                 alignItems: 'start',
               }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Row index */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 38,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                {index + 1}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
                 <Controller
                   name={`details.${index}.product_uom_id`}
                   control={control}
@@ -1099,10 +1161,28 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       value={f.value ?? 0}
                       onChange={(v) => {
                         f.onChange(v)
-                        setValue(
-                          `details.${index}.product_uom_batch_id`,
-                          undefined,
-                        )
+                        if (requiresBatch) {
+                          const batches = getBatchOptionsForUom(Number(v))
+                          if (batches.length === 1) {
+                            setValue(
+                              `details.${index}.product_uom_batch_id`,
+                              batches[0].batchId,
+                              { shouldValidate: true, shouldDirty: true }
+                            )
+                          } else {
+                            setValue(
+                              `details.${index}.product_uom_batch_id`,
+                              undefined,
+                              { shouldValidate: true, shouldDirty: true }
+                            )
+                          }
+                        } else {
+                          setValue(
+                            `details.${index}.product_uom_batch_id`,
+                            undefined,
+                            { shouldValidate: true, shouldDirty: true }
+                          )
+                        }
                         const opt = productUomOptions.find((o: any) => o.value === v)
                         if (opt && opt.base_price) setValue(`details.${index}.price`, opt.base_price)
                       }}
@@ -1116,7 +1196,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         | undefined
                       }
                       onSearchChange={setDropdownSearch}
-/>
+                    />
                   )}
                 />
               </div>
@@ -1143,7 +1223,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       ?.message as string | undefined
                     return (
                       <div
-                        style={{ display: 'flex', flexDirection: 'column', gap: 3 }}
+                        style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}
                       >
                         <select
                           value={f.value ?? 0}
@@ -1165,12 +1245,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         >
                           <option value={0}>
                             {batchOptions.length === 0
-                              ? 'No stock available at this branch'
+                              ? 'No stock'
                               : 'Select batch...'}
                           </option>
                           {batchOptions.map((b: any) => (
-                            <option key={b.batchId} value={b.batchId}>
-                              {`${b.code ?? `Batch #${b.batchId}`} | Exp: ${b.expiry_date ? String(b.expiry_date).split('T')[0] : 'No expiry'} | Stock: ${b.stock !== undefined ? b.stock.toLocaleString('id-ID') : 'tersimpan'}`}
+                            <option
+                              key={b.batchId}
+                              value={b.batchId}
+                              title={`${b.code ?? `Batch #${b.batchId}`}${b.expiry_date ? ` | Exp: ${String(b.expiry_date).split('T')[0]}` : ''}${b.stock !== undefined ? ` | Stock: ${b.stock.toLocaleString('id-ID')}` : ''}`}
+                            >
+                              {formatBatchOptionLabel(b)}
                             </option>
                           ))}
                         </select>
@@ -1193,9 +1277,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 step={0.001}
                 {...register(`details.${index}.qty`, { valueAsNumber: true })}
                 style={lineInputStyle}
+                onWheel={(e) => (e.target as HTMLElement).blur()}
               />
-
-              {/* price input removed */}
 
               <Controller
                 name={`details.${index}.status`}
@@ -1219,23 +1302,26 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 style={lineInputStyle}
               />
 
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                disabled={fields.length === 1}
-                style={{
-                  padding: 6,
-                  background: 'none',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                  color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 38 }}>
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  disabled={fields.length === 1}
+                  style={{
+                    padding: 6,
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
+                    color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           ))}
 

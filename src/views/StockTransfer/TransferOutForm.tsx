@@ -460,7 +460,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
           <div
             style={{
             display: 'grid',
-            gridTemplateColumns: '2fr 90px 1fr 32px',
+            gridTemplateColumns: '24px 2fr 90px 1fr 32px',
             gap: 8,
             padding: '6px 0',
             borderBottom: '1px solid var(--border)',
@@ -469,8 +469,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
             color: 'var(--foreground-muted)',
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
+            alignItems: 'center',
           }}
         >
+          <span style={{ textAlign: 'center' }}>#</span>
           <span>Product / UOM</span>
           <span>Qty</span>
             <span>Notes</span>
@@ -487,13 +489,28 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                 data-transfer-row-index={index}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '2fr 90px 1fr 32px',
+                  gridTemplateColumns: '24px 2fr 90px 1fr 32px',
                   gap: 8,
                   alignItems: 'start',
                   padding: '8px 0',
                   borderBottom: '1px solid var(--border)',
                 }}
               >
+                {/* Row index */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: 38,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                  }}
+                >
+                  {index + 1}
+                </div>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <Controller
                     name={`details.${index}.product_uom_id`}

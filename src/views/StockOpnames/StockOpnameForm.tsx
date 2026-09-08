@@ -333,6 +333,9 @@ export default function StockOpnameForm() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
+                <th style={{ ...thStyle, width: 40, textAlign: 'center' }}>
+                  #
+                </th>
                 <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>
                   Inc.
                 </th>
@@ -356,13 +359,13 @@ export default function StockOpnameForm() {
                 </tr>
               ) : isLoadingInventory ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: 48, textAlign: 'center' }}>
+                  <td colSpan={6} style={{ padding: 48, textAlign: 'center' }}>
                     <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: 'var(--primary)', margin: '0 auto' }} />
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ padding: 48 }}>
+                  <td colSpan={6} style={{ padding: 48 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                       <Boxes size={32} style={{ color: 'var(--foreground-muted)' }} />
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -372,7 +375,7 @@ export default function StockOpnameForm() {
                   </td>
                 </tr>
               ) : (
-                items.map((item: any) => {
+                items.map((item: any, index: number) => {
                   const product = item.product_uom_batch?.product_uom?.product || item.product_uom?.product
                   const uom = item.product_uom_batch?.product_uom?.uom || item.product_uom?.uom
                   const batchCode = item.product_uom_batch?.batch_code || '—'
@@ -386,6 +389,9 @@ export default function StockOpnameForm() {
                         background: isSelected ? 'var(--accent-light-bg)' : 'transparent'
                       }}
                     >
+                      <td style={{ ...tdStyle, textAlign: 'center', width: 40, color: 'var(--foreground-muted)', fontSize: 12, fontWeight: 600 }}>
+                        {index + 1}
+                      </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
                         <input
                           type="checkbox"

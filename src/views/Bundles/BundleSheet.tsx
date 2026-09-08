@@ -102,7 +102,22 @@ function SlotField({ nestIndex, control, register, errors, watch, productUomOpti
         {fields.map((item, k) => {
           const itemError = detailError?.items?.[k];
           return (
-            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 32px', gap: 8, alignItems: 'start' }}>
+            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 100px 32px', gap: 8, alignItems: 'start' }}>
+              {/* Item index */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 38,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                {k + 1}
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <Controller
                   control={control}

@@ -274,7 +274,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
     }
 
     return (
-      <div style={{ width: '100%' }}>
+      <div style={{ width: '100%', minWidth: 0 }}>
         <button
           ref={triggerRef}
           id={id}
@@ -293,6 +293,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
           disabled={disabled}
           style={{
             width: '100%',
+            minWidth: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -315,13 +316,24 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
           <div
             style={{
               flex: 1,
+              minWidth: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
             }}
           >
             {selectedOption ? (
-              <span>
+              <span
+                style={{
+                  display: 'inline-block',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  verticalAlign: 'bottom',
+                }}
+                title={`${selectedOption.label}${selectedOption.sublabel ? ` (${selectedOption.sublabel})` : ''}`}
+              >
                 {selectedOption.label}
                 {selectedOption.sublabel && (
                   <span
@@ -464,7 +476,12 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                           fontSize: 13,
                           fontWeight: isHighlighted || isSel ? 600 : 500,
                           color: isHighlighted || isSel ? 'var(--accent)' : 'var(--foreground)',
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         }}
+                        title={option.label}
                       >
                         {option.label}
                       </span>

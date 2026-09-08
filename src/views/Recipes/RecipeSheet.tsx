@@ -1054,11 +1054,26 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                   key={field.id}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 100px 32px',
+                    gridTemplateColumns: '24px 1fr 100px 32px',
                     gap: 8,
                     alignItems: 'start',
                   }}
                 >
+                  {/* Row index */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: 38,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                    }}
+                  >
+                    {index + 1}
+                  </div>
+
                   {/* Material display */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div

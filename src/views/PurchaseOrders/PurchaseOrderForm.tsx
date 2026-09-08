@@ -478,7 +478,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 960,
+        maxWidth: 1400,
+        width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
@@ -823,49 +824,72 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           </div>
 
           {/* Column headers */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 80px 1fr 40px',
-              gap: 10,
-              padding: '10px 20px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            {(watchType === 'branch' ? ['Product / UOM', 'Qty', 'Notes', ''] : ['Product / UOM', 'Qty', 'Unit Price', 'Taxable', 'Notes', '']).map((h, i) => (
-              <span
-                key={i}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  textAlign: h === 'Taxable' ? 'center' : 'left',
-                }}
-              >
-                {h}
-              </span>
-            ))}
-          </div>
+          {(() => {
+            const poGridCols = watchType === 'branch'
+              ? '36px minmax(280px, 3fr) 110px minmax(180px, 2fr) 40px'
+              : '36px minmax(280px, 3fr) 110px 160px 80px minmax(180px, 1.5fr) 40px'
 
-          {/* Line item rows */}
-          {fields.map((field, index) => (
-            <div
-              key={field.id}
-              data-po-row-index={index}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 80px 1fr 40px',
-                gap: 10,
-                padding: '12px 20px',
-                borderBottom: '1px solid var(--border)',
-                alignItems: 'start',
-              }}
-            >
-              {/* Product UOM */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            return (
+              <>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: poGridCols,
+                    gap: 10,
+                    padding: '10px 20px',
+                    borderBottom: '1px solid var(--border)',
+                    background: 'var(--background)',
+                    alignItems: 'center',
+                  }}
+                >
+                  {(watchType === 'branch' ? ['#', 'Product / UOM', 'Qty', 'Notes', ''] : ['#', 'Product / UOM', 'Qty', 'Unit Price', 'Taxable', 'Notes', '']).map((h, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: 'var(--foreground-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        textAlign: h === 'Taxable' || h === '#' || h === '' ? 'center' : 'left',
+                      }}
+                    >
+                      {h}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Line item rows */}
+                {fields.map((field, index) => (
+                  <div
+                    key={field.id}
+                    data-po-row-index={index}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: poGridCols,
+                      gap: 10,
+                      padding: '12px 20px',
+                      borderBottom: '1px solid var(--border)',
+                      alignItems: 'start',
+                    }}
+                  >
+                    {/* Row index */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: 38,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      {index + 1}
+                    </div>
+
+                    {/* Product UOM */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
                 <Controller
                   name={`details.${index}.product_uom_id`}
                   control={control}
@@ -1009,25 +1033,30 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               />
 
               {/* Delete */}
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                disabled={fields.length === 1}
-                style={{
-                  padding: 6,
-                  background: 'none',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                  color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 38 }}>
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  disabled={fields.length === 1}
+                  style={{
+                    padding: 6,
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
+                    color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           ))}
+          </>
+          )})()}
 
           {/* Additional Charges */}
           <div style={{ marginTop: 24, marginBottom: 16, padding: '0 20px' }}>

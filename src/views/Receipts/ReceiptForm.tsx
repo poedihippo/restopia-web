@@ -530,7 +530,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 1000,
+        maxWidth: 1400,
+        width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
@@ -766,14 +767,15 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 120px 140px minmax(150px, 1fr) 40px`,
+                  gridTemplateColumns: `28px minmax(250px, 2fr) 100px 100px 120px 140px minmax(150px, 1fr) 40px`,
                   gap: 10,
                   padding: '10px 20px',
                   borderBottom: '1px solid var(--border)',
                   background: 'var(--background)',
+                  alignItems: 'center',
                 }}
               >
-                {['Product / UOM', 'Batch', 'Qty', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
+                {['#', 'Product / UOM', 'Batch', 'Qty', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
                   <span
                     key={i}
                     style={{
@@ -782,6 +784,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                       color: 'var(--foreground-muted)',
                       textTransform: 'uppercase',
                       letterSpacing: '0.5px',
+                      textAlign: h === '#' ? 'center' : 'left',
                     }}
                   >
                     {h}
@@ -794,13 +797,28 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                   key={field.id}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: `minmax(250px, 2fr) 100px 100px 140px 140px 120px 140px minmax(150px, 1fr) 40px`,
+                    gridTemplateColumns: `28px minmax(250px, 2fr) 100px 100px 120px 140px minmax(150px, 1fr) 40px`,
                     gap: 10,
                     padding: '12px 20px',
                     borderBottom: '1px solid var(--border)',
                     alignItems: 'start',
                   }}
                 >
+                  {/* Row index */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: 38,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                    }}
+                  >
+                    {index + 1}
+                  </div>
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <Controller
                       name={`details.${index}.product_uom_id`}

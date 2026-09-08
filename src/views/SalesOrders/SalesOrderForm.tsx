@@ -1194,16 +1194,17 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Item', 'Code', 'Qty', 'Unit Price', 'Status', 'Subtotal', ''].map((h) => (
+                {['#', 'Item', 'Code', 'Qty', 'Unit Price', 'Status', 'Subtotal', ''].map((h) => (
                   <th
                     key={h}
                     style={{
                       padding: '8px 12px',
-                      textAlign: 'left',
+                      textAlign: h === '#' ? 'center' : 'left',
                       fontSize: 12,
                       fontWeight: 600,
                       color: 'var(--foreground-muted)',
                       borderBottom: '1px solid var(--border)',
+                      width: h === '#' ? 36 : undefined,
                     }}
                   >
                     {h}
@@ -1214,6 +1215,19 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             <tbody>
               {items.map((item, idx) => (
                 <tr key={idx}>
+                  <td
+                    style={{
+                      padding: '10px 12px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      borderBottom: '1px solid var(--border)',
+                      textAlign: 'center',
+                      width: 36,
+                    }}
+                  >
+                    {idx + 1}
+                  </td>
                   <td
                     style={{
                       padding: '10px 12px',

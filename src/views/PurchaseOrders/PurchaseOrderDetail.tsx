@@ -284,7 +284,8 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 960,
+        maxWidth: 1400,
+        width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',

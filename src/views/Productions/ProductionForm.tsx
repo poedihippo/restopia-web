@@ -249,11 +249,26 @@ export function MaterialsFieldArray({
             key={field.id}
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 120px 32px',
+              gridTemplateColumns: '24px 1fr 120px 32px',
               gap: 8,
               alignItems: 'start',
             }}
           >
+            {/* Material Row Index */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: 34,
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--foreground-muted)',
+              }}
+            >
+              {matIndex + 1}
+            </div>
+
             {/* Material search input + pickers */}
             <div style={{ position: 'relative', zIndex: 10 }} data-material-row>
               <input
@@ -1399,6 +1414,19 @@ export default function ProductionForm({
                       background: isExpanded ? 'var(--accent-light-bg)' : 'var(--background)',
                     }}
                   >
+                    {/* Item Number */}
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: 'var(--foreground-muted)',
+                        minWidth: 24,
+                        textAlign: 'center',
+                      }}
+                    >
+                      #{detailIndex + 1}
+                    </span>
+
                     {/* Expand icon */}
                     <div
                       onClick={() => toggleDetail(detailIndex)}

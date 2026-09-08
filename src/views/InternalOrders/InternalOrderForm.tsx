@@ -284,13 +284,14 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     boxSizing: 'border-box',
   }
 
-  const lineGridCols = '2fr 100px 100px 1fr 40px'
+  const lineGridCols = '36px minmax(280px, 3fr) 110px minmax(180px, 2fr) 40px'
 
   return (
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 960,
+        maxWidth: 1400,
+        width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
@@ -534,9 +535,10 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
+              alignItems: 'center',
             }}
           >
-            {['Product / UOM', 'Qty', 'Notes', ''].map((h, i) => (
+            {['#', 'Product / UOM', 'Qty', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -545,6 +547,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                   color: 'var(--foreground-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
+                  textAlign: h === '#' || h === '' ? 'center' : 'left',
                 }}
               >
                 {h}
@@ -566,8 +569,23 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                 alignItems: 'start',
               }}
             >
+              {/* Row index */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 38,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--foreground-muted)',
+                }}
+              >
+                {index + 1}
+              </div>
+
               {/* Product UOM */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
                 <Controller
                   name={`details.${index}.product_uom_id`}
                   control={control}
@@ -592,12 +610,10 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                         | undefined
                       }
                       onSearchChange={setDropdownSearch}
-/>
+                    />
                   )}
                 />
               </div>
-
-
 
               {/* Qty */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -619,23 +635,26 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               />
 
               {/* Delete */}
-              <button
-                type="button"
-                onClick={() => remove(index)}
-                disabled={fields.length === 1}
-                style={{
-                  padding: 6,
-                  background: 'none',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                  color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <Trash2 size={14} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 38 }}>
+                <button
+                  type="button"
+                  onClick={() => remove(index)}
+                  disabled={fields.length === 1}
+                  style={{
+                    padding: 6,
+                    background: 'none',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
+                    color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           ))}
 
