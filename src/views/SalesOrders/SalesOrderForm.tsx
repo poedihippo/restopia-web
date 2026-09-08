@@ -117,7 +117,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       }
       return {
         type: d.bundle_id ? 'bundle' : 'product',
-        product_inventory_id: d.product_inventory_id ?? null,
+        // Same defensive fallback as the delivery-form fix (5524569): don't
+        // rely solely on a flat product_inventory_id FK being present on
+        // the row — fall back to the nested product_inventory relation's
+        // own id so re-saving the item never silently drops its product.
+        product_inventory_id: d.product_inventory_id ?? d.product_inventory?.id ?? null,
         bundle_id: d.bundle_id ?? null,
         bundle_details: d.bundle_details ?? null,
         name:
