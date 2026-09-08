@@ -110,13 +110,36 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   // ── Line items state ───────────────────────────────────────────────────────
   const [items, setItems] = useState<LineItem[]>(() => {
     if (!editingOrder?.sales_order_details) return []
-    return editingOrder.sales_order_details.map((d: any) => {
+    return editingOrder.sales_order_details.map((d: any, idx: number) => {
       let snap = d.product_inventory_snapshot
       if (typeof snap === 'string') {
         try { snap = JSON.parse(snap) } catch (e) { }
       }
+      const isBundle = !!d.bundle_id
+      // Mirrors SalesOrderDetail.tsx's resolution exactly: for a
+      // batch-tracked product the snapshot nests product_uom under
+      // product_uom_batch, not directly — the previous chain only checked
+      // snap?.product_uom?.product?.name, so it fell all the way through to
+      // d.description, which is '' (not nullish) on these rows and so
+      // stopped the ?? chain there instead of reaching a real fallback.
+      const name =
+        snap?.product_uom?.product?.name ??
+        snap?.product_uom_batch?.product_uom?.product?.name ??
+        snap?.name ??
+        d.product_inventory?.product_uom?.product?.name ??
+        d.product_uom_batch?.product_uom?.product?.name ??
+        d.bundle?.name ??
+        (isBundle ? 'Bundle' : `Item ${d.id ?? idx + 1}`)
+      const code =
+        snap?.product_uom_batch?.product_uom?.product?.code ??
+        snap?.product_uom?.product?.code ??
+        snap?.code ??
+        d.product_inventory?.code ??
+        d.product_uom_batch?.product_uom?.code ??
+        d.bundle?.code ??
+        ''
       return {
-        type: d.bundle_id ? 'bundle' : 'product',
+        type: isBundle ? 'bundle' : 'product',
         // Same defensive fallback as the delivery-form fix (5524569): don't
         // rely solely on a flat product_inventory_id FK being present on
         // the row — fall back to the nested product_inventory relation's
@@ -124,15 +147,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         product_inventory_id: d.product_inventory_id ?? d.product_inventory?.id ?? null,
         bundle_id: d.bundle_id ?? null,
         bundle_details: d.bundle_details ?? null,
-        name:
-          snap?.product_uom?.product?.name ??
-          snap?.name ??
-          d.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
-          d.product_inventory?.product_uom?.product?.name ??
-          d.bundle?.name ??
-          d.description ??
-          '—',
-        code: snap?.code ?? d.product_inventory?.code ?? d.bundle?.code ?? '',
+        name,
+        code,
         qty: d.qty,
         price: d.price,
         status: d.status,
