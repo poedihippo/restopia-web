@@ -240,10 +240,37 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const sourceInventory = (inventoryData as any)?.data ?? []
 
-  // Batch options for a line's product UOM: only batches with stock > 0 at the
-  // source branch, each carrying its real per-branch quantity.
-  const getBatchOptionsForUom = (productUomId: number) =>
-    sourceInventory
+  // Batches already committed to this delivery's lines when it was
+  // created — a delivery ALREADY shipped a specific batch, so editing must
+  // show that stored batch regardless of current live stock (its stock may
+  // since be fully consumed, which is normal for a fulfilled shipment).
+  // Mirrors the product-option seeding fix (5524569): seed from the stored
+  // nested product_uom_batch object rather than depending on a requery.
+  const storedBatchesByUomId = new Map<
+    number,
+    { batchId: number; code?: string; expiry_date?: string }[]
+  >()
+  if (mode === 'edit') {
+    ;(initialData?.details ?? []).forEach((d: any) => {
+      const pub = d.product_uom_batch
+      if (!pub?.id || !d.product_uom_id) return
+      const list = storedBatchesByUomId.get(d.product_uom_id) ?? []
+      list.push({
+        batchId: pub.id,
+        code: pub.batch_code ?? pub.code,
+        expiry_date: pub.expiry_date,
+      })
+      storedBatchesByUomId.set(d.product_uom_id, list)
+    })
+  }
+
+  // Batch options for a line's product UOM: batches with stock > 0 at the
+  // source branch (real per-branch quantity), merged with this delivery's
+  // own already-committed batches so a stored batch always has a matching
+  // option to display even when it's no longer in live stock. Live-stock
+  // data wins when the same batch appears in both.
+  const getBatchOptionsForUom = (productUomId: number) => {
+    const stockBatches = sourceInventory
       .filter((inv: any) => {
         const invUomId =
           inv.product_uom_id ?? inv.product_uom_batch?.product_uom?.id
@@ -257,6 +284,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
         stock: inv.stock ?? inv.qty ?? 0,
       }))
+
+    const stored = storedBatchesByUomId.get(productUomId) ?? []
+    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number }>()
+    for (const b of stored) merged.set(b.batchId, { ...b, stock: undefined })
+    for (const b of stockBatches) merged.set(b.batchId, { ...merged.get(b.batchId), ...b })
+    return Array.from(merged.values())
+  }
 
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-linkable'],
@@ -1069,6 +1103,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     const batches = getBatchOptionsForUom(
                       watchDetails[index]?.product_uom_id ?? 0,
                     )
+                    // Last-resort safety net: the selected batch must always
+                    // have a matching <option>, even if it came from neither
+                    // live stock nor the stored product_uom_batch relation
+                    // (e.g. that relation wasn't eager-loaded for some
+                    // reason) — otherwise the <select> silently falls back
+                    // to showing the placeholder despite a real value.
+                    const batchOptions =
+                      f.value && !batches.some((b: any) => b.batchId === f.value)
+                        ? [...batches, { batchId: f.value, code: undefined, expiry_date: undefined, stock: undefined }]
+                        : batches
                     const batchError = errors.details?.[index]?.product_uom_batch_id
                       ?.message as string | undefined
                     return (
@@ -1094,13 +1138,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                           }}
                         >
                           <option value={0}>
-                            {batches.length === 0
+                            {batchOptions.length === 0
                               ? 'No stock available at this branch'
                               : 'Select batch...'}
                           </option>
-                          {batches.map((b: any) => (
+                          {batchOptions.map((b: any) => (
                             <option key={b.batchId} value={b.batchId}>
-                              {`${b.code ?? `Batch #${b.batchId}`} | Exp: ${b.expiry_date ? String(b.expiry_date).split('T')[0] : 'No expiry'} | Stock: ${(b.stock ?? 0).toLocaleString('id-ID')}`}
+                              {`${b.code ?? `Batch #${b.batchId}`} | Exp: ${b.expiry_date ? String(b.expiry_date).split('T')[0] : 'No expiry'} | Stock: ${b.stock !== undefined ? b.stock.toLocaleString('id-ID') : 'tersimpan'}`}
                             </option>
                           ))}
                         </select>

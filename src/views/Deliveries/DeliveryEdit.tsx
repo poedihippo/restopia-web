@@ -21,7 +21,8 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,purchase_order,sales_order,delivery_details',
+            'branch,target_branch,purchase_order,sales_order,' +
+            'delivery_details,delivery_details.product_uom_batch',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -58,6 +59,13 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
             d.product_uom_id ?? d.product_uom?.id ?? 0,
           product_uom_batch_id:
             d.product_uom_batch_id ?? undefined,
+          // The batch already committed to this line — not a form field,
+          // but carried through so DeliveryForm can seed the batch
+          // dropdown's options with it (mirrors the product-option seeding
+          // fix, 5524569). Without this the dropdown only has live-stock
+          // options and an already-shipped batch (now possibly out of
+          // stock) has nothing to match its stored id against.
+          product_uom_batch: d.product_uom_batch ?? undefined,
           purchase_order_detail_id:
             d.purchase_order_detail_id ?? undefined,
           sales_order_detail_id:
