@@ -21,6 +21,7 @@ import {
   ReceiptText,
   CheckCircle,
   RotateCcw,
+  X,
 } from 'lucide-react'
 
 interface Receipt {
@@ -83,6 +84,7 @@ export default function ReceiptsView() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const deliveryIdParam = router.query.delivery_id ? String(router.query.delivery_id) : ''
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -91,10 +93,10 @@ export default function ReceiptsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo])
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, deliveryIdParam])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['receipts', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo],
+    queryKey: ['receipts', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, deliveryIdParam],
     queryFn: () =>
       receiptsService
         .list({
@@ -102,6 +104,7 @@ export default function ReceiptsView() {
           per_page: perPage,
           include: 'branch,delivery,delivery.branch,delivery.purchase_order,delivery.purchase_order.supplier',
           sort: '-created_at',
+          'filter[delivery_id]': deliveryIdParam || undefined,
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
           'filter[start_date]': dateFrom || undefined,
@@ -141,7 +144,8 @@ export default function ReceiptsView() {
     (statusFilter && statusFilter !== 'final') ||
     dateFrom ||
     dateTo ||
-    debouncedSearch
+    debouncedSearch ||
+    deliveryIdParam
   )
 
   const thStyle: React.CSSProperties = {
@@ -321,13 +325,56 @@ export default function ReceiptsView() {
           />
         </div>
 
+        {deliveryIdParam && (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--accent-light-bg)',
+              border: '1px solid var(--border)',
+              fontSize: 12,
+              color: 'var(--accent)',
+              fontWeight: 500,
+            }}
+          >
+            <span>Delivery #{deliveryIdParam}</span>
+            <button
+              type="button"
+              onClick={() => {
+                const query = { ...router.query }
+                delete query.delivery_id
+                router.push({ pathname: router.pathname, query }, undefined, { shallow: true })
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                color: 'var(--accent)',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Clear delivery filter"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
         {hasFilters && (
           <button
             onClick={() => {
-              setStatusFilter('final')
+              setStatusFilter('')
               setDateFrom('')
               setDateTo('')
+              setSearch('')
               setPage(1)
+              const query = { ...router.query }
+              delete query.delivery_id
+              router.push({ pathname: router.pathname, query }, undefined, { shallow: true })
             }}
             style={{
               padding: '7px 12px',

@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
@@ -72,6 +73,32 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
+
+  const [focusNewRowIndex, setFocusNewRowIndex] = useState<number | null>(null)
+
+  const handleAddItem = () => {
+    append({ product_uom_id: 0, qty: 1, description: '' })
+    setFocusNewRowIndex(fields.length)
+  }
+
+  useFormKeyboardNavigation({
+    onAddItem: handleAddItem,
+  })
+
+  useEffect(() => {
+    if (focusNewRowIndex !== null) {
+      const timer = setTimeout(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-io-row-index="${focusNewRowIndex}"] [data-focus-first="true"], [data-io-row-index="${focusNewRowIndex}"] button, [data-io-row-index="${focusNewRowIndex}"] input`
+        )
+        if (el) {
+          el.focus()
+        }
+        setFocusNewRowIndex(null)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [focusNewRowIndex, fields.length])
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all', debouncedDropdownSearch],
@@ -475,11 +502,11 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             <span style={sectionLabelStyle}>Line Items</span>
             <button
               type="button"
-              onClick={() => append({ product_uom_id: 0, qty: 1, description: '' })}
+              onClick={handleAddItem}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
+                gap: 6,
                 padding: '5px 10px',
                 background: 'var(--accent-light-bg)',
                 color: 'var(--accent)',
@@ -492,6 +519,9 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             >
               <Plus size={13} />
               Add Item
+              <kbd style={{ fontSize: 10, opacity: 0.7, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
+                Ctrl+B
+              </kbd>
             </button>
           </div>
 
@@ -526,6 +556,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
           {fields.map((field, index) => (
             <div
               key={field.id}
+              data-io-row-index={index}
               style={{
                 display: 'grid',
                 gridTemplateColumns: lineGridCols,
@@ -542,6 +573,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                   control={control}
                   render={({ field: f }) => (
                     <SearchableSelect
+                      dataFocusFirst={true}
                       value={f.value ?? 0}
                       onChange={(val) => {
                         f.onChange(val)

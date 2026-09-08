@@ -169,22 +169,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
     onError: (err: any) => toastMutationApiError(err, 'Failed to finalize transfer'),
   })
 
-  const handleReceiptClick = async () => {
-    try {
-      const res = await receiptsService
-        .list({ 'filter[delivery_id]': id, per_page: 1 } as any)
-        .then((r) => r.data)
-      const receipts = (res as any)?.data ?? []
-      if (receipts.length > 0) {
-        toast.success('Receipt untuk pengiriman ini sudah ada, membuka untuk diedit')
-        router.push(`/transfer/receipts/${receipts[0].id}/edit`)
-      } else {
-        router.push(`/transfer/receipts/create?delivery_id=${id}`)
-      }
-    } catch (e) {
-      console.error(e)
-      toast.error('Gagal memuat data receipt')
-    }
+  const handleReceiptClick = () => {
+    router.push(`/transfer/receipts?delivery_id=${id}`)
   }
 
   const handleFinalize = () => {

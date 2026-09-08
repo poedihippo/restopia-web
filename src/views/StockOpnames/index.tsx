@@ -41,8 +41,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function StockOpnamesView() {
   const router = useRouter()
   const { hasPermission } = useAuth()
-  const canCreate = hasPermission('product-inventory.create') // Assuming same permission for now
-  const canRead = hasPermission('product-inventory.menu')
+  const canCreate = hasPermission('stock-opname.create') || hasPermission('product-inventory.create')
+  const canRead = hasPermission('stock-opname.read') || hasPermission('stock-opname.menu') || hasPermission('product-inventory.menu')
 
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(20)

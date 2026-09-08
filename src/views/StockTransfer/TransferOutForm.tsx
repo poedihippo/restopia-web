@@ -14,6 +14,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
 import { PriceDisplay } from '@/components/PriceDisplay'
 
@@ -68,6 +69,38 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
+
+  const [focusNewRowIndex, setFocusNewRowIndex] = useState<number | null>(null)
+
+  const handleAddItem = () => {
+    append({
+      product_uom_id: 0,
+      product_uom_batch_id: undefined,
+      qty: 1,
+      price: 0,
+      description: '',
+    })
+    setFocusNewRowIndex(fields.length)
+  }
+
+  useFormKeyboardNavigation({
+    onAddItem: handleAddItem,
+  })
+
+  useEffect(() => {
+    if (focusNewRowIndex !== null) {
+      const timer = setTimeout(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-transfer-row-index="${focusNewRowIndex}"] [data-focus-first="true"], [data-transfer-row-index="${focusNewRowIndex}"] button, [data-transfer-row-index="${focusNewRowIndex}"] input`
+        )
+        if (el) {
+          el.focus()
+        }
+        setFocusNewRowIndex(null)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [focusNewRowIndex, fields.length])
 
   const watchDetails = watch('details')
   const totalPrice = watchDetails.reduce(
@@ -401,19 +434,11 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>Items</span>
             <button
               type="button"
-              onClick={() =>
-                append({
-                  product_uom_id: 0,
-                  product_uom_batch_id: undefined,
-                  qty: 1,
-                  price: 0,
-                  description: '',
-                })
-              }
+              onClick={handleAddItem}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4,
+                gap: 6,
                 padding: '5px 10px',
                 background: 'var(--accent-light-bg)',
                 color: 'var(--accent)',
@@ -426,6 +451,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
             >
               <Plus size={12} />
               Add Item
+              <kbd style={{ fontSize: 10, opacity: 0.7, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
+                Ctrl+B
+              </kbd>
             </button>
           </div>
 
@@ -456,6 +484,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
             return (
               <div
                 key={field.id}
+                data-transfer-row-index={index}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '2fr 90px 1fr 32px',
@@ -471,6 +500,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
                     control={control}
                     render={({ field: f }) => (
                       <SearchableSelect
+                        dataFocusFirst={true}
                         value={f.value ?? 0}
                         onChange={(val) => {
                           f.onChange(val)

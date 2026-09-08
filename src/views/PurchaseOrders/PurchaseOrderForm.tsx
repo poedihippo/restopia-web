@@ -27,6 +27,7 @@ import {
   Unlock,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import RecipeImportModal from './RecipeImportModal'
 import { SalesOrderType } from '@/constants/global'
@@ -110,7 +111,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       fulfillment_date: new Date().toISOString().split('T')[0],
       status: 'pending',
       description: '',
-      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: true }],
+      details: [{ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: false }],
       additional_charges: [],
       type: 'supplier',
       tax_id: undefined,
@@ -122,6 +123,32 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
   const { fields: chargeFields, append: appendCharge, remove: removeCharge } = useFieldArray({ control, name: 'additional_charges' })
+
+  const [focusNewRowIndex, setFocusNewRowIndex] = useState<number | null>(null)
+
+  const handleAddItem = () => {
+    append({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: false })
+    setFocusNewRowIndex(fields.length)
+  }
+
+  useFormKeyboardNavigation({
+    onAddItem: handleAddItem,
+  })
+
+  useEffect(() => {
+    if (focusNewRowIndex !== null) {
+      const timer = setTimeout(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-po-row-index="${focusNewRowIndex}"] [data-focus-first="true"], [data-po-row-index="${focusNewRowIndex}"] button, [data-po-row-index="${focusNewRowIndex}"] input`
+        )
+        if (el) {
+          el.focus()
+        }
+        setFocusNewRowIndex(null)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [focusNewRowIndex, fields.length])
 
   const watchDetails = watch('details')
   const watchSupplierId = watch('supplier_id')
@@ -137,8 +164,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const selectedTax = taxes.find((t: any) => t.id === watchTaxId)
   const taxRate = selectedTax?.rate ?? 0
 
-  const taxableSubtotal = watchDetails.reduce((sum, d) => sum + (d.is_taxable !== false ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
-  const nonTaxableSubtotal = watchDetails.reduce((sum, d) => sum + (d.is_taxable === false ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
+  const taxableSubtotal = watchDetails.reduce((sum, d) => sum + (d.is_taxable ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
+  const nonTaxableSubtotal = watchDetails.reduce((sum, d) => sum + (!d.is_taxable ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
   const subtotal = taxableSubtotal + nonTaxableSubtotal
   const taxAmount = (taxableSubtotal * taxRate) / 100
   const additionalChargesTotal = watchAdditionalCharges.reduce((sum, c) => sum + Number(c.amount || 0), 0)
@@ -213,7 +240,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       } else {
         const product = productUoms.find((p: any) => p.id === id)
         const price = product?.base_price ?? 0
-        finalDetails.push({ product_uom_id: id, qty, price, description: '', is_price_locked: true, is_taxable: true })
+        finalDetails.push({ product_uom_id: id, qty, price, description: '', is_price_locked: true, is_taxable: false })
       }
     })
 
@@ -222,7 +249,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     )
 
     if (cleanedDetails.length === 0) {
-      cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: true })
+      cleanedDetails.push({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: false })
     }
 
     setValue('details', cleanedDetails, { shouldDirty: true, shouldValidate: true })
@@ -323,7 +350,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         product_uom_id: d.product_uom_id,
         qty: d.qty,
         price: d.price,
-        is_taxable: d.is_taxable,
+        is_taxable: Boolean(d.is_taxable),
         description: d.description || undefined,
       })),
   })
@@ -772,9 +799,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  append({ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: true })
-                }
+                onClick={handleAddItem}
                 style={{
                   padding: '6px 12px',
                   background: 'var(--surface)',
@@ -790,6 +815,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 }}
               >
                 <Plus size={14} /> Add Item
+                <kbd style={{ fontSize: 10, opacity: 0.6, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
+                  Ctrl+B
+                </kbd>
               </button>
             </div>
           </div>
@@ -826,6 +854,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           {fields.map((field, index) => (
             <div
               key={field.id}
+              data-po-row-index={index}
               style={{
                 display: 'grid',
                 gridTemplateColumns: watchType === 'branch' ? '2fr 100px 1fr 40px' : '2fr 100px 160px 80px 1fr 40px',
@@ -842,6 +871,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   control={control}
                   render={({ field: f }) => (
                     <SearchableSelect
+                      dataFocusFirst={true}
                       value={f.value ?? 0}
                       onChange={(val) => {
                         f.onChange(val)

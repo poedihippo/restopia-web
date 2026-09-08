@@ -36,14 +36,14 @@ import {
 export type NavChild = {
   label: string;
   href: string;
-  permission?: string;
+  permission?: string | string[];
 };
 
 export type NavItem = {
   label: string;
   href?: string;
   icon: React.ElementType;
-  permission?: string;
+  permission?: string | string[];
   children?: NavChild[];
 };
 
@@ -96,7 +96,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.menu' },
           { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },
-          { label: 'Stock Opname', href: '/products/product-inventory/stock-opname', permission: 'product-inventory.menu' },
+          { label: 'Stock Opname', href: '/products/product-inventory/stock-opname', permission: ['stock-opname.menu', 'stock-opname.read', 'product-inventory.menu'] },
         ],
       },
     ],
@@ -264,6 +264,9 @@ export default function AppSidebar() {
   const isItemVisible = (item: NavItem): boolean => {
     if (isSuperadmin) return true;
     if (!item.permission) return true;
+    if (Array.isArray(item.permission)) {
+      return item.permission.some((p) => hasPermission(p));
+    }
     return hasPermission(item.permission);
   };
 
@@ -283,9 +286,13 @@ export default function AppSidebar() {
 
   const visibleChildren = (item: NavItem): NavChild[] =>
     (item.children ?? [])
-      .filter(
-        (child) => isSuperadmin || !child.permission || hasPermission(child.permission),
-      )
+      .filter((child) => {
+        if (isSuperadmin || !child.permission) return true;
+        if (Array.isArray(child.permission)) {
+          return child.permission.some((p) => hasPermission(p));
+        }
+        return hasPermission(child.permission);
+      })
       .filter((child) => isChildAllowedByProductType(child.href));
 
   useEffect(() => {

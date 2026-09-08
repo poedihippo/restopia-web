@@ -166,19 +166,8 @@ export default function DeliveriesView() {
     debouncedSearch
   )
 
-  const handleEditReceipt = async (deliveryId: number) => {
-    try {
-      const res = await receiptsService.list({ 'filter[delivery_id]': deliveryId, per_page: 1 } as any).then(r => r.data)
-      const receipts = (res as any)?.data ?? []
-      if (receipts.length > 0) {
-        router.push(`/transfer/receipts/${receipts[0].id}/edit`)
-      } else {
-        router.push(`/transfer/receipts/create?delivery_id=${deliveryId}`)
-      }
-    } catch (e) {
-      console.error(e)
-      toast.error('Failed to fetch receipt data')
-    }
+  const handleEditReceipt = (deliveryId: number) => {
+    router.push(`/transfer/receipts?delivery_id=${deliveryId}`)
   }
 
   const thStyle: React.CSSProperties = {

@@ -39,7 +39,7 @@ export default function GlobalLayout({ children }: Props) {
     };
   }, [router]);
 
-  let requiredPermission: string | undefined = undefined;
+  let requiredPermission: string | string[] | undefined = undefined;
   let maxMatchLength = 0;
   const currentPath = router.pathname;
 
@@ -70,13 +70,19 @@ export default function GlobalLayout({ children }: Props) {
     }
   }
 
+  const hasRequiredPermission = (perm?: string | string[]): boolean => {
+    if (!perm) return true;
+    if (Array.isArray(perm)) return perm.some((p) => hasPermission(p));
+    return hasPermission(perm);
+  };
+
   const isCheckingAuth = isLoading || !router.isReady;
   const isDenied =
     !isCheckingAuth &&
     !isNavigating &&
     Boolean(user) &&
     !isSuperadmin &&
-    Boolean(requiredPermission && !hasPermission(requiredPermission));
+    Boolean(requiredPermission && !hasRequiredPermission(requiredPermission));
 
   useShortcut({
     key: 'b',

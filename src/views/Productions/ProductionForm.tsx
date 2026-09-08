@@ -26,6 +26,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -540,6 +541,41 @@ export default function ProductionForm({
 
   const { fields: detailFields, append: appendDetail, remove: removeDetail } =
     useFieldArray({ control, name: 'details' })
+
+  const [focusNewDetailIndex, setFocusNewDetailIndex] = useState<number | null>(null)
+
+  const handleAddDetail = () => {
+    appendDetail({
+      product_uom_id: 0,
+      qty: 1,
+      status: 'final',
+      expiry_date: '',
+      description: '',
+      materials: [{ product_inventory_id: 0, qty: 1 }],
+    })
+    const nextIdx = detailFields.length
+    setExpandedDetails((prev) => [...prev, nextIdx])
+    setFocusNewDetailIndex(nextIdx)
+  }
+
+  useFormKeyboardNavigation({
+    onAddItem: handleAddDetail,
+  })
+
+  useEffect(() => {
+    if (focusNewDetailIndex !== null) {
+      const timer = setTimeout(() => {
+        const el = document.querySelector<HTMLElement>(
+          `[data-prod-detail-index="${focusNewDetailIndex}"] input`
+        )
+        if (el) {
+          el.focus()
+        }
+        setFocusNewDetailIndex(null)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [focusNewDetailIndex, detailFields.length])
 
   const watchDetails = watch('details')
 
@@ -1321,21 +1357,11 @@ export default function ProductionForm({
             <span style={sectionHeaderStyle}>Production Items</span>
             <button
               type="button"
-              onClick={() => {
-                appendDetail({
-                  product_uom_id: 0,
-                  qty: 1,
-                  status: 'final',
-                  expiry_date: '',
-                  description: '',
-                  materials: [{ product_inventory_id: 0, qty: 1 }],
-                })
-                setExpandedDetails((prev) => [...prev, detailFields.length])
-              }}
+              onClick={handleAddDetail}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4,
+                gap: 6,
                 padding: '5px 12px',
                 background: 'var(--accent-light-bg)',
                 color: 'var(--accent)',
@@ -1348,6 +1374,9 @@ export default function ProductionForm({
             >
               <Plus size={13} />
               Add Item
+              <kbd style={{ fontSize: 10, opacity: 0.7, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
+                Ctrl+B
+              </kbd>
             </button>
           </div>
 
@@ -1357,6 +1386,7 @@ export default function ProductionForm({
               return (
                 <div
                   key={field.id}
+                  data-prod-detail-index={detailIndex}
                   style={{ borderBottom: '1px solid var(--border)' }}
                 >
                   {/* Detail header row */}

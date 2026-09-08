@@ -2,7 +2,7 @@
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { parseApiDate } from '@/utils/date';
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -17,6 +17,7 @@ import { usersService } from '@/services/users.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { taxesService } from '@/services/taxes.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
 
@@ -162,6 +163,36 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [showProductDrop, setShowProductDrop] = useState(false)
   const [itemTab, setItemTab] = useState<'products' | 'bundles'>('products')
+  const [highlightedDropIndex, setHighlightedDropIndex] = useState(0)
+  const [focusLastItem, setFocusLastItem] = useState(false)
+  const productSearchInputRef = useRef<HTMLInputElement>(null)
+
+  const handleOpenAddItem = useCallback(() => {
+    setShowProductDrop(true)
+    setHighlightedDropIndex(0)
+    setTimeout(() => {
+      productSearchInputRef.current?.focus()
+    }, 40)
+  }, [])
+
+  useFormKeyboardNavigation({
+    onAddItem: handleOpenAddItem,
+  })
+
+  useEffect(() => {
+    if (focusLastItem && items.length > 0) {
+      const timer = setTimeout(() => {
+        const idx = items.length - 1
+        const el = document.querySelector<HTMLElement>(`[data-so-row-qty="${idx}"]`)
+        if (el) {
+          el.focus()
+          if (el instanceof HTMLInputElement) el.select()
+        }
+        setFocusLastItem(false)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [focusLastItem, items.length])
 
   useEffect(() => {
     const t = setTimeout(() => setProductSearchDebounced(productSearch), 400)
@@ -388,6 +419,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       })
       setShowProductDrop(false)
       setProductSearch('')
+      setFocusLastItem(true)
     },
     [type]
   )
@@ -422,6 +454,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     })
     setShowProductDrop(false)
     setProductSearch('')
+    setFocusLastItem(true)
   }, [])
 
   const updateItem = (idx: number, field: keyof LineItem, value: any) => {
@@ -949,7 +982,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           <div style={{ position: 'relative' }}>
             <button
               type="button"
-              onClick={() => setShowProductDrop((v) => !v)}
+              onClick={handleOpenAddItem}
               style={{
                 height: 36,
                 padding: '0 16px',
@@ -960,9 +993,15 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 fontWeight: 600,
                 fontSize: 13,
                 cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              + Add Item
+              <span>+ Add Item</span>
+              <kbd style={{ fontSize: 10, opacity: 0.8, background: 'rgba(255,255,255,0.25)', padding: '1px 5px', borderRadius: 3 }}>
+                Ctrl+B
+              </kbd>
             </button>
             {showProductDrop && (
               <div
@@ -985,7 +1024,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     <button
                       key={tab}
                       type="button"
-                      onClick={() => setItemTab(tab)}
+                      onClick={() => {
+                        setItemTab(tab)
+                        setHighlightedDropIndex(0)
+                      }}
                       style={{
                         flex: 1,
                         height: 38,
@@ -1006,100 +1048,120 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 </div>
                 <div style={{ padding: 10 }}>
                   <input
+                    ref={productSearchInputRef}
                     autoFocus
                     value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    placeholder={`Search ${itemTab}...`}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value)
+                      setHighlightedDropIndex(0)
+                    }}
+                    onKeyDown={(e) => {
+                      const listLen = itemTab === 'products' ? products.length : bundles.length
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        if (listLen > 0) setHighlightedDropIndex((prev) => (prev < listLen - 1 ? prev + 1 : 0))
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        if (listLen > 0) setHighlightedDropIndex((prev) => (prev > 0 ? prev - 1 : listLen - 1))
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (itemTab === 'products' && products[highlightedDropIndex]) {
+                          addProduct(products[highlightedDropIndex])
+                        } else if (itemTab === 'bundles' && bundles[highlightedDropIndex]) {
+                          addBundle(bundles[highlightedDropIndex])
+                        }
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault()
+                        setShowProductDrop(false)
+                      }
+                    }}
+                    placeholder={`Search ${itemTab}... (Arrow keys to navigate, Enter to select)`}
                     style={{ ...fieldStyle, marginBottom: 0 }}
                   />
                 </div>
                 <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                   {itemTab === 'products' &&
-                    products.map((p: any) => (
-                      <div
-                        key={p.id}
-                        onClick={() => addProduct(p)}
-                        style={{
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)',
-                          background: 'var(--surface)',
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = 'var(--background)')
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = 'var(--surface)')
-                        }
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, paddingRight: 8 }}>
-                            {p.product_uom_batch?.product_uom?.product?.name
-                              ?? p.product_uom?.product?.name
-                              ?? p.code}
+                    products.map((p: any, pIdx: number) => {
+                      const isHighlighted = pIdx === highlightedDropIndex
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => addProduct(p)}
+                          onMouseEnter={() => setHighlightedDropIndex(pIdx)}
+                          style={{
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid var(--border)',
+                            background: isHighlighted ? 'var(--accent-light-bg)' : 'var(--surface)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                            <div style={{ fontSize: 13, fontWeight: isHighlighted ? 700 : 600, color: isHighlighted ? 'var(--accent)' : 'var(--foreground)', paddingRight: 8 }}>
+                              {p.product_uom_batch?.product_uom?.product?.name
+                                ?? p.product_uom?.product?.name
+                                ?? p.code}
+                            </div>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
+                              {formatCurrency(
+                                type === 'online'
+                                  ? (p.online_price ?? p.base_price)
+                                  : p.base_price
+                              )}
+                            </span>
                           </div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
-                            {formatCurrency(
-                              type === 'online'
-                                ? (p.online_price ?? p.base_price)
-                                : p.base_price
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              Code: {p.product_uom_batch?.product_uom?.code ?? p.product_uom?.code ?? p.code ?? '-'}
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              Stock: {p.stock ?? 0}
+                            </span>
+                            {p.product_uom_batch?.batch_code && (
+                              <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                                Batch: {p.product_uom_batch.batch_code}
+                              </span>
                             )}
-                          </span>
+                            {p.product_uom_batch?.expiry_date && (
+                              <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                                Exp: {p.product_uom_batch.expiry_date}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                            Code: {p.product_uom_batch?.product_uom?.code ?? p.product_uom?.code ?? p.code ?? '-'}
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                            Stock: {p.stock ?? 0}
-                          </span>
-                          {p.product_uom_batch?.batch_code && (
-                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                              Batch: {p.product_uom_batch.batch_code}
-                            </span>
-                          )}
-                          {p.product_uom_batch?.expiry_date && (
-                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                              Exp: {p.product_uom_batch.expiry_date}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   {itemTab === 'bundles' &&
-                    bundles.map((b: any) => (
-                      <div
-                        key={b.id}
-                        onClick={() => addBundle(b)}
-                        style={{
-                          padding: '10px 14px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid var(--border)',
-                          background: 'var(--surface)',
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = 'var(--background)')
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = 'var(--surface)')
-                        }
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, paddingRight: 8 }}>{b.name}</div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
-                            {formatCurrency(Number(b.price))}
-                          </span>
+                    bundles.map((b: any, bIdx: number) => {
+                      const isHighlighted = bIdx === highlightedDropIndex
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => addBundle(b)}
+                          onMouseEnter={() => setHighlightedDropIndex(bIdx)}
+                          style={{
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid var(--border)',
+                            background: isHighlighted ? 'var(--accent-light-bg)' : 'var(--surface)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                            <div style={{ fontSize: 13, fontWeight: isHighlighted ? 700 : 600, color: isHighlighted ? 'var(--accent)' : 'var(--foreground)', paddingRight: 8 }}>{b.name}</div>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
+                              {formatCurrency(Number(b.price))}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              Code: {b.code ?? '-'}
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                              Items: {b.details?.length ?? 0}
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                            Code: {b.code ?? '-'}
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                            Items: {b.details?.length ?? 0}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   {itemTab === 'products' && products.length === 0 && (
                     <p style={{ padding: 16, fontSize: 13, color: 'var(--foreground-muted)' }}>
                       No products found
