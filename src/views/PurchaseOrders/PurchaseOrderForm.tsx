@@ -109,7 +109,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       supplier_branch_id: undefined,
       date: new Date().toISOString().split('T')[0],
       fulfillment_date: new Date().toISOString().split('T')[0],
-      status: 'pending',
+      status: 'final',
       description: '',
       details: [{ product_uom_id: 0, qty: 1, price: 0, description: '', is_price_locked: true, is_taxable: false }],
       additional_charges: [],

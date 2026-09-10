@@ -7,8 +7,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
+import { deliveriesService } from '@/services/deliveries.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
@@ -71,7 +73,7 @@ const STATUS_META = {
 export default function ReceiptsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { user, isSuperadmin, hasPermission } = useAuth()
   const canRead = hasPermission("receipt.read");
   const canCreate = hasPermission('receipt.create')
   const canEdit = hasPermission('receipt.update')
@@ -115,6 +117,23 @@ export default function ReceiptsView() {
 
   const items: Receipt[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const { data: filteredDeliveryData } = useQuery({
+    queryKey: ['delivery-for-receipt-filter', deliveryIdParam],
+    queryFn: () =>
+      deliveriesService
+        .findById(Number(deliveryIdParam), {
+          include: 'branch,target_branch',
+        })
+        .then((r) => r.data),
+    enabled: !!deliveryIdParam && !isNaN(Number(deliveryIdParam)),
+  })
+  const filteredDelivery = (filteredDeliveryData as any)?.data
+
+  const isSenderOfFilteredDelivery = React.useMemo(() => {
+    if (!filteredDelivery) return false
+    return !canUserCreateReceiptForDelivery(filteredDelivery, user, isSuperadmin)
+  }, [filteredDelivery, user, isSuperadmin])
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => receiptsService.delete(id),
@@ -223,23 +242,32 @@ export default function ReceiptsView() {
             Record goods received from deliveries
           </p>
         </div>
-        {canCreate && (<button
-          onClick={() => router.push('/transfer/receipts/create')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}>
-          <Plus size={15} />New Receipt
-        </button>)}
+        {canCreate && !isSenderOfFilteredDelivery && (
+          <button
+            onClick={() =>
+              router.push(
+                deliveryIdParam
+                  ? `/transfer/receipts/create?delivery_id=${deliveryIdParam}`
+                  : '/transfer/receipts/create'
+              )
+            }
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />New Receipt
+          </button>
+        )}
       </div>
       {/* Toolbar */}
       <div
@@ -390,6 +418,25 @@ export default function ReceiptsView() {
           </button>
         )}
       </div>
+
+      {isSenderOfFilteredDelivery && filteredDelivery && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--warning-bg)',
+            border: '1px solid var(--warning)',
+            color: 'var(--warning)',
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          Pengiriman #{deliveryIdParam} ditujukan ke{' '}
+          <strong>{filteredDelivery.target_branch?.name ?? 'Cabang Tujuan'}</strong>.
+          Pembuatan receipt hanya dapat dilakukan oleh cabang penerima.
+        </div>
+      )}
       {/* Table */}
       <div
         style={{

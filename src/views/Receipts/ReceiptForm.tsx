@@ -13,6 +13,8 @@ import { deliveriesService } from '@/services/deliveries.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { usePrice } from '@/hooks/usePrice'
+import { useAuth } from '@/hooks/useAuth'
+import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
@@ -69,6 +71,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { mode, initialData, receiptId, prefill } = props
   const { canReadPrice } = usePrice()
+  const { user, isSuperadmin } = useAuth()
   const router = useRouter()
   const queryClient = useQueryClient()
 
@@ -124,7 +127,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       let totalPages = 1
       do {
         const res = await deliveriesService
-          .list({ page, per_page: 100, 'filter[status]': 'final', include: 'branch' } as any)
+          .list({ page, per_page: 100, 'filter[status]': 'final', include: 'branch,target_branch' } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allDeliveries = allDeliveries.concat(items)
@@ -146,7 +149,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     queryFn: () =>
       deliveriesService
         .findById(watchDeliveryId as number, {
-          include: 'delivery_details',
+          include: 'branch,target_branch,delivery_details',
         })
         .then((r) => r.data),
     enabled: !!watchDeliveryId && (watchDeliveryId as number) > 0,
@@ -273,11 +276,24 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     toast.info('Items loaded from Delivery')
   }, [deliveryDetail?.id])
 
-  const deliveryOptions = deliveries.map((d: any) => ({
+  const eligibleDeliveries = useMemo(() => {
+    if (mode === 'edit') return deliveries
+    return deliveries.filter((d: any) =>
+      canUserCreateReceiptForDelivery(d, user, isSuperadmin)
+    )
+  }, [deliveries, mode, user, isSuperadmin])
+
+  const deliveryOptions = eligibleDeliveries.map((d: any) => ({
     value: d.id as number,
-    label: `${d.code ?? `DEL-${d.id}`} - ${d.branch?.name ?? 'Unknown Branch'}`,
+    label: `${d.code ?? `DEL-${d.id}`} - ${d.branch?.name ?? 'Unknown Branch'}${d.target_branch?.name ? ` → ${d.target_branch.name}` : ''}`,
     sublabel: d.date ? d.date : undefined,
   }))
+
+  const canCreateReceipt = useMemo(() => {
+    if (mode === 'edit') return true
+    if (!deliveryDetail) return true
+    return canUserCreateReceiptForDelivery(deliveryDetail, user, isSuperadmin)
+  }, [mode, deliveryDetail, user, isSuperadmin])
 
   const productUomOptions = useMemo(() => {
     const deliveryOpts = deliveryDetail?.delivery_details?.map((dd: any) => ({
@@ -435,6 +451,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     })
     if (overReceived) {
       toast.error('Qty diterima melebihi sisa yang belum diterima.')
+      return
+    }
+
+    if (mode === 'create' && deliveryDetail && !canCreateReceipt) {
+      toast.error(
+        `Receipt hanya dapat dibuat oleh cabang penerima (${deliveryDetail.target_branch?.name ?? 'Cabang Tujuan'})`
+      )
       return
     }
 
@@ -667,6 +690,23 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 >
                   ✓ {deliveryDetail.delivery_details?.length ?? 0} item(s) loaded from delivery
                 </span>
+              )}
+              {!canCreateReceipt && deliveryDetail && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--warning-bg)',
+                    border: '1px solid var(--warning)',
+                    color: 'var(--warning)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Receipt untuk pengiriman ini hanya dapat dibuat oleh cabang penerima ({deliveryDetail.target_branch?.name ?? 'Cabang Tujuan'}). Cabang pengirim tidak dapat membuat receipt.
+                </div>
               )}
               {deliveryAlreadyReceived && (
                 <span
@@ -1008,36 +1048,38 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           >
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={isPending || (mode === 'create' && isFullyReceived)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '9px 20px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: isPending || (mode === 'create' && isFullyReceived) ? 'not-allowed' : 'pointer',
-              opacity: isPending || (mode === 'create' && isFullyReceived) ? 0.7 : 1,
-            }}
-          >
-            {isPending && (
-              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-            )}
-            <Save size={14} />
-            {mode === 'edit'
-              ? isPending
-                ? 'Saving...'
-                : 'Save Changes'
-              : isPending
-                ? 'Creating...'
-                : 'Create Receipt'}
-          </button>
+          {canCreateReceipt && (
+            <button
+              type="submit"
+              disabled={isPending || (mode === 'create' && isFullyReceived)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '9px 20px',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: isPending || (mode === 'create' && isFullyReceived) ? 'not-allowed' : 'pointer',
+                opacity: isPending || (mode === 'create' && isFullyReceived) ? 0.7 : 1,
+              }}
+            >
+              {isPending && (
+                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              )}
+              <Save size={14} />
+              {mode === 'edit'
+                ? isPending
+                  ? 'Saving...'
+                  : 'Save Changes'
+                : isPending
+                  ? 'Creating...'
+                  : 'Create Receipt'}
+            </button>
+          )}
         </div>
       </form>
 

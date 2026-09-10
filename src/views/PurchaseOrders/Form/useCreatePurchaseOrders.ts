@@ -85,7 +85,7 @@ export const useCreatePurchaseOrders = () => {
       date: "",
       total_price: 0,
       type: "",
-      status: "",
+      status: "final",
       description: "",
       details: [],
       // Optional Media

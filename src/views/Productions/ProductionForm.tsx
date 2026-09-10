@@ -146,6 +146,7 @@ export function MaterialsFieldArray({
   control,
   detailIndex,
   register,
+  inventories,
   errors,
   onLoadFromRecipe,
   onMaterialQtyEdit,
@@ -244,6 +245,15 @@ export function MaterialsFieldArray({
         const existingLabel =
           materialLabels[labelKey] ?? `Material #${matIndex + 1}`
 
+        const currentMat = watchedMaterials?.[matIndex]
+        const invId = currentMat?.product_inventory_id
+        const inv = inventories.find((i: any) => i.id === invId)
+        const availableStock = inv ? Number(inv.stock ?? 0) : 0
+        const reqQty = Number(currentMat?.qty ?? 0)
+        const hasNoInventory = !invId || invId <= 0
+        const isOutOfStock = inv && availableStock <= 0
+        const isInsufficient = inv && availableStock > 0 && availableStock < reqQty
+
         return (
           <div
             key={field.id}
@@ -300,6 +310,27 @@ export function MaterialsFieldArray({
                   fontFamily: 'var(--font-sans)',
                 }}
               />
+
+              {hasNoInventory && existingLabel && existingLabel !== `Material #${matIndex + 1}` && (
+                <span style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2, display: 'block', fontWeight: 500 }}>
+                  ⚠ Stok belum ada di cabang ini
+                </span>
+              )}
+              {isOutOfStock && (
+                <span style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2, display: 'block', fontWeight: 500 }}>
+                  ⚠ Stok habis (0)
+                </span>
+              )}
+              {isInsufficient && (
+                <span style={{ fontSize: 10, color: 'var(--warning)', marginTop: 2, display: 'block', fontWeight: 500 }}>
+                  ⚠ Stok kurang (tersedia: {availableStock})
+                </span>
+              )}
+              {inv && availableStock >= reqQty && availableStock > 0 && (
+                <span style={{ fontSize: 10, color: 'var(--foreground-muted)', marginTop: 2, display: 'block' }}>
+                  Stok tersedia: {availableStock}
+                </span>
+              )}
 
               {isActive && sharedMaterialSearch.length >= 2 && !sharedShowMaterialUomPicker && (
                 <div
@@ -871,14 +902,8 @@ export default function ProductionForm({
             base_ratio: recipeQty > 0 ? qty / recipeQty : 0,
           }
         })
-        // All-or-nothing: if any material lacks inventory at this branch,
-        // abort instead of silently shipping product_inventory_id: 0 rows.
-        if (missing.length > 0) {
-          toast.error(
-            `Cannot load recipe — materials missing inventory at this branch: ${missing.join(', ')}`
-          )
-          return
-        }
+        // Still set labels and materials even if some materials lack inventory at this branch.
+        // Stock availability will be validated when the user submits Create Production.
         const labels: Record<string, string> = {}
         materials.forEach((m: any, idx: number) => {
           const productName =
@@ -900,7 +925,13 @@ export default function ProductionForm({
             ? mappedMaterials
             : [{ product_inventory_id: 0, qty: 1 }]
         )
-        toast.success(`Loaded ${materials.length} material(s) from recipe`)
+        if (missing.length > 0) {
+          toast.warning(
+            `Loaded ${materials.length} material(s) from recipe. Perhatian: ${missing.length} material belum ada stok/inventori di cabang ini: ${missing.join(', ')}`
+          )
+        } else {
+          toast.success(`Loaded ${materials.length} material(s) from recipe`)
+        }
       } catch {
         toast.error('Failed to load recipe')
       } finally {
@@ -1008,19 +1039,48 @@ export default function ProductionForm({
       toastMutationApiError(err, 'Failed to update production'),
   })
 
-  const hasIncompleteRows = (values: FormValues) =>
-    (values.details ?? []).some((d) => {
-      if (!d.product_uom_id || d.product_uom_id <= 0) return true
+  const validateProductionStock = (values: FormValues): string | null => {
+    for (let dIndex = 0; dIndex < (values.details ?? []).length; dIndex++) {
+      const d = values.details[dIndex]
+      if (!d.product_uom_id || d.product_uom_id <= 0) {
+        return `Item produksi #${dIndex + 1}: Produk output belum dipilih.`
+      }
       const materials = d.materials ?? []
-      if (materials.length === 0) return true
-      return materials.some((m) => !m.product_inventory_id || m.product_inventory_id <= 0)
-    })
+      if (materials.length === 0) {
+        return `Item produksi #${dIndex + 1}: Minimal satu material bahan baku harus diisi.`
+      }
+      for (let mIndex = 0; mIndex < materials.length; mIndex++) {
+        const m = materials[mIndex]
+        const labelKey = `${dIndex}-${mIndex}`
+        const label = materialLabels[labelKey] || derivedMaterialLabels[labelKey] || `Material #${mIndex + 1}`
+
+        if (!m.product_inventory_id || m.product_inventory_id <= 0) {
+          return `Stok produk yang dibutuhkan belum ada di cabang ini: ${label} (Item produksi #${dIndex + 1})`
+        }
+
+        const inv = inventories.find((i: any) => i.id === m.product_inventory_id)
+        if (!inv) {
+          return `Data inventori untuk ${label} tidak ditemukan di cabang ini.`
+        }
+
+        const availableStock = Number(inv.stock ?? 0)
+        const requiredQty = Number(m.qty ?? 0)
+
+        if (availableStock <= 0) {
+          return `Stok produk yang dibutuhkan habis: ${label} (Stok: 0, Dibutuhkan: ${requiredQty})`
+        }
+        if (availableStock < requiredQty) {
+          return `Stok produk yang dibutuhkan tidak mencukupi: ${label} (Tersedia: ${availableStock}, Dibutuhkan: ${requiredQty})`
+        }
+      }
+    }
+    return null
+  }
 
   const onSubmit = (values: FormValues) => {
-    if (hasIncompleteRows(values)) {
-      toast.error(
-        'Setiap item produksi harus memiliki produk output dan minimal satu material yang lengkap.'
-      )
+    const stockError = validateProductionStock(values)
+    if (stockError) {
+      toast.error(stockError)
       return
     }
     if (mode === 'edit') {

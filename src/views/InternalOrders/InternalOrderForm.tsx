@@ -16,6 +16,7 @@ import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/usePr
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import RecipeImportModal from '@/views/PurchaseOrders/RecipeImportModal'
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
@@ -51,6 +52,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
   const { user } = useAuth()
   const myBranchId = (user as any)?.branch?.id
+  const [showRecipeModal, setShowRecipeModal] = useState(false)
 
   const {
     register,
@@ -66,7 +68,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
       supplier_branch_id: 0,
       date: new Date().toISOString().split('T')[0],
       fulfillment_date: new Date().toISOString().split('T')[0],
-      status: 'pending',
+      status: 'final',
       description: '',
       details: [{ product_uom_id: 0, qty: 1, description: '' }],
     },
@@ -151,6 +153,49 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
     price: pu.base_price ?? 0,
   }))
+
+  const handleImportRecipes = (selectedRecipes: any[]) => {
+    const currentDetails = watch('details')
+    const newItems: Record<number, number> = {}
+
+    selectedRecipes.forEach((recipe) => {
+      recipe.recipe_materials?.forEach((material: any) => {
+        const uomId = material.product_uom_id
+        if (!uomId) return
+        if (newItems[uomId]) {
+          newItems[uomId] += Number(material.qty) || 0
+        } else {
+          newItems[uomId] = Number(material.qty) || 0
+        }
+      })
+    })
+
+    const finalDetails = [...currentDetails]
+    Object.entries(newItems).forEach(([productUomId, qty]) => {
+      const id = Number(productUomId)
+      const existingIndex = finalDetails.findIndex((d) => d.product_uom_id === id)
+
+      if (existingIndex >= 0) {
+        finalDetails[existingIndex].qty += qty
+      } else {
+        finalDetails.push({ product_uom_id: id, qty, description: '' })
+      }
+    })
+
+    const cleanedDetails = finalDetails.filter(
+      (d) => d.product_uom_id !== 0 || d.qty !== 1 || (d.description && d.description !== '')
+    )
+
+    setValue(
+      'details',
+      cleanedDetails.length > 0
+        ? cleanedDetails
+        : [{ product_uom_id: 0, qty: 1, description: '' }],
+      { shouldDirty: true, shouldValidate: true }
+    )
+    setShowRecipeModal(false)
+    toast.success(`Successfully imported materials from ${selectedRecipes.length} recipe(s)`)
+  }
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -347,6 +392,12 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
         </div>
       </div>
 
+      <RecipeImportModal
+        open={showRecipeModal}
+        onClose={() => setShowRecipeModal(false)}
+        onImport={handleImportRecipes}
+      />
+
       {/* Form */}
       <form
         onSubmit={handleSubmit(onSubmit)}
@@ -501,29 +552,47 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             }}
           >
             <span style={sectionLabelStyle}>Line Items</span>
-            <button
-              type="button"
-              onClick={handleAddItem}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '5px 10px',
-                background: 'var(--accent-light-bg)',
-                color: 'var(--accent)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={13} />
-              Add Item
-              <kbd style={{ fontSize: 10, opacity: 0.7, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
-                Ctrl+B
-              </kbd>
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowRecipeModal(true)}
+                style={{
+                  padding: '6px 12px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                Load from Recipes
+              </button>
+              <button
+                type="button"
+                onClick={handleAddItem}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 10px',
+                  background: 'var(--accent-light-bg)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                <Plus size={13} />
+                Add Item
+                <kbd style={{ fontSize: 10, opacity: 0.7, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
+                  Ctrl+B
+                </kbd>
+              </button>
+            </div>
           </div>
 
           {/* Column headers */}

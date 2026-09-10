@@ -11,6 +11,7 @@ import { receiptsService } from '@/services/receipts.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import {
   ArrowLeft,
   Pencil,
@@ -89,8 +90,9 @@ const STATUS_META = {
 export default function DeliveryDetail({ id }: DeliveryDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { user, isSuperadmin, hasPermission } = useAuth()
   const canRead = hasPermission('delivery.read')
+  const canCreateReceipt = hasPermission('receipt.create')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
@@ -392,7 +394,9 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               </button>
             )}
 
-            {delivery?.status === 'final' && (
+            {delivery?.status === 'final' &&
+              canCreateReceipt &&
+              canUserCreateReceiptForDelivery(delivery, user, isSuperadmin) && (
               <button
                 type="button"
                 onClick={handleReceiptClick}

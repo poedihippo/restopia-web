@@ -19,7 +19,6 @@ import {
   ChevronRight,
   BookOpen,
   Check,
-  Search,
 } from 'lucide-react'
 
 interface Recipe {
@@ -57,8 +56,6 @@ export default function RecipesView() {
 
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('')
   const [productSearch, setProductSearch] = useState('')
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
@@ -70,11 +67,10 @@ export default function RecipesView() {
 
   React.useEffect(() => {
     const t = setTimeout(() => {
-      setDebouncedSearch(search)
       setDebouncedProductSearch(productSearch)
     }, 400)
     return () => clearTimeout(t)
-  }, [search, productSearch])
+  }, [productSearch])
 
   // 1. Search products for the filter dropdown via /v1/products (Product Search)
   const { data: productsData } = useQuery({
@@ -97,7 +93,7 @@ export default function RecipesView() {
 
   React.useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, selectedProductId])
+  }, [selectedProductId])
 
   // Fetch all recipes (there are only 178 total recipes, fetched in 2 quick batches of 100)
   const { data: allRecipes = [], isLoading, isError } = useQuery({
@@ -125,41 +121,15 @@ export default function RecipesView() {
     staleTime: 60 * 1000,
   })
 
-  // Instant filtering across all 178 recipes
+  // Instant filtering across all recipes by selected product
   const filteredRecipes = React.useMemo(() => {
-    let list = allRecipes
-    if (selectedProductId) {
-      list = list.filter(
-        (r: any) =>
-          r.product_uom?.product_id === selectedProductId ||
-          r.product_uom?.product?.id === selectedProductId
-      )
-    }
-    if (debouncedSearch.trim()) {
-      const q = debouncedSearch.toLowerCase().trim()
-      list = list.filter((r: any) => {
-        const prodName = (r.product_uom?.product?.name || '').toLowerCase()
-        const prodCode = (r.product_uom?.product?.code || '').toLowerCase()
-        const uomCode = (r.product_uom?.code || '').toLowerCase()
-        const rName = (r.name || '').toLowerCase()
-        const rId = String(r.id)
-        const matMatch = (r.recipe_materials || []).some((m: any) => {
-          const mName = (m.product_uom?.product?.name || '').toLowerCase()
-          const mCode = (m.product_uom?.product?.code || '').toLowerCase()
-          return mName.includes(q) || mCode.includes(q)
-        })
-        return (
-          prodName.includes(q) ||
-          prodCode.includes(q) ||
-          uomCode.includes(q) ||
-          rName.includes(q) ||
-          rId === q ||
-          matMatch
-        )
-      })
-    }
-    return list
-  }, [allRecipes, selectedProductId, debouncedSearch])
+    if (!selectedProductId) return allRecipes
+    return allRecipes.filter(
+      (r: any) =>
+        r.product_uom?.product_id === selectedProductId ||
+        r.product_uom?.product?.id === selectedProductId
+    )
+  }, [allRecipes, selectedProductId])
 
   const totalItems = filteredRecipes.length
   const totalPages = Math.ceil(totalItems / perPage) || 1
@@ -238,37 +208,7 @@ export default function RecipesView() {
 
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', maxWidth: 280, width: '100%' }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search recipes..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              boxSizing: 'border-box',
-              fontFamily: 'var(--font-sans)',
-            }}
-          />
-        </div>
-        <div style={{ width: 260 }}>
+        <div style={{ width: 280, maxWidth: '100%' }}>
           <SearchableSelect
             value={selectedProductId}
             onChange={(val) => setSelectedProductId(val)}

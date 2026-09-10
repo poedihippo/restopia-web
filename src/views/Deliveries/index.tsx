@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
 import { useAuth } from '@/hooks/useAuth'
+import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
@@ -86,11 +87,12 @@ const STATUS_META = {
 export default function DeliveriesView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { user, isSuperadmin, hasPermission } = useAuth()
   const canRead = hasPermission("delivery.read");
   const canCreate = hasPermission('delivery.create')
   const canEdit = hasPermission('delivery.update')
   const canDelete = hasPermission('delivery.delete')
+  const canCreateReceipt = hasPermission('receipt.create')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -533,7 +535,9 @@ export default function DeliveriesView() {
                             <RotateCcw size={14} />
                           </button>
                         ))}
-                        {item.status === 'final' && (
+                        {item.status === 'final' &&
+                          canCreateReceipt &&
+                          canUserCreateReceiptForDelivery(item, user, isSuperadmin) && (
                           <button
                             onClick={() => handleEditReceipt(item.id)}
                             style={actionBtnStyle}

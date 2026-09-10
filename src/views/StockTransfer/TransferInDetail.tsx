@@ -13,6 +13,8 @@ import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
+import { useAuth } from '@/hooks/useAuth'
+import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { ArrowLeft, Package, Check, Loader2 } from 'lucide-react'
 import { PriceDisplay } from '@/components/PriceDisplay'
 
@@ -53,6 +55,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
   useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { user, isSuperadmin } = useAuth()
   const today = new Date().toISOString().split('T')[0]
 
   const { data, isLoading } = useQuery({
@@ -79,6 +82,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
   const existingReceipts: any[] = (receiptsData as any)?.data ?? []
   const alreadyReceipted = existingReceipts.length > 0
   const isFinal = existingReceipts.some((r: any) => r.status === 'final')
+  const canCreate = !delivery || canUserCreateReceiptForDelivery(delivery, user, isSuperadmin)
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', debouncedDropdownSearch],
@@ -193,7 +197,15 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
       toast.error(err?.response?.data?.message ?? 'Failed to receive stock'),
   })
 
-  const onSubmit = (values: FormValues) => createReceiptMutation.mutate(values)
+  const onSubmit = (values: FormValues) => {
+    if (delivery && !canCreate) {
+      toast.error(
+        `Penerimaan hanya dapat dikonfirmasi oleh cabang penerima (${delivery?.target_branch?.name ?? 'Cabang Tujuan'})`
+      )
+      return
+    }
+    createReceiptMutation.mutate(values)
+  }
 
   const onInvalid = (errs: any) => {
 
@@ -839,31 +851,44 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
           >
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={createReceiptMutation.isPending || isFinal}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 16px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: createReceiptMutation.isPending || isFinal ? 'not-allowed' : 'pointer',
-              opacity: createReceiptMutation.isPending || isFinal ? 0.7 : 1,
-            }}
-          >
-            {createReceiptMutation.isPending ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Check size={16} />
-            )}
-            {isFinal ? 'Already Finalized' : alreadyReceipted ? 'Update Receipt' : 'Confirm Receipt'}
-          </button>
+          {canCreate ? (
+            <button
+              type="submit"
+              disabled={createReceiptMutation.isPending || isFinal}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: createReceiptMutation.isPending || isFinal ? 'not-allowed' : 'pointer',
+                opacity: createReceiptMutation.isPending || isFinal ? 0.7 : 1,
+              }}
+            >
+              {createReceiptMutation.isPending ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Check size={16} />
+              )}
+              {isFinal ? 'Already Finalized' : alreadyReceipted ? 'Update Receipt' : 'Confirm Receipt'}
+            </button>
+          ) : (
+            <span
+              style={{
+                fontSize: 13,
+                color: 'var(--warning)',
+                fontWeight: 500,
+                alignSelf: 'center',
+              }}
+            >
+              Penerimaan hanya dapat dikonfirmasi oleh cabang penerima ({delivery?.target_branch?.name ?? 'Cabang Tujuan'})
+            </span>
+          )}
         </div>
       </form>
 
