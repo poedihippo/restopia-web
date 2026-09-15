@@ -172,6 +172,37 @@ export interface ProductInventory {
   }
 }
 
+export interface ConvertProductInventoryMovementSummary {
+  product_inventory_id?: number
+  product_uom_batch_id?: number
+  product_uom_id?: number
+  batch_code?: string
+  direction?: 'in' | 'out'
+  qty?: number
+  stock_before?: number
+  stock_after?: number
+  uom_id?: number
+  uom_code?: string
+}
+
+export interface ConvertProductInventoryRequest {
+  product_inventory_id: number
+  target_product_uom_id: number
+  qty: number
+}
+
+export interface ConvertProductInventoryResponse {
+  product_id?: number
+  source_product_uom_id?: number
+  source_uom_id?: number
+  target_product_uom_id?: number
+  target_uom_id?: number
+  conversion_amount?: number
+  target_product_inventory_created?: boolean
+  source?: ConvertProductInventoryMovementSummary
+  target?: ConvertProductInventoryMovementSummary
+}
+
 // Stock Movements
 export interface StockMovementRequest {
   product_inventory_id: number

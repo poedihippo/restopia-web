@@ -1,5 +1,5 @@
 import api from '@/hooks/useApi'
-import type { ApiResponse, PaginatedData, ListParams, ProductInventoryRequest, BulkUpdateProductInventoryRequest } from '@/types/api'
+import type { ApiResponse, PaginatedData, ListParams, ProductInventoryRequest, BulkUpdateProductInventoryRequest, ConvertProductInventoryRequest, ConvertProductInventoryResponse } from '@/types/api'
 
 export const productInventoriesService = {
   list: (params?: ListParams) =>
@@ -33,6 +33,9 @@ export const productInventoriesService = {
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/product-inventories/${id}`),
+
+  convert: (data: ConvertProductInventoryRequest) =>
+    api.post<ApiResponse<ConvertProductInventoryResponse>>('/product-inventories/convert', data),
 
   exportExcel: (params?: {
     'filter[search]'?: string

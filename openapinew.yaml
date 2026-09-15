@@ -236,13 +236,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by,
-            chart_of_account, account_setting_key, company"
+        - description: "Comma-separated relations: chart_of_account, account_setting_key,
+            company, created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,chart_of_account,account_setting_key,company
+            example: chart_of_account,account_setting_key,company,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, account_setting_keys.key,
             created_at"
@@ -378,12 +378,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, account_category"
+        - description: "Comma-separated relations: account_category, created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,account_category
+            example: account_category,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, created_at"
           in: query
@@ -392,15 +392,15 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by account_category_id
-          in: query
-          name: filter[account_category_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by account_category_id
+          in: query
+          name: filter[account_category_id]
           required: false
           schema:
             type: string
@@ -780,13 +780,13 @@ paths:
       description: ""
       operationId: getCurrentUser
       parameters:
-        - description: "Comma-separated relations: departments, created_by, updated_by,
-            roles, permissions, branches"
+        - description: "Comma-separated relations: created_by, updated_by, roles,
+            permissions, branches, departments"
           in: query
           name: include
           required: false
           schema:
-            example: departments,created_by,updated_by,roles,permissions,branches
+            example: created_by,updated_by,roles,permissions,branches,departments
             type: string
       responses:
         "200":
@@ -906,12 +906,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: chart_of_account, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, chart_of_account"
           in: query
           name: include
           required: false
           schema:
-            example: chart_of_account,created_by,updated_by
+            example: created_by,updated_by,chart_of_account
             type: string
         - description: "Sort by field (prefix - for desc): id, bank_name, account_number,
             account_name, created_at, updated_at"
@@ -920,18 +920,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by chart_of_account_id
-          in: query
-          name: filter[chart_of_account_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by account_type
-          in: query
-          name: filter[account_type]
-          required: false
-          schema:
             type: string
         - description: Filter by is_active
           in: query
@@ -942,6 +930,18 @@ paths:
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by chart_of_account_id
+          in: query
+          name: filter[chart_of_account_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by account_type
+          in: query
+          name: filter[account_type]
           required: false
           schema:
             type: string
@@ -1364,6 +1364,12 @@ paths:
           schema:
             example: id
             type: string
+        - description: Filter by chart_of_account_id
+          in: query
+          name: filter[chart_of_account_id]
+          required: false
+          schema:
+            type: string
         - description: Filter by search
           in: query
           name: filter[search]
@@ -1373,12 +1379,6 @@ paths:
         - description: Filter by period_id
           in: query
           name: filter[period_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by chart_of_account_id
-          in: query
-          name: filter[chart_of_account_id]
           required: false
           schema:
             type: string
@@ -1604,13 +1604,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, media,
-            bundle_details"
+        - description: "Comma-separated relations: updated_by, media, bundle_details,
+            created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,media,bundle_details
+            example: updated_by,media,bundle_details,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, price, status,
             description, created_at, updated_at"
@@ -1820,13 +1820,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: details.bank_account, created_by,
-            updated_by, details"
+        - description: "Comma-separated relations: updated_by, details,
+            details.bank_account, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: details.bank_account,created_by,updated_by,details
+            example: updated_by,details,details.bank_account,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, transaction_number, date,
             amount, created_at, updated_at"
@@ -2054,12 +2054,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
         - description: Filter by account_type_id
           in: query
           name: filter[account_type_id]
@@ -2093,6 +2087,12 @@ paths:
         - description: Filter by account_category_id
           in: query
           name: filter[account_category_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
           required: false
           schema:
             type: string
@@ -2753,13 +2753,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: delivery_details, created_by,
-            updated_by, target_branch, purchase_order, sales_order, media"
+        - description: "Comma-separated relations: created_by, updated_by, target_branch,
+            purchase_order, sales_order, media, delivery_details"
           in: query
           name: include
           required: false
           schema:
-            example: delivery_details,created_by,updated_by,target_branch,purchase_order,sales_order,media
+            example: created_by,updated_by,target_branch,purchase_order,sales_order,media,delivery_details
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code,
             source_type, target_branch_id, purchase_order_id, sales_order_id,
@@ -2776,12 +2776,6 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by source_type
           in: query
           name: filter[source_type]
@@ -2791,6 +2785,18 @@ paths:
         - description: Filter by target_branch_id
           in: query
           name: filter[target_branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by purchase_order_id
+          in: query
+          name: filter[purchase_order_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_gte
+          in: query
+          name: filter[date_gte]
           required: false
           schema:
             type: string
@@ -2806,15 +2812,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by has_receipt
+        - description: Filter by branch_id
           in: query
-          name: filter[has_receipt]
-          required: false
-          schema:
-            type: string
-        - description: Filter by purchase_order_id
-          in: query
-          name: filter[purchase_order_id]
+          name: filter[branch_id]
           required: false
           schema:
             type: string
@@ -2824,9 +2824,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by date_gte
+        - description: Filter by has_receipt
           in: query
-          name: filter[date_gte]
+          name: filter[has_receipt]
           required: false
           schema:
             type: string
@@ -3018,12 +3018,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: parent, children, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, parent, children"
           in: query
           name: include
           required: false
           schema:
-            example: parent,children,created_by,updated_by
+            example: created_by,updated_by,parent,children
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, sort_order,
             created_at, updated_at"
@@ -3032,6 +3032,12 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by parent_id
+          in: query
+          name: filter[parent_id]
+          required: false
+          schema:
             type: string
         - description: Filter by is_active
           in: query
@@ -3042,12 +3048,6 @@ paths:
         - description: Filter by search
           in: query
           name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by parent_id
-          in: query
-          name: filter[parent_id]
           required: false
           schema:
             type: string
@@ -3239,13 +3239,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: branch, product_uom_batch,
-            requested_by, approved_by, created_by, updated_by"
+        - description: "Comma-separated relations: approved_by, created_by, updated_by,
+            branch, product_uom_batch, requested_by"
           in: query
           name: include
           required: false
           schema:
-            example: branch,product_uom_batch,requested_by,approved_by,created_by,updated_by
+            example: approved_by,created_by,updated_by,branch,product_uom_batch,requested_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id,
             product_uom_batch_id, qty, status, requested_at, approved_at,
@@ -3476,12 +3476,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, company"
+        - description: "Comma-separated relations: company, created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,company
+            example: company,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, name, start_date, end_date,
             created_at"
@@ -3490,6 +3490,12 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by is_closed
+          in: query
+          name: filter[is_closed]
+          required: false
+          schema:
             type: string
         - description: Filter by search
           in: query
@@ -3500,12 +3506,6 @@ paths:
         - description: Filter by is_active
           in: query
           name: filter[is_active]
-          required: false
-          schema:
-            type: string
-        - description: Filter by is_closed
-          in: query
-          name: filter[is_closed]
           required: false
           schema:
             type: string
@@ -3732,14 +3732,14 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: billed_branch, additional_charges,
-            invoice_details, sales_order_details, invoice_sales_orders,
-            created_by, updated_by"
+        - description: "Comma-separated relations: additional_charges, invoice_details,
+            sales_order_details, invoice_sales_orders, created_by, updated_by,
+            billed_branch"
           in: query
           name: include
           required: false
           schema:
-            example: billed_branch,additional_charges,invoice_details,sales_order_details,invoice_sales_orders,created_by,updated_by
+            example: additional_charges,invoice_details,sales_order_details,invoice_sales_orders,created_by,updated_by,billed_branch
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code,
             billed_branch_id, date, due_date, subtotal_price, tax_amount,
@@ -3751,9 +3751,9 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by payment_status
+        - description: Filter by due_date_lte
           in: query
-          name: filter[payment_status]
+          name: filter[due_date_lte]
           required: false
           schema:
             type: string
@@ -3763,33 +3763,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by date_gte
-          in: query
-          name: filter[date_gte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by due_date_lte
-          in: query
-          name: filter[due_date_lte]
-          required: false
-          schema:
-            type: string
         - description: Filter by branch_id
           in: query
           name: filter[branch_id]
           required: false
           schema:
             type: string
-        - description: Filter by billed_branch_id
+        - description: Filter by date_gte
           in: query
-          name: filter[billed_branch_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_lte
-          in: query
-          name: filter[date_lte]
+          name: filter[date_gte]
           required: false
           schema:
             type: string
@@ -3802,6 +3784,24 @@ paths:
         - description: Filter by status
           in: query
           name: filter[status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by payment_status
+          in: query
+          name: filter[payment_status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by billed_branch_id
+          in: query
+          name: filter[billed_branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_lte
+          in: query
+          name: filter[date_lte]
           required: false
           schema:
             type: string
@@ -3865,6 +3865,42 @@ paths:
       summary: Create Invoice
       tags:
         - Invoices
+  /v1/invoices/unlock-overdue:
+    post:
+      description: ""
+      operationId: unlockOverdueInvoice
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnlockOverdueRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    example: Data updated successfully
+                    type: string
+                type: object
+          description: Success
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "422":
+          description: Unprocessable Entity
+        "500":
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Unlock Overdue Invoice Block for Branch
+      tags:
+        - Invoices
   /v1/invoices/{id}:
     get:
       description: ""
@@ -3917,13 +3953,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: posted_by, period, journal_details,
-            created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, posted_by, period,
+            journal_details, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: posted_by,period,journal_details,created_by,updated_by
+            example: updated_by,posted_by,period,journal_details,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, journal_number, date,
             created_at"
@@ -3932,12 +3968,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by is_posted
-          in: query
-          name: filter[is_posted]
-          required: false
-          schema:
             type: string
         - description: Filter by is_reversed
           in: query
@@ -3966,6 +3996,12 @@ paths:
         - description: Filter by type
           in: query
           name: filter[type]
+          required: false
+          schema:
+            type: string
+        - description: Filter by is_posted
+          in: query
+          name: filter[is_posted]
           required: false
           schema:
             type: string
@@ -4310,18 +4346,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by media_type
-          in: query
-          name: filter[media_type]
-          required: false
-          schema:
-            type: string
         - description: Filter by collection_name
           in: query
           name: filter[collection_name]
@@ -4331,6 +4355,18 @@ paths:
         - description: Filter by disk
           in: query
           name: filter[disk]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by media_type
+          in: query
+          name: filter[media_type]
           required: false
           schema:
             type: string
@@ -4495,12 +4531,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by open_mode
           in: query
           name: filter[open_mode]
@@ -4522,6 +4552,12 @@ paths:
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by branch_id
+          in: query
+          name: filter[branch_id]
           required: false
           schema:
             type: string
@@ -5150,13 +5186,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: branch, payment_method, allocations,
-            created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, branch, payment_method,
+            allocations, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: branch,payment_method,allocations,created_by,updated_by
+            example: updated_by,branch,payment_method,allocations,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id,
             payment_method_id, amount, date, created_at, updated_at"
@@ -5166,21 +5202,15 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by type
+        - description: Filter by payment_method_id
           in: query
-          name: filter[type]
+          name: filter[payment_method_id]
           required: false
           schema:
             type: string
-        - description: Filter by date_lte
+        - description: Filter by unallocated_amount
           in: query
-          name: filter[date_lte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by amount
-          in: query
-          name: filter[amount]
+          name: filter[unallocated_amount]
           required: false
           schema:
             type: string
@@ -5196,6 +5226,18 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by amount
+          in: query
+          name: filter[amount]
+          required: false
+          schema:
+            type: string
         - description: Filter by is_reversed
           in: query
           name: filter[is_reversed]
@@ -5208,15 +5250,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
         - description: Filter by branch_id
           in: query
           name: filter[branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by type
+          in: query
+          name: filter[type]
           required: false
           schema:
             type: string
@@ -5226,15 +5268,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by payment_method_id
+        - description: Filter by date_lte
           in: query
-          name: filter[payment_method_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by unallocated_amount
-          in: query
-          name: filter[unallocated_amount]
+          name: filter[date_lte]
           required: false
           schema:
             type: string
@@ -5332,12 +5368,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by is_reversed
-          in: query
-          name: filter[is_reversed]
-          required: false
-          schema:
-            type: string
         - description: Filter by search
           in: query
           name: filter[search]
@@ -5359,6 +5389,12 @@ paths:
         - description: Filter by payment_id
           in: query
           name: filter[payment_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by is_reversed
+          in: query
+          name: filter[is_reversed]
           required: false
           schema:
             type: string
@@ -5566,18 +5602,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by fiscal_year_id
-          in: query
-          name: filter[fiscal_year_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by is_active
           in: query
           name: filter[is_active]
@@ -5587,6 +5611,18 @@ paths:
         - description: Filter by is_closed
           in: query
           name: filter[is_closed]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by fiscal_year_id
+          in: query
+          name: filter[fiscal_year_id]
           required: false
           schema:
             type: string
@@ -5835,12 +5871,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by
+            example: updated_by,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, name, is_active,
             created_at, updated_at"
@@ -6466,13 +6502,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: product, uom, target_uom, created_by,
-            updated_by"
+        - description: "Comma-separated relations: target_uom, created_by, updated_by,
+            product, uom"
           in: query
           name: include
           required: false
           schema:
-            example: product,uom,target_uom,created_by,updated_by
+            example: target_uom,created_by,updated_by,product,uom
             type: string
         - description: "Sort by field (prefix - for desc): id, amount, created_at,
             updated_at"
@@ -6609,13 +6645,13 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: created_by, updated_by, product, uom,
-            target_uom"
+        - description: "Comma-separated relations: uom, target_uom, created_by,
+            updated_by, product"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,product,uom,target_uom
+            example: uom,target_uom,created_by,updated_by,product
             type: string
       responses:
         "200":
@@ -6702,14 +6738,14 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by,
-            product_uom_batch, product_uom_batch.product_uom,
-            product_uom_batch.product_uom.product"
+        - description: "Comma-separated relations: product_uom_batch.product_uom.product,
+            created_by, updated_by, product_uom_batch,
+            product_uom_batch.product_uom"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product
+            example: product_uom_batch.product_uom.product,created_by,updated_by,product_uom_batch,product_uom_batch.product_uom
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id,
             product_uom_batch_id, stock, status, created_at, updated_at"
@@ -6718,30 +6754,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by status
-          in: query
-          name: filter[status]
-          required: false
-          schema:
-            type: string
-        - description: Filter by expiry_date_gte
-          in: query
-          name: filter[expiry_date_gte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by product_type
-          in: query
-          name: filter[product_type]
-          required: false
-          schema:
-            type: string
-        - description: Filter by product_category_id
-          in: query
-          name: filter[product_category_id]
-          required: false
-          schema:
             type: string
         - description: Filter by branch_id
           in: query
@@ -6767,9 +6779,21 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by expiry_date_lte
+        - description: Filter by status
           in: query
-          name: filter[expiry_date_lte]
+          name: filter[status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by expiry_date_gte
+          in: query
+          name: filter[expiry_date_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by product_type
+          in: query
+          name: filter[product_type]
           required: false
           schema:
             type: string
@@ -6782,6 +6806,18 @@ paths:
         - description: Filter by product_uom_batch_id_in
           in: query
           name: filter[product_uom_batch_id_in]
+          required: false
+          schema:
+            type: string
+        - description: Filter by expiry_date_lte
+          in: query
+          name: filter[expiry_date_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by product_category_id
+          in: query
+          name: filter[product_category_id]
           required: false
           schema:
             type: string
@@ -6901,6 +6937,41 @@ paths:
       security:
         - bearerAuth: []
       summary: Inventory Slice By Stage
+      tags:
+        - Product Inventories
+  /v1/product-inventories/convert:
+    post:
+      description: ""
+      operationId: convertProductInventory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConvertProductInventoryRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ConvertProductInventoryResponse"
+                type: object
+          description: Success
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+        "422":
+          description: Unprocessable Entity
+        "500":
+          description: Internal Server Error
+      security:
+        - bearerAuth: []
+      summary: Convert Product Inventory UoM
       tags:
         - Product Inventories
   /v1/product-inventories/{id}:
@@ -7046,12 +7117,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by reference_type
-          in: query
-          name: filter[reference_type]
-          required: false
-          schema:
-            type: string
         - description: Filter by reference_id
           in: query
           name: filter[reference_id]
@@ -7079,6 +7144,12 @@ paths:
         - description: Filter by expiry_date_lte
           in: query
           name: filter[expiry_date_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by reference_type
+          in: query
+          name: filter[reference_type]
           required: false
           schema:
             type: string
@@ -7185,12 +7256,12 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: product_uom, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, product_uom"
           in: query
           name: include
           required: false
           schema:
-            example: product_uom,created_by,updated_by
+            example: created_by,updated_by,product_uom
             type: string
       responses:
         "200":
@@ -7300,6 +7371,12 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by franchise_price_gte
+          in: query
+          name: filter[franchise_price_gte]
+          required: false
+          schema:
+            type: string
         - description: Filter by price_editable
           in: query
           name: filter[price_editable]
@@ -7312,21 +7389,21 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by product_types
+        - description: Filter by product_type
           in: query
-          name: filter[product_types]
+          name: filter[product_type]
           required: false
           schema:
             type: string
-        - description: Filter by resolve_price
+        - description: Filter by uom_id
           in: query
-          name: filter[resolve_price]
+          name: filter[uom_id]
           required: false
           schema:
             type: string
-        - description: Filter by product_id
+        - description: Filter by base_price_gte
           in: query
-          name: filter[product_id]
+          name: filter[base_price_gte]
           required: false
           schema:
             type: string
@@ -7342,21 +7419,21 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by franchise_price_gte
-          in: query
-          name: filter[franchise_price_gte]
-          required: false
-          schema:
-            type: string
         - description: Filter by franchise_price_lte
           in: query
           name: filter[franchise_price_lte]
           required: false
           schema:
             type: string
-        - description: Filter by product_type
+        - description: Filter by product_types
           in: query
-          name: filter[product_type]
+          name: filter[product_types]
+          required: false
+          schema:
+            type: string
+        - description: Filter by resolve_price
+          in: query
+          name: filter[resolve_price]
           required: false
           schema:
             type: string
@@ -7366,15 +7443,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by uom_id
+        - description: Filter by product_id
           in: query
-          name: filter[uom_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by base_price_gte
-          in: query
-          name: filter[base_price_gte]
+          name: filter[product_id]
           required: false
           schema:
             type: string
@@ -7481,13 +7552,13 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: updated_by, product, uom,
-            default_recipe, created_by"
+        - description: "Comma-separated relations: created_by, updated_by, product, uom,
+            default_recipe"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,product,uom,default_recipe,created_by
+            example: created_by,updated_by,product,uom,default_recipe
             type: string
       responses:
         "200":
@@ -7574,13 +7645,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, media,
-            production_details"
+        - description: "Comma-separated relations: updated_by, media, production_details,
+            created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,media,production_details
+            example: updated_by,media,production_details,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, date, status,
             created_at, updated_at"
@@ -7589,18 +7660,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by date_gte
-          in: query
-          name: filter[date_gte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_lte
-          in: query
-          name: filter[date_lte]
-          required: false
-          schema:
             type: string
         - description: Filter by status
           in: query
@@ -7617,6 +7676,18 @@ paths:
         - description: Filter by branch_id
           in: query
           name: filter[branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_gte
+          in: query
+          name: filter[date_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_lte
+          in: query
+          name: filter[date_lte]
           required: false
           schema:
             type: string
@@ -7808,13 +7879,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by,
-            product_category, base_uom"
+        - description: "Comma-separated relations: base_uom, created_by, updated_by,
+            product_category"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,product_category,base_uom
+            example: base_uom,created_by,updated_by,product_category
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, type,
             created_at, updated_at"
@@ -8036,14 +8107,14 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: media, additional_charges,
+        - description: "Comma-separated relations: additional_charges,
             purchase_order_details, created_by, updated_by, supplier,
-            supplier_branch"
+            supplier_branch, media"
           in: query
           name: include
           required: false
           schema:
-            example: media,additional_charges,purchase_order_details,created_by,updated_by,supplier,supplier_branch
+            example: additional_charges,purchase_order_details,created_by,updated_by,supplier,supplier_branch,media
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code, type,
             supplier_id, supplier_branch_id, date, subtotal_price,
@@ -8055,39 +8126,9 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by type
           in: query
           name: filter[type]
-          required: false
-          schema:
-            type: string
-        - description: Filter by supplier_branch_id
-          in: query
-          name: filter[supplier_branch_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_gte
-          in: query
-          name: filter[date_gte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by status
-          in: query
-          name: filter[status]
           required: false
           schema:
             type: string
@@ -8103,9 +8144,39 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by status
+          in: query
+          name: filter[status]
+          required: false
+          schema:
+            type: string
         - description: Filter by has_remaining_qty
           in: query
           name: filter[has_remaining_qty]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by branch_id
+          in: query
+          name: filter[branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by supplier_branch_id
+          in: query
+          name: filter[supplier_branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_gte
+          in: query
+          name: filter[date_gte]
           required: false
           schema:
             type: string
@@ -8372,13 +8443,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: receipt_details, created_by,
-            updated_by, target_branch, delivery, media"
+        - description: "Comma-separated relations: created_by, updated_by, target_branch,
+            delivery, media, receipt_details"
           in: query
           name: include
           required: false
           schema:
-            example: receipt_details,created_by,updated_by,target_branch,delivery,media
+            example: created_by,updated_by,target_branch,delivery,media,receipt_details
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code,
             target_branch_id, delivery_id, date, status, description,
@@ -8388,24 +8459,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by target_branch_id
-          in: query
-          name: filter[target_branch_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by delivery_id
-          in: query
-          name: filter[delivery_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_gte
-          in: query
-          name: filter[date_gte]
-          required: false
-          schema:
             type: string
         - description: Filter by date_lte
           in: query
@@ -8428,6 +8481,24 @@ paths:
         - description: Filter by branch_id
           in: query
           name: filter[branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by target_branch_id
+          in: query
+          name: filter[target_branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by delivery_id
+          in: query
+          name: filter[delivery_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_gte
+          in: query
+          name: filter[date_gte]
           required: false
           schema:
             type: string
@@ -9755,15 +9826,15 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by company_id
-          in: query
-          name: filter[company_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by company_id
+          in: query
+          name: filter[company_id]
           required: false
           schema:
             type: string
@@ -9962,12 +10033,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by
+            example: updated_by,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, name, sales_order_type,
             created_at, updated_at"
@@ -10177,14 +10248,14 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: sales_channel, credit_by, media,
-            sales_order_details, additional_charges, created_by, updated_by,
-            shift, customer"
+        - description: "Comma-separated relations: created_by, shift, customer,
+            sales_channel, credit_by, sales_order_details, additional_charges,
+            updated_by, media"
           in: query
           name: include
           required: false
           schema:
-            example: sales_channel,credit_by,media,sales_order_details,additional_charges,created_by,updated_by,shift,customer
+            example: created_by,shift,customer,sales_channel,credit_by,sales_order_details,additional_charges,updated_by,media
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, shift_id, code,
             type, sales_channel_id, customer_id, customer_name, customer_phone,
@@ -10204,45 +10275,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by type
-          in: query
-          name: filter[type]
-          required: false
-          schema:
-            type: string
         - description: Filter by sales_channel_id
           in: query
           name: filter[sales_channel_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_lte
-          in: query
-          name: filter[date_lte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by status
-          in: query
-          name: filter[status]
-          required: false
-          schema:
-            type: string
-        - description: Filter by settlement_at_gte
-          in: query
-          name: filter[settlement_at_gte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by has_invoice
-          in: query
-          name: filter[has_invoice]
           required: false
           schema:
             type: string
@@ -10252,15 +10287,39 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by fulfillment_date_lte
+          in: query
+          name: filter[fulfillment_date_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by status
+          in: query
+          name: filter[status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by payment_status
+          in: query
+          name: filter[payment_status]
+          required: false
+          schema:
+            type: string
         - description: Filter by settlement_status
           in: query
           name: filter[settlement_status]
           required: false
           schema:
             type: string
-        - description: Filter by credit_by_id
+        - description: Filter by settlement_at_lte
           in: query
-          name: filter[credit_by_id]
+          name: filter[settlement_at_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by branch_id
+          in: query
+          name: filter[branch_id]
           required: false
           schema:
             type: string
@@ -10270,21 +10329,33 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by date_gte
+          in: query
+          name: filter[date_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_lte
+          in: query
+          name: filter[date_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by credit_by_id
+          in: query
+          name: filter[credit_by_id]
+          required: false
+          schema:
+            type: string
         - description: Filter by customer_id
           in: query
           name: filter[customer_id]
           required: false
           schema:
             type: string
-        - description: Filter by voucher_id
+        - description: Filter by settlement_at_gte
           in: query
-          name: filter[voucher_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by settlement_at_lte
-          in: query
-          name: filter[settlement_at_lte]
+          name: filter[settlement_at_gte]
           required: false
           schema:
             type: string
@@ -10300,21 +10371,21 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by date_gte
+        - description: Filter by type
           in: query
-          name: filter[date_gte]
+          name: filter[type]
           required: false
           schema:
             type: string
-        - description: Filter by fulfillment_date_lte
+        - description: Filter by voucher_id
           in: query
-          name: filter[fulfillment_date_lte]
+          name: filter[voucher_id]
           required: false
           schema:
             type: string
-        - description: Filter by payment_status
+        - description: Filter by has_invoice
           in: query
-          name: filter[payment_status]
+          name: filter[has_invoice]
           required: false
           schema:
             type: string
@@ -11225,18 +11296,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by direction
-          in: query
-          name: filter[direction]
-          required: false
-          schema:
-            type: string
-        - description: Filter by product_uom_batch_id
-          in: query
-          name: filter[product_uom_batch_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by product_id
           in: query
           name: filter[product_id]
@@ -11270,6 +11329,18 @@ paths:
         - description: Filter by reference_id
           in: query
           name: filter[reference_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by direction
+          in: query
+          name: filter[direction]
+          required: false
+          schema:
+            type: string
+        - description: Filter by product_uom_batch_id
+          in: query
+          name: filter[product_uom_batch_id]
           required: false
           schema:
             type: string
@@ -11420,13 +11491,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, stock_opname_details,
-            branch, created_by"
+        - description: "Comma-separated relations: stock_opname_details, products, branch,
+            created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,stock_opname_details,branch,created_by
+            example: stock_opname_details,products,branch,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code, date,
             status, description, created_at, updated_at"
@@ -11722,12 +11793,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by
+            example: updated_by,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, pic, phone,
             email, created_at, updated_at"
@@ -12361,13 +12432,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: branches, departments, created_by,
-            updated_by, roles, permissions"
+        - description: "Comma-separated relations: updated_by, roles, permissions,
+            branches, departments, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: branches,departments,created_by,updated_by,roles,permissions
+            example: updated_by,roles,permissions,branches,departments,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, nik, name, email, type,
             credit, created_at, updated_at"
@@ -12376,12 +12447,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
             type: string
         - description: Filter by type
           in: query
@@ -12398,6 +12463,12 @@ paths:
         - description: Filter by department_id
           in: query
           name: filter[department_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
           required: false
           schema:
             type: string
@@ -12504,13 +12575,13 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: created_by, updated_by, roles,
-            permissions, branches, departments"
+        - description: "Comma-separated relations: branches, departments, created_by,
+            updated_by, roles, permissions"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,roles,permissions,branches,departments
+            example: branches,departments,created_by,updated_by,roles,permissions
             type: string
       responses:
         "200":
@@ -12597,13 +12668,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, activated_by,
-            voucher_branches, voucher_product_uoms, created_by"
+        - description: "Comma-separated relations: activated_by, voucher_branches,
+            voucher_product_uoms, created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,activated_by,voucher_branches,voucher_product_uoms,created_by
+            example: activated_by,voucher_branches,voucher_product_uoms,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, company_id, code, name,
             discount_type, discount_value, min_subtotal_price, scope,
@@ -12618,6 +12689,18 @@ paths:
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by company_id
+          in: query
+          name: filter[company_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by scope
+          in: query
+          name: filter[scope]
           required: false
           schema:
             type: string
@@ -12645,33 +12728,21 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by activated_at_lte
-          in: query
-          name: filter[activated_at_lte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by company_id
-          in: query
-          name: filter[company_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by discount_type
           in: query
           name: filter[discount_type]
           required: false
           schema:
             type: string
-        - description: Filter by scope
-          in: query
-          name: filter[scope]
-          required: false
-          schema:
-            type: string
         - description: Filter by activated_at_gte
           in: query
           name: filter[activated_at_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by activated_at_lte
+          in: query
+          name: filter[activated_at_lte]
           required: false
           schema:
             type: string
@@ -12784,13 +12855,13 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: created_by, updated_by, activated_by,
-            voucher_branches, voucher_product_uoms"
+        - description: "Comma-separated relations: voucher_product_uoms, created_by,
+            updated_by, activated_by, voucher_branches"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,activated_by,voucher_branches,voucher_product_uoms
+            example: voucher_product_uoms,created_by,updated_by,activated_by,voucher_branches
             type: string
       responses:
         "200":
@@ -12898,7 +12969,7 @@ components:
       properties:
         balance:
           example: 200000
-          type: integer
+          type: number
         chart_of_account:
           $ref: "#/components/schemas/ChartOfAccountSimpleResponse"
         chart_of_account_id:
@@ -12915,10 +12986,10 @@ components:
           type: string
         total_credit:
           example: 300000
-          type: integer
+          type: number
         total_debit:
           example: 500000
-          type: integer
+          type: number
       type: object
     AccountCategoryResponse:
       properties:
@@ -13152,7 +13223,7 @@ components:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         description:
           example: Shipping fee
           type: string
@@ -13167,7 +13238,7 @@ components:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         description:
           example: Shipping fee
           type: string
@@ -13350,7 +13421,7 @@ components:
           type: boolean
         opening_balance:
           example: 10000000
-          type: integer
+          type: number
         swift_code:
           example: CENAIDJA
           type: string
@@ -13455,7 +13526,7 @@ components:
       properties:
         amount:
           example: 10000000
-          type: integer
+          type: number
         branch:
           $ref: "#/components/schemas/BranchSimpleResponse"
         branch_id:
@@ -13501,16 +13572,16 @@ components:
       properties:
         actual_balance:
           example: 600000
-          type: integer
+          type: number
         actual_credit:
           example: 200000
-          type: integer
+          type: number
         actual_debit:
           example: 800000
-          type: integer
+          type: number
         budget_amount:
           example: 1000000
-          type: integer
+          type: number
         chart_of_account_id:
           example: 1
           type: integer
@@ -13522,7 +13593,7 @@ components:
           type: string
         variance:
           example: -400000
-          type: integer
+          type: number
       type: object
     BudgetVsActualResponse:
       properties:
@@ -13534,17 +13605,17 @@ components:
     BulkPriceListItem:
       properties:
         base_price:
-          example: 20000
-          type: integer
+          example: 200
+          type: number
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         id:
           example: 1
           type: integer
         online_price:
-          example: 18000
-          type: integer
+          example: 180
+          type: number
         product_uom_id:
           example: 1
           type: integer
@@ -13599,7 +13670,7 @@ components:
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
       type: object
     BundleDetailResponse:
       properties:
@@ -13652,7 +13723,7 @@ components:
           type: string
         price:
           example: 150000
-          type: integer
+          type: number
         status:
           enum:
             - active
@@ -13671,7 +13742,7 @@ components:
     CashTransactionDetailResponse:
       properties:
         amount:
-          type: integer
+          type: number
         bank_account:
           $ref: "#/components/schemas/BankAccountResponse"
         bank_account_id:
@@ -13682,7 +13753,7 @@ components:
     CashTransactionResponse:
       properties:
         amount:
-          type: integer
+          type: number
         branch_id:
           type: integer
         date:
@@ -13727,7 +13798,7 @@ components:
           type: integer
         balance:
           example: 200000
-          type: integer
+          type: number
         code:
           example: 1-1000
           type: string
@@ -13883,6 +13954,86 @@ components:
           example: raw,wip,final,supply
           type: string
       type: object
+    ConvertProductInventoryMovementSummary:
+      properties:
+        batch_code:
+          example: BATCH.03012006150405.123
+          type: string
+        direction:
+          enum:
+            - in
+            - out
+          example: out
+          type: string
+        product_inventory_id:
+          example: 1
+          type: integer
+        product_uom_batch_id:
+          example: 1
+          type: integer
+        product_uom_id:
+          example: 1
+          type: integer
+        qty:
+          example: 5
+          type: number
+        stock_after:
+          example: 5
+          type: number
+        stock_before:
+          example: 10
+          type: number
+        uom_code:
+          example: PCS
+          type: string
+        uom_id:
+          example: 1
+          type: integer
+      type: object
+    ConvertProductInventoryRequest:
+      properties:
+        product_inventory_id:
+          example: 1
+          type: integer
+        qty:
+          example: 5
+          type: number
+        target_product_uom_id:
+          example: 2
+          type: integer
+      required:
+        - product_inventory_id
+        - target_product_uom_id
+        - qty
+      type: object
+    ConvertProductInventoryResponse:
+      properties:
+        conversion_amount:
+          example: 0.2
+          type: number
+        product_id:
+          example: 1
+          type: integer
+        source:
+          $ref: "#/components/schemas/ConvertProductInventoryMovementSummary"
+        source_product_uom_id:
+          example: 1
+          type: integer
+        source_uom_id:
+          example: 1
+          type: integer
+        target:
+          $ref: "#/components/schemas/ConvertProductInventoryMovementSummary"
+        target_product_inventory_created:
+          example: true
+          type: boolean
+        target_product_uom_id:
+          example: 2
+          type: integer
+        target_uom_id:
+          example: 2
+          type: integer
+      type: object
     CreateAccountCategoryRequest:
       properties:
         code:
@@ -13922,7 +14073,7 @@ components:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         invoice_id:
           example: 1
           type: integer
@@ -13970,7 +14121,7 @@ components:
           type: boolean
         opening_balance:
           example: 10000000
-          type: integer
+          type: number
         swift_code:
           example: CENAIDJA
           type: string
@@ -14013,7 +14164,7 @@ components:
       properties:
         amount:
           example: 200000
-          type: integer
+          type: number
         chart_of_account_id:
           example: 1
           type: integer
@@ -14031,7 +14182,7 @@ components:
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
       required:
         - product_uom_id
         - qty
@@ -14062,7 +14213,7 @@ components:
           type: string
         price:
           example: 150000
-          type: integer
+          type: number
         status:
           enum:
             - active
@@ -14079,7 +14230,7 @@ components:
       properties:
         amount:
           example: 500000
-          type: integer
+          type: number
         bank_account_id:
           example: 1
           type: integer
@@ -14184,7 +14335,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         sales_order_detail_id:
           example: 1
           type: integer
@@ -14291,7 +14442,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         to:
           $ref: "#/components/schemas/DimensionRequest"
       required:
@@ -14328,7 +14479,7 @@ components:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         description:
           example: Shipping fee
           type: string
@@ -14348,7 +14499,7 @@ components:
           type: string
         qty:
           example: 5
-          type: integer
+          type: number
         sales_order_detail_id:
           example: 1
           type: integer
@@ -14374,10 +14525,6 @@ components:
           items:
             $ref: "#/components/schemas/CreateInvoiceDetailRequest"
           type: array
-        due_date:
-          example: 2026-09-04
-          format: date
-          type: string
         sales_order_ids:
           example: "[1,2]"
           items:
@@ -14512,7 +14659,7 @@ components:
           type: array
         amount:
           example: 50000
-          type: integer
+          type: number
         description:
           example: Payment for sales order
           type: string
@@ -14556,14 +14703,14 @@ components:
     CreatePriceListItemRequest:
       properties:
         base_price:
-          example: 20000
-          type: integer
+          example: 200
+          type: number
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         online_price:
-          example: 18000
-          type: integer
+          example: 180
+          type: number
         product_uom_id:
           example: 1
           type: integer
@@ -14661,20 +14808,20 @@ components:
     CreateProductUomRequest:
       properties:
         base_price:
-          example: 10000
-          type: integer
+          example: 100
+          type: number
         code:
           example: UOM-001
           type: string
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         is_default:
           example: false
           type: boolean
         online_price:
-          example: 12000
-          type: integer
+          example: 120
+          type: number
         price_editable:
           example: true
           type: boolean
@@ -14729,7 +14876,7 @@ components:
           type: integer
         qty:
           example: 100
-          type: integer
+          type: number
         status:
           enum:
             - pending
@@ -14798,19 +14945,19 @@ components:
           type: string
         discount_value:
           example: 5
-          type: integer
+          type: number
         is_taxable:
           example: true
           type: boolean
         price:
           example: 20000
-          type: integer
+          type: number
         product_uom_id:
           example: 1
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
       required:
         - product_uom_id
         - qty
@@ -14842,7 +14989,7 @@ components:
           type: string
         discount_value:
           example: 5
-          type: integer
+          type: number
         due_date:
           example: 2026-06-17
           format: date
@@ -14908,7 +15055,7 @@ components:
           type: integer
         qty:
           example: 50
-          type: integer
+          type: number
         status:
           enum:
             - pending
@@ -14986,7 +15133,7 @@ components:
           type: integer
         qty:
           example: 100
-          type: integer
+          type: number
       required:
         - product_uom_id
         - qty
@@ -15053,7 +15200,7 @@ components:
           type: boolean
         price:
           example: 50000
-          type: integer
+          type: number
         product_inventory_id:
           example: 1
           type: integer
@@ -15062,7 +15209,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         status:
           enum:
             - pending
@@ -15200,7 +15347,7 @@ components:
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
         reference_id:
           example: 1
           type: integer
@@ -15213,23 +15360,13 @@ components:
             - sales_orders
             - dimension_transfer
             - stock_opnames
+            - conversions
           example: purchase_order
           type: string
       required:
         - product_uom_batch_id
         - qty
         - direction
-      type: object
-    CreateStockOpnameDetailItemRequest:
-      properties:
-        description:
-          example: Item description
-          type: string
-        product_inventory_id:
-          example: 1
-          type: integer
-      required:
-        - product_inventory_id
       type: object
     CreateStockOpnameRequest:
       properties:
@@ -15240,13 +15377,8 @@ components:
         description:
           example: Stock opname description
           type: string
-        details:
-          items:
-            $ref: "#/components/schemas/CreateStockOpnameDetailItemRequest"
-          type: array
       required:
         - date
-        - details
       type: object
     CreateSupplierRequest:
       properties:
@@ -15288,7 +15420,7 @@ components:
           type: string
         rate:
           example: 11
-          type: integer
+          type: number
       required:
         - code
         - name
@@ -15365,7 +15497,7 @@ components:
           type: integer
         quota:
           example: 100
-          type: integer
+          type: number
       required:
         - branch_id
       type: object
@@ -15376,7 +15508,7 @@ components:
           type: integer
         quota:
           example: 50
-          type: integer
+          type: number
       required:
         - product_uom_id
       type: object
@@ -15401,13 +15533,13 @@ components:
           type: string
         discount_value:
           example: 10
-          type: integer
+          type: number
         max_discount_price:
           example: 50000
-          type: integer
+          type: number
         min_subtotal_price:
           example: 100000
-          type: integer
+          type: number
         name:
           example: 10% Off
           type: string
@@ -15418,7 +15550,7 @@ components:
           type: array
         quota:
           example: 100
-          type: integer
+          type: number
         scope:
           enum:
             - company
@@ -15449,6 +15581,9 @@ components:
       type: object
     CustomerResponse:
       properties:
+        company_id:
+          example: 1
+          type: integer
         created_at:
           example: 2026-06-02 15:16:51
           type: string
@@ -15530,7 +15665,7 @@ components:
       properties:
         calculate_pending_payments:
           example: 250000
-          type: integer
+          type: number
         count_final_production_details:
           example: 5
           type: integer
@@ -15542,12 +15677,9 @@ components:
           type: integer
         sum_payments:
           example: 1250000
-          type: integer
+          type: number
       type: object
     Date:
-      properties: {}
-      type: object
-    Decimal:
       properties: {}
       type: object
     DeliveryDetailResponse:
@@ -15578,7 +15710,10 @@ components:
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
+        received_qty:
+          example: 6
+          type: number
         sales_order_detail:
           $ref: "#/components/schemas/SalesOrderDetailResponse"
           example: "{...}"
@@ -15849,7 +15984,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         stage:
           example: GENERAL
           type: string
@@ -15869,7 +16004,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         to:
           $ref: "#/components/schemas/DimensionRequest"
       required:
@@ -15928,7 +16063,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         reject_reason:
           example: Insufficient justification
           type: string
@@ -15978,7 +16113,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         source:
           $ref: "#/components/schemas/DimensionTransferMovementSummary"
         target:
@@ -16061,14 +16196,11 @@ components:
           example: 2025-01-01
           type: string
       type: object
-    Int:
-      properties: {}
-      type: object
     InvoiceAdditionalChargeResponse:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         description:
           example: Shipping fee
           type: string
@@ -16092,7 +16224,7 @@ components:
           type: string
         dpp:
           example: 250000
-          type: integer
+          type: number
         id:
           example: 1
           type: integer
@@ -16104,10 +16236,10 @@ components:
           type: boolean
         price:
           example: 50000
-          type: integer
+          type: number
         qty:
           example: 5
-          type: integer
+          type: number
         sales_order_detail:
           $ref: "#/components/schemas/SalesOrderDetailResponse"
         sales_order_detail_id:
@@ -16115,16 +16247,16 @@ components:
           type: integer
         tax_amount:
           example: 27500
-          type: integer
+          type: number
         tax_rate:
           example: 11
-          type: integer
+          type: number
       type: object
     InvoiceResponse:
       properties:
         additional_charge_price:
           example: 50000
-          type: integer
+          type: number
         additional_charges:
           items:
             $ref: "#/components/schemas/InvoiceAdditionalChargeResponse"
@@ -16164,7 +16296,7 @@ components:
           type: string
         discount_price:
           example: 25000
-          type: integer
+          type: number
         due_date:
           example: 2026-09-04
           type: string
@@ -16195,16 +16327,16 @@ components:
           type: string
         subtotal_price:
           example: 500000
-          type: integer
+          type: number
         tax_amount:
           example: 55000
-          type: integer
+          type: number
         total_payment:
           example: 0
-          type: integer
+          type: number
         total_price:
           example: 555000
-          type: integer
+          type: number
         updated_at:
           example: 2026-06-02 15:16:51
           type: string
@@ -16240,10 +16372,10 @@ components:
           type: integer
         credit:
           example: 0
-          type: integer
+          type: number
         debit:
           example: 100000
-          type: integer
+          type: number
         description:
           example: Payment for invoice
           type: string
@@ -16261,10 +16393,10 @@ components:
           type: integer
         credit:
           example: 0
-          type: integer
+          type: number
         debit:
           example: 100000
-          type: integer
+          type: number
         description:
           example: Payment for invoice
           type: string
@@ -16633,7 +16765,7 @@ components:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         id:
           example: 1
           type: integer
@@ -16656,7 +16788,7 @@ components:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         branch:
           $ref: "#/components/schemas/BranchSimpleResponse"
         branch_id:
@@ -16693,13 +16825,13 @@ components:
           type: string
         unallocated_amount:
           example: 0
-          type: integer
+          type: number
       type: object
     PaymentAllocationResponse:
       properties:
         amount:
           example: 50000
-          type: integer
+          type: number
         id:
           example: 1
           type: integer
@@ -16778,7 +16910,7 @@ components:
           type: array
         amount:
           example: 50000
-          type: integer
+          type: number
         branch:
           $ref: "#/components/schemas/BranchSimpleResponse"
         branch_id:
@@ -16832,7 +16964,7 @@ components:
           type: string
         unallocated_amount:
           example: 0
-          type: integer
+          type: number
         updated_at:
           example: 2026-07-01 10:00:00 WIB
           type: string
@@ -16951,17 +17083,17 @@ components:
     PriceListItemResponse:
       properties:
         base_price:
-          example: 20000
-          type: integer
+          example: 200
+          type: number
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         id:
           example: 1
           type: integer
         online_price:
-          example: 18000
-          type: integer
+          example: 180
+          type: number
         price_list_id:
           example: 1
           type: integer
@@ -17125,7 +17257,7 @@ components:
           type: integer
         total_stock:
           example: 8
-          type: integer
+          type: number
       type: object
     ProductInventoryByOwnerResponse:
       properties:
@@ -17155,7 +17287,7 @@ components:
           type: integer
         total_stock:
           example: 8
-          type: integer
+          type: number
       type: object
     ProductInventoryByStageResponse:
       properties:
@@ -17179,7 +17311,7 @@ components:
           type: string
         total_stock:
           example: 8
-          type: integer
+          type: number
       type: object
     ProductInventoryResponse:
       properties:
@@ -17227,7 +17359,7 @@ components:
           type: string
         stock:
           example: 500
-          type: integer
+          type: number
         total_sold:
           type: integer
         updated_at:
@@ -17271,7 +17403,7 @@ components:
           type: string
         stock:
           example: 500
-          type: integer
+          type: number
         total_sold:
           type: integer
       type: object
@@ -17410,7 +17542,7 @@ components:
           type: string
         stock:
           example: 100
-          type: integer
+          type: number
         updated_at:
           example: 2026-06-02 15:16:51
           type: string
@@ -17449,8 +17581,8 @@ components:
     ProductUomResponse:
       properties:
         base_price:
-          example: 10000
-          type: integer
+          example: 100
+          type: number
         code:
           example: UOM-001
           type: string
@@ -17471,8 +17603,8 @@ components:
           example: 1
           type: integer
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         id:
           example: 1
           type: integer
@@ -17480,8 +17612,8 @@ components:
           example: false
           type: boolean
         online_price:
-          example: 12000
-          type: integer
+          example: 120
+          type: number
         price_editable:
           example: true
           type: boolean
@@ -17492,7 +17624,7 @@ components:
           type: integer
         stock:
           example: 100
-          type: integer
+          type: number
         uom:
           $ref: "#/components/schemas/UomSimpleResponse"
         uom_id:
@@ -17510,14 +17642,14 @@ components:
     ProductUomSimpleResponse:
       properties:
         base_price:
-          example: 20000
-          type: integer
+          example: 200
+          type: number
         code:
           example: CHOC-500g
           type: string
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         id:
           example: 1
           type: integer
@@ -17525,8 +17657,8 @@ components:
           example: true
           type: boolean
         online_price:
-          example: 18000
-          type: integer
+          example: 180
+          type: number
         price_editable:
           example: true
           type: boolean
@@ -17598,7 +17730,7 @@ components:
           type: array
         qty:
           example: 20
-          type: integer
+          type: number
         status:
           enum:
             - pending
@@ -17684,13 +17816,13 @@ components:
       properties:
         delivered_qty:
           example: 5
-          type: integer
+          type: number
         description:
           example: Dark chocolate powder
           type: string
         discount_amount:
           example: 10000
-          type: integer
+          type: number
         discount_type:
           enum:
             - percent
@@ -17699,13 +17831,13 @@ components:
           type: string
         discount_value:
           example: 5
-          type: integer
+          type: number
         dpp:
           example: 187500
-          type: integer
+          type: number
         header_discount_amount:
           example: 2500
-          type: integer
+          type: number
         id:
           example: 1
           type: integer
@@ -17714,10 +17846,10 @@ components:
           type: boolean
         outstanding_qty:
           example: 5
-          type: integer
+          type: number
         price:
           example: 20000
-          type: integer
+          type: number
         product_uom:
           $ref: "#/components/schemas/ProductUomSimpleResponse"
           example: "{...}"
@@ -17726,28 +17858,28 @@ components:
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
         received_qty:
           example: 5
-          type: integer
+          type: number
         remaining_qty:
           example: 5
-          type: integer
+          type: number
         tax_amount:
           example: 20900
-          type: integer
+          type: number
         tax_rate:
           example: 11
-          type: integer
+          type: number
         total_price:
           example: 210900
-          type: integer
+          type: number
       type: object
     PurchaseOrderResponse:
       properties:
         additional_charge_price:
           example: 50000
-          type: integer
+          type: number
         additional_charges:
           example: "[{...}]"
           items:
@@ -17785,10 +17917,10 @@ components:
           type: string
         discount_amount:
           example: 10000
-          type: integer
+          type: number
         discount_price:
           example: 10000
-          type: integer
+          type: number
         discount_type:
           enum:
             - percent
@@ -17797,7 +17929,7 @@ components:
           type: string
         discount_value:
           example: 5
-          type: integer
+          type: number
         due_date:
           example: 2026-06-17
           type: string
@@ -17829,7 +17961,7 @@ components:
           type: string
         subtotal_price:
           example: 200000
-          type: integer
+          type: number
         supplier:
           $ref: "#/components/schemas/SupplierSimpleResponse"
           example: "{...}"
@@ -17844,13 +17976,13 @@ components:
           type: integer
         tax_amount:
           example: 20900
-          type: integer
+          type: number
         tax_id:
           example: 1
           type: integer
         total_price:
           example: 210900
-          type: integer
+          type: number
         type:
           enum:
             - supplier
@@ -17871,7 +18003,7 @@ components:
       properties:
         additional_charge_price:
           example: 50000
-          type: integer
+          type: number
         additional_charges:
           example: "[{...}]"
           items:
@@ -17897,10 +18029,10 @@ components:
           type: string
         discount_amount:
           example: 10000
-          type: integer
+          type: number
         discount_price:
           example: 10000
-          type: integer
+          type: number
         discount_type:
           enum:
             - percent
@@ -17909,7 +18041,7 @@ components:
           type: string
         discount_value:
           example: 5
-          type: integer
+          type: number
         due_date:
           example: 2026-06-17
           type: string
@@ -17941,7 +18073,7 @@ components:
           type: string
         subtotal_price:
           example: 200000
-          type: integer
+          type: number
         supplier:
           $ref: "#/components/schemas/SupplierSimpleResponse"
           example: "{...}"
@@ -17956,13 +18088,13 @@ components:
           type: integer
         tax_amount:
           example: 20900
-          type: integer
+          type: number
         tax_id:
           example: 1
           type: integer
         total_price:
           example: 210900
-          type: integer
+          type: number
         type:
           enum:
             - supplier
@@ -18017,7 +18149,7 @@ components:
           type: integer
         qty:
           example: 50
-          type: integer
+          type: number
         receipt_id:
           example: 1
           type: integer
@@ -18149,7 +18281,7 @@ components:
           type: integer
         qty:
           example: 100
-          type: integer
+          type: number
         recipe_materials:
           items:
             $ref: "#/components/schemas/RecipeMaterialResponse"
@@ -18179,7 +18311,7 @@ components:
           type: integer
         qty:
           example: 100
-          type: integer
+          type: number
         recipe_materials:
           items:
             $ref: "#/components/schemas/RecipeMaterialResponse"
@@ -18312,15 +18444,15 @@ components:
     SalesOrderApplyVoucherResponse:
       properties:
         additional_charge_price:
-          type: integer
+          type: number
         discount_price:
-          type: integer
+          type: number
         subtotal_price:
-          type: integer
+          type: number
         tax_amount:
-          type: integer
+          type: number
         total_price:
-          type: integer
+          type: number
         voucher_snapshot:
           type: string
       type: object
@@ -18347,10 +18479,12 @@ components:
           type: array
         qty:
           example: 2
-          type: integer
+          type: number
       type: object
     SalesOrderDetailResponse:
       properties:
+        billable_qty:
+          type: number
         bundle_id:
           example: 1
           type: integer
@@ -18360,22 +18494,24 @@ components:
             type: integer
           type: array
         delivered_qty:
-          type: integer
+          type: number
         description:
           example: Order detail description
           type: string
         dpp:
           example: 250000
-          type: integer
+          type: number
         id:
           example: 1
           type: integer
+        invoiced_qty:
+          type: number
         is_taxable:
           example: true
           type: boolean
         price:
           example: 50000
-          type: integer
+          type: number
         product_inventory_id:
           example: 1
           type: integer
@@ -18397,28 +18533,30 @@ components:
           type: array
         qty:
           example: 5
-          type: integer
+          type: number
+        received_qty:
+          type: number
         remaining_qty:
-          type: integer
+          type: number
         sales_order_detail_bundles:
           items:
             $ref: "#/components/schemas/SalesOrderDetailBundleResponse"
           type: array
         tax_amount:
           example: 27500
-          type: integer
+          type: number
         tax_rate:
           example: 11
-          type: integer
+          type: number
         total_price:
           example: 277500
-          type: integer
+          type: number
       type: object
     SalesOrderResponse:
       properties:
         additional_charge_price:
           example: 50000
-          type: integer
+          type: number
         additional_charges:
           items:
             $ref: "#/components/schemas/AdditionalChargeResponse"
@@ -18470,7 +18608,7 @@ components:
           type: string
         discount_price:
           example: 10000
-          type: integer
+          type: number
         fulfillment_date:
           example: 2026-06-04
           type: string
@@ -18527,19 +18665,19 @@ components:
           type: string
         subtotal_price:
           example: 150000
-          type: integer
+          type: number
         tax_amount:
           example: 15000
-          type: integer
+          type: number
         tax_id:
           example: 1
           type: integer
         total_payment:
           example: 50000
-          type: integer
+          type: number
         total_price:
           example: 155000
-          type: integer
+          type: number
         type:
           enum:
             - franchise
@@ -18566,7 +18704,7 @@ components:
       properties:
         additional_charge_price:
           example: 50000
-          type: integer
+          type: number
         additional_charges:
           items:
             $ref: "#/components/schemas/AdditionalChargeResponse"
@@ -18610,7 +18748,7 @@ components:
           type: string
         discount_price:
           example: 10000
-          type: integer
+          type: number
         fulfillment_date:
           example: 2026-06-04
           type: string
@@ -18667,19 +18805,19 @@ components:
           type: string
         subtotal_price:
           example: 150000
-          type: integer
+          type: number
         tax_amount:
           example: 15000
-          type: integer
+          type: number
         tax_id:
           example: 1
           type: integer
         total_payment:
           example: 50000
-          type: integer
+          type: number
         total_price:
           example: 155000
-          type: integer
+          type: number
         type:
           enum:
             - franchise
@@ -18899,7 +19037,7 @@ components:
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
         reference_code:
           example: PROD-000001
           type: string
@@ -18915,20 +19053,33 @@ components:
             - sales_orders
             - dimension_transfer
             - stock_opnames
+            - conversions
           example: purchase_order
           type: string
         stock_after:
           example: 110
-          type: integer
+          type: number
         stock_before:
           example: 100
+          type: number
+      type: object
+    StockOpnameCountItemRequest:
+      properties:
+        counted_qty:
+          example: 4
+          type: number
+        uom_id:
+          example: 1
           type: integer
+      required:
+        - uom_id
+        - counted_qty
       type: object
     StockOpnameCountItemResponse:
       properties:
         counted_qty:
-          $ref: "#/components/schemas/Decimal"
-          example: "4"
+          example: 4
+          type: number
         id:
           example: 1
           type: integer
@@ -18946,7 +19097,7 @@ components:
           type: array
         counted_qty:
           example: 100
-          type: integer
+          type: number
         description:
           example: Item description
           type: string
@@ -18961,9 +19112,43 @@ components:
           type: integer
         system_qty:
           example: 100
-          type: integer
+          type: number
         variance:
           example: 0
+          type: number
+      type: object
+    StockOpnameProductResponse:
+      properties:
+        id:
+          example: 1
+          type: integer
+        product_uom:
+          $ref: "#/components/schemas/StockOpnameProductUomResponse"
+        product_uom_id:
+          example: 1
+          type: integer
+        stock_opname_details:
+          items:
+            $ref: "#/components/schemas/StockOpnameDetailResponse"
+          type: array
+      type: object
+    StockOpnameProductUomResponse:
+      properties:
+        code:
+          example: UOM-001
+          type: string
+        id:
+          example: 1
+          type: integer
+        product:
+          $ref: "#/components/schemas/ProductSimpleResponse"
+        product_id:
+          example: 1
+          type: integer
+        uom:
+          $ref: "#/components/schemas/UomSimpleResponse"
+        uom_id:
+          example: 1
           type: integer
       type: object
     StockOpnameResponse:
@@ -18993,6 +19178,10 @@ components:
         id:
           example: 1
           type: integer
+        products:
+          items:
+            $ref: "#/components/schemas/StockOpnameProductResponse"
+          type: array
         status:
           enum:
             - draft
@@ -19019,6 +19208,9 @@ components:
         code:
           example: SUP-001
           type: string
+        company_id:
+          example: 1
+          type: integer
         created_at:
           example: 2026-06-03 09:00:00
           type: string
@@ -19121,7 +19313,7 @@ components:
           type: string
         rate:
           example: 11
-          type: integer
+          type: number
         updated_at:
           example: 2026-06-03 10:00:00
           type: string
@@ -19168,10 +19360,18 @@ components:
           type: array
         total_credit:
           example: 500000
-          type: integer
+          type: number
         total_debit:
           example: 500000
+          type: number
+      type: object
+    UnlockOverdueRequest:
+      properties:
+        branch_id:
+          example: 1
           type: integer
+      required:
+        - branch_id
       type: object
     UomResponse:
       properties:
@@ -19295,7 +19495,7 @@ components:
           type: boolean
         opening_balance:
           example: 10000000
-          type: integer
+          type: number
         swift_code:
           example: CENAIDJA
           type: string
@@ -19327,7 +19527,7 @@ components:
       properties:
         amount:
           example: 200000
-          type: integer
+          type: number
         chart_of_account_id:
           example: 1
           type: integer
@@ -19345,7 +19545,7 @@ components:
           type: integer
         qty:
           example: 10
-          type: integer
+          type: number
       required:
         - product_uom_id
         - qty
@@ -19379,7 +19579,7 @@ components:
           type: string
         price:
           example: 150000
-          type: integer
+          type: number
         status:
           enum:
             - active
@@ -19461,7 +19661,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         sales_order_detail_id:
           example: 1
           type: integer
@@ -19663,14 +19863,14 @@ components:
     UpdatePriceListItemRequest:
       properties:
         base_price:
-          example: 20000
-          type: integer
+          example: 200
+          type: number
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         online_price:
-          example: 18000
-          type: integer
+          example: 180
+          type: number
       type: object
     UpdatePriceListRequest:
       properties:
@@ -19753,20 +19953,20 @@ components:
     UpdateProductUomRequest:
       properties:
         base_price:
-          example: 10000
-          type: integer
+          example: 100
+          type: number
         code:
           example: UOM-001
           type: string
         franchise_price:
-          example: 15000
-          type: integer
+          example: 150
+          type: number
         is_default:
           example: false
           type: boolean
         online_price:
-          example: 12000
-          type: integer
+          example: 120
+          type: number
         price_editable:
           example: true
           type: boolean
@@ -19817,7 +20017,7 @@ components:
           type: integer
         qty:
           example: 100
-          type: integer
+          type: number
         status:
           enum:
             - pending
@@ -19884,7 +20084,7 @@ components:
           type: string
         discount_value:
           example: 5
-          type: integer
+          type: number
         id:
           example: 1
           type: integer
@@ -19893,13 +20093,13 @@ components:
           type: boolean
         price:
           example: 22000
-          type: integer
+          type: number
         product_uom_id:
           example: 1
           type: integer
         qty:
           example: 12
-          type: integer
+          type: number
       required:
         - product_uom_id
         - qty
@@ -19931,7 +20131,7 @@ components:
           type: string
         discount_value:
           example: 5
-          type: integer
+          type: number
         due_date:
           example: 2026-06-17
           format: date
@@ -19997,7 +20197,7 @@ components:
           type: integer
         qty:
           example: 50
-          type: integer
+          type: number
         status:
           enum:
             - pending
@@ -20062,7 +20262,7 @@ components:
           type: integer
         qty:
           example: 100
-          type: integer
+          type: number
       required:
         - materials
       type: object
@@ -20125,7 +20325,7 @@ components:
           type: boolean
         price:
           example: 50000
-          type: integer
+          type: number
         product_inventory_id:
           example: 1
           type: integer
@@ -20134,7 +20334,7 @@ components:
           type: integer
         qty:
           example: 5
-          type: integer
+          type: number
         status:
           enum:
             - pending
@@ -20245,8 +20445,8 @@ components:
     UpdateStockOpnameCountItemRequest:
       properties:
         counted_qty:
-          $ref: "#/components/schemas/Decimal"
-          example: "4"
+          example: 4
+          type: number
         id:
           example: 1
           type: integer
@@ -20265,7 +20465,7 @@ components:
           type: array
         counted_qty:
           example: 10
-          type: integer
+          type: number
         description:
           example: Item description
           type: string
@@ -20274,6 +20474,37 @@ components:
           type: integer
       required:
         - product_inventory_id
+      type: object
+    UpdateStockOpnameDetailLineRequest:
+      properties:
+        count_items:
+          items:
+            $ref: "#/components/schemas/StockOpnameCountItemRequest"
+          type: array
+        counted_qty:
+          example: 10
+          type: number
+        description:
+          example: Item description
+          type: string
+        product_inventory_id:
+          example: 1
+          type: integer
+      required:
+        - product_inventory_id
+      type: object
+    UpdateStockOpnameProductRequest:
+      properties:
+        count_lines:
+          items:
+            $ref: "#/components/schemas/UpdateStockOpnameDetailLineRequest"
+          type: array
+        product_uom_id:
+          example: 1
+          type: integer
+      required:
+        - product_uom_id
+        - count_lines
       type: object
     UpdateStockOpnameRequest:
       properties:
@@ -20287,6 +20518,10 @@ components:
         details:
           items:
             $ref: "#/components/schemas/UpdateStockOpnameDetailItemRequest"
+          type: array
+        products:
+          items:
+            $ref: "#/components/schemas/UpdateStockOpnameProductRequest"
           type: array
       type: object
     UpdateSupplierRequest:
@@ -20326,7 +20561,7 @@ components:
           type: string
         rate:
           example: 11
-          type: integer
+          type: number
       type: object
     UpdateUomRequest:
       properties:
@@ -20396,7 +20631,7 @@ components:
           type: integer
         quota:
           example: 100
-          type: integer
+          type: number
       required:
         - branch_id
       type: object
@@ -20410,7 +20645,7 @@ components:
           type: integer
         quota:
           example: 50
-          type: integer
+          type: number
       required:
         - product_uom_id
       type: object
@@ -20435,13 +20670,13 @@ components:
           type: string
         discount_value:
           example: 10
-          type: integer
+          type: number
         max_discount_price:
           example: 50000
-          type: integer
+          type: number
         min_subtotal_price:
           example: 100000
-          type: integer
+          type: number
         name:
           example: 10% Off
           type: string
@@ -20452,7 +20687,7 @@ components:
           type: array
         quota:
           example: 100
-          type: integer
+          type: number
         scope:
           enum:
             - company
@@ -20588,10 +20823,10 @@ components:
           type: integer
         quota:
           example: 100
-          type: integer
+          type: number
         used_quota:
           example: 20
-          type: integer
+          type: number
       type: object
     VoucherProductUomResponse:
       properties:
@@ -20606,10 +20841,10 @@ components:
           type: integer
         quota:
           example: 100
-          type: integer
+          type: number
         used_quota:
           example: 20
-          type: integer
+          type: number
       type: object
     VoucherResponse:
       properties:
@@ -20654,22 +20889,22 @@ components:
           type: string
         discount_value:
           example: 10
-          type: integer
+          type: number
         id:
           example: 1
           type: integer
         max_discount_price:
           example: 50000
-          type: integer
+          type: number
         min_subtotal_price:
           example: 100000
-          type: integer
+          type: number
         name:
           example: 10% Off
           type: string
         quota:
           example: 100
-          type: integer
+          type: number
         scope:
           enum:
             - company
@@ -20693,7 +20928,7 @@ components:
           type: integer
         used_quota:
           example: 20
-          type: integer
+          type: number
         valid_from:
           example: 2026-06-01
           type: string

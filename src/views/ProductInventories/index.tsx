@@ -11,6 +11,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
+import ProductInventoryConvertSheet from './ConvertSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
@@ -25,6 +26,7 @@ import {
   X,
   Download,
   Loader2,
+  ArrowLeftRight,
 } from 'lucide-react'
 
 interface ProductInventory {
@@ -113,6 +115,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [convertItem, setConvertItem] = useState<ProductInventory | null>(null)
 
   const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
@@ -510,7 +513,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 { label: 'Qty', width: 100 },
                 { label: 'Min Qty', width: 100 },
                 { label: 'Status', width: 110 },
-                { label: '', width: 80 },
+                { label: '', width: 110 },
               ].map(({ label, width }, i) => (
                 <th
                   key={i}
@@ -777,6 +780,21 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                               display: 'flex',
                             }}>
                             <Pencil size={14} />
+                          </button>)}
+                          {canEdit && (item.stock ?? item.qty ?? 0) > 0 && (
+                          <button
+                            title="Convert UOM"
+                            onClick={() => setConvertItem(item)}
+                            style={{
+                              padding: 6,
+                              background: 'none',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              color: 'var(--foreground-muted)',
+                              display: 'flex',
+                            }}>
+                            <ArrowLeftRight size={14} />
                           </button>)}
                           {canDelete && (<button
                             onClick={() => setDeleteConfirmId(item.id)}
@@ -1057,6 +1075,12 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           setEditData(null)
         }}
         editData={editData}
+      />
+      {/* Convert UOM sheet */}
+      <ProductInventoryConvertSheet
+        open={!!convertItem}
+        onClose={() => setConvertItem(null)}
+        inventory={convertItem}
       />
       <style>{`
         @keyframes pulse {
