@@ -22,6 +22,13 @@ interface DimensionSliceRow {
   stage_name?: string
   total_stock?: number
   stock?: number
+  // This row rolls a product's stock up across all its product_uoms for one
+  // owner/stage, so — unlike the single-uom rows elsewhere in the app — it
+  // can only be shown correctly in the product's base unit. Prefer
+  // base_stock/base_uom_code when the backend sends them; total_stock/stock
+  // remain as the pre-base-stock-model fallback.
+  base_stock?: number | null
+  base_uom_code?: string | null
   reorder_point?: number
   needs_reorder?: boolean
 }
@@ -268,7 +275,8 @@ export default function InventoryByDimensionView() {
                       const needsReorder = Boolean(row.needs_reorder)
                       const code = row.code ?? row.product_code ?? '—'
                       const name = row.product_name ?? row.name ?? '—'
-                      const totalStock = Number(row.total_stock ?? row.stock ?? 0)
+                      const totalStock = Number(row.base_stock ?? row.total_stock ?? row.stock ?? 0)
+                      const totalStockUom = row.base_uom_code ? ` ${row.base_uom_code}` : ''
                       const reorderPoint = row.reorder_point ?? null
                       const dimensionLabel = mode === 'owner' ? rowOwnerLabel(row) : rowStageLabel(row)
                       const rowStyle: React.CSSProperties = needsReorder
@@ -279,7 +287,7 @@ export default function InventoryByDimensionView() {
                           <td style={cellStyle}>{dimensionLabel}</td>
                           <td style={cellStyle}>{code}</td>
                           <td style={cellStyle}>{name}</td>
-                          <td style={amountCellStyle}>{totalStock.toLocaleString('id-ID')}</td>
+                          <td style={amountCellStyle}>{totalStock.toLocaleString('id-ID')}{totalStockUom}</td>
                           <td style={amountCellStyle}>
                             {reorderPoint === null || reorderPoint === undefined
                               ? '—'

@@ -302,14 +302,17 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         const invUomId =
           inv.product_uom_id ?? inv.product_uom_batch?.product_uom?.id
         const hasBatch = !!inv.product_uom_batch?.id
-        const stock = inv.stock ?? inv.qty ?? 0
+        // Delivery qty is entered in this batch's own uom (product_uom_id +
+        // product_uom_batch_id + qty sent as-is), so availability/display
+        // must use display_qty, not base_stock.
+        const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
         return hasBatch && invUomId === productUomId && stock > 0
       })
       .map((inv: any) => ({
         batchId: inv.product_uom_batch.id as number,
         code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
         expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
-        stock: inv.stock ?? inv.qty ?? 0,
+        stock: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
       }))
 
     const stored = storedBatchesByUomId.get(productUomId) ?? []

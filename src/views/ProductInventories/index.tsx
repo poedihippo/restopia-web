@@ -33,6 +33,10 @@ interface ProductInventory {
   id: number
   qty: number
   stock?: number
+  display_qty?: number | null
+  display_uom_code?: string | null
+  base_stock?: number | null
+  base_uom_code?: string | null
   min_qty?: number
   code?: string
   expiry_date?: string
@@ -602,10 +606,11 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading &&
               filteredItems.map((item, idx) => {
+                const displayQty = item.display_qty ?? item.stock ?? 0
                 const isLow =
                   item.min_qty !== undefined &&
                   item.min_qty !== null &&
-                  (item.stock ?? 0) <= (item.min_qty ?? 0)
+                  displayQty <= (item.min_qty ?? 0)
                 const puFallback = getProductUom(item.product_uom_id)
 
                 return (
@@ -666,7 +671,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.product_uom_batch?.product_uom?.uom?.code
+                        {item.display_uom_code
+                          ?? item.product_uom_batch?.product_uom?.uom?.code
                           ?? item.product_uom_batch?.product_uom?.uom?.name
                           ?? item.product_uom?.uom?.code
                           ?? puFallback?.uom?.code
@@ -703,7 +709,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           color: isLow ? 'var(--warning)' : 'var(--foreground)',
                         }}
                       >
-                        {(item.stock ?? 0).toLocaleString('id-ID')}
+                        {displayQty.toLocaleString('id-ID')}
                       </span>
                     </td>
 
@@ -781,7 +787,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                             }}>
                             <Pencil size={14} />
                           </button>)}
-                          {canEdit && (item.stock ?? item.qty ?? 0) > 0 && (
+                          {canEdit && (item.display_qty ?? item.stock ?? item.qty ?? 0) > 0 && (
                           <button
                             title="Convert UOM"
                             onClick={() => setConvertItem(item)}
@@ -1008,7 +1014,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                   { label: 'Branch', value: selectedItem.branch?.name },
                   {
                     label: 'Current Stock',
-                    value: (selectedItem.stock ?? 0).toLocaleString('id-ID'),
+                    value: `${(selectedItem.display_qty ?? selectedItem.stock ?? 0).toLocaleString('id-ID')}${
+                      selectedItem.display_uom_code ?? uom?.code ? ` ${selectedItem.display_uom_code ?? uom?.code}` : ''
+                    }`,
                   },
                   { label: 'Status', value: selectedItem.status },
                   { label: 'Expiry Date', value: selectedItem.expiry_date },

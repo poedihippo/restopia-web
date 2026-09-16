@@ -506,7 +506,9 @@ export default function PosProductGrid({
                 </div>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {batchPickerGroup.lots.map((lot: any) => (
+                  {batchPickerGroup.lots.map((lot: any) => {
+                    const lotDisplayQty = lot.display_qty ?? lot.stock ?? 0
+                    return (
                     <div
                       key={lot.id}
                       onClick={() => addLotToCart(lot)}
@@ -515,8 +517,8 @@ export default function PosProductGrid({
                         border: '1px solid var(--border)',
                         borderRadius: 'var(--radius-md)',
                         background: 'var(--surface)',
-                        cursor: (lot.stock ?? 0) > 0 ? 'pointer' : 'not-allowed',
-                        opacity: (lot.stock ?? 0) > 0 ? 1 : 0.5,
+                        cursor: lotDisplayQty > 0 ? 'pointer' : 'not-allowed',
+                        opacity: lotDisplayQty > 0 ? 1 : 0.5,
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -537,12 +539,14 @@ export default function PosProductGrid({
                             return orderType === 'online' ? (lotUom?.online_price ?? lotUom?.base_price ?? 0) : (lotUom?.base_price ?? 0);
                           })())}
                         </span>
-                        <span style={{ fontSize: 12, color: (lot.stock ?? 0) > 0 ? 'var(--success)' : 'var(--destructive)' }}>
-                          Stock: {lot.stock ?? 0}
+                        <span style={{ fontSize: 12, color: lotDisplayQty > 0 ? 'var(--success)' : 'var(--destructive)' }}>
+                          Stock: {lotDisplayQty}
+                          {lot.display_uom_code ? ` ${lot.display_uom_code}` : ''}
                         </span>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -841,8 +845,9 @@ function BundleBatchPickerModal({
               const qty = item.qty || detail.qty || 1
               
               const inventories = inventoriesByDetailId[detail.id] || []
-              // Filter only positive stock
-              const availableInventories = inventories.filter((i: any) => (i.stock ?? i.qty ?? 0) > 0)
+              // Filter only positive stock (display_qty = on-hand in this
+              // row's own uom, matching the qty the cashier will send)
+              const availableInventories = inventories.filter((i: any) => (i.display_qty ?? i.stock ?? i.qty ?? 0) > 0)
               
               const hasChoices = detail.items && detail.items.length > 1
 
@@ -920,10 +925,11 @@ function BundleBatchPickerModal({
                   {availableInventories.map((inv: any) => {
                     const batchCode = inv.product_uom_batch?.batch_code ?? inv.product_uom_batch?.code ?? 'N/A'
                     const exp = inv.product_uom_batch?.expiry_date ? formatDate(inv.product_uom_batch.expiry_date) : 'No Exp Date'
-                    const stock = inv.stock ?? inv.qty ?? 0
+                    const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
+                    const uomCode = inv.display_uom_code ? ` ${inv.display_uom_code}` : ''
                     return (
                       <option key={inv.id} value={inv.id}>
-                        Batch: {batchCode} | Exp: {exp} | Stock: {stock}
+                        Batch: {batchCode} | Exp: {exp} | Stock: {stock}{uomCode}
                       </option>
                     )
                   })}

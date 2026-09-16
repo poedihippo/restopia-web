@@ -23,6 +23,8 @@ export interface ConvertSourceInventory {
   id: number
   qty?: number
   stock?: number
+  display_qty?: number | null
+  display_uom_code?: string | null
   code?: string
   product_uom_id: number
   product_uom_batch?: {
@@ -109,7 +111,11 @@ export default function ProductInventoryConvertSheet({
   const qtyWatch = watch('qty')
   const targetPuId = watch('target_product_uom_id')
 
-  const sourceStock = Number(inventory?.stock ?? inventory?.qty ?? 0)
+  // Convert moves stock out of `inventory` in ITS OWN product_uom (the qty
+  // entered below is in that unit, sent straight to the backend), so
+  // availability must compare against display_qty — the on-hand quantity in
+  // that specific row's uom — never base_stock (a different unit).
+  const sourceStock = Number(inventory?.display_qty ?? inventory?.stock ?? inventory?.qty ?? 0)
 
   const sourceProductId =
     inventory?.product_uom_batch?.product_uom?.product?.id ??
@@ -309,7 +315,8 @@ export default function ProductInventoryConvertSheet({
               Available stock:{' '}
               <strong>
                 {num(sourceStock)}{' '}
-                {inventory.product_uom_batch?.product_uom?.uom?.code ??
+                {inventory.display_uom_code ??
+                  inventory.product_uom_batch?.product_uom?.uom?.code ??
                   inventory.product_uom?.uom?.code ??
                   ''}
               </strong>

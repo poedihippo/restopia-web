@@ -121,22 +121,27 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
       batch.code ??
       `BATCH-${batch.id}`
     const uomCode =
+      batch.display_uom_code ??
       batch.product_uom?.uom?.code ??
       batch.product_uom?.uom?.name ??
       ''
+    const displayStock = batch.display_qty ?? batch.stock
     const expiryDate = batch.expiry_date?.substring(0, 10) ?? 'No expiry';
     return {
       value: batch.id as number,
-      label: `${name} — ${uomCode} — Stock: ${batch.stock}-Exp Date:${expiryDate}`,
+      label: `${name} — ${uomCode} — Stock: ${displayStock}-Exp Date:${expiryDate}`,
       sublabel: batch.batch_code ?? undefined,
     }
   })
 
   const selectedBatch = batchesItems.find((batch: any) => batch.id === watchBatchId)
+  // qty here is entered in the selected batch's own product_uom (payload
+  // sends product_uom_batch_id + qty as-is), so availability must compare
+  // against display_qty — the on-hand quantity in that unit — not base_stock.
   const negativeStock =
     watchDirection === 'out' &&
     selectedBatch &&
-    Number(watchQty) > Number(selectedBatch.stock)
+    Number(watchQty) > Number(selectedBatch.display_qty ?? selectedBatch.stock)
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => stockMovementsService.create(data as any),
@@ -420,7 +425,8 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                 <span>
                   Current stock:{' '}
                   <strong style={{ color: 'var(--foreground)' }}>
-                    {selectedBatch.stock}
+                    {selectedBatch.display_qty ?? selectedBatch.stock}{' '}
+                    {selectedBatch.display_uom_code ?? selectedBatch.product_uom?.uom?.code ?? ''}
                   </strong>
                 </span>
                 <span>

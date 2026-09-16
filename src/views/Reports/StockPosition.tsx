@@ -112,11 +112,11 @@ export default function StockPositionReport() {
   }, [items, searchText])
 
   const stats = useMemo(() => {
-    const outOfStock = filtered.filter((i: any) => Number(i.stock ?? 0) <= 0)
+    const outOfStock = filtered.filter((i: any) => Number(i.display_qty ?? i.stock ?? 0) <= 0)
     const lowStock = filtered.filter(
       (i: any) =>
-        Number(i.stock ?? 0) > 0 &&
-        Number(i.stock ?? 0) <= Number(i.min_qty ?? 5),
+        Number(i.display_qty ?? i.stock ?? 0) > 0 &&
+        Number(i.display_qty ?? i.stock ?? 0) <= Number(i.min_qty ?? 5),
     )
     const ok = filtered.length - outOfStock.length - lowStock.length
     return { outOfStock, lowStock, ok }
@@ -125,8 +125,8 @@ export default function StockPositionReport() {
   const sortedRows = useMemo(() => {
     const okRows = filtered.filter(
       (i: any) =>
-        Number(i.stock ?? 0) > 0 &&
-        Number(i.stock ?? 0) > Number(i.min_qty ?? 5),
+        Number(i.display_qty ?? i.stock ?? 0) > 0 &&
+        Number(i.display_qty ?? i.stock ?? 0) > Number(i.min_qty ?? 5),
     )
     return [...stats.outOfStock, ...stats.lowStock, ...okRows]
   }, [filtered, stats])
@@ -510,7 +510,7 @@ export default function StockPositionReport() {
               </tr>
             )}
             {sortedRows.map((item: any, idx: number) => {
-              const stock = Number(item.stock ?? 0)
+              const stock = Number(item.display_qty ?? item.stock ?? 0)
               const minQty = Number(item.min_qty ?? 5)
               const isOut = stock <= 0
               const isLow = !isOut && stock <= minQty
@@ -540,7 +540,8 @@ export default function StockPositionReport() {
                       ?? '—'}
                   </td>
                   <td style={{ ...tdStyle, fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.product_uom_batch?.product_uom?.uom?.name
+                    {item.display_uom_code
+                      ?? item.product_uom_batch?.product_uom?.uom?.name
                       ?? item.product_uom_batch?.product_uom?.uom?.code
                       ?? item.product_uom?.uom?.name
                       ?? item.product_uom?.uom?.code

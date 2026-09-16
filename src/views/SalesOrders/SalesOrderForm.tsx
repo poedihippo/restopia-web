@@ -1114,7 +1114,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                               Code: {p.product_uom_batch?.product_uom?.code ?? p.product_uom?.code ?? p.code ?? '-'}
                             </span>
                             <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                              Stock: {p.stock ?? 0}
+                              Stock: {p.display_qty ?? p.stock ?? 0}
+                              {p.display_uom_code ? ` ${p.display_uom_code}` : ''}
                             </span>
                             {p.product_uom_batch?.batch_code && (
                               <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-muted)', background: 'var(--background)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>

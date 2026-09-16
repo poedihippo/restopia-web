@@ -375,12 +375,14 @@ export function usePosLogic() {
         map.set(key, g)
       }
       g.lots.push(row)
-      g.totalStock += Number(row.stock ?? 0)
+      // All lots in a group share one product_uom, so summing display_qty
+      // (on-hand in that uom) across them is safe — no cross-unit mixing.
+      g.totalStock += Number(row.display_qty ?? row.stock ?? 0)
     }
 
     for (const g of map.values()) {
       g.lots.sort(fefoCompare)
-      const firstStocked = g.lots.find((l: any) => Number(l.stock ?? 0) > 0)
+      const firstStocked = g.lots.find((l: any) => Number(l.display_qty ?? l.stock ?? 0) > 0)
       g.defaultLot = firstStocked ?? g.lots[0]
       g.representative = g.defaultLot
     }
@@ -449,7 +451,7 @@ export function usePosLogic() {
   const addLotToCart = useCallback((lot: any) => {
     if (!lot) return
 
-    if ((lot.stock ?? 0) <= 0) {
+    if ((lot.display_qty ?? lot.stock ?? 0) <= 0) {
       toast.error('Item is out of stock')
       return
     }

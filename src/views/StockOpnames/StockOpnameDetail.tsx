@@ -1844,7 +1844,9 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
             const newDetail: StockOpnameDetailItem = {
               id: -Date.now(),
               product_inventory_id: selectedInventory.id,
-              system_qty: selectedInventory.stock ?? selectedInventory.qty ?? 0,
+              // Opname counts are physical units in this batch's own uom, so
+              // the system baseline must be display_qty, not base_stock.
+              system_qty: selectedInventory.display_qty ?? selectedInventory.stock ?? selectedInventory.qty ?? 0,
               counted_qty: null,
               variance: null,
               description: '',
@@ -2036,8 +2038,8 @@ function AddBatchModal({
                 const expiry = inv.product_uom_batch?.expiry_date
                   ? formatDate(inv.product_uom_batch.expiry_date)
                   : 'No expiry'
-                const stock = inv.stock ?? inv.qty ?? 0
-                const uom = inv.product_uom?.uom?.name || 'Unit'
+                const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
+                const uom = inv.display_uom_code || inv.product_uom?.uom?.name || 'Unit'
 
                 return (
                   <div

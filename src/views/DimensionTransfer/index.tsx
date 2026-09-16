@@ -21,6 +21,8 @@ interface DimensionInventoryRow {
   product_uom_batch_id?: number
   stock?: number
   qty?: number
+  display_qty?: number | null
+  display_uom_code?: string | null
   owner_ref?: string
   owner_display?: string
   owner_company_name?: string
@@ -121,7 +123,7 @@ export default function DimensionTransferView() {
   })
 
   const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
-    (r: any) => Number(r.stock ?? r.qty ?? 0) > 0,
+    (r: any) => Number(r.display_qty ?? r.stock ?? r.qty ?? 0) > 0,
   )
 
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
@@ -178,11 +180,12 @@ export default function DimensionTransferView() {
     const owner = ownerLabel(row)
     const stage = row.stage ?? '—'
     const location = row.location_ref ?? '—'
-    const stock = row.stock ?? row.qty ?? 0
+    const stock = row.display_qty ?? row.stock ?? row.qty ?? 0
+    const stockUom = row.display_uom_code ? ` ${row.display_uom_code}` : ''
     return {
       value: row.id,
       label: `${product?.code ?? ''} ${product?.name ?? ''}`.trim() || `Item #${row.id}`,
-      sublabel: `batch ${batchCode} · ${owner}/${stage}/${location} · stok ${stock}`,
+      sublabel: `batch ${batchCode} · ${owner}/${stage}/${location} · stok ${stock}${stockUom}`,
     }
   })
 
@@ -212,7 +215,7 @@ export default function DimensionTransferView() {
       (r.location_ref ?? 'GENERAL') === toLocationRef
     )
   })
-  const targetCurrentStock = targetRow?.stock ?? targetRow?.qty ?? 0
+  const targetCurrentStock = targetRow?.display_qty ?? targetRow?.stock ?? targetRow?.qty ?? 0
   const targetAfterStock = targetCurrentStock + Number(qtyWatched || 0)
   const showTargetCaption = !!selectedRow && !!toOwnerRef && !!toStage && !isSameDimension
 
@@ -258,7 +261,9 @@ export default function DimensionTransferView() {
       return
     }
 
-    const stock = Number(row.stock ?? row.qty ?? 0)
+    // Transfer qty is entered in the source batch's own uom, so availability
+    // must use display_qty, not base_stock.
+    const stock = Number(row.display_qty ?? row.stock ?? row.qty ?? 0)
     if (Number(values.qty) > stock) {
       toast.error(`Qty melebihi stok tersedia (${stock})`)
       return
@@ -404,7 +409,7 @@ export default function DimensionTransferView() {
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Dimensi Asal Terdeteksi: {ownerLabel(selectedRow)} / {selectedRow.stage ?? '—'} / {selectedRow.location_ref ?? '—'} · Stok: {selectedRow.stock ?? selectedRow.qty ?? 0}
+                Dimensi Asal Terdeteksi: {ownerLabel(selectedRow)} / {selectedRow.stage ?? '—'} / {selectedRow.location_ref ?? '—'} · Stok: {selectedRow.display_qty ?? selectedRow.stock ?? selectedRow.qty ?? 0}
               </span>
             )}
           </div>
@@ -426,7 +431,7 @@ export default function DimensionTransferView() {
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Tersedia: {selectedRow.stock ?? selectedRow.qty ?? 0}
+                Tersedia: {selectedRow.display_qty ?? selectedRow.stock ?? selectedRow.qty ?? 0}
               </span>
             )}
             {errors.qty && <span style={errorStyle}>{errors.qty.message}</span>}

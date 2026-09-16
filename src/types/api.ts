@@ -149,6 +149,16 @@ export interface ProductInventory {
   code?: string
   stock?: number
   qty?: number
+  // Base-authoritative stock fields (backend now returns these alongside the
+  // legacy `stock` int). display_qty/display_uom_code are the on-hand
+  // quantity in this row's own product_uom (what `stock` used to mean);
+  // base_stock/base_uom_code are the same quantity in the product's base
+  // unit. Never derive one from the other client-side — always read what
+  // the API sent.
+  display_qty?: number | null
+  display_uom_code?: string | null
+  base_stock?: number | null
+  base_uom_code?: string | null
   min_qty?: number
   expiry_date?: string
   status?: 'active' | 'inactive'

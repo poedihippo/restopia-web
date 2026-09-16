@@ -248,7 +248,10 @@ export function MaterialsFieldArray({
         const currentMat = watchedMaterials?.[matIndex]
         const invId = currentMat?.product_inventory_id
         const inv = inventories.find((i: any) => i.id === invId)
-        const availableStock = inv ? Number(inv.stock ?? 0) : 0
+        // Material qty is entered in this inventory row's own product_uom
+        // (sent as product_inventory_id + qty as-is), so availability must
+        // compare against display_qty, not base_stock.
+        const availableStock = inv ? Number(inv.display_qty ?? inv.stock ?? 0) : 0
         const reqQty = Number(currentMat?.qty ?? 0)
         const hasNoInventory = !invId || invId <= 0
         const isOutOfStock = inv && availableStock <= 0
@@ -875,9 +878,9 @@ export default function ProductionForm({
               inv.product_uom_batch?.product_uom_id === mat.product_uom_id
           )
           const sorted = matches.slice().sort((a: any, b: any) => {
-            // Prefer rows with stock > 0
-            const aHasStock = Number(a.stock) > 0 ? 1 : 0
-            const bHasStock = Number(b.stock) > 0 ? 1 : 0
+            // Prefer rows with stock > 0 (in that row's own uom)
+            const aHasStock = Number(a.display_qty ?? a.stock) > 0 ? 1 : 0
+            const bHasStock = Number(b.display_qty ?? b.stock) > 0 ? 1 : 0
             if (aHasStock !== bHasStock) return bHasStock - aHasStock
             // Then FIFO: oldest expiry first; null expiry treated as Infinity (use last)
             const aExp = a.product_uom_batch?.expiry_date
@@ -1063,7 +1066,8 @@ export default function ProductionForm({
           return `Data inventori untuk ${label} tidak ditemukan di cabang ini.`
         }
 
-        const availableStock = Number(inv.stock ?? 0)
+        // Required qty is in inv's own product_uom, so compare display_qty.
+        const availableStock = Number(inv.display_qty ?? inv.stock ?? 0)
         const requiredQty = Number(m.qty ?? 0)
 
         if (availableStock <= 0) {
