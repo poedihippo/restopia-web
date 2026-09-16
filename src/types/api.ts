@@ -83,14 +83,34 @@ export interface ProductCategoryRequest {
 }
 
 // Products
+export interface ProductConversionPayload {
+  id?: number
+  target_uom_id: number
+  amount: number
+}
+
+export interface ProductUomPayload {
+  id?: number
+  uom_id: number
+  code: string
+  base_price: number
+  online_price?: number
+  franchise_price?: number
+  price_editable?: boolean
+  is_default?: boolean
+  conversions?: ProductConversionPayload[]
+}
+
 export interface ProductRequest {
   product_category_id: number
   code: string
   name: string
-  type: 'raw' | 'wip' | 'final'
+  type: 'raw' | 'wip' | 'final' | 'supply'
   description?: string
   base_uom_id?: number | null
   reorder_point?: number | null
+  status?: 'active' | 'inactive'
+  uoms?: ProductUomPayload[]
 }
 
 // UOMs

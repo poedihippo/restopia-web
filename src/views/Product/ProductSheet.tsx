@@ -1,17 +1,35 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
+import { productCategoriesService } from '@/services/product-categories.service'
 import { uomsService } from '@/services/uoms.service'
-import { toastMutationApiError } from '@/utils/apiError'
-import api from '@/hooks/useApi'
+import { parseApiError, toastMutationApiError } from '@/utils/apiError'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, Plus, Trash2, Repeat } from 'lucide-react'
+
+const conversionSchema = z.object({
+  id: z.coerce.number().min(0),
+  target_uom_id: z.coerce.number().min(1, 'Target unit is required'),
+  amount: z.coerce.number().positive('Amount must be greater than 0'),
+})
+
+const uomSchema = z.object({
+  id: z.coerce.number().min(0),
+  uom_id: z.coerce.number().min(1, 'Unit is required'),
+  code: z.string().min(1, 'Code is required'),
+  base_price: z.coerce.number().min(0),
+  online_price: z.coerce.number().min(0),
+  franchise_price: z.coerce.number().min(0),
+  price_editable: z.boolean(),
+  is_default: z.boolean(),
+  conversions: z.array(conversionSchema),
+})
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -22,8 +40,81 @@ const schema = z.object({
   status: z.enum(['active', 'inactive']),
   base_uom_id: z.coerce.number().optional().nullable(),
   reorder_point: z.coerce.number().int().min(0).nullable().optional(),
+  uoms: z
+    .array(uomSchema)
+    .superRefine((uoms, ctx) => {
+      const uomIds = uoms.map((u) => u.uom_id)
+      uomIds.forEach((uid, i) => {
+        if (uomIds.indexOf(uid) !== i) {
+          ctx.addIssue({ code: 'custom', path: [i, 'uom_id'], message: 'Each unit may only appear once per product' })
+        }
+      })
+      const codes = uoms.map((u) => u.code.trim().toLowerCase())
+      codes.forEach((c, i) => {
+        if (codes.indexOf(c) !== i) {
+          ctx.addIssue({ code: 'custom', path: [i, 'code'], message: 'Duplicate unit code' })
+        }
+      })
+      if (uoms.filter((u) => u.is_default).length > 1) {
+        uoms.forEach((u, i) => {
+          if (u.is_default) {
+            ctx.addIssue({ code: 'custom', path: [i, 'is_default'], message: 'Only one unit can be marked as default' })
+          }
+        })
+      }
+      const pairSet = new Set<string>()
+      uoms.forEach((u, i) => {
+        u.conversions.forEach((c, j) => {
+          if (c.target_uom_id === u.uom_id) {
+            ctx.addIssue({ code: 'custom', path: [i, 'conversions', j, 'target_uom_id'], message: 'A unit cannot have a conversion to itself' })
+            return
+          }
+          if (!uomIds.includes(c.target_uom_id)) {
+            ctx.addIssue({ code: 'custom', path: [i, 'conversions', j, 'target_uom_id'], message: 'Target unit must be one of this product\'s units' })
+            return
+          }
+          const key = `${u.uom_id}->${c.target_uom_id}`
+          if (pairSet.has(key)) {
+            ctx.addIssue({ code: 'custom', path: [i, 'conversions', j, 'target_uom_id'], message: 'A conversion for this unit pair already exists' })
+          } else {
+            pairSet.add(key)
+          }
+        })
+      })
+    }),
 })
 type FormValues = z.infer<typeof schema>
+
+const emptyUom = {
+  id: 0,
+  uom_id: 0,
+  code: '',
+  base_price: 0,
+  online_price: 0,
+  franchise_price: 0,
+  price_editable: false,
+  is_default: false,
+  conversions: [] as { id: number; target_uom_id: number; amount: number }[],
+}
+
+const emptyConversion = { id: 0, target_uom_id: 0, amount: 0 }
+
+const GUARD_MESSAGES: { match: RegExp; message: string }[] = [
+  { match: /product uom has product inventories/i, message: 'This unit has stock / inventory batches. Clear its inventory before changing or removing it.' },
+  { match: /product uom has recipes/i, message: 'This unit is used in recipes. Remove those recipes first.' },
+  { match: /product uom has voucher product uoms/i, message: 'This unit is linked to vouchers. Unlink those vouchers first.' },
+  { match: /cannot change conversion factor/i, message: 'The conversion factor cannot be changed because this product has stock movement history. Create a stock adjustment instead.' },
+]
+
+const showError = (err: any, fallback: string) => {
+  const msg = parseApiError(err)
+  const guard = GUARD_MESSAGES.find((g) => g.match.test(msg))
+  if (guard) {
+    toast.error(guard.message)
+    return
+  }
+  toastMutationApiError(err, fallback)
+}
 
 interface ProductSheetProps {
   open: boolean
@@ -68,106 +159,193 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     handleSubmit,
     reset,
     control,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
       name: '',
       code: '',
-      product_category_id: editData?.product_category_id ?? 0,
+      product_category_id: 0,
       type: '',
       description: '',
       status: 'active',
       base_uom_id: null,
       reorder_point: null,
+      uoms: [],
     },
   })
+
+  const { fields: uomFields, append: appendUom, remove: removeUom } = useFieldArray({ control, name: 'uoms' })
+  const watchedUoms: any[] = useWatch({ control, name: 'uoms' }) ?? []
 
   const { data: catData } = useQuery({
     queryKey: ['product-categories-all'],
     queryFn: () =>
-      api
-        .get('/product-categories', {
-          params: { per_page: 100 },
-        })
+      productCategoriesService
+        .list({ per_page: 100 })
         .then((r) => r.data),
   })
   const categories = (catData as any)?.data ?? []
 
-  // Mirrors ProductConversionSheet's UOM-fetching pattern for the Base Unit options.
   const { data: uomsData } = useQuery({
     queryKey: ['uoms-all'],
     queryFn: () => uomsService.list({ per_page: 200 } as any).then((r) => r.data),
   })
-  const uoms = (uomsData as any)?.data ?? []
+  const uoms: any[] = (uomsData as any)?.data ?? []
+
+  // In edit mode, load the full product (with nested UOMs + conversions)
+  const detailQuery = useQuery({
+    queryKey: ['product-detail', editData?.id],
+    queryFn: () => productsService.findById(editData!.id).then((r) => r.data),
+    enabled: open && !!editData,
+  })
+  const detail = (detailQuery.data as any)?.data
 
   useEffect(() => {
-    if (open) {
-      if (editData) {
-        reset({
-          name: editData.name,
-          code: editData.code ?? '',
-          product_category_id: editData.product_category_id ?? 0,
-          type: editData.type ?? '',
-          description: editData.description ?? '',
-          status: editData.status ?? 'active',
-          base_uom_id: editData.base_uom_id ?? null,
-          reorder_point: editData.reorder_point ?? null,
-        })
-      } else {
-        reset({
-          name: '',
-          code: '',
-          product_category_id: 0,
-          type: '',
-          description: '',
-          status: 'active',
-          base_uom_id: null,
-          reorder_point: null,
-        })
-      }
+    if (!open) return
+    if (!editData) {
+      reset({
+        name: '',
+        code: '',
+        product_category_id: 0,
+        type: '',
+        description: '',
+        status: 'active',
+        base_uom_id: null,
+        reorder_point: null,
+        uoms: [],
+      })
+      return
     }
+    if (!detail) return
+    reset({
+      name: detail.name ?? editData.name ?? '',
+      code: detail.code ?? editData.code ?? '',
+      product_category_id: detail.product_category_id ?? editData.product_category_id ?? 0,
+      type: detail.type ?? editData.type ?? '',
+      description: detail.description ?? editData.description ?? '',
+      status: detail.status ?? editData.status ?? 'active',
+      base_uom_id: detail.base_uom_id ?? null,
+      reorder_point: detail.reorder_point ?? null,
+      uoms: (detail.product_uoms ?? []).map((pu: any) => ({
+        id: pu.id ?? 0,
+        uom_id: pu.uom_id ?? 0,
+        code: pu.code ?? '',
+        base_price: pu.base_price ?? 0,
+        online_price: pu.online_price ?? 0,
+        franchise_price: pu.franchise_price ?? 0,
+        price_editable: !!pu.price_editable,
+        is_default: !!pu.is_default,
+        conversions: (pu.conversions ?? []).map((c: any) => ({
+          id: c.id ?? 0,
+          target_uom_id: c.target_uom_id ?? 0,
+          amount: c.amount ?? 0,
+        })),
+      })),
+    })
+  }, [open, editData, detail, reset])
 
-  }, [open, editData, reset, categories.length]) // categories.length memastikan reset dijalankan ulang setelah list kategori berhasil di-fetch
+  const buildPayload = (values: FormValues) => {
+    const payload: Record<string, unknown> = {
+      product_category_id: values.product_category_id,
+      code: values.code ?? '',
+      name: values.name,
+      type: values.type,
+      description: values.description ?? '',
+      status: values.status,
+      base_uom_id: values.base_uom_id ?? null,
+      reorder_point: values.reorder_point ?? null,
+    }
+    const uoms = values.uoms.map((u) => ({
+      ...(u.id > 0 ? { id: u.id } : {}),
+      uom_id: u.uom_id,
+      code: u.code.trim(),
+      base_price: u.base_price,
+      online_price: u.online_price,
+      franchise_price: u.franchise_price,
+      price_editable: u.price_editable,
+      is_default: u.is_default,
+      conversions: u.conversions.map((c) => ({
+        ...(c.id > 0 ? { id: c.id } : {}),
+        target_uom_id: c.target_uom_id,
+        amount: c.amount,
+      })),
+    }))
+    // Create: omit `uoms` entirely when none added (header-only).
+    // Update: always send the full desired UOM state (replace-by-diff);
+    // `uoms: []` means delete all.
+    if (editData || uoms.length > 0) payload.uoms = uoms
+    return payload
+  }
 
   const createMutation = useMutation({
-    mutationFn: (data: FormValues) => productsService.create(data as any),
-    onSuccess: () => {
+    mutationFn: (data: FormValues) => productsService.create(buildPayload(data) as any),
+    onSuccess: async (res: any) => {
+      // Reload via GET /products/:id to confirm final state and pick up
+      // server-assigned IDs (detail_map) instead of patching local state.
+      const newId = res?.data?.data?.id ?? res?.data?.id
+      if (newId) {
+        try { await productsService.findById(newId) } catch { /* non-fatal */ }
+      }
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
+      queryClient.invalidateQueries({ queryKey: ['product-conversions'] })
       toast.success('Product created')
       onClose()
     },
-    onError: (err: any) =>
-      toastMutationApiError(err, 'Failed to create product'),
+    onError: (err: any) => showError(err, 'Failed to create product'),
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) => productsService.update(editData!.id, data as any),
-    onSuccess: () => {
+    mutationFn: (data: FormValues) => productsService.update(editData!.id, buildPayload(data) as any),
+    onSuccess: async () => {
+      // Reload via GET /products/:id to confirm the final saved state.
+      try { await productsService.findById(editData!.id) } catch { /* non-fatal */ }
       queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['product-detail', editData!.id] })
+      queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
+      queryClient.invalidateQueries({ queryKey: ['product-conversions'] })
       toast.success('Product updated')
       onClose()
     },
-    onError: (err: any) =>
-      toastMutationApiError(err, 'Failed to update product'),
+    onError: (err: any) => showError(err, 'Failed to update product'),
   })
 
   const onSubmit = (values: FormValues) => {
-    console.log('[ProductSheet] onSubmit called with:', values)
-    if (editData) {
-      updateMutation.mutate(values)
-    } else {
-      createMutation.mutate(values)
-    }
+    if (editData) updateMutation.mutate(values)
+    else createMutation.mutate(values)
   }
 
-  const onInvalid = (errors: any) => {
-    console.log('[ProductSheet] Validation errors:', errors)
-    const firstError = Object.values(errors)[0] as any
-    toast.error(firstError?.message ?? 'Please fill in all required fields')
+  const firstErrorMessage = (e: any): string | undefined => {
+    if (!e) return undefined
+    if (typeof e.message === 'string') return e.message
+    for (const key of Object.keys(e)) {
+      const msg = firstErrorMessage(e[key])
+      if (msg) return msg
+    }
+    return undefined
+  }
+
+  const onInvalid = (errs: any) => {
+    toast.error(firstErrorMessage(errs) ?? 'Please fill in all required fields')
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
+  const editLoading = !!editData && detailQuery.isLoading
+  const editError = !!editData && detailQuery.isError && !detail
+
+  const uomLabel = (id: number) => {
+    const uom = uoms.find((u) => u.id === id)
+    return uom ? `${uom.name} (${uom.code})` : `UOM #${id}`
+  }
+
+  const setDefaultUom = (idx: number, value: boolean) => {
+    if (value) {
+      watchedUoms.forEach((_, i) => setValue(`uoms.${i}.is_default` as any, false))
+    }
+    setValue(`uoms.${idx}.is_default` as any, value)
+  }
 
   if (!open) return null
 
@@ -198,6 +376,19 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     boxSizing: 'border-box',
   })
 
+  const selectBase: React.CSSProperties = {
+    width: '100%',
+    height: 40,
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '0 12px',
+    fontSize: 14,
+    color: 'var(--foreground)',
+    background: 'var(--surface-raised)',
+    boxSizing: 'border-box' as const,
+    fontFamily: 'var(--font-sans)',
+  }
+
   const errorMsg = (msg?: string) =>
     msg ? (
       <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{msg}</span>
@@ -224,7 +415,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         style={{
           position: 'relative',
           zIndex: 50,
-          width: 460,
+          width: 520,
           height: '100%',
           background: 'var(--surface)',
           borderLeft: '1px solid var(--border)',
@@ -272,7 +463,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
         {/* Form body */}
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(onSubmit, onInvalid)}
           style={{
             flex: 1,
             overflowY: 'auto',
@@ -282,6 +473,17 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
             gap: 20,
           }}
         >
+          {editLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 48 }}>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--foreground-muted)' }} />
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading product...</span>
+            </div>
+          ) : editError ? (
+            <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--destructive)' }}>
+              Failed to load product details. Close and try again.
+            </div>
+          ) : (
+            <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
             <span style={{ color: 'var(--destructive)' }}>*</span>
             <span>Required fields</span>
@@ -315,17 +517,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
             </label>
             <select
               {...register('product_category_id', { valueAsNumber: true })}
-              style={{
-                width: '100%',
-                height: 40,
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0 12px',
-                fontSize: 14,
-                color: 'var(--foreground)',
-                background: 'var(--surface-raised)',
-                boxSizing: 'border-box' as const,
-              }}
+              style={selectBase}
             >
               <option value={0}>Select category...</option>
               {categories.map((cat: any) => (
@@ -334,18 +526,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 </option>
               ))}
             </select>
-            {errors.product_category_id && (
-              <span
-                style={{
-                  fontSize: 12,
-                  color: 'var(--destructive)',
-                  marginTop: 4,
-                  display: 'block',
-                }}
-              >
-                {errors.product_category_id.message}
-              </span>
-            )}
+            {errorMsg(errors.product_category_id?.message)}
           </div>
 
           {/* Type */}
@@ -354,20 +535,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               Type
               <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
             </label>
-            <select
-              {...register('type')}
-              style={{
-                width: '100%',
-                height: 40,
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0 12px',
-                fontSize: 14,
-                color: 'var(--foreground)',
-                background: 'var(--surface-raised)',
-                boxSizing: 'border-box' as const,
-              }}
-            >
+            <select {...register('type')} style={selectBase}>
               <option value="">Select type...</option>
               {availableTypeOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -375,25 +543,12 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 </option>
               ))}
             </select>
-            {errors.type && (
-              <span
-                style={{
-                  fontSize: 12,
-                  color: 'var(--destructive)',
-                  marginTop: 4,
-                  display: 'block',
-                }}
-              >
-                {errors.type.message}
-              </span>
-            )}
+            {errorMsg(errors.type?.message)}
           </div>
 
           {/* Base Unit */}
           <div>
-            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-              Base Unit
-            </label>
+            <label style={labelStyle}>Base Unit</label>
             <Controller
               name="base_uom_id"
               control={control}
@@ -401,17 +556,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 <select
                   value={field.value ?? ''}
                   onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                  style={{
-                    width: '100%',
-                    height: 40,
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '0 12px',
-                    fontSize: 14,
-                    color: 'var(--foreground)',
-                    background: 'var(--surface-raised)',
-                    boxSizing: 'border-box' as const,
-                  }}
+                  style={selectBase}
                 >
                   <option value="">— None —</option>
                   {uoms.map((uom: any) => (
@@ -422,14 +567,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 </select>
               )}
             />
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--foreground-muted)',
-                marginTop: 4,
-                display: 'block',
-              }}
-            >
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
               The smallest unit stock is tracked in (e.g. grams, ml)
             </span>
           </div>
@@ -446,9 +584,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                   min={0}
                   step={1}
                   value={field.value ?? ''}
-                  onChange={(e) =>
-                    field.onChange(e.target.value === '' ? null : Number(e.target.value))
-                  }
+                  onChange={(e) => field.onChange(e.target.value === '' ? null : Number(e.target.value))}
                   placeholder="Kosongkan jika tidak dipakai"
                   style={inputBase(!!errors.reorder_point)}
                 />
@@ -480,14 +616,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                           fontWeight: 500,
                           cursor: 'pointer',
                           background: isSelected
-                            ? isActive
-                              ? 'var(--success-bg)'
-                              : 'var(--destructive-bg)'
+                            ? isActive ? 'var(--success-bg)' : 'var(--destructive-bg)'
                             : 'var(--background)',
                           color: isSelected
-                            ? isActive
-                              ? 'var(--success)'
-                              : 'var(--destructive)'
+                            ? isActive ? 'var(--success)' : 'var(--destructive)'
                             : 'var(--foreground-muted)',
                           border: isSelected
                             ? `1px solid ${isActive ? 'var(--success)' : 'var(--destructive)'}`
@@ -510,13 +642,215 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               {...register('description')}
               rows={3}
               placeholder="Optional notes about this product"
-              style={{
-                ...inputBase(false),
-                resize: 'vertical',
-                minHeight: 80,
-              }}
+              style={{ ...inputBase(false), resize: 'vertical', minHeight: 80 }}
             />
           </div>
+
+          {/* Units (Product UOMs) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--border)', paddingTop: 20, marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 500, color: 'var(--foreground)' }}>
+                  Units &amp; Prices
+                </span>
+                <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '2px 0 0 0' }}>
+                  Units this product is sold/tracked in, with prices and conversions.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => appendUom({ ...emptyUom, conversions: [] })}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '6px 12px',
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                <Plus size={13} /> Add Unit
+              </button>
+            </div>
+
+            {editData && (
+              <span style={{ fontSize: 11, color: 'var(--warning)', background: 'var(--warning-bg)', padding: '8px 10px', borderRadius: 'var(--radius-sm)' }}>
+                Removing a unit here deletes it. Units with stock, recipes, or vouchers linked cannot be removed.
+              </span>
+            )}
+
+            {uomFields.map((uf, i) => {
+              const uomErr = (errors as any)?.uoms?.[i]
+              const usedUomIds = new Set(
+                (watchedUoms ?? [])
+                  .map((wu: any, idx: number) => (idx !== i ? Number(wu?.uom_id) : 0))
+                  .filter((id: number) => id > 0),
+              )
+              const targetOptions = (watchedUoms ?? [])
+                .map((wu: any, idx: number) => ({ wu, idx }))
+                .filter(({ wu, idx }: any) => idx !== i && Number(wu?.uom_id) > 0)
+                .map(({ wu }: any) => ({ value: Number(wu.uom_id), label: uomLabel(Number(wu.uom_id)) }))
+
+              return (
+                <div
+                  key={uf.id}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    background: 'var(--background)',
+                  }}
+                >
+                  {/* Card header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                      Unit #{i + 1}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Controller
+                        name={`uoms.${i}.is_default` as any}
+                        control={control}
+                        render={({ field }) => (
+                          <button
+                            type="button"
+                            onClick={() => setDefaultUom(i, !field.value)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              background: field.value ? 'var(--success-bg)' : 'var(--surface)',
+                              color: field.value ? 'var(--success)' : 'var(--foreground-muted)',
+                              border: `1px solid ${field.value ? 'var(--success)' : 'var(--border)'}`,
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {field.value ? '✓ ' : ''}Default
+                          </button>
+                        )}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeUom(i)}
+                        style={{
+                          padding: 4,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                          display: 'flex',
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* UOM + Code */}
+                  <input type="hidden" {...register(`uoms.${i}.id` as any)} />
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {fieldLabel('Unit', true)}
+                      <Controller
+                        name={`uoms.${i}.uom_id` as any}
+                        control={control}
+                        render={({ field }) => (
+                          <select
+                            value={field.value ?? 0}
+                            onChange={(e) => field.onChange(Number(e.target.value))}
+                            style={{ ...selectBase, border: `1px solid ${uomErr?.uom_id ? 'var(--destructive)' : 'var(--border)'}` }}
+                          >
+                            <option value={0}>Select unit...</option>
+                            {uoms
+                              .filter((u: any) => !usedUomIds.has(u.id))
+                              .map((uom: any) => (
+                                <option key={uom.id} value={uom.id}>
+                                  {uom.name} ({uom.code})
+                                </option>
+                              ))}
+                          </select>
+                        )}
+                      />
+                      {errorMsg(uomErr?.uom_id?.message)}
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {fieldLabel('SKU Code', true)}
+                      <input
+                        {...register(`uoms.${i}.code` as any)}
+                        placeholder="e.g. GRM"
+                        style={inputBase(!!uomErr?.code)}
+                      />
+                      {errorMsg(uomErr?.code?.message)}
+                    </div>
+                  </div>
+
+                  {/* Prices */}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    {([
+                      { name: 'base_price', label: 'Base Price' },
+                      { name: 'online_price', label: 'Online Price' },
+                      { name: 'franchise_price', label: 'Franchise Price' },
+                    ] as const).map((p) => (
+                      <div key={p.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>{p.label}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          {...register(`uoms.${i}.${p.name}` as any)}
+                          style={inputBase(false)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Price editable */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--foreground)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      {...register(`uoms.${i}.price_editable` as any)}
+                      style={{ accentColor: 'var(--accent)', width: 15, height: 15, cursor: 'pointer' }}
+                    />
+                    Price editable (e.g. by cashier)
+                  </label>
+
+                  {/* Conversions */}
+                  <ConversionsSection
+                    control={control}
+                    uomIndex={i}
+                    register={register}
+                    errors={errors}
+                    targetOptions={targetOptions}
+                  />
+                </div>
+              )
+            })}
+
+            {uomFields.length === 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: 24, border: '1px dashed var(--border)', borderRadius: 'var(--radius-lg)' }}>
+                <Repeat size={20} style={{ color: 'var(--foreground-subtle)' }} />
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                  {editData
+                    ? 'All units removed — saving will delete every unit of this product.'
+                    : 'No units yet. You can save the product header first and add units later.'}
+                </span>
+              </div>
+            )}
+          </div>
+            </>
+          )}
         </form>
 
         {/* Footer */}
@@ -547,8 +881,8 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           </button>
           <button
             type="button"
-            disabled={isPending}
-            onClick={handleSubmit(onSubmit, onInvalid)}
+            disabled={isPending || editLoading || editError}
+            onClick={() => handleSubmit(onSubmit, onInvalid)()}
             style={{
               padding: '8px 16px',
               background: 'var(--accent)',
@@ -561,7 +895,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              opacity: isPending ? 0.7 : 1,
+              opacity: isPending || editLoading || editError ? 0.7 : 1,
             }}
           >
             {isPending && (
@@ -578,6 +912,140 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           to { transform: rotate(360deg); }
         }
       `}</style>
+    </div>
+  )
+}
+
+// ---------- Nested conversions field array ----------
+
+interface ConversionsSectionProps {
+  control: any
+  uomIndex: number
+  register: any
+  errors: any
+  targetOptions: { value: number; label: string }[]
+}
+
+function ConversionsSection({ control, uomIndex, register, errors, targetOptions }: ConversionsSectionProps) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `uoms.${uomIndex}.conversions` as any,
+  })
+
+  const selectBase: React.CSSProperties = {
+    width: '100%',
+    height: 38,
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '0 10px',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface-raised)',
+    boxSizing: 'border-box' as const,
+    fontFamily: 'var(--font-sans)',
+  }
+
+  const inputBase = (hasError: boolean): React.CSSProperties => ({
+    width: '100%',
+    padding: '8px 10px',
+    border: `1px solid ${hasError ? 'var(--destructive)' : 'var(--border)'}`,
+    borderRadius: 'var(--radius-md)',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface-raised)',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+    boxSizing: 'border-box',
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Conversions
+        </span>
+        <button
+          type="button"
+          onClick={() => append({ ...emptyConversion })}
+          disabled={targetOptions.length === 0}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '4px 10px',
+            background: 'var(--surface)',
+            color: 'var(--foreground-muted)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 11,
+            fontWeight: 500,
+            cursor: targetOptions.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: targetOptions.length === 0 ? 0.6 : 1,
+          }}
+        >
+          <Plus size={11} /> Add Conversion
+        </button>
+      </div>
+
+      {targetOptions.length === 0 && fields.length === 0 && (
+        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+          Add another unit to this product first to define conversions.
+        </span>
+      )}
+
+      {fields.map((cf, ci) => {
+        const convErr = errors?.uoms?.[uomIndex]?.conversions?.[ci]
+        return (
+          <div key={cf.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <input type="hidden" {...register(`uoms.${uomIndex}.conversions.${ci}.id` as any)} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <select
+                {...register(`uoms.${uomIndex}.conversions.${ci}.target_uom_id`, { valueAsNumber: true })}
+                style={{ ...selectBase, border: `1px solid ${convErr?.target_uom_id ? 'var(--destructive)' : 'var(--border)'}` }}
+              >
+                <option value={0}>Converts to...</option>
+                {targetOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {convErr?.target_uom_id?.message && (
+                <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{convErr.target_uom_id.message}</span>
+              )}
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                placeholder="Amount (e.g. 0.001)"
+                {...register(`uoms.${uomIndex}.conversions.${ci}.amount`, { valueAsNumber: true })}
+                style={inputBase(!!convErr?.amount)}
+              />
+              {convErr?.amount?.message && (
+                <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{convErr.amount.message}</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => remove(ci)}
+              style={{
+                padding: 8,
+                background: 'none',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                color: 'var(--destructive)',
+                display: 'flex',
+                marginTop: 2,
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
