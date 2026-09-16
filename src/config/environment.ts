@@ -6,15 +6,11 @@ if (!rawUrl) {
   }
 }
 
-const normalizeBaseUrl = (url?: string | null) => {
-  if (!url) return undefined;
-  return url.endsWith("/") ? url.slice(0, -1) : url;
-};
-
-// Use /api proxy route to avoid CORS issues
-// The Next.js rewrite in next.config.ts will proxy /api/* to the actual API
+// Use the /v1 proxy route to avoid CORS issues — the Next.js rewrite in
+// next.config.ts forwards /v1/* server-side to NEXT_PUBLIC_API_URL, so the
+// browser must call the relative path, never the absolute backend URL.
 const environment = {
-  API_URL: normalizeBaseUrl(rawUrl),
+  API_URL: "/v1",
 } as const;
 
 export default environment;
