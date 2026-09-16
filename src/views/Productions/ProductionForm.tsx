@@ -137,6 +137,7 @@ interface MaterialsFieldArrayProps {
   setSharedMaterialProductName: (v: string) => void
   setSharedShowMaterialUomPicker: (v: boolean) => void
   onSelectMaterialInventory: (detailIndex: number, matIndex: number, inv: any, productName: string) => void
+  onRemoveMaterial: (detailIndex: number, matIndex: number) => void
   materialLabels: Record<string, string>
   setValue: any
   onMaterialQtyEdit?: (detailIndex: number, matIndex: number, qty: number) => void
@@ -165,6 +166,7 @@ export function MaterialsFieldArray({
   setSharedMaterialProductName,
   setSharedShowMaterialUomPicker,
   onSelectMaterialInventory,
+  onRemoveMaterial,
   materialLabels,
   setValue,
 }: MaterialsFieldArrayProps) {
@@ -261,6 +263,8 @@ export function MaterialsFieldArray({
           <div
             key={field.id}
             style={{
+              position: 'relative',
+              zIndex: isActive ? 1000 : 1,
               display: 'grid',
               gridTemplateColumns: '24px 1fr 120px 32px',
               gap: 8,
@@ -283,10 +287,17 @@ export function MaterialsFieldArray({
             </div>
 
             {/* Material search input + pickers */}
-            <div style={{ position: 'relative', zIndex: 10 }} data-material-row>
+            <div
+              style={{
+                position: 'relative',
+                zIndex: isActive ? 1001 : 1,
+                minWidth: 0,
+              }}
+              data-material-row
+            >
               <input
                 type="text"
-                value={isActive ? sharedMaterialSearch : existingLabel}
+                value={isActive ? sharedMaterialSearch || existingLabel : existingLabel}
                 onChange={(e) => {
                   setActiveMaterialIndex({ detail: detailIndex, mat: matIndex })
                   setSharedMaterialSearch(e.target.value)
@@ -295,7 +306,43 @@ export function MaterialsFieldArray({
                 }}
                 onFocus={() => {
                   setActiveMaterialIndex({ detail: detailIndex, mat: matIndex })
-                  if (!sharedShowMaterialUomPicker) {
+                  // If the row already has an inventory selected, pop up the
+                  // inventory selector for that row's product right away.
+                  const selInvId = watchedMaterials?.[matIndex]?.product_inventory_id
+                  const labelProductName = existingLabel
+                    .split(/\s+[·—]\s+/)[0]
+                    .trim()
+                  // Labels loaded from a recipe identify the material more
+                  // reliably than a stale/mismatched inventory id. Prefer the
+                  // inventory whose product name matches this exact row.
+                  const labelInv = labelProductName
+                    ? inventories.find((i: any) => {
+                        const productName =
+                          i?.product_uom_batch?.product_uom?.product?.name ??
+                          i?.product_uom?.product?.name ??
+                          ''
+                        return productName === labelProductName
+                      })
+                    : null
+                  const selectedInv = selInvId
+                    ? inventories.find((i: any) => i.id === Number(selInvId))
+                    : null
+                  const selInv = labelInv ?? selectedInv
+                  const pid =
+                    selInv?.product_uom_batch?.product_uom?.product_id ??
+                    selInv?.product_uom?.product_id ??
+                    null
+                  if (pid) {
+                    const pname =
+                      selInv?.product_uom_batch?.product_uom?.product?.name ??
+                      selInv?.product_uom?.product?.name ??
+                      existingLabel
+                    setSharedMaterialProductId(Number(pid))
+                    setSharedMaterialProductName(String(pname))
+                    setSharedShowMaterialUomPicker(true)
+                  } else {
+                    setSharedMaterialSearch('')
+                    setSharedShowMaterialUomPicker(false)
                     setSharedMaterialProductId(null)
                   }
                 }}
@@ -311,6 +358,8 @@ export function MaterialsFieldArray({
                   background: 'var(--surface-raised)',
                   boxSizing: 'border-box',
                   fontFamily: 'var(--font-sans)',
+                  borderColor: isActive ? 'var(--accent-light)' : 'var(--border)',
+                  boxShadow: isActive ? '0 0 0 2px var(--accent-light-bg)' : 'none',
                 }}
               />
 
@@ -339,13 +388,13 @@ export function MaterialsFieldArray({
                 <div
                   style={{
                     position: 'absolute',
-                    top: '100%',
+                    top: 'calc(100% + 6px)',
                     left: 0,
                     right: 0,
                     width: '100%',
-                    zIndex: 200,
+                    zIndex: 1100,
                     background: 'var(--surface-raised)',
-                    border: '1px solid var(--border)',
+                    border: '1px solid var(--border-strong)',
                     borderRadius: 'var(--radius-md)',
                     boxShadow: 'var(--shadow-lg)',
                     maxHeight: 200,
@@ -373,7 +422,7 @@ export function MaterialsFieldArray({
                         fontSize: 12,
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-raised)')}
+                       onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-raised)')}
                     >
                       <span style={{ fontWeight: 600 }}>{p.name}</span>
                       <span style={{ color: 'var(--foreground-muted)', marginLeft: 6, fontSize: 11 }}>
@@ -388,55 +437,112 @@ export function MaterialsFieldArray({
                 <div
                   style={{
                     position: 'absolute',
-                    top: '100%',
+                    top: 'calc(100% + 6px)',
                     left: 0,
                     right: 0,
                     width: '100%',
-                    zIndex: 200,
+                    zIndex: 1100,
                     background: 'var(--surface-raised)',
-                    border: '1px solid var(--accent-light)',
+                    border: '1px solid var(--border-strong)',
                     borderRadius: 'var(--radius-md)',
                     boxShadow: 'var(--shadow-lg)',
-                    padding: 10,
+                    padding: 12,
                   }}
                 >
-                  <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginBottom: 8 }}>
-                    Select inventory for <strong>{sharedMaterialProductName}</strong>:
+                  <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 10 }}>
+                    Pilih inventory untuk <strong style={{ color: 'var(--foreground)' }}>{sharedMaterialProductName}</strong>
                   </div>
                   {materialInventories.length === 0 && (
                     <p style={{ fontSize: 12, color: 'var(--destructive)', margin: 0 }}>
                       No active inventory found for this product.
                     </p>
                   )}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {materialInventories.map((inv: any) => (
-                      <button
-                        key={inv.id}
-                        type="button"
-                        onClick={() => {
-                          onSelectMaterialInventory(detailIndex, matIndex, inv, sharedMaterialProductName)
-                          setSharedShowMaterialUomPicker(false)
-                          setSharedMaterialProductId(null)
-                          setSharedMaterialProductName('')
-                          setActiveMaterialIndex(null)
-                        }}
-                        style={{
-                          padding: '5px 10px',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'var(--surface)',
-                          color: 'var(--foreground)',
-                          fontSize: 11,
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {inv.product_uom?.uom?.code ?? 'UOM'} — SKU: {inv.code ?? inv.id}
-                        <span style={{ color: 'var(--foreground-muted)', marginLeft: 4 }}>
-                          Stock: {inv.qty ?? 0}
-                        </span>
-                      </button>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {materialInventories.map((inv: any) => {
+                      const uomCode =
+                        inv.product_uom?.uom?.code ??
+                        inv.product_uom_batch?.product_uom?.uom?.code ??
+                        'UOM'
+                      const sku = inv.code ?? `#${inv.id}`
+                      const stock = inv.display_qty ?? inv.qty ?? 0
+                      return (
+                        <button
+                          key={inv.id}
+                          type="button"
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = 'var(--background)')
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = 'var(--surface)')
+                          }
+                          onClick={() => {
+                            onSelectMaterialInventory(detailIndex, matIndex, inv, sharedMaterialProductName)
+                            setSharedShowMaterialUomPicker(false)
+                            setSharedMaterialProductId(null)
+                            setSharedMaterialProductName('')
+                            setActiveMaterialIndex(null)
+                          }}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: 10,
+                            width: '100%',
+                            padding: '8px 12px',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-md)',
+                            background: 'var(--surface)',
+                            color: 'var(--foreground)',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              minWidth: 0,
+                            }}
+                          >
+                            <span
+                              style={{
+                                padding: '2px 8px',
+                                background: 'var(--accent-light-bg)',
+                                color: 'var(--accent)',
+                                borderRadius: 'var(--radius-sm)',
+                                fontSize: 11,
+                                fontWeight: 600,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {uomCode}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 500,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              SKU: {sku}
+                            </span>
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: stock > 0 ? 'var(--success)' : 'var(--destructive)',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {stock > 0 ? `Stok: ${stock}` : 'Stok: 0'}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
                   <button
                     type="button"
@@ -496,7 +602,10 @@ export function MaterialsFieldArray({
             <div style={{ position: 'relative', zIndex: 20, flexShrink: 0 }}>
               <button
                 type="button"
-                onClick={() => remove(matIndex)}
+                onClick={() => {
+                  remove(matIndex)
+                  onRemoveMaterial(detailIndex, matIndex)
+                }}
                 disabled={fields.length === 1}
                 style={{
                   padding: 5,
@@ -737,6 +846,8 @@ export default function ProductionForm({
   const { data: inventoriesData } = useQuery({
     queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch],
     enabled: !!activeBranchId,
+    refetchOnMount: 'always',
+    staleTime: 0,
     queryFn: async () => {
       let allInventories: any[] = []
       let page = 1
@@ -764,10 +875,11 @@ export default function ProductionForm({
   })
   const inventories = (inventoriesData as any)?.data ?? []
 
-  // Material product search
+  // Material product search (Step 1) — /products has reliable name search
   const { data: prodMaterialData } = useQuery({
     queryKey: ['prod-material-search', sharedMaterialSearchDebounced, activeProductTypes],
     enabled: sharedMaterialSearchDebounced.length >= 2,
+    refetchOnMount: 'always',
     queryFn: () =>
       api
         .get('/products', {
@@ -782,16 +894,19 @@ export default function ProductionForm({
   })
   const materialProducts = unwrapList(prodMaterialData)
 
-  // Inventories for selected material product
+  // Inventories for selected material product (Step 2) — hits
+  // /product-inventories fresh every time with the supported includes only
   const { data: prodMaterialInvData } = useQuery({
     queryKey: ['prod-material-inventories', sharedMaterialProductId, activeBranchId],
     enabled: !!sharedMaterialProductId && !!activeBranchId,
+    refetchOnMount: 'always',
+    staleTime: 0,
     queryFn: () =>
       api
         .get('/product-inventories', {
           params: {
             per_page: 500,
-            include: 'product_uom_batch,product_uom_batch.product_uom',
+            include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
             'filter[status]': 'active',
             'filter[branch_id]': activeBranchId,
           },
@@ -799,11 +914,22 @@ export default function ProductionForm({
         .then((r) => r.data),
   })
   const allMaterialInventories = unwrapList(prodMaterialInvData)
-  const materialInventories = allMaterialInventories.filter(
-    (inv: any) =>
-      inv.product_uom?.product_id === sharedMaterialProductId ||
-      inv.product_uom_batch?.product_uom?.product_id === sharedMaterialProductId
-  )
+  const materialInventories = useMemo(() => {
+    // The main inventory query loads every page. Merge it with the picker
+    // query so products already visible in the form cannot show a false
+    // "No active inventory" state when the picker query's first page omits it.
+    const byId = new Map<number, any>()
+    ;[...allMaterialInventories, ...inventories].forEach((inv: any) => {
+      if (inv?.id != null) byId.set(Number(inv.id), inv)
+    })
+
+    return Array.from(byId.values()).filter((inv: any) => {
+      const productId =
+        inv.product_uom_batch?.product_uom?.product_id ??
+        inv.product_uom?.product_id
+      return Number(productId) === Number(sharedMaterialProductId)
+    })
+  }, [allMaterialInventories, inventories, sharedMaterialProductId])
 
   // Edit mode: prefill
   useEffect(() => {
@@ -857,16 +983,9 @@ export default function ProductionForm({
           return
         }
 
-        // Accumulate identical materials
-        const groupedMaterials: Record<number, any> = {}
-        rawMaterials.forEach((mat: any) => {
-          const id = mat.product_uom_id
-          if (!groupedMaterials[id]) {
-            groupedMaterials[id] = { ...mat, qty: 0 }
-          }
-          groupedMaterials[id].qty += Number(mat.qty) || 0
-        })
-        const materials = Object.values(groupedMaterials)
+        // Keep every recipe row as-is (no grouping) so the UI shows the same
+        // number of materials as the API response.
+        const materials = rawMaterials
 
         const recipeQty = Number(recipe.qty) || 1
         const prodQty = recipeQty // override with recipe's yield qty
@@ -987,6 +1106,26 @@ export default function ProductionForm({
       setMaterialLabels((prev) => ({ ...prev, [`${detailIndex}-${matIndex}`]: label }))
     },
     [setValue],
+  )
+
+  const handleRemoveMaterial = useCallback(
+    (detailIndex: number, matIndex: number) => {
+      setMaterialLabels((prev) => {
+        const next: Record<string, string> = {}
+        Object.entries(prev).forEach(([key, value]) => {
+          const [detail, material] = key.split('-').map(Number)
+          if (detail !== detailIndex) {
+            next[key] = value
+          } else if (material < matIndex) {
+            next[key] = value
+          } else if (material > matIndex) {
+            next[`${detail}-${material - 1}`] = value
+          }
+        })
+        return next
+      })
+    },
+    [],
   )
 
   const buildPayload = (values: FormValues) => ({
@@ -1861,6 +2000,7 @@ export default function ProductionForm({
 
                       {/* Materials */}
                       <MaterialsFieldArray
+                        key={`materials-${detailIndex}-${watchDetails[detailIndex]?.materials?.length ?? 0}`}
                         control={control}
                         detailIndex={detailIndex}
                         register={register}
@@ -1882,6 +2022,7 @@ export default function ProductionForm({
                         setSharedMaterialProductName={setSharedMaterialProductName}
                         setSharedShowMaterialUomPicker={setSharedShowMaterialUomPicker}
                         onSelectMaterialInventory={handleSelectMaterialInventory}
+                        onRemoveMaterial={handleRemoveMaterial}
                         materialLabels={mergedMaterialLabels}
                         setValue={setValue}
                       />

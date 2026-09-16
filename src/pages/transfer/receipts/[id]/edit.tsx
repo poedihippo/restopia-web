@@ -6,3 +6,7 @@ export default function ReceiptEditPage() {
   const id = Number(router.query.id)
   return <ReceiptEdit id={id} />
 }
+
+export async function getServerSideProps() {
+  return { props: {} }
+}
