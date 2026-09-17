@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useForm, Controller } from 'react-hook-form'
@@ -12,6 +12,7 @@ import {
   BankAccountRequest,
   BankAccountType,
 } from '@/services/bank-accounts.service'
+import { paymentMethodsService } from '@/services/payment-methods.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -128,6 +129,28 @@ export default function BankAccountsView() {
         .then((res) => res.data),
   })
   const coaList: any[] = (coaData as any)?.data ?? []
+
+  // Fetch linked payment methods to show sync status on each bank account.
+  const { data: pmData } = useQuery({
+    queryKey: ['payment-methods-bank-linked'],
+    queryFn: () =>
+      paymentMethodsService
+        .list({
+          per_page: 1000,
+          include: 'bank_account',
+        } as any)
+        .then((res) => res.data),
+  })
+  const paymentMethods: any[] = (pmData as any)?.data ?? []
+  const paymentMethodByBankId = useMemo(() => {
+    const map = new Map<number, any>()
+    for (const pm of paymentMethods) {
+      if (pm.bank_account_id) {
+        map.set(pm.bank_account_id, pm)
+      }
+    }
+    return map
+  }, [paymentMethods])
   const coaOptions = coaList.map((item: any) => ({
     value: item.id,
     label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
@@ -197,6 +220,9 @@ export default function BankAccountsView() {
     mutationFn: (vals: BankAccountRequest) => bankAccountsService.create(vals),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods-bank-linked'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods-all'] })
       toast.success('Bank account created successfully')
       setSheetOpen(false)
     },
@@ -208,6 +234,9 @@ export default function BankAccountsView() {
       bankAccountsService.update(editItem!.id, vals),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods-bank-linked'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods-all'] })
       toast.success('Bank account updated successfully')
       setSheetOpen(false)
     },
@@ -218,10 +247,25 @@ export default function BankAccountsView() {
     mutationFn: (id: number) => bankAccountsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods-bank-linked'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods'] })
+      queryClient.invalidateQueries({ queryKey: ['payment-methods-all'] })
       toast.success('Bank account deleted successfully')
       setDeleteConfirmId(null)
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to delete bank account'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? ''
+      if (
+        /bank account payment method has payments/i.test(msg) ||
+        /bank account has transactions/i.test(msg)
+      ) {
+        toast.error(
+          'This bank account cannot be deleted because it has existing payment records. Void or delete the related payments first.'
+        )
+        return
+      }
+      toastMutationApiError(err, 'Failed to delete bank account')
+    },
   })
 
   const onSubmit = (values: FormValues) => {
@@ -446,6 +490,7 @@ export default function BankAccountsView() {
                 <th style={{ ...thStyle, textAlign: 'right', width: 140 }}>Opening Balance</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 140 }}>Current Balance</th>
                 <th style={{ ...thStyle, width: 100, textAlign: 'center' }}>Status</th>
+                <th style={{ ...thStyle, width: 120, textAlign: 'center' }}>PM Status</th>
                 <th style={{ ...thStyle, width: 100, textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
@@ -453,7 +498,7 @@ export default function BankAccountsView() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 9 }).map((__, j) => (
+                    {Array.from({ length: 10 }).map((__, j) => (
                       <td key={j} style={tdStyle}>
                         <div
                           style={{
@@ -470,7 +515,7 @@ export default function BankAccountsView() {
                 ))
               ) : isError ? (
                 <tr>
-                  <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                  <td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                     <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                       Failed to load bank accounts.
                     </span>
@@ -478,7 +523,7 @@ export default function BankAccountsView() {
                 </tr>
               ) : bankAccounts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                  <td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                     <div
                       style={{
                         display: 'flex',
@@ -631,6 +676,54 @@ export default function BankAccountsView() {
                           {item.is_active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
+
+                      {/* Payment Method Status */}
+                      {(() => {
+                        const linkedPm = paymentMethodByBankId.get(item.id)
+                        const pmStatus = linkedPm
+                          ? linkedPm.chart_of_account_id
+                            ? 'linked'
+                            : 'missing-coa'
+                          : 'unlinked'
+                        const pmStatusMeta: Record<string, { label: string; bg: string; color: string }> = {
+                          linked: { label: 'Linked', bg: 'var(--success-bg)', color: 'var(--success)' },
+                          'missing-coa': { label: 'Missing CoA', bg: 'var(--warning-bg)', color: 'var(--warning)' },
+                          unlinked: { label: 'Unlinked', bg: 'var(--background)', color: 'var(--foreground-muted)' },
+                        }
+                        const meta = pmStatusMeta[pmStatus]
+                        return (
+                          <td style={{ ...tdStyle, textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                window.open(
+                                  `/settings/payment-methods?filter[bank_account_id]=${item.id}`,
+                                  '_blank'
+                                )
+                              }
+                              title={
+                                pmStatus === 'linked'
+                                  ? 'View linked payment method'
+                                  : pmStatus === 'missing-coa'
+                                    ? 'Chart of Account missing on linked payment method'
+                                    : 'No linked payment method yet'
+                              }
+                              style={{
+                                padding: '3px 9px',
+                                borderRadius: 99,
+                                fontSize: 11,
+                                fontWeight: 600,
+                                background: meta.bg,
+                                color: meta.color,
+                                border: pmStatus === 'unlinked' ? '1px solid var(--border)' : 'none',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {meta.label}
+                            </button>
+                          </td>
+                        )
+                      })()}
 
                       {/* Actions */}
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
@@ -1051,38 +1144,78 @@ export default function BankAccountsView() {
             </div>
 
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {[
-                { label: 'Bank Name', value: viewItem.bank_name },
-                { label: 'Account Number', value: viewItem.account_number },
-                { label: 'Account Name', value: viewItem.account_name },
-                { label: 'Account Type', value: viewItem.account_type?.toUpperCase() },
-                {
-                  label: 'Linked CoA',
-                  value: viewItem.account
-                    ? `[${viewItem.account.account_code}] ${viewItem.account.account_name}`
-                    : '—',
-                },
-                { label: 'Branch', value: viewItem.branch || '—' },
-                { label: 'SWIFT Code', value: viewItem.swift_code || '—' },
-                {
-                  label: 'Opening Balance',
-                  value: formatCurrency(viewItem.opening_balance ?? 0),
-                },
-                {
-                  label: 'Current Balance',
-                  value: formatCurrency(viewItem.current_balance ?? 0),
-                },
-                { label: 'Status', value: viewItem.is_active ? 'Active' : 'Inactive' },
-                { label: 'Created By', value: viewItem.created_by?.name || '—' },
-                {
-                  label: 'Created At',
-                  value: viewItem.created_at ? formatDateTime(viewItem.created_at) : '—',
-                },
-                {
-                  label: 'Updated At',
-                  value: viewItem.updated_at ? formatDateTime(viewItem.updated_at) : '—',
-                },
-              ].map((f) => (
+              {(() => {
+                const linkedPm = paymentMethodByBankId.get(viewItem.id)
+                const pmStatus = linkedPm
+                  ? linkedPm.chart_of_account_id
+                    ? 'linked'
+                    : 'missing-coa'
+                  : 'unlinked'
+                const pmStatusMeta: Record<string, { label: string; bg: string; color: string }> = {
+                  linked: { label: 'Linked', bg: 'var(--success-bg)', color: 'var(--success)' },
+                  'missing-coa': { label: 'Missing CoA', bg: 'var(--warning-bg)', color: 'var(--warning)' },
+                  unlinked: { label: 'Unlinked', bg: 'var(--background)', color: 'var(--foreground-muted)' },
+                }
+                const meta = pmStatusMeta[pmStatus]
+                return [
+                  { label: 'Bank Name', value: viewItem.bank_name },
+                  { label: 'Account Number', value: viewItem.account_number },
+                  { label: 'Account Name', value: viewItem.account_name },
+                  { label: 'Account Type', value: viewItem.account_type?.toUpperCase() },
+                  {
+                    label: 'Linked CoA',
+                    value: viewItem.account
+                      ? `[${viewItem.account.account_code}] ${viewItem.account.account_name}`
+                      : '—',
+                  },
+                  { label: 'Branch', value: viewItem.branch || '—' },
+                  { label: 'SWIFT Code', value: viewItem.swift_code || '—' },
+                  {
+                    label: 'Opening Balance',
+                    value: formatCurrency(viewItem.opening_balance ?? 0),
+                  },
+                  {
+                    label: 'Current Balance',
+                    value: formatCurrency(viewItem.current_balance ?? 0),
+                  },
+                  { label: 'Status', value: viewItem.is_active ? 'Active' : 'Inactive' },
+                  {
+                    label: 'Payment Method Status',
+                    value: (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          window.open(
+                            `/settings/payment-methods?filter[bank_account_id]=${viewItem.id}`,
+                            '_blank'
+                          )
+                        }
+                        style={{
+                          padding: '3px 9px',
+                          borderRadius: 99,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: meta.bg,
+                          color: meta.color,
+                          border: pmStatus === 'unlinked' ? '1px solid var(--border)' : 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {meta.label}
+                      </button>
+                    ),
+                  },
+                  { label: 'Created By', value: viewItem.created_by?.name || '—' },
+                  {
+                    label: 'Created At',
+                    value: viewItem.created_at ? formatDateTime(viewItem.created_at) : '—',
+                  },
+                  {
+                    label: 'Updated At',
+                    value: viewItem.updated_at ? formatDateTime(viewItem.updated_at) : '—',
+                  },
+                ]
+              })().map((f) => (
                 <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <span
                     style={{

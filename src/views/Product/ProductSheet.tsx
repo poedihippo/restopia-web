@@ -37,7 +37,7 @@ const schema = z.object({
   product_category_id: z.coerce.number().min(1, 'Category is required'),
   type: z.string().min(1, 'Type is required'),
   description: z.string().optional(),
-  status: z.enum(['active', 'inactive']),
+  is_active: z.boolean(),
   base_uom_id: z.coerce.number().optional().nullable(),
   reorder_point: z.coerce.number().int().min(0).nullable().optional(),
   uoms: z
@@ -126,7 +126,7 @@ interface ProductSheetProps {
     product_category_id: number
     type?: 'raw' | 'wip' | 'final' | 'supply'
     description?: string
-    status: 'active' | 'inactive'
+    is_active: boolean
     base_uom_id?: number | null
     reorder_point?: number | null
   } | null
@@ -169,7 +169,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       product_category_id: 0,
       type: '',
       description: '',
-      status: 'active',
+      is_active: true,
       base_uom_id: null,
       reorder_point: null,
       uoms: [],
@@ -190,7 +190,24 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
   const { data: uomsData } = useQuery({
     queryKey: ['uoms-all'],
-    queryFn: () => uomsService.list({ per_page: 200 } as any).then((r) => r.data),
+    queryFn: async () => {
+      let allUoms: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await uomsService
+          .list({ page, per_page: 100 } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data?.data ?? []
+        allUoms = allUoms.concat(items)
+        totalPages =
+          (res as any)?.data?.meta?.last_page ??
+          (res as any)?.data?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allUoms }
+    },
   })
   const uoms: any[] = (uomsData as any)?.data ?? []
 
@@ -211,7 +228,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         product_category_id: 0,
         type: '',
         description: '',
-        status: 'active',
+        is_active: true,
         base_uom_id: null,
         reorder_point: null,
         uoms: [],
@@ -225,7 +242,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       product_category_id: detail.product_category_id ?? editData.product_category_id ?? 0,
       type: detail.type ?? editData.type ?? '',
       description: detail.description ?? editData.description ?? '',
-      status: detail.status ?? editData.status ?? 'active',
+      is_active: detail.is_active ?? editData.is_active ?? true,
       base_uom_id: detail.base_uom_id ?? null,
       reorder_point: detail.reorder_point ?? null,
       uoms: (detail.product_uoms ?? []).map((pu: any) => ({
@@ -253,7 +270,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       name: values.name,
       type: values.type,
       description: values.description ?? '',
-      status: values.status,
+      is_active: values.is_active,
       base_uom_id: values.base_uom_id ?? null,
       reorder_point: values.reorder_point ?? null,
     }
@@ -593,43 +610,39 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
             {errorMsg(errors.reorder_point?.message as string | undefined)}
           </div>
 
-          {/* Status */}
+          {/* Is Active */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {fieldLabel('Status', true)}
+            {fieldLabel('Active', true)}
             <Controller
-              name="status"
+              name="is_active"
               control={control}
               render={({ field }) => (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {(['active', 'inactive'] as const).map((s) => {
-                    const isSelected = field.value === s
-                    const isActive = s === 'active'
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => field.onChange(s)}
-                        style={{
-                          padding: '6px 16px',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 13,
-                          fontWeight: 500,
-                          cursor: 'pointer',
-                          background: isSelected
-                            ? isActive ? 'var(--success-bg)' : 'var(--destructive-bg)'
-                            : 'var(--background)',
-                          color: isSelected
-                            ? isActive ? 'var(--success)' : 'var(--destructive)'
-                            : 'var(--foreground-muted)',
-                          border: isSelected
-                            ? `1px solid ${isActive ? 'var(--success)' : 'var(--destructive)'}`
-                            : '1px solid var(--border)',
-                        }}
-                      >
-                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                      </button>
-                    )
-                  })}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([true, false] as const).map((val) => (
+                    <button
+                      key={String(val)}
+                      type="button"
+                      onClick={() => field.onChange(val)}
+                      style={{
+                        padding: '6px 16px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        background: field.value === val
+                          ? val ? 'var(--success-bg)' : 'var(--destructive-bg)'
+                          : 'var(--background)',
+                        color: field.value === val
+                          ? val ? 'var(--success)' : 'var(--destructive)'
+                          : 'var(--foreground-muted)',
+                        border: field.value === val
+                          ? `1px solid ${val ? 'var(--success)' : 'var(--destructive)'}`
+                          : '1px solid var(--border)',
+                      }}
+                    >
+                      {val ? 'Yes' : 'No'}
+                    </button>
+                  ))}
                 </div>
               )}
             />

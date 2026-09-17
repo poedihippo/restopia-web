@@ -30,6 +30,7 @@ const schema = z.object({
   franchise_price: z.coerce.number().min(0).optional(),
   price_editable: z.boolean().optional(),
   is_default: z.boolean().optional(),
+  is_active: z.boolean().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -46,6 +47,7 @@ interface ProductUomSheetProps {
     franchise_price?: number
     price_editable?: boolean
     is_default?: boolean
+    is_active?: boolean
     product?: { id?: number; name?: string; code?: string }
     uom?: { id?: number; name?: string; code?: string }
   } | null
@@ -81,6 +83,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       franchise_price: 0,
       price_editable: false,
       is_default: false,
+      is_active: true,
     },
   })
 
@@ -104,6 +107,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
           sort: 'name',
           'filter[search]': productSearchDebounced || undefined,
           'filter[product_types]': activeProductTypes,
+          'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
   })
@@ -185,6 +189,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         franchise_price: editData.franchise_price ?? 0,
         price_editable: editData.price_editable ?? false,
         is_default: editData.is_default ?? false,
+        is_active: editData.is_active ?? true,
       })
     } else {
       reset({
@@ -196,6 +201,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         franchise_price: 0,
         price_editable: false,
         is_default: false,
+        is_active: true,
       })
     }
   }, [editData, reset])
@@ -214,6 +220,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         franchise_price: 0,
         price_editable: false,
         is_default: false,
+        is_active: true,
       })
       onClose()
     },
@@ -462,7 +469,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
           </div>
 
           {/* Toggles */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             {/* Price Editable */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
@@ -511,6 +518,47 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               </label>
               <Controller
                 name="is_default"
+                control={control}
+                render={({ field }) => (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([true, false] as const).map((val) => (
+                      <button
+                        key={String(val)}
+                        type="button"
+                        onClick={() => field.onChange(val)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 8px',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          background: field.value === val
+                            ? val ? 'var(--success-bg)' : 'var(--destructive-bg)'
+                            : 'var(--background)',
+                          color: field.value === val
+                            ? val ? 'var(--success)' : 'var(--destructive)'
+                            : 'var(--foreground-muted)',
+                          border: field.value === val
+                            ? `1px solid ${val ? 'var(--success)' : 'var(--destructive)'}`
+                            : '1px solid var(--border)',
+                        }}
+                      >
+                        {val ? 'Yes' : 'No'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              />
+            </div>
+
+            {/* Is Active */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                Active
+              </label>
+              <Controller
+                name="is_active"
                 control={control}
                 render={({ field }) => (
                   <div style={{ display: 'flex', gap: 6 }}>

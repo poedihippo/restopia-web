@@ -125,7 +125,7 @@ export default function ProductInventorySheet({
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom' })
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom', 'filter[is_active]': true })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)

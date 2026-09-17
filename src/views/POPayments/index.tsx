@@ -119,9 +119,16 @@ export default function POPaymentsView() {
   const { data: paymentMethodsData } = useQuery({
     queryKey: ['payment-methods-all', debouncedDropdownSearch],
     queryFn: () =>
-      paymentMethodsService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 50, sort: 'id', 'filter[type]': 'purchase_orders' } as any).then((r) => r.data),
+      paymentMethodsService.list({
+        'filter[search]': debouncedDropdownSearch || undefined,
+        per_page: 100,
+        sort: 'id',
+        'filter[type]': 'purchase_orders',
+        include: 'bank_account',
+      } as any).then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
+  const selectedPaymentMethod = paymentMethods.find((pm: any) => pm.id === paymentMethodId)
 
   // ── Supplier's POs ────────────────────────────────────────────────────────
   const { data: posData, isLoading: posLoading } = useQuery({
@@ -482,10 +489,24 @@ export default function POPaymentsView() {
                     </option>
                     {paymentMethods.map((pm: any) => (
                       <option key={pm.id} value={pm.id}>
-                        {pm.name}
+                        {pm.bank_account_id
+                          ? `${pm.bank_account?.bank_name ?? pm.name} ${pm.bank_account?.account_number ?? ''}`
+                          : pm.name}
                       </option>
                     ))}
                   </select>
+                  {selectedPaymentMethod?.bank_account_id && (
+                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                        Bank: {selectedPaymentMethod.bank_account?.bank_name} ({selectedPaymentMethod.bank_account?.account_number})
+                      </span>
+                      {!selectedPaymentMethod.chart_of_account_id && (
+                        <span style={{ fontSize: 12, color: 'var(--warning)' }}>
+                          This bank account has no Chart of Account assigned. Payment cannot proceed until the CoA is set on the bank account.
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>

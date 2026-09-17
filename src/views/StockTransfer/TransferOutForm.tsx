@@ -125,11 +125,12 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,
             page,
             per_page: 100,
             include: 'product,uom',
             'filter[product_types]': activeProductTypes,
+            'filter[is_active]': true,
           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []

@@ -31,7 +31,7 @@ interface Product {
   name: string
   code?: string
   type?: 'raw' | 'wip' | 'final' | 'supply'
-  status: 'active' | 'inactive'
+  is_active: boolean
   product_category_id: number
   description?: string
   reorder_point?: number | null

@@ -109,7 +109,7 @@ export interface ProductRequest {
   description?: string
   base_uom_id?: number | null
   reorder_point?: number | null
-  status?: 'active' | 'inactive'
+  is_active?: boolean
   uoms?: ProductUomPayload[]
 }
 
@@ -137,6 +137,7 @@ export interface ProductUomRequest {
   franchise_price?: number
   price_editable?: boolean
   is_default?: boolean
+  is_active?: boolean
 }
 
 // Product Inventories
@@ -479,6 +480,15 @@ export interface PosCartBundle {
 export interface PaymentMethod {
   id: number
   name: string
+  type?: string
+  chart_of_account_id?: number | null
+  bank_account_id?: number | null
+  bank_account?: {
+    id: number
+    bank_name: string
+    account_number: string
+    account_name: string
+  } | null
 }
 
 export interface PaymentRequest {

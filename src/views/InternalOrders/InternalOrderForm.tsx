@@ -125,6 +125,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             include: 'product,uom',
             'filter[product_types]': activeProductTypes,
             'filter[is_default]': showAllUoms ? undefined : true,
+            'filter[is_active]': true,
            } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []

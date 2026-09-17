@@ -158,7 +158,7 @@ export default function ProductUomBatchesView() {
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page: p, per_page: perPage, include: 'product,uom', 'filter[product_types]': activeProductTypes } as any)
+          .list({ page: p, per_page: perPage, include: 'product,uom', 'filter[product_types]': activeProductTypes, 'filter[is_active]': true } as any)
           .then((r) => r.data)
         all = all.concat((res as any)?.data ?? [])
         totalPages =

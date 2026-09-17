@@ -129,7 +129,7 @@ export default function ProductInventoryConvertSheet({
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,uom' })
+          .list({ page, per_page: 100, include: 'product,uom', 'filter[is_active]': true })
           .then((r: any) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)

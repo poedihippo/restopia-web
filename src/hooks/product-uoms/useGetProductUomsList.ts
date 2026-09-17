@@ -12,6 +12,7 @@ const useGetProductUomsList = (
 ) => {
   const activeProductTypes = useActiveBranchProductTypes();
   const mergedParams = {
+    "filter[is_active]": true,
     ...(activeProductTypes
       ? {
           "filter[product_types]": activeProductTypes,

@@ -181,7 +181,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       let totalPages = 1
       do {
         const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom' } as any)
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom', 'filter[is_active]': true } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProductUoms = allProductUoms.concat(items)

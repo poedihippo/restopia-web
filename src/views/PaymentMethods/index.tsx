@@ -2,6 +2,7 @@
 import { formatDateShort, formatDateTime } from '@/utils/date';
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Eye, X, Search } from 'lucide-react'
@@ -9,6 +10,7 @@ import { paymentMethodsService as paymentMethodService } from '@/services/paymen
 import { useAuth } from '@/hooks/useAuth'
 
 export default function PaymentMethodsView() {
+  const router = useRouter()
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
   const canRead = hasPermission("payment-method.read");
@@ -24,28 +26,55 @@ export default function PaymentMethodsView() {
     id: number
     name: string
     type?: string
+    chart_of_account_id?: number | null
+    bank_account_id?: number | null
+    bank_account?: {
+      id: number
+      bank_name: string
+      account_number: string
+      account_name: string
+    } | null
     created_at?: string
   } | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [originFilter, setOriginFilter] = useState<'all' | 'manual' | 'bank'>('all')
+  const [bankAccountFilter, setBankAccountFilter] = useState<number | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
     return () => clearTimeout(t)
   }, [search])
 
+  useEffect(() => {
+    if (!router.isReady) return
+    const raw = router.query['filter[bank_account_id]']
+    const id = raw ? Number(Array.isArray(raw) ? raw[0] : raw) : NaN
+    if (!isNaN(id) && id > 0) {
+      setOriginFilter('bank')
+      setBankAccountFilter(id)
+    }
+  }, [router.isReady, router.query])
+
   const { data, isLoading } = useQuery({
     queryKey: ['payment-methods', debouncedSearch],
     queryFn: () =>
       paymentMethodService
         .list({
-          per_page: 50,
+          per_page: 100,
           sort: 'id',
+          include: 'bank_account',
           'filter[search]': debouncedSearch || undefined,
         } as any)
         .then((r) => r.data),
   })
-  const items = (data as any)?.data ?? []
+  const allItems = (data as any)?.data ?? []
+  const items = allItems.filter((item: any) => {
+    if (bankAccountFilter && item.bank_account_id !== bankAccountFilter) return false
+    if (originFilter === 'manual') return !item.bank_account_id
+    if (originFilter === 'bank') return !!item.bank_account_id
+    return true
+  })
 
   const { mutate: save, isPending: saving } = useMutation({
     mutationFn: () =>
@@ -146,35 +175,65 @@ export default function PaymentMethodsView() {
           }}>+ Add Method
                               </button>)}
       </div>
-      <div style={{ marginBottom: 16, position: 'relative', maxWidth: 280 }}>
-        <Search
-          size={15}
-          style={{
-            position: 'absolute',
-            left: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--foreground-muted)',
-            pointerEvents: 'none',
-          }}
-        />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search payment methods..."
-          style={{
-            width: '100%',
-            padding: '8px 12px 8px 32px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            fontFamily: 'var(--font-sans)',
-            boxSizing: 'border-box',
-          }}
-        />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', maxWidth: 280, minWidth: 220 }}>
+          <Search
+            size={15}
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--foreground-muted)',
+              pointerEvents: 'none',
+            }}
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search payment methods..."
+            style={{
+              width: '100%',
+              padding: '8px 12px 8px 32px',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              color: 'var(--foreground)',
+              background: 'var(--surface-raised)',
+              outline: 'none',
+              fontFamily: 'var(--font-sans)',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {([
+            { key: 'all', label: 'All' },
+            { key: 'manual', label: 'Manual' },
+            { key: 'bank', label: 'Bank-linked' },
+          ] as const).map((tab) => {
+            const active = originFilter === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setOriginFilter(tab.key)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                  background: active ? 'var(--accent)' : 'var(--surface)',
+                  color: active ? 'white' : 'var(--foreground-muted)',
+                }}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
       <div
         style={{
@@ -182,7 +241,7 @@ export default function PaymentMethodsView() {
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
           overflow: 'hidden',
-          maxWidth: 600,
+          maxWidth: 720,
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -190,6 +249,7 @@ export default function PaymentMethodsView() {
             <tr>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Type</th>
+              <th style={thStyle}>Bank Account</th>
               <th style={thStyle}>Created</th>
               <th style={{ ...thStyle, width: 120 }}>Actions</th>
             </tr>
@@ -227,67 +287,84 @@ export default function PaymentMethodsView() {
                 </td>
               </tr>
             )}
-            {items.map((item: any) => (
-              <tr key={item.id}>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
-                <td style={tdStyle}>{canRead ? (item.type || '—') : "***"}</td>
-                <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
-                  {canRead ? item.created_at
-                    ? formatDateShort(item.created_at)
-                    : '—' : "***"}
-                </td>
-                <td style={tdStyle}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedItem(item)}
-                      title="View"
-                      style={{
-                        padding: 6,
-                        background: 'none',
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        color: 'var(--foreground-muted)',
-                        display: 'flex',
-                      }}
-                    >
-                      <Eye size={14} />
-                    </button>
-                    {canEdit && (<button
-                      type="button"
-                      onClick={() => {
-                        setEditing(item)
-                        setName(item.name)
-                        setType(item.type || 'all')
-                        setShowForm(true)
-                      }}
-                      style={{
-                        fontSize: 12,
-                        padding: '4px 10px',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--surface)',
-                        cursor: 'pointer',
-                      }}>Edit
-                                                                  </button>)}
-                    {canDelete && (<button
-                      type="button"
-                      onClick={() => setDeleteTarget(item)}
-                      style={{
-                        fontSize: 12,
-                        padding: '4px 10px',
-                        border: '1px solid var(--destructive)',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        color: 'var(--destructive)',
-                      }}>Delete
-                                                                  </button>)}
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {items.map((item: any) => {
+              const isBankLinked = !!item.bank_account_id
+              return (
+                <tr key={item.id}>
+                  <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
+                  <td style={tdStyle}>{canRead ? (item.type || '—') : "***"}</td>
+                  <td style={tdStyle}>
+                    {canRead ? (
+                      isBankLinked ? (
+                        <span style={{ fontSize: 13, color: 'var(--foreground)' }}>
+                          {item.bank_account?.bank_name ?? 'Bank'}
+                          <span style={{ color: 'var(--foreground-muted)', marginLeft: 6, fontFamily: 'monospace' }}>
+                            {item.bank_account?.account_number ?? ''}
+                          </span>
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>—</span>
+                      )
+                    ) : "***"}
+                  </td>
+                  <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
+                    {canRead ? item.created_at
+                      ? formatDateShort(item.created_at)
+                      : '—' : "***"}
+                  </td>
+                  <td style={tdStyle}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedItem(item)}
+                        title="View"
+                        style={{
+                          padding: 6,
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          color: 'var(--foreground-muted)',
+                          display: 'flex',
+                        }}
+                      >
+                        <Eye size={14} />
+                      </button>
+                      {canEdit && !isBankLinked && (<button
+                        type="button"
+                        onClick={() => {
+                          setEditing(item)
+                          setName(item.name)
+                          setType(item.type || 'all')
+                          setShowForm(true)
+                        }}
+                        style={{
+                          fontSize: 12,
+                          padding: '4px 10px',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--surface)',
+                          cursor: 'pointer',
+                        }}>Edit
+                                                                     </button>)}
+                      {canDelete && !isBankLinked && (<button
+                        type="button"
+                        onClick={() => setDeleteTarget(item)}
+                        style={{
+                          fontSize: 12,
+                          padding: '4px 10px',
+                          border: '1px solid var(--destructive)',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: 'var(--destructive)',
+                        }}>Delete
+                                                                     </button>)}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -352,48 +429,70 @@ export default function PaymentMethodsView() {
               </button>
             </div>
             <div style={{ flex: 1, padding: 24 }}>
-              <label
-                style={{
-                  fontSize: 13,
-                  color: 'var(--foreground-muted)',
-                  display: 'block',
-                  marginBottom: 6,
-                }}
-              >
-                Method Name *
-              </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Cash, Transfer BCA, QRIS"
-                style={{
-                  width: '100%',
-                  height: 40,
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-sm)',
-                  padding: '0 12px',
-                  fontSize: 14,
-                  color: 'var(--foreground)',
-                  background: 'var(--surface-raised)',
-                  boxSizing: 'border-box',
-                }}
-              />
-              <p style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 6 }}>
-                Tip: include &quot;cash&quot; in the name (e.g. &quot;Cash&quot;) to enable change
-                calculation in POS.
-              </p>
-              <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6, marginTop: 16 }}>
-                Type *
-              </label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
-              >
-                <option value="all">All</option>
-                <option value="sales_orders">Sales Orders</option>
-                <option value="purchase_orders">Purchase Orders</option>
-              </select>
+              {editing?.bank_account_id ? (
+                <div
+                  style={{
+                    padding: 16,
+                    background: 'var(--warning-bg)',
+                    border: '1px solid var(--warning)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--warning)',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  This payment method is linked to bank account{' '}
+                  <strong>
+                    {editing.bank_account?.bank_name ?? 'Bank'} {editing.bank_account?.account_number ?? ''}
+                  </strong>.
+                  Changes must be made on the Bank Accounts page.
+                </div>
+              ) : (
+                <>
+                  <label
+                    style={{
+                      fontSize: 13,
+                      color: 'var(--foreground-muted)',
+                      display: 'block',
+                      marginBottom: 6,
+                    }}
+                  >
+                    Method Name *
+                  </label>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Cash, Transfer BCA, QRIS"
+                    style={{
+                      width: '100%',
+                      height: 40,
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '0 12px',
+                      fontSize: 14,
+                      color: 'var(--foreground)',
+                      background: 'var(--surface-raised)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <p style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 6 }}>
+                    Tip: include &quot;cash&quot; in the name (e.g. &quot;Cash&quot;) to enable change
+                    calculation in POS.
+                  </p>
+                  <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6, marginTop: 16 }}>
+                    Type *
+                  </label>
+                  <select
+                    value={type}
+                    onChange={(e) => setType(e.target.value)}
+                    style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
+                  >
+                    <option value="all">All</option>
+                    <option value="sales_orders">Sales Orders</option>
+                    <option value="purchase_orders">Purchase Orders</option>
+                  </select>
+                </>
+              )}
             </div>
             <div
               style={{
@@ -418,31 +517,33 @@ export default function PaymentMethodsView() {
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!name.trim()) {
-                    toast.error('Name is required')
-                    return
-                  }
-                  save()
-                }}
-                disabled={saving}
-                style={{
-                  flex: 1,
-                  height: 42,
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--accent)',
-                  color: 'white',
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  opacity: saving ? 0.7 : 1,
-                }}
-              >
-                {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
-              </button>
+              {!editing?.bank_account_id && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!name.trim()) {
+                      toast.error('Name is required')
+                      return
+                    }
+                    save()
+                  }}
+                  disabled={saving}
+                  style={{
+                    flex: 1,
+                    height: 42,
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--accent)',
+                    color: 'white',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600,
+                    opacity: saving ? 0.7 : 1,
+                  }}
+                >
+                  {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -525,6 +626,18 @@ export default function PaymentMethodsView() {
                 { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Type', value: selectedItem.type },
+                {
+                  label: 'Chart of Account ID',
+                  value: selectedItem.chart_of_account_id ?? '—',
+                },
+                {
+                  label: 'Bank Account',
+                  value: selectedItem.bank_account
+                    ? `${selectedItem.bank_account.bank_name} — ${selectedItem.bank_account.account_number} (${selectedItem.bank_account.account_name})`
+                    : selectedItem.bank_account_id
+                      ? `Linked to bank account #${selectedItem.bank_account_id}`
+                      : '—',
+                },
                 {
                   label: 'Created At',
                   value: selectedItem.created_at
