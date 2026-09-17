@@ -259,7 +259,18 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   }
 
   const allProductUoms = (productUomsData as any)?.data ?? []
-  const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
+  const activeDetailUomIds = new Set(
+    (initialData?.details ?? [])
+      .map((d: any) => d.product_uom_id)
+      .filter(Boolean),
+  )
+  const productUoms = allProductUoms.filter((pu: any) => {
+    if (!isProductTypeAllowed(pu.product, activeProductTypes)) return false
+    const productIsActive = pu.product?.is_active !== false
+    if (productIsActive) return true
+    // Saat edit, pertahankan UOM yang sudah dipakai di PO ini agar tetap terlihat
+    return mode === 'edit' && activeDetailUomIds.has(pu.id)
+  })
 
   // In edit mode, if an existing detail uses a non-default UOM that is not
   // returned by the default filter, automatically show all UOMs so the
