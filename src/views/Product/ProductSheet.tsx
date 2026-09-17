@@ -29,6 +29,8 @@ const uomSchema = z.object({
   price_editable: z.boolean(),
   is_default: z.boolean(),
   is_active: z.boolean(),
+  uom_name: z.string().optional(),
+  uom_code: z.string().optional(),
   conversions: z.array(conversionSchema),
 })
 
@@ -95,7 +97,9 @@ const emptyUom = {
   franchise_price: 0,
   price_editable: false,
   is_default: false,
-  is_active:true,
+  is_active: true,
+  uom_name: '',
+  uom_code: '',
   conversions: [] as { id: number; target_uom_id: number; amount: number }[],
 }
 
@@ -162,6 +166,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     reset,
     control,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -180,6 +185,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
   const { fields: uomFields, append: appendUom, remove: removeUom } = useFieldArray({ control, name: 'uoms' })
   const watchedUoms: any[] = useWatch({ control, name: 'uoms' }) ?? []
+  const productCode = watch('code')
 
   const { data: catData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -200,11 +206,11 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         const res = await uomsService
           .list({ page, per_page: 100 } as any)
           .then((r) => r.data)
-        const items = (res as any)?.data?.data ?? []
+        const items = (res as any)?.data ?? []
         allUoms = allUoms.concat(items)
         totalPages =
-          (res as any)?.data?.meta?.last_page ??
-          (res as any)?.data?.meta?.total_pages ??
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
           1
         page += 1
       } while (page <= totalPages)
@@ -257,6 +263,8 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         price_editable: !!pu.price_editable,
         is_default: !!pu.is_default,
         is_active: pu.is_active ?? true,
+        uom_name: pu.uom_name ?? pu.uom?.name ?? '',
+        uom_code: pu.uom_code ?? pu.uom?.code ?? '',
         conversions: (pu.conversions ?? []).map((c: any) => ({
           id: c.id ?? 0,
           target_uom_id: c.target_uom_id ?? 0,
@@ -711,7 +719,13 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               const targetOptions = (watchedUoms ?? [])
                 .map((wu: any, idx: number) => ({ wu, idx }))
                 .filter(({ wu, idx }: any) => idx !== i && Number(wu?.uom_id) > 0)
-                .map(({ wu }: any) => ({ value: Number(wu.uom_id), label: uomLabel(Number(wu.uom_id)) }))
+                .map(({ wu }: any) => {
+                  const fallback = uomLabel(Number(wu.uom_id))
+                  const label = wu?.uom_name
+                    ? `${wu.uom_name}${wu.uom_code ? ` (${wu.uom_code})` : ''}`
+                    : fallback
+                  return { value: Number(wu.uom_id), label }
+                })
 
               return (
                 <div
@@ -730,6 +744,12 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                       Unit #{i + 1}
+                      {watchedUoms[i]?.uom_name && (
+                        <span style={{ color: 'var(--foreground-muted)', fontWeight: 400, marginLeft: 6 }}>
+                          · {watchedUoms[i].uom_name}
+                          {watchedUoms[i]?.uom_code ? ` (${watchedUoms[i].uom_code})` : ''}
+                        </span>
+                      )}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Controller
@@ -786,7 +806,22 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                         render={({ field }) => (
                           <select
                             value={field.value ?? 0}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
+                            onChange={(e) => {
+                              const uomId = Number(e.target.value)
+                              field.onChange(uomId)
+                              const selectedUom = uoms.find((u: any) => u.id === uomId)
+                              setValue(`uoms.${i}.uom_name` as any, selectedUom?.name ?? '')
+                              setValue(`uoms.${i}.uom_code` as any, selectedUom?.code ?? '')
+
+                              // Auto-generate SKU code dari kode produk + kode UOM
+                              const currentCode = watchedUoms[i]?.code ?? ''
+                              if (selectedUom?.code && !currentCode) {
+                                const skuCode = productCode
+                                  ? `${productCode}-${selectedUom.code}`
+                                  : selectedUom.code
+                                setValue(`uoms.${i}.code` as any, skuCode)
+                              }
+                            }}
                             style={{ ...selectBase, border: `1px solid ${uomErr?.uom_id ? 'var(--destructive)' : 'var(--border)'}` }}
                           >
                             <option value={0}>Select unit...</option>
