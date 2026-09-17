@@ -181,6 +181,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Comparative Reports', href: '/accounting/reports/comparative', permission: 'report.read' },
           { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
           { label: 'AR Aging', href: '/accounting/reports/ar-aging', permission: 'report.read' },
+          { label: 'Kartu Hutang Supplier', href: '/accounting/reports/supplier-debts', permission: 'report.read' },
           { label: 'Cash Flow', href: '/accounting/reports/cash-flow', permission: 'report.read' },
           { label: 'General Ledger', href: '/accounting/reports/general-ledger', permission: 'report.read' },
           { label: 'Customer Statements', href: '/accounting/reports/customer-statements', permission: 'report.read' },

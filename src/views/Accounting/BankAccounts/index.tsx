@@ -83,6 +83,7 @@ export default function BankAccountsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [activeFilter, setActiveFilter] = useState<string>('')
+  const [coaFilter, setCoaFilter] = useState<string>('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
 
@@ -98,11 +99,11 @@ export default function BankAccountsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, typeFilter, activeFilter])
+  }, [debouncedSearch, typeFilter, activeFilter, coaFilter])
 
   // Fetch bank accounts
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['bank-accounts', page, perPage, debouncedSearch, typeFilter, activeFilter],
+    queryKey: ['bank-accounts', page, perPage, debouncedSearch, typeFilter, activeFilter, coaFilter],
     queryFn: () =>
       bankAccountsService
         .list({
@@ -113,6 +114,7 @@ export default function BankAccountsView() {
           'filter[search]': debouncedSearch || undefined,
           'filter[account_type]': typeFilter || undefined,
           'filter[is_active]': activeFilter !== '' ? activeFilter : undefined,
+          'filter[chart_of_account_id]': coaFilter !== '' ? coaFilter : undefined,
         } as any)
         .then((res) => res.data),
   })
@@ -465,6 +467,20 @@ export default function BankAccountsView() {
           <option value="">All Status</option>
           <option value="1">Active</option>
           <option value="0">Inactive</option>
+        </select>
+
+        {/* Chart of Account Filter */}
+        <select
+          value={coaFilter}
+          onChange={(e) => setCoaFilter(e.target.value)}
+          style={{ ...inputStyle, width: 'auto', minWidth: 200, cursor: 'pointer' }}
+        >
+          <option value="">All Chart of Accounts</option>
+          {coaList.map((item: any) => (
+            <option key={item.id} value={item.id}>
+              {item.account_code ?? item.code} — {item.account_name ?? item.name}
+            </option>
+          ))}
         </select>
       </div>
 

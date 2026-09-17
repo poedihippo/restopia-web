@@ -98,6 +98,7 @@ export interface ProductUomPayload {
   franchise_price?: number
   price_editable?: boolean
   is_default?: boolean
+  is_active?:boolean,
   conversions?: ProductConversionPayload[]
 }
 
@@ -236,10 +237,13 @@ export interface ConvertProductInventoryResponse {
 
 // Stock Movements
 export interface StockMovementRequest {
-  product_inventory_id: number
+  product_inventory_id?: number
+  product_uom_batch_id?: number
   qty: number
   direction: 'in' | 'out'
   description?: string
+  product_type?: 'raw' | 'wip' | 'final' | 'supply'
+  product_category_id?: number
 }
 
 // Recipes

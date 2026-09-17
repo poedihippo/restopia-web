@@ -28,6 +28,7 @@ const uomSchema = z.object({
   franchise_price: z.coerce.number().min(0),
   price_editable: z.boolean(),
   is_default: z.boolean(),
+  is_active: z.boolean(),
   conversions: z.array(conversionSchema),
 })
 
@@ -94,6 +95,7 @@ const emptyUom = {
   franchise_price: 0,
   price_editable: false,
   is_default: false,
+  is_active:true,
   conversions: [] as { id: number; target_uom_id: number; amount: number }[],
 }
 
@@ -254,6 +256,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         franchise_price: pu.franchise_price ?? 0,
         price_editable: !!pu.price_editable,
         is_default: !!pu.is_default,
+        is_active: pu.is_active ?? true,
         conversions: (pu.conversions ?? []).map((c: any) => ({
           id: c.id ?? 0,
           target_uom_id: c.target_uom_id ?? 0,
@@ -283,6 +286,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       franchise_price: u.franchise_price,
       price_editable: u.price_editable,
       is_default: u.is_default,
+      is_active: u.is_active,
       conversions: u.conversions.map((c) => ({
         ...(c.id > 0 ? { id: c.id } : {}),
         target_uom_id: c.target_uom_id,
@@ -837,6 +841,15 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                       style={{ accentColor: 'var(--accent)', width: 15, height: 15, cursor: 'pointer' }}
                     />
                     Price editable (e.g. by cashier)
+                  </label>
+                  {/* Is Active */}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--foreground)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      {...register(`uoms.${i}.is_active` as any)}
+                      style={{ accentColor: 'var(--accent)', width: 15, height: 15, cursor: 'pointer' }}
+                    />
+                    Unit Aktif
                   </label>
 
                   {/* Conversions */}
