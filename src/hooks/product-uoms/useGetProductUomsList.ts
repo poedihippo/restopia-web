@@ -20,7 +20,7 @@ const useGetProductUomsList = (
       : {}),
     ...params,
   };
-
+// trigger
   return useQuery({
     queryKey: ["product-uoms", "list", mergedParams],
     queryFn: async () => {
