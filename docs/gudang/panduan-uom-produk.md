@@ -131,7 +131,27 @@ Contoh pengisian conversion:
 - **Amount:** 12000
 - Artinya: 1 PACK = 12000 GR (karena 1 PACK = 6 PCS × 2000 GR)
 
-### Langkah 6: Pilih Default Unit
+### Langkah 6: Cek Rantai Konversi (Konversi ke Base Unit)
+
+Setelah semua satuan dan conversion diisi, di setiap kartu satuan akan muncul kotak **Konversi ke Base Unit**.
+
+Contoh tampilan:
+
+```
+Konversi ke Base Unit
+1 PACK = 6 PCS = 10884 ML
+```
+
+Atau untuk satuan tengah:
+
+```
+Konversi ke Base Unit
+1 PCS = 907 ML
+```
+
+> **Kotak merah** berarti satuan itu belum punya jalur konversi ke Base Unit. Periksa kembali conversion-nya.
+
+### Langkah 7: Pilih Default Unit
 
 Klik tombol **Default** di satuan yang paling sering dipakai untuk transaksi.
 
@@ -192,7 +212,35 @@ Ingat: satuan di baris atas adalah 1, lalu amount adalah berapa satuan target.
 
 ---
 
-## 7. Contoh Lain: Minyak Goreng
+## 7. Contoh Lain: Chocolate Whip Topping (1 × 12 × 907 ml)
+
+### Bentuk kemasan:
+
+```
+1 CTN (Karton) = 12 BTL (Botol)
+1 BTL = 907 ML
+Base = ML
+```
+
+### Setup:
+
+| Unit | SKU Code | Conversion Target | Amount | Tampilan Rantai |
+|------|----------|-------------------|--------|-----------------|
+| ML | 23160102-ML | — | — | 1 ML = 1 ML |
+| BTL | 23160102-BTL | ML | 907 | 1 BTL = 907 ML |
+| CTN | 23160102-CTN | BTL | 12 | 1 CTN = 12 BTL = 10884 ML |
+
+### PO 2 CTN:
+
+```
+2 × 10884 ML = 21768 ML
+```
+
+> **Catatan:** Untuk CTN, sistem menghitung otomatis melalui BTL ke ML. Kalau tampilan kotak konversi tidak muncul atau warnanya merah, berarti ada conversion yang belum lengkap.
+
+---
+
+## 8. Contoh Lain: Minyak Goreng
 
 ### Kemasan:
 
@@ -216,7 +264,7 @@ Ingat: satuan di baris atas adalah 1, lalu amount adalah berapa satuan target.
 
 ---
 
-## 8. Checklist Sebelum Simpan
+## 9. Checklist Sebelum Simpan
 
 Sebelum klik Save, pastikan:
 
@@ -229,7 +277,7 @@ Sebelum klik Save, pastikan:
 
 ---
 
-## 9. Butuh Bantuan?
+## 10. Butuh Bantuan?
 
 Kalau ada produk yang bentuknya rumit atau hasil PO tidak sesuai, catat:
 

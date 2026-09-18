@@ -105,6 +105,45 @@ const emptyUom = {
 
 const emptyConversion = { id: 0, target_uom_id: 0, amount: 0 }
 
+// Helper: find conversion path from a source uom_id to target base_uom_id
+// through the graph of product-UOM conversions. Returns null if no path.
+function findConversionPath(
+  sourceUomId: number,
+  targetUomId: number,
+  uoms: any[],
+  visited = new Set<number>()
+): { uomId: number; amount: number; code?: string; name?: string }[] | null {
+  if (sourceUomId === targetUomId) {
+    const u = uoms.find((x) => x.uom_id === sourceUomId)
+    return [{ uomId: sourceUomId, amount: 1, code: u?.uom_code, name: u?.uom_name }]
+  }
+  if (visited.has(sourceUomId)) return null
+  visited.add(sourceUomId)
+
+  const sourceUom = uoms.find((u) => u.uom_id === sourceUomId)
+  if (!sourceUom) return null
+
+  for (const c of sourceUom.conversions ?? []) {
+    const targetId = Number(c.target_uom_id)
+    if (targetId === targetUomId) {
+      const targetUom = uoms.find((u) => u.uom_id === targetId)
+      return [
+        { uomId: sourceUomId, amount: 1, code: sourceUom?.uom_code, name: sourceUom?.uom_name },
+        { uomId: targetId, amount: Number(c.amount), code: targetUom?.uom_code, name: targetUom?.uom_name },
+      ]
+    }
+    const subPath = findConversionPath(targetId, targetUomId, uoms, new Set(visited))
+    if (subPath) {
+      const multiplier = Number(c.amount)
+      return [
+        { uomId: sourceUomId, amount: 1, code: sourceUom?.uom_code, name: sourceUom?.uom_name },
+        ...subPath.map((step) => ({ ...step, amount: step.amount * multiplier })),
+      ]
+    }
+  }
+  return null
+}
+
 const GUARD_MESSAGES: { match: RegExp; message: string }[] = [
   { match: /product uom has product inventories/i, message: 'This unit has stock / inventory batches. Clear its inventory before changing or removing it.' },
   { match: /product uom has recipes/i, message: 'This unit is used in recipes. Remove those recipes first.' },
@@ -186,6 +225,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   const { fields: uomFields, append: appendUom, remove: removeUom } = useFieldArray({ control, name: 'uoms' })
   const watchedUoms: any[] = useWatch({ control, name: 'uoms' }) ?? []
   const productCode = watch('code')
+  const baseUomId = watch('base_uom_id')
 
   const { data: catData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -727,6 +767,12 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                   return { value: Number(wu.uom_id), label }
                 })
 
+              const currentUomId = Number(watchedUoms[i]?.uom_id)
+              const conversionPath = baseUomId && currentUomId > 0
+                ? findConversionPath(currentUomId, Number(baseUomId), watchedUoms)
+                : null
+              const pathMissing = baseUomId && currentUomId > 0 && !conversionPath
+
               return (
                 <div
                   key={uf.id}
@@ -847,6 +893,42 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                       {errorMsg(uomErr?.code?.message)}
                     </div>
                   </div>
+
+                  {/* Conversion summary: visual path to base unit */}
+                  {currentUomId > 0 && baseUomId && (
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 'var(--radius-md)',
+                        background: pathMissing ? 'var(--destructive-bg)' : 'var(--accent-light-bg)',
+                        border: `1px solid ${pathMissing ? 'var(--destructive)' : 'var(--accent-light)'}`,
+                        fontSize: 12,
+                        color: pathMissing ? 'var(--destructive)' : 'var(--foreground)',
+                      }}
+                    >
+                      {conversionPath ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                            Konversi ke Base Unit
+                          </span>
+                          <span>
+                            {conversionPath.map((step, idx) => (
+                              <span key={step.uomId}>
+                                {idx > 0 && <span style={{ color: 'var(--foreground-muted)', margin: '0 6px' }}>=</span>}
+                                <span style={{ fontWeight: 600 }}>{step.amount.toLocaleString('id-ID')}</span>
+                                <span style={{ color: 'var(--foreground-muted)', marginLeft: 3 }}>{step.code ?? uomLabel(step.uomId)}</span>
+                              </span>
+                            ))}
+                          </span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontWeight: 600 }}>Tidak ada jalur konversi ke Base Unit.</span>
+                          Tambahkan conversion yang merujuk ke {uomLabel(Number(baseUomId))}.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Prices */}
                   <div style={{ display: 'flex', gap: 10 }}>
