@@ -55,6 +55,7 @@ export interface ChartOfAccountRequest {
   is_header?: boolean
   normal_balance?: 'debit' | 'credit'
   parent_id?: number | null
+  use_as_payment_method?: boolean
 }
 
 export const chartOfAccountsService = {

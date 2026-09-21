@@ -38,7 +38,7 @@ export default function PaymentMethodsView() {
   } | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [originFilter, setOriginFilter] = useState<'all' | 'manual' | 'bank'>('all')
+  const [originFilter, setOriginFilter] = useState<'all' | 'manual' | 'bank' | 'coa'>('all')
   const [bankAccountFilter, setBankAccountFilter] = useState<number | null>(null)
 
   useEffect(() => {
@@ -71,8 +71,9 @@ export default function PaymentMethodsView() {
   const allItems = (data as any)?.data ?? []
   const items = allItems.filter((item: any) => {
     if (bankAccountFilter && item.bank_account_id !== bankAccountFilter) return false
-    if (originFilter === 'manual') return !item.bank_account_id
+    if (originFilter === 'manual') return !item.bank_account_id && !item.chart_of_account_id
     if (originFilter === 'bank') return !!item.bank_account_id
+    if (originFilter === 'coa') return !!item.chart_of_account_id && !item.bank_account_id
     return true
   })
 
@@ -211,6 +212,7 @@ export default function PaymentMethodsView() {
             { key: 'all', label: 'All' },
             { key: 'manual', label: 'Manual' },
             { key: 'bank', label: 'Bank-linked' },
+            { key: 'coa', label: 'COA-linked' },
           ] as const).map((tab) => {
             const active = originFilter === tab.key
             return (
@@ -249,6 +251,7 @@ export default function PaymentMethodsView() {
             <tr>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Type</th>
+              <th style={thStyle}>Source</th>
               <th style={thStyle}>Bank Account</th>
               <th style={thStyle}>Created</th>
               <th style={{ ...thStyle, width: 120 }}>Actions</th>
@@ -258,7 +261,7 @@ export default function PaymentMethodsView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3, 4, 5].map((j) => (
+                  {[1, 2, 3, 4, 5, 6].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -293,6 +296,23 @@ export default function PaymentMethodsView() {
                 <tr key={item.id}>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
                   <td style={tdStyle}>{canRead ? (item.type || '—') : "***"}</td>
+                  <td style={tdStyle}>
+                    {canRead ? (
+                      item.bank_account_id ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'var(--info-bg)', color: 'var(--info)' }}>
+                          Bank
+                        </span>
+                      ) : item.chart_of_account_id ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'var(--accent-light-bg)', color: 'var(--accent)' }}>
+                          COA
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'var(--background)', border: '1px solid var(--border)', color: 'var(--foreground-muted)' }}>
+                          Manual
+                        </span>
+                      )
+                    ) : "***"}
+                  </td>
                   <td style={tdStyle}>
                     {canRead ? (
                       isBankLinked ? (

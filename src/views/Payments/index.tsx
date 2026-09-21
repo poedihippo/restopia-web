@@ -443,7 +443,7 @@ export default function PaymentsView() {
               Delete Payment
             </h3>
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>
-              This will remove this payment record permanently.
+              This will permanently delete this payment and remove all related journal entries. This action cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button

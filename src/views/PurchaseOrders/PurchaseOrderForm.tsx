@@ -3,7 +3,7 @@ import { formatCurrency, getCanReadPrice } from '@/utils/price';
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -189,6 +189,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
   const branches = (branchesData as any)?.data ?? []
 
+  // Query utama: hanya aktif + default
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch, showAllUoms],
     queryFn: async () => {
@@ -218,6 +219,34 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     },
   })
 
+  // Query tambahan: termasuk produk inactive (untuk import resep)
+  const { data: allProductUomsData } = useQuery({
+    queryKey: ['product-uoms-all-with-inactive'],
+    queryFn: async () => {
+      let all: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productUomsService
+          .list({
+            page,
+            per_page: 100,
+            include: 'product,uom',
+            'filter[is_active]': '1',
+          } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        all = all.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: all }
+    },
+  })
+
   const handleImportRecipes = (selectedRecipes: any[]) => {
     const currentDetails = watch('details')
     const newItems: Record<number, number> = {}
@@ -241,7 +270,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       if (existingIndex >= 0) {
         finalDetails[existingIndex].qty += qty
       } else {
-        const product = productUoms.find((p: any) => p.id === id)
+        const product = mergedProductUoms.find((p: any) => p.id === id)
         const price = product?.base_price ?? 0
         finalDetails.push({ product_uom_id: id, qty, price, description: '', is_price_locked: true, is_taxable: false })
       }
@@ -259,18 +288,36 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   }
 
   const allProductUoms = (productUomsData as any)?.data ?? []
+  const allInactiveProductUoms = (allProductUomsData as any)?.data ?? []
   const activeDetailUomIds = new Set(
     (initialData?.details ?? [])
       .map((d: any) => d.product_uom_id)
       .filter(Boolean),
   )
+
+  // Track ALL product_uom_ids currently in form details (including imports)
+  const currentDetails = useWatch({ control, name: 'details' }) ?? []
+  const formDetailUomIds = new Set(
+    currentDetails.map((d: any) => d.product_uom_id).filter(Boolean),
+  )
+
   const productUoms = allProductUoms.filter((pu: any) => {
     if (!isProductTypeAllowed(pu.product, activeProductTypes)) return false
     const productIsActive = pu.product?.is_active !== false
     if (productIsActive) return true
-    // Saat edit, pertahankan UOM yang sudah dipakai di PO ini agar tetap terlihat
-    return mode === 'edit' && activeDetailUomIds.has(pu.id)
+    return activeDetailUomIds.has(pu.id) || formDetailUomIds.has(pu.id)
   })
+
+  // Merge: tambahkan inactive product_uoms yang sedang dipakai di form
+  const mergedProductUoms = [...productUoms]
+  for (const inactive of allInactiveProductUoms) {
+    if (!mergedProductUoms.find((pu: any) => pu.id === inactive.id)) {
+      // Hanya tambahkan jika sedang dipakai di form
+      if (formDetailUomIds.has(inactive.id) || activeDetailUomIds.has(inactive.id)) {
+        mergedProductUoms.push(inactive)
+      }
+    }
+  }
 
   // In edit mode, if an existing detail uses a non-default UOM that is not
   // returned by the default filter, automatically show all UOMs so the
@@ -329,7 +376,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       label: (b.name as string) ?? `Branch #${b.id}`,
       sublabel: b.code as string | undefined,
     }))
-  const productUomOptions = productUoms.map((pu: any) => ({
+  const productUomOptions = mergedProductUoms.map((pu: any) => ({
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
     sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
@@ -943,7 +990,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       onChange={(val) => {
                         f.onChange(val)
 
-                        const matchingUom = productUoms.find((pu: any) => pu.id === val)
+                        const matchingUom = mergedProductUoms.find((pu: any) => pu.id === val)
                         if (matchingUom) {
                           setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
                         }

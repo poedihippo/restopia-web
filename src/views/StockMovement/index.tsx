@@ -98,6 +98,15 @@ export function formatMovementQty(item: StockMovement): string {
   const uomCode =
     item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
     item.product_inventory?.product_uom?.uom?.code
+
+    // if(item.base_qty != null && item.base_uom_code){
+    //   const displayQty = item.qty ?? 0;
+    //   const displayUom = uomCode ?? '';
+    //   if(displayQty > 0 && displayUom){
+    //     return `${sign}${displayQty.toLocaleString('id-ID')} ${displayUom} (${Number(item.base_qty).toLocaleString('id-ID')} ${item.base_uom_code})`; 
+    //   }
+    //   return `${sign}${Number(item.base_qty).toLocaleString('id-ID')} ${item.base_uom_code}`
+    // }
   return `${sign}${(item.qty ?? 0).toLocaleString('id-ID')}${uomCode ? ` ${uomCode}` : ''}`
 }
 

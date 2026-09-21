@@ -34,6 +34,7 @@ interface CoA {
   parent_id?: number | null
   account_category_id: number
   account_type_id: number
+  use_as_payment_method?: boolean
   account_category?: { id: number; name: string; code: string }
   account_type?: { id: number; name: string; code: string; account_category?: { id: number; name: string; code: string } }
   created_at?: string
@@ -52,6 +53,7 @@ const schema = z.object({
   is_header: z.boolean(),
   normal_balance: z.enum(['debit', 'credit']),
   parent_id: z.coerce.number().nullable().optional(),
+  use_as_payment_method: z.boolean(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -120,7 +122,7 @@ export default function ChartOfAccountsView() {
 
   const { register, handleSubmit, reset, watch, setValue, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { account_category_id: 0, account_type_id: 0, code: '', name: '', description: '', is_active: true, is_header: false, normal_balance: 'debit', parent_id: null },
+    defaultValues: { account_category_id: 0, account_type_id: 0, code: '', name: '', description: '', is_active: true, is_header: false, normal_balance: 'debit', parent_id: null, use_as_payment_method: false },
   })
 
   const watchedCategoryId = watch('account_category_id')
@@ -129,10 +131,10 @@ export default function ChartOfAccountsView() {
   useEffect(() => {
     if (editData) {
       setSelectedCategoryId(editData.account_category_id)
-      reset({ account_category_id: editData.account_category_id, account_type_id: editData.account_type_id, code: editData.code, name: editData.name, description: editData.description ?? '', is_active: editData.is_active, is_header: editData.is_header, normal_balance: editData.normal_balance, parent_id: editData.parent_id ?? null })
+      reset({ account_category_id: editData.account_category_id, account_type_id: editData.account_type_id, code: editData.code, name: editData.name, description: editData.description ?? '', is_active: editData.is_active, is_header: editData.is_header, normal_balance: editData.normal_balance, parent_id: editData.parent_id ?? null, use_as_payment_method: editData.use_as_payment_method ?? false })
     } else {
       setSelectedCategoryId(0)
-      reset({ account_category_id: 0, account_type_id: 0, code: '', name: '', description: '', is_active: true, is_header: false, normal_balance: 'debit', parent_id: null })
+      reset({ account_category_id: 0, account_type_id: 0, code: '', name: '', description: '', is_active: true, is_header: false, normal_balance: 'debit', parent_id: null, use_as_payment_method: false })
     }
   }, [editData, reset])
 
@@ -159,7 +161,7 @@ export default function ChartOfAccountsView() {
   const isPending = createMutation.isPending || updateMutation.isPending
   const onSubmit = (values: FormValues) => {
 
-    const payload: ChartOfAccountRequest = { ...values, parent_id: values.parent_id || null }
+    const payload: ChartOfAccountRequest = { ...values, parent_id: values.parent_id || null, use_as_payment_method: !!values.use_as_payment_method }
     if (editData) updateMutation.mutate(payload)
     else createMutation.mutate(payload)
   }
@@ -217,19 +219,20 @@ export default function ChartOfAccountsView() {
               <th style={{ ...thStyle, width: 140 }}>Type</th>
               <th style={{ ...thStyle, width: 110 }}>Normal Balance</th>
               <th style={{ ...thStyle, width: 80 }}>Status</th>
-              <th style={{ ...thStyle, width: 70 }}>Header</th>
-              <th style={{ ...thStyle, width: 80 }} />
+               <th style={{ ...thStyle, width: 70 }}>Header</th>
+               <th style={{ ...thStyle, width: 100 }}>Payment</th>
+               <th style={{ ...thStyle, width: 80 }} />
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 10 }).map((__, j) => (
-                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 9 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
+                <tr key={i}>{Array.from({ length: 11 }).map((__, j) => (
+                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 10 ? 40 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={11} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <BookOpen size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No accounts found</span>
@@ -272,6 +275,15 @@ export default function ChartOfAccountsView() {
                     }
                   </td>
                   <td style={tdStyle}><span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.is_header ? 'Ya' : '—'}</span></td>
+                  <td style={tdStyle}>
+                    {item.use_as_payment_method ? (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'var(--accent-light-bg)', color: 'var(--accent)' }}>
+                        Payment Method
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>—</span>
+                    )}
+                  </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                       {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
@@ -423,6 +435,10 @@ export default function ChartOfAccountsView() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
                   <input type="checkbox" {...register('is_header')} style={{ width: 15, height: 15 }} />
                   <span>Header Account (Group)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                  <input type="checkbox" {...register('use_as_payment_method')} style={{ width: 15, height: 15 }} />
+                  <span>Use as Payment Method</span>
                 </label>
               </div>
             </form>

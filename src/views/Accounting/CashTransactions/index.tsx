@@ -1416,7 +1416,7 @@ export default function CashTransactionsView() {
               Delete Cash Transaction
             </h3>
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px' }}>
-              Are you sure you want to delete this cash transaction record?
+              Are you sure you want to delete this cash transaction? This will permanently remove the transaction and all related journal entries. This action cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
