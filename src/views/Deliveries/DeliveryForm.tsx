@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -196,6 +196,19 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
   const productUoms = (productUomsData as any)?.data ?? []
 
+  // Authoritative lookup: product_uom_id -> product_id, built from the
+  // productUoms list which is already loaded with include 'product,uom'.
+  // This avoids relying on fragile 3-level nested includes on inventory rows.
+  const puomToProduct = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const pu of productUoms) {
+      if (pu?.id && (pu.product_id ?? pu.product?.id)) {
+        map.set(pu.id, pu.product_id ?? pu.product.id)
+      }
+    }
+    return map
+  }, [productUoms])
+
   // When creating from a linked branch-PO (the Fulfill flow), the PO's own
   // supplier_branch_id is the actual fulfilling/source branch — it does NOT
   // necessarily equal myBranchId. A user can be assigned to more than one
@@ -296,17 +309,43 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // own already-committed batches so a stored batch always has a matching
   // option to display even when it's no longer in live stock. Live-stock
   // data wins when the same batch appears in both.
+  //
+  // product_id resolution uses scalar FKs + puomToProduct map instead of
+  // relying on nested includes (product_uom_batch.product_uom.product.id
+  // can be null when the include is missing).
   const getBatchOptionsForUom = (productUomId: number) => {
+    // Resolve this line's product_id from the map
+    const lineProductId = puomToProduct.get(productUomId)
+
     const stockBatches = sourceInventory
       .filter((inv: any) => {
-        const invUomId =
-          inv.product_uom_id ?? inv.product_uom_batch?.product_uom?.id
         const hasBatch = !!inv.product_uom_batch?.id
-        // Delivery qty is entered in this batch's own uom (product_uom_id +
-        // product_uom_batch_id + qty sent as-is), so availability/display
-        // must use display_qty, not base_stock.
-        const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
-        return hasBatch && invUomId === productUomId && stock > 0
+        if (!hasBatch) return false
+
+        // Match by product_uom_id first (scalar FK on inventory or batch)
+        const invUomId =
+          inv.product_uom_id ??
+          inv.product_uom_batch?.product_uom_id ??
+          inv.product_uom_batch?.product_uom?.id
+        if (invUomId === productUomId) {
+          const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
+          return stock > 0
+        }
+
+        // Fallback: match by product_id via map when scalar UOM IDs differ
+        // (e.g. different UOMs for the same product should NOT match)
+        if (lineProductId != null) {
+          const batchPuomId =
+            inv.product_uom_batch?.product_uom_id ??
+            inv.product_uom_batch?.product_uom?.id
+          const invProductId = batchPuomId ? puomToProduct.get(batchPuomId) : undefined
+          if (invProductId === lineProductId) {
+            const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
+            return stock > 0
+          }
+        }
+
+        return false
       })
       .map((inv: any) => ({
         batchId: inv.product_uom_batch.id as number,
@@ -319,6 +358,17 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number }>()
     for (const b of stored) merged.set(b.batchId, { ...b, stock: undefined })
     for (const b of stockBatches) merged.set(b.batchId, { ...merged.get(b.batchId), ...b })
+
+    // Temporary debug: flag when product_id resolved but zero batches matched
+    // despite sourceInventory being non-empty
+    if (lineProductId != null && merged.size === 0 && sourceInventory.length > 0) {
+      console.warn(
+        `[DeliveryForm] No batch matched for product_uom_id=${productUomId} ` +
+        `(product_id=${lineProductId}) despite ${sourceInventory.length} inventory rows.`,
+        { puomToProductSize: puomToProduct.size, sampleInv: sourceInventory.slice(0, 3) }
+      )
+    }
+
     return Array.from(merged.values())
   }
 
@@ -527,7 +577,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         }
       }
     })
-  }, [sourceInventory, requiresBatch])
+  }, [sourceInventory, requiresBatch, puomToProduct])
 
   const branchOptions = branches.map((b: any) => ({
     value: b.id as number,
