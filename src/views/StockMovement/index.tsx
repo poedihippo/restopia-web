@@ -23,8 +23,8 @@ import {
 export interface StockMovement {
   id: number
   qty: number
-  base_qty?: number | null
-  base_uom_code?: string | null
+  stock_before?: number
+  stock_after?: number
   direction: 'in' | 'out'
   product_inventory_id?: number
   branch_id?: number
@@ -34,8 +34,6 @@ export interface StockMovement {
   reference_id?: number | string
   reference_code?: string
   reference?: { code?: string }
-  stock_before?: number
-  stock_after?: number
   product_inventory?: {
     code?: string
     owner_ref?: string
@@ -88,25 +86,11 @@ export const TYPE_META = {
   },
 }
 
-// Shared qty +/- formatting: prefers base_qty/base_uom_code (the movement's
-// base-UOM figure) and falls back to the raw qty + the product's UOM code.
 export function formatMovementQty(item: StockMovement): string {
   const sign = item.direction === 'out' ? '−' : '+'
-  if (item.base_qty != null && item.base_uom_code) {
-    return `${sign}${Number(item.base_qty)} ${item.base_uom_code}`
-  }
   const uomCode =
     item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
     item.product_inventory?.product_uom?.uom?.code
-
-    // if(item.base_qty != null && item.base_uom_code){
-    //   const displayQty = item.qty ?? 0;
-    //   const displayUom = uomCode ?? '';
-    //   if(displayQty > 0 && displayUom){
-    //     return `${sign}${displayQty.toLocaleString('id-ID')} ${displayUom} (${Number(item.base_qty).toLocaleString('id-ID')} ${item.base_uom_code})`; 
-    //   }
-    //   return `${sign}${Number(item.base_qty).toLocaleString('id-ID')} ${item.base_uom_code}`
-    // }
   return `${sign}${(item.qty ?? 0).toLocaleString('id-ID')}${uomCode ? ` ${uomCode}` : ''}`
 }
 
