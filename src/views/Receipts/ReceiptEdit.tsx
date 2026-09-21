@@ -39,7 +39,6 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
       status: receipt.status === 'pending' ? 'final' : (receipt.status ?? 'final'),
       description: receipt.description ?? '',
       total_price: receipt.total_price ?? 0,
-      is_auto_convert: receipt.is_auto_convert ?? false,
       details: rawDetails.length
         ? rawDetails.map((d: any) => ({
           id: d.id ?? undefined,

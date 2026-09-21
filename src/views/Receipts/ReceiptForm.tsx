@@ -51,7 +51,6 @@ const schema = z.object({
   location_ref: z.string().optional(),
   owner_ref: z.string().optional(),
   stage: z.string().optional(),
-  is_auto_convert: z.boolean().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -109,7 +108,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         },
       ],
       total_price: 0,
-      is_auto_convert: false,
     },
   })
 
@@ -336,7 +334,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         location_ref: initialData.location_ref ?? 'GENERAL',
         owner_ref: initialData.owner_ref ?? 'GENERAL',
         stage: initialData.stage ?? 'GENERAL',
-        is_auto_convert: initialData.is_auto_convert ?? false,
       })
     }
   }, [initialData, mode])
@@ -377,7 +374,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       description: values.description,
       status: values.status,
       owner_ref: 'GENERAL',
-      is_auto_convert: values.is_auto_convert ?? false,
       details,
     }
 
@@ -731,30 +727,6 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               />
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  {...register('is_auto_convert')}
-                  style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--accent)' }}
-                />
-                Auto Convert
-              </label>
-              <span style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 4, marginLeft: 23 }}>
-                Otomatis konversi unit saat receipt diproses
-              </span>
-            </div>
           </div>
         </div>
 
