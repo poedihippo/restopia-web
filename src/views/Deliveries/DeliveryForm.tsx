@@ -1,11 +1,11 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
@@ -251,7 +251,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             page,
             per_page: 100,
             'filter[branch_id]': sourceBranchId,
-            include: 'product_uom_batch,product_uom_batch.product_uom',
+            include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
@@ -266,6 +266,79 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     },
   })
   const sourceInventory = (inventoryData as any)?.data ?? []
+
+  // Available qty shown in the batch picker must be in the LINE's own uom
+  // (e.g. "240 PACK"), but the matched batch row is the BASE-uom row (e.g.
+  // GR) — its display_qty/base_stock are in the base uom, not the line's.
+  // The backend now accepts display_in_product_uom_id on this same
+  // endpoint and returns converted_qty/converted_uom_code per row. A
+  // single fetch can only carry one target uom, and different lines can
+  // use different uoms, so — rather than one fetch per line (N+1) or one
+  // fetch per render — we fetch once per DISTINCT uom actually present
+  // across the form's lines (deduped), and only refetch when that set of
+  // uoms changes. Each fetch still covers the whole branch (like
+  // sourceInventory above), so results are merged back onto the matching
+  // rows by product_inventory id.
+  const lineProductUomIds = useMemo(() => {
+    const ids = new Set<number>()
+    ;(watchDetails ?? []).forEach((d: any) => {
+      const id = Number(d?.product_uom_id)
+      if (id > 0) ids.add(id)
+    })
+    return Array.from(ids)
+  }, [watchDetails])
+
+  const convertedInventoryQueries = useQueries({
+    queries: lineProductUomIds.map((uomId) => ({
+      queryKey: ['source-branch-inventory-converted', sourceBranchId, uomId],
+      enabled: !!sourceBranchId && !!uomId,
+      queryFn: async () => {
+        let allRows: any[] = []
+        let page = 1
+        let totalPages = 1
+        do {
+          const res = await productInventoriesService
+            .list({
+              page,
+              per_page: 100,
+              'filter[branch_id]': sourceBranchId,
+              display_in_product_uom_id: uomId,
+              include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+            } as any)
+            .then((r) => r.data)
+          const items = (res as any)?.data ?? []
+          allRows = allRows.concat(items)
+          totalPages =
+            (res as any)?.meta?.last_page ??
+            (res as any)?.meta?.total_pages ??
+            1
+          page += 1
+        } while (page <= totalPages)
+        return { uomId, rows: allRows }
+      },
+    })),
+  })
+
+  // uomId -> product_inventory id -> { converted_qty, converted_uom_code }.
+  // converted_qty/converted_uom_code are additive fields the backend may
+  // not send yet (spec not regenerated at the time of writing) — always
+  // optional, always nullable, read as-is with no client-side factor math.
+  const convertedQtyByUomAndInventoryId = useMemo(() => {
+    const outer = new Map<number, Map<number, { converted_qty?: number | null; converted_uom_code?: string | null }>>()
+    convertedInventoryQueries.forEach((q) => {
+      const result = q.data as { uomId: number; rows: any[] } | undefined
+      if (!result) return
+      const inner = new Map<number, { converted_qty?: number | null; converted_uom_code?: string | null }>()
+      result.rows.forEach((inv: any) => {
+        inner.set(inv.id, {
+          converted_qty: inv.converted_qty ?? null,
+          converted_uom_code: inv.converted_uom_code ?? null,
+        })
+      })
+      outer.set(result.uomId, inner)
+    })
+    return outer
+  }, [convertedInventoryQueries])
 
   // Batches already committed to this delivery's lines when it was
   // created — a delivery ALREADY shipped a specific batch, so editing must
@@ -296,27 +369,52 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // own already-committed batches so a stored batch always has a matching
   // option to display even when it's no longer in live stock. Live-stock
   // data wins when the same batch appears in both.
+  //
+  // Stock now always lives on the product's BASE product_uom batch (e.g.
+  // GR), never on a non-base line uom's own row (e.g. PACK) — so matching
+  // by the line's exact product_uom_id found nothing for any line not
+  // already in the base uom. Batches are resolved by PRODUCT instead: the
+  // line's product_uom -> product_id, matched against each inventory row's
+  // product_uom_batch.product_uom.product_id. The option's value stays the
+  // batch id (the base-uom batch); the submit payload is unchanged — it
+  // still sends product_uom_id = the line's own uom alongside that batch
+  // id, and the backend converts base -> line uom on deduct.
   const getBatchOptionsForUom = (productUomId: number) => {
+    const lineProductUom = productUoms.find((pu: any) => pu.id === productUomId)
+    const productId = lineProductUom?.product?.id ?? lineProductUom?.product_id
+
     const stockBatches = sourceInventory
       .filter((inv: any) => {
-        const invUomId =
-          inv.product_uom_id ?? inv.product_uom_batch?.product_uom?.id
         const hasBatch = !!inv.product_uom_batch?.id
-        // Delivery qty is entered in this batch's own uom (product_uom_id +
-        // product_uom_batch_id + qty sent as-is), so availability/display
-        // must use display_qty, not base_stock.
+        const invProductId =
+          inv.product_uom_batch?.product_uom?.product?.id ??
+          inv.product_uom_batch?.product_uom?.product_id
+        // Delivery qty is entered in the LINE's own uom, but stock/batches
+        // live on the base uom — so availability must read the base batch
+        // row's own display_qty (its on-hand qty in ITS uom, i.e. base),
+        // not a line-uom conversion (no API field exposes that safely, see
+        // stockUomCode below).
         const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
-        return hasBatch && invUomId === productUomId && stock > 0
+        return hasBatch && !!productId && invProductId === productId && stock > 0
       })
-      .map((inv: any) => ({
-        batchId: inv.product_uom_batch.id as number,
-        code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
-        expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
-        stock: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
-      }))
+      .map((inv: any) => {
+        // Converted qty (in the LINE's own uom) if the backend sent it for
+        // this uom + row; otherwise fall back to the batch's own (base)
+        // uom qty. Never pair a base-uom number with the line's uom label.
+        const converted = convertedQtyByUomAndInventoryId.get(productUomId)?.get(inv.id)
+        return {
+          batchId: inv.product_uom_batch.id as number,
+          code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
+          expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
+          stock: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
+          stockUomCode: inv.display_uom_code ?? inv.base_uom_code ?? undefined,
+          convertedQty: converted?.converted_qty ?? undefined,
+          convertedUomCode: converted?.converted_uom_code ?? undefined,
+        }
+      })
 
     const stored = storedBatchesByUomId.get(productUomId) ?? []
-    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number }>()
+    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number; stockUomCode?: string; convertedQty?: number | null; convertedUomCode?: string | null }>()
     for (const b of stored) merged.set(b.batchId, { ...b, stock: undefined })
     for (const b of stockBatches) merged.set(b.batchId, { ...merged.get(b.batchId), ...b })
     return Array.from(merged.values())
@@ -740,11 +838,19 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     boxSizing: 'border-box',
   }
 
+  // Prefer the backend-converted qty in the LINE's own uom (e.g. "240
+  // PACK") when available; otherwise fall back to the batch's own (base)
+  // uom qty (e.g. "24,000 GR"). Never pair a base-uom number with a uom
+  // label it wasn't converted into.
   const formatBatchOptionLabel = (b: any) => {
     const rawCode = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
     const shortCode = rawCode.length > 7 ? `${rawCode.substring(0, 7)}...` : rawCode
+    if (b.convertedQty !== undefined && b.convertedQty !== null && b.convertedUomCode) {
+      return `${shortCode} (${b.convertedQty.toLocaleString('id-ID')} ${b.convertedUomCode})`
+    }
     if (b.stock !== undefined) {
-      return `${shortCode} (${b.stock.toLocaleString('id-ID')})`
+      const uom = b.stockUomCode ? ` ${b.stockUomCode}` : ''
+      return `${shortCode} (${b.stock.toLocaleString('id-ID')}${uom})`
     }
     return shortCode
   }
@@ -1244,15 +1350,23 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                               ? 'No stock'
                               : 'Select batch...'}
                           </option>
-                          {batchOptions.map((b: any) => (
-                            <option
-                              key={b.batchId}
-                              value={b.batchId}
-                              title={`${b.code ?? `Batch #${b.batchId}`}${b.expiry_date ? ` | Exp: ${String(b.expiry_date).split('T')[0]}` : ''}${b.stock !== undefined ? ` | Stock: ${b.stock.toLocaleString('id-ID')}` : ''}`}
-                            >
-                              {formatBatchOptionLabel(b)}
-                            </option>
-                          ))}
+                          {batchOptions.map((b: any) => {
+                            const stockTitle =
+                              b.convertedQty !== undefined && b.convertedQty !== null && b.convertedUomCode
+                                ? ` | Stock: ${b.convertedQty.toLocaleString('id-ID')} ${b.convertedUomCode}`
+                                : b.stock !== undefined
+                                  ? ` | Stock: ${b.stock.toLocaleString('id-ID')}${b.stockUomCode ? ` ${b.stockUomCode}` : ''}`
+                                  : ''
+                            return (
+                              <option
+                                key={b.batchId}
+                                value={b.batchId}
+                                title={`${b.code ?? `Batch #${b.batchId}`}${b.expiry_date ? ` | Exp: ${String(b.expiry_date).split('T')[0]}` : ''}${stockTitle}`}
+                              >
+                                {formatBatchOptionLabel(b)}
+                              </option>
+                            )
+                          })}
                         </select>
                         {batchError && (
                           <span

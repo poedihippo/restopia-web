@@ -181,6 +181,13 @@ export interface ProductInventory {
   display_uom_code?: string | null
   base_stock?: number | null
   base_uom_code?: string | null
+  // Additive fields for GET /v1/product-inventories?display_in_product_uom_id=<uom>:
+  // the row's qty converted into that requested product_uom, and that
+  // uom's code. Not yet reflected in the generated openapi spec/api.d.ts
+  // at the time this was added — will be superseded by the next real
+  // typegen. Always optional/nullable; never computed client-side.
+  converted_qty?: number | null
+  converted_uom_code?: string | null
   min_qty?: number
   expiry_date?: string
   status?: 'active' | 'inactive'
