@@ -106,7 +106,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
           per_page: 50,
           sort: 'name',
           'filter[search]': productSearchDebounced || undefined,
-          'filter[product_types]': activeProductTypes,
+          'filter[types]': activeProductTypes,
           'filter[is_active]': true,
         } as any)
         .then((r) => r.data),

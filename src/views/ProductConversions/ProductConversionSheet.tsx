@@ -75,7 +75,7 @@ export default function ProductConversionSheet({
       let totalPages = 1
       do {
         const res = await productsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, sort: 'name', 'filter[status]': 'active', 'filter[is_active]': true, 'filter[product_types]': activeProductTypes })
+          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, sort: 'name', 'filter[status]': 'active', 'filter[is_active]': true, 'filter[types]': activeProductTypes })
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
         allProducts = allProducts.concat(items)
