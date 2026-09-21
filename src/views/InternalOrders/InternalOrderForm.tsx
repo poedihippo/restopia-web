@@ -12,7 +12,6 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { useAuth } from '@/hooks/useAuth'
-import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
@@ -109,10 +108,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   })
   const branches = (branchesData as any)?.data ?? []
 
-  const activeProductTypes = useActiveBranchProductTypes()
-
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch, showAllUoms],
+    queryKey: ['product-uoms-all', debouncedDropdownSearch, showAllUoms],
     queryFn: async () => {
       let allProductUoms: any[] = []
       let page = 1
@@ -123,7 +120,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             page,
             per_page: 100,
             include: 'product,uom',
-            'filter[product_types]': activeProductTypes,
+            'filter[product_types]': 'wip,raw,supply',
             'filter[is_default]': showAllUoms ? undefined : true,
             'filter[is_active]': true,
            } as any)
@@ -140,7 +137,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     },
   })
   const allProductUoms = (productUomsData as any)?.data ?? []
-  const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
+  const productUoms = allProductUoms
 
   // In edit mode, if an existing detail uses a non-default UOM that is not
   // returned by the default filter, automatically show all UOMs so the

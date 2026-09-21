@@ -51,6 +51,7 @@ const schema = z.object({
   location_ref: z.string().optional(),
   owner_ref: z.string().optional(),
   stage: z.string().optional(),
+  is_auto_convert: z.boolean().optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -108,6 +109,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         },
       ],
       total_price: 0,
+      is_auto_convert: false,
     },
   })
 
@@ -334,6 +336,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         location_ref: initialData.location_ref ?? 'GENERAL',
         owner_ref: initialData.owner_ref ?? 'GENERAL',
         stage: initialData.stage ?? 'GENERAL',
+        is_auto_convert: initialData.is_auto_convert ?? false,
       })
     }
   }, [initialData, mode])
@@ -373,12 +376,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       date: values.date,
       description: values.description,
       status: values.status,
-      // Receipts always land in the GENERAL pool — earmarking stock to a
-      // specific company owner (e.g. Tridaya) is a deliberate Dimension
-      // Transfer action, not a receipt-time choice. A receipt earmarked to
-      // a company blocks GENERAL-only fulfillment with false "no stock"
-      // errors, so this is hardcoded rather than read from form state.
       owner_ref: 'GENERAL',
+      is_auto_convert: values.is_auto_convert ?? false,
       details,
     }
 
@@ -730,6 +729,31 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 placeholder="Optional notes"
                 style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
               />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  {...register('is_auto_convert')}
+                  style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--accent)' }}
+                />
+                Auto Convert
+              </label>
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 4, marginLeft: 23 }}>
+                Otomatis konversi unit saat receipt diproses
+              </span>
             </div>
           </div>
         </div>

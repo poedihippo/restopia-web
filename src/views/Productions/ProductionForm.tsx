@@ -13,7 +13,6 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { productUomsService } from '@/services/product-uoms.service'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
-import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { companiesService } from '@/services/companies.service'
 import {
   Plus,
@@ -640,7 +639,16 @@ export default function ProductionForm({
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const activeBranchId = user?.branch?.id
-  const activeProductTypes = useActiveBranchProductTypes()
+
+  // Branch type determines which product types appear in the details selector:
+  // - warehouse/production → WIP products (semi-finished, being processed)
+  // - outlet → FINAL products (ready-to-sell finished goods)
+  const branchType = (user as any)?.branch?.type as string | undefined
+  const detailProductTypes: string =
+    branchType === 'warehouse' || branchType === 'production' ? 'wip' : 'final'
+
+  // Materials always use raw + wip regardless of branch type
+  const materialProductTypes = 'raw,wip'
 
   const [expandedDetails, setExpandedDetails] = useState<number[]>([0])
   const [loadingRecipeFor, setLoadingRecipeFor] = useState<number | null>(null)
@@ -810,14 +818,14 @@ export default function ProductionForm({
   // branch has never produced can still be selected. /product-uoms has no
   // Finished product search (Step 1)
   const { data: prodItemData } = useQuery({
-    queryKey: ['prod-item-product-search', sharedProductSearchDebounced, activeProductTypes],
+    queryKey: ['prod-item-product-search', sharedProductSearchDebounced, detailProductTypes],
     enabled: sharedProductSearchDebounced.length >= 2,
     queryFn: () =>
       api
         .get('/products', {
           params: {
             per_page: 500,
-            'filter[product_types]': 'final',
+            'filter[product_types]': detailProductTypes,
             'filter[search]': sharedProductSearchDebounced,
             sort: 'name',
           },
@@ -877,7 +885,7 @@ export default function ProductionForm({
 
   // Material product search (Step 1) — /products has reliable name search
   const { data: prodMaterialData } = useQuery({
-    queryKey: ['prod-material-search', sharedMaterialSearchDebounced, activeProductTypes],
+    queryKey: ['prod-material-search', sharedMaterialSearchDebounced, materialProductTypes],
     enabled: sharedMaterialSearchDebounced.length >= 2,
     refetchOnMount: 'always',
     queryFn: () =>
@@ -885,7 +893,7 @@ export default function ProductionForm({
         .get('/products', {
           params: {
             per_page: 500,
-            'filter[product_types]': activeProductTypes,
+            'filter[product_types]': materialProductTypes,
             sort: 'name',
             'filter[search]': sharedMaterialSearchDebounced,
           },
