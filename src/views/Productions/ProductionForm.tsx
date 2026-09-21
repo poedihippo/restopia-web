@@ -825,7 +825,7 @@ export default function ProductionForm({
         .get('/products', {
           params: {
             per_page: 500,
-            'filter[product_types]': detailProductTypes,
+            'filter[types]': detailProductTypes,
             'filter[search]': sharedProductSearchDebounced,
             sort: 'name',
           },
@@ -893,7 +893,7 @@ export default function ProductionForm({
         .get('/products', {
           params: {
             per_page: 500,
-            'filter[product_types]': materialProductTypes,
+            'filter[types]': materialProductTypes,
             sort: 'name',
             'filter[search]': sharedMaterialSearchDebounced,
           },

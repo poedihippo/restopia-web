@@ -83,7 +83,7 @@ export default function ProductionsView() {
 
   const { data: productsData } = useQuery({
     queryKey: ['products-finished', debouncedProductSearch, activeProductTypes],
-    queryFn: () => productsService.list({ per_page: perPage, 'filter[product_types]': 'final', 'filter[search]': debouncedProductSearch || undefined, 'filter[is_active]': true } as any).then((r) => r.data),
+    queryFn: () => productsService.list({ per_page: perPage, 'filter[types]': 'final', 'filter[search]': debouncedProductSearch || undefined, 'filter[is_active]': true } as any).then((r) => r.data),
   })
   
   const productOptions = (productsData as any)?.data?.map((p: any) => ({

@@ -185,7 +185,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       api
         .get('/products', {
           params: {
-            'filter[product_types]': 'final',
+            'filter[types]': 'final',
             'filter[search]': finishedSearchDebounced,
             per_page: 20,
             include: 'product_category',
@@ -203,7 +203,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         per_page: 500,
         include: 'base_uom',
         sort: 'name',
-        'filter[product_types]': materialTypeFilter || activeProductTypes,
+        'filter[types]': materialTypeFilter || activeProductTypes,
       }
       if (materialSearchDebounced) params['filter[search]'] = materialSearchDebounced
       return api.get('/products', { params }).then((r) => r.data)
