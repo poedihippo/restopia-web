@@ -1,5 +1,9 @@
 import React from 'react'
 import PrinterStatusBar from '@/components/pos/PrinterStatusBar'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { shiftsService } from '@/services/shifts.service'
+import { toastMutationApiError } from '@/utils/apiError'
 
 interface PosHeaderProps {
   search: string
@@ -18,6 +22,17 @@ export default function PosHeader({
   setShowPreorder,
   setShowPreorders,
 }: PosHeaderProps) {
+  const qc = useQueryClient()
+
+  const closeShiftMutation = useMutation({
+    mutationFn: () => shiftsService.close(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shifts-current'] })
+      toast.success('Shift closed successfully')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to close shift'),
+  })
+
   return (
     <>
       <div
@@ -145,6 +160,33 @@ export default function PosHeader({
           }}
         >
           🗂 Pending
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Close current shift? This will settle all pending payments.')) {
+              closeShiftMutation.mutate()
+            }
+          }}
+          disabled={closeShiftMutation.isPending}
+          style={{
+            height: 36,
+            padding: '0 14px',
+            border: '1px solid var(--destructive)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--destructive-bg)',
+            color: 'var(--destructive)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexShrink: 0,
+            opacity: closeShiftMutation.isPending ? 0.7 : 1,
+          }}
+        >
+          {closeShiftMutation.isPending ? 'Closing...' : '🔒 Close Shift'}
         </button>
       </div>
       <PrinterStatusBar />

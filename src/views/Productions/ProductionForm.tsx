@@ -642,10 +642,10 @@ export default function ProductionForm({
 
   // Branch type determines which product types appear in the details selector:
   // - warehouse/production → WIP products (semi-finished, being processed)
-  // - outlet → FINAL products (ready-to-sell finished goods)
+  // - outlet → RAW + FINAL products (raw materials + ready-to-sell finished goods)
   const branchType = (user as any)?.branch?.type as string | undefined
   const detailProductTypes: string =
-    branchType === 'warehouse' || branchType === 'production' ? 'wip' : 'final'
+    branchType === 'warehouse' || branchType === 'production' ? 'wip' : 'raw,final'
 
   // Materials always use raw + wip regardless of branch type
   const materialProductTypes = 'raw,wip'

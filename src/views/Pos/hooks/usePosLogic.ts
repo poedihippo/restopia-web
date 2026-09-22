@@ -676,19 +676,46 @@ export function usePosLogic() {
   }
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (payload: any) =>
-      editingOrderId
-        ? salesOrdersService.update(editingOrderId, payload as any)
-        : api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
-    onSuccess: async (res: any, variables: any) => {
-      const salesOrderId = res?.data?.id ?? editingOrderId ?? null
+    mutationFn: (payload: any) => {
+      if (editingOrderId) {
+        return salesOrdersService.update(editingOrderId, payload as any)
+      }
+      // Build payments array for atomic checkout
       const paidAmount = isCashMethod
         ? Number(cashTendered.replace(/\D/g, ''))
-        : variables.total_price
+        : payload.total_price
+      let checkoutPayments: { payment_method_id: number; amount: number }[] = []
+      if (isSplitPayment) {
+        checkoutPayments = splitPayments.map(sp => ({
+          payment_method_id: sp.paymentMethodId,
+          amount: sp.amount,
+        }))
+      } else if (paymentMethodId) {
+        checkoutPayments = [{ payment_method_id: paymentMethodId, amount: paidAmount }]
+      }
+      return salesOrdersService.checkout({
+        branch_id: payload.branch_id,
+        customer_id: payload.customer_id,
+        voucher_id: payload.voucher_id,
+        details: payload.details.map((d: any) => ({
+          product_uom_batch_id: d.product_uom_batch_id,
+          quantity: d.qty,
+          price: d.price,
+        })),
+        payments: checkoutPayments,
+      })
+    },
+    onSuccess: async (res: any, variables: any) => {
+      // Checkout is atomic — payment already created by the backend.
+      // Only create payments separately for edited (held) orders.
+      if (editingOrderId) {
+        const salesOrderId = editingOrderId
+        const paidAmount = isCashMethod
+          ? Number(cashTendered.replace(/\D/g, ''))
+          : variables.total_price
 
-      if (salesOrderId) {
-        const dateStr = new Date().toISOString().split('T')[0];
-        let paymentsPayload: any[] = [];
+        const dateStr = new Date().toISOString().split('T')[0]
+        let paymentsPayload: any[] = []
 
         if (isSplitPayment) {
           paymentsPayload = splitPayments.map(sp => ({
@@ -696,14 +723,14 @@ export function usePosLogic() {
             amount: sp.amount,
             description: orderNote || undefined,
             allocations: [{ sales_order_id: salesOrderId, amount: sp.amount }]
-          }));
+          }))
         } else if (paymentMethodId) {
           paymentsPayload = [{
             payment_method_id: paymentMethodId,
             amount: paidAmount,
             description: orderNote || undefined,
             allocations: [{ sales_order_id: salesOrderId, amount: paidAmount }]
-          }];
+          }]
         }
 
         if (paymentsPayload.length > 0) {
@@ -712,10 +739,10 @@ export function usePosLogic() {
               type: 'receive',
               date: dateStr,
               payments: paymentsPayload
-            } as any);
+            } as any)
           } catch (err: any) {
             toast.error(
-              'Order created but payment recording failed: ' +
+              'Order updated but payment recording failed: ' +
               (err?.response?.data?.message ?? 'Unknown error'),
             )
           }
@@ -726,7 +753,7 @@ export function usePosLogic() {
       qc.invalidateQueries({ queryKey: ['pos-history'] })
       qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
       qc.invalidateQueries({ queryKey: ['pos-bundles'] })
-      toast.success('Order placed!')
+      toast.success(editingOrderId ? 'Order updated!' : 'Order placed!')
       resetCart()
       
       // Full page refresh after 1.5 seconds so user can read the success toast

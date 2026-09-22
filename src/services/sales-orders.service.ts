@@ -17,6 +17,22 @@ export const salesOrdersService = {
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/sales-orders/${id}`),
 
+  checkout: (data: {
+    branch_id: number
+    customer_id?: number
+    voucher_id?: number
+    details: { product_uom_batch_id: number; quantity: number; price: number }[]
+    payments: { payment_method_id: number; amount: number }[]
+  }) =>
+    api.post<ApiResponse<unknown>>('/sales-orders/checkout', data, {
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+    }),
+
+  returnOrder: (id: number) =>
+    api.post<ApiResponse<unknown>>(`/sales-orders/${id}/return`, undefined, {
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+    }),
+
   bulkUpdateSettlement: (data: any) =>
     api.post<ApiResponse<unknown>>('/sales-orders/bulk-update-settlement-status', data),
 

@@ -13,9 +13,10 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 export default function OperationRulesView() {
   const qc = useQueryClient();
   const { hasPermission } = useAuth();
-  const canCreate = true;
-  const canEdit = true;
-  const canDelete = true;
+  const canRead = hasPermission('operation-rule.read');
+  const canCreate = hasPermission('operation-rule.create');
+  const canEdit = hasPermission('operation-rule.update');
+  const canDelete = hasPermission('operation-rule.delete');
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -92,7 +93,8 @@ export default function OperationRulesView() {
           <thead>
             <tr>
               <th style={thStyle}>ID</th>
-              <th style={thStyle}>Mode</th>
+              <th style={thStyle}>Open Mode</th>
+              <th style={thStyle}>Close Mode</th>
               <th style={thStyle}>Shift Mode</th>
               <th style={thStyle}>Auto Open</th>
               <th style={thStyle}>Auto Close</th>
@@ -110,7 +112,8 @@ export default function OperationRulesView() {
               items.map((item) => (
                 <tr key={item.id} style={{ transition: 'background 120ms' }} onMouseEnter={(ev) => (ev.currentTarget.style.background = 'var(--background)')} onMouseLeave={(ev) => (ev.currentTarget.style.background = 'transparent')}>
                   <td style={tdStyle}><span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>#{item.id}</span></td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.operation_mode || '—'}</span></td>
+                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.open_mode || '—'}</span></td>
+                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.close_mode || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.shift_mode || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.auto_open_cron || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.auto_close_cron || '—'}</span></td>
@@ -155,7 +158,8 @@ export default function OperationRulesView() {
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
                 { label: 'ID', value: selectedItem.id },
-                { label: 'Mode', value: selectedItem.operation_mode },
+                { label: 'Open Mode', value: selectedItem.open_mode },
+                { label: 'Close Mode', value: selectedItem.close_mode },
                 { label: 'Shift Mode', value: selectedItem.shift_mode },
                 { label: 'Auto Open', value: selectedItem.auto_open_cron },
                 { label: 'Auto Close', value: selectedItem.auto_close_cron },

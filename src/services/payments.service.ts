@@ -6,7 +6,9 @@ export const paymentsService = {
   findById: (id: number, params?: any) =>
     api.get(`/payments/${id}`, { params }),
   create: (data: any) =>
-    api.post('/payments', data),
+    api.post('/payments', data, {
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+    }),
   update: (id: number, data: any) =>
     api.patch(`/payments/${id}`, data),
   allocate: (id: number, data: any) =>

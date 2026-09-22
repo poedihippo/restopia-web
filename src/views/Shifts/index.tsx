@@ -13,9 +13,10 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 export default function ShiftsView() {
   const qc = useQueryClient();
   const { hasPermission } = useAuth();
-  const canCreate = true;
-  const canEdit = true;
-  const canDelete = true;
+  const canRead = hasPermission('shift.read');
+  const canCreate = hasPermission('shift.create');
+  const canEdit = hasPermission('shift.update');
+  const canDelete = hasPermission('shift.delete');
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');

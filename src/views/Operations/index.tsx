@@ -13,9 +13,10 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 export default function OperationsView() {
   const qc = useQueryClient();
   const { hasPermission } = useAuth();
-  const canCreate = true;
-  const canEdit = true;
-  const canDelete = true;
+  const canRead = hasPermission('operation.read');
+  const canCreate = hasPermission('operation.create');
+  const canEdit = hasPermission('operation.update');
+  const canDelete = hasPermission('operation.delete');
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');

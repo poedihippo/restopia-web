@@ -1,5 +1,9 @@
 import React from 'react'
 import { formatCurrency } from '@/utils/price';
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { salesOrdersService } from '@/services/sales-orders.service'
+import { toastMutationApiError } from '@/utils/apiError'
 
 interface PosHistoryModalProps {
   showHistory: boolean
@@ -32,6 +36,18 @@ export default function PosHistoryModal({
   historyMeta,
   isHistoryLoading,
 }: PosHistoryModalProps) {
+  const qc = useQueryClient()
+
+  const returnOrderMutation = useMutation({
+    mutationFn: (orderId: number) => salesOrdersService.returnOrder(orderId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pos-history'] })
+      qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
+      toast.success('Order returned successfully')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to return order'),
+  })
+
   if (!showHistory) return null
 
   return (
@@ -204,6 +220,34 @@ export default function PosHistoryModal({
                   {formatCurrency(Number(order.total_price))}
                 </span>
               </div>
+
+              {/* Return button — only for final orders without deliveries/invoices */}
+              {order.status === 'final' && !order.has_delivery && !order.has_invoice && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`Return order ${order.code}? This will reverse all payments and restore stock.`)) {
+                      returnOrderMutation.mutate(order.id)
+                    }
+                  }}
+                  disabled={returnOrderMutation.isPending}
+                  style={{
+                    marginTop: 8,
+                    width: '100%',
+                    padding: '6px 12px',
+                    border: '1px solid var(--destructive)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--destructive-bg)',
+                    color: 'var(--destructive)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    opacity: returnOrderMutation.isPending ? 0.7 : 1,
+                  }}
+                >
+                  {returnOrderMutation.isPending ? 'Returning...' : '↩ Return Order'}
+                </button>
+              )}
             </div>
           ))}
         </div>

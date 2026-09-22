@@ -17,6 +17,11 @@ export const shiftsService = {
   rollover: (data: any) =>
     api.post<ApiResponse<any>>('/shifts/rollover', data),
 
+  close: (data?: any) =>
+    api.post<ApiResponse<any>>('/shifts/close', data, {
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+    }),
+
   create: (data: any) =>
     api.post<ApiResponse<any>>('/shifts', data),
 

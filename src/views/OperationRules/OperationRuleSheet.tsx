@@ -14,11 +14,12 @@ import { useAuth } from '@/hooks/useAuth'
 import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
-  branch_id: z.coerce.number().optional(),
-  operation_mode: z.string().optional(),
-  shift_mode: z.string().optional(),
+  branch_id: z.coerce.number().min(1, 'Branch is required'),
+  open_mode: z.string().min(1, 'Open mode is required'),
+  close_mode: z.string().min(1, 'Close mode is required'),
+  shift_mode: z.string().min(1, 'Shift mode is required'),
   auto_open_cron: z.string().optional(),
-  auto_close_cron: z.string().optional()
+  auto_close_cron: z.string().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -59,8 +60,9 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
     resolver: zodResolver(schema) as any,
     defaultValues: {
       branch_id: 0,
-      operation_mode: '',
-      shift_mode: '',
+      open_mode: undefined,
+      close_mode: undefined,
+      shift_mode: undefined,
       auto_open_cron: '',
       auto_close_cron: '',
     },
@@ -69,17 +71,19 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
   useEffect(() => {
     if (editData) {
       reset({
-        branch_id:editData.branch_id ?? user?.branch?.id ?? 0,  
-        operation_mode: editData.operation_mode ?? '',
-        shift_mode: editData.shift_mode ?? '',
+        branch_id: editData.branch_id ?? user?.branch?.id ?? 0,
+        open_mode: editData.open_mode ?? undefined,
+        close_mode: editData.close_mode ?? undefined,
+        shift_mode: editData.shift_mode ?? undefined,
         auto_open_cron: editData.auto_open_cron ?? '',
         auto_close_cron: editData.auto_close_cron ?? '',
       })
     } else {
       reset({
         branch_id: user?.branch?.id ?? 0,
-        operation_mode: '',
-        shift_mode: '',
+        open_mode: undefined,
+        close_mode: undefined,
+        shift_mode: undefined,
         auto_open_cron: '',
         auto_close_cron: '',
       })
@@ -90,24 +94,23 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
     mutationFn: (data: FormValues) => operationRulesService.create(data as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['operationrules'] })
-      toast.success('OperationRule created')
+      toast.success('Operation Rule created')
       onClose()
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to create OperationRule'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to create Operation Rule'),
   })
 
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) => operationRulesService.update(editData!.id, data as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['operationrules'] })
-      toast.success('OperationRule updated')
+      toast.success('Operation Rule updated')
       onClose()
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to update OperationRule'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update Operation Rule'),
   })
 
   const onSubmit = (data: FormValues) => {
-
     if (editData) updateMutation.mutate(data)
     else createMutation.mutate(data)
   }
@@ -116,13 +119,20 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
 
   if (!open) return null
 
+  const selectStyle: React.CSSProperties = {
+    width: '100%', padding: '8px 12px', border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)', background: 'var(--surface)',
+    color: 'var(--foreground)', fontSize: 14, outline: 'none',
+    boxSizing: 'border-box', cursor: 'pointer',
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)', backdropFilter: 'blur(2px)' }} />
       <div style={{ position: 'relative', zIndex: 110, width: '100%', maxWidth: 440, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-xl)' }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>
-            {editData ? 'Edit OperationRule' : 'New OperationRule'}
+            {editData ? 'Edit Operation Rule' : 'New Operation Rule'}
           </h2>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', color: 'var(--foreground-muted)' }}>
             <X size={18} />
@@ -132,7 +142,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch ID</label>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch</label>
               <Controller
                 name="branch_id"
                 control={control}
@@ -152,22 +162,40 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
               {errors.branch_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.branch_id.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Operation Mode</label>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                Open Mode <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
               <select
-                {...register('operation_mode')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}
+                {...register('open_mode')}
+                style={selectStyle}
               >
                 <option value="">Select mode...</option>
                 <option value="auto">auto</option>
                 <option value="manual">manual</option>
               </select>
-              {errors.operation_mode && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.operation_mode.message as string}</span>}
+              {errors.open_mode && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.open_mode.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Shift Mode (auto/manual)</label>
-               <select
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                Close Mode <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <select
+                {...register('close_mode')}
+                style={selectStyle}
+              >
+                <option value="">Select mode...</option>
+                <option value="auto">auto</option>
+                <option value="manual">manual</option>
+              </select>
+              {errors.close_mode && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.close_mode.message as string}</span>}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                Shift Mode <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <select
                 {...register('shift_mode')}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}
+                style={selectStyle}
               >
                 <option value="">Select mode...</option>
                 <option value="auto">auto</option>
@@ -179,6 +207,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Auto Open Cron</label>
               <input
                 {...register('auto_open_cron')}
+                placeholder="e.g. 0 10 10 * * *"
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
               />
               {errors.auto_open_cron && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.auto_open_cron.message as string}</span>}
@@ -187,6 +216,7 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Auto Close Cron</label>
               <input
                 {...register('auto_close_cron')}
+                placeholder="e.g. 1 10 10 * * *"
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
               />
               {errors.auto_close_cron && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.auto_close_cron.message as string}</span>}
