@@ -23,6 +23,8 @@ import {
 export interface StockMovement {
   id: number
   qty: number
+  base_qty?: number
+  base_uom_code?: string
   stock_before?: number
   stock_after?: number
   direction: 'in' | 'out'
@@ -43,12 +45,30 @@ export interface StockMovement {
     location_ref?: string
     product_uom_batch?: {
       product_uom?: {
-        product?: { name: string }
+        product?: {
+          name: string
+          conversions?: {
+            uom_name: string
+            uom_code: string
+            target_uom_name: string
+            target_uom_code: string
+            amount: number
+          }[]
+        }
         uom?: { name: string; code?: string }
       }
     }
     product_uom?: {
-      product?: { name: string }
+      product?: {
+        name: string
+        conversions?: {
+          uom_name: string
+          uom_code: string
+          target_uom_name: string
+          target_uom_code: string
+          amount: number
+        }[]
+      }
       uom?: { name: string; code?: string }
     }
   }
@@ -86,12 +106,44 @@ export const TYPE_META = {
   },
 }
 
+// conversions.amount paling kecil = satuan terbesar.
+// Tampilkan qty dengan uom_name dari conversion tersebut.
+function findBestDisplayUom(
+  qty: number,
+  baseQty: number,
+  baseUomCode: string,
+  conversions?: {
+    uom_name: string
+    uom_code: string
+    target_uom_name: string
+    target_uom_code: string
+    amount: number
+  }[]
+): { value: number; uomCode: string } {
+  if (!conversions || conversions.length === 0) {
+    return { value: baseQty, uomCode: baseUomCode }
+  }
+  // Smallest amount = largest UOM → use uom_name as label
+  const smallest = conversions.reduce((min, c) =>
+    c.amount < min.amount ? c : min
+  , conversions[0])
+  return { value: qty, uomCode: smallest.uom_name }
+}
+
 export function formatMovementQty(item: StockMovement): string {
   const sign = item.direction === 'out' ? '−' : '+'
-  const uomCode =
+  const qty = item.qty ?? 0
+  const baseQty = item.base_qty ?? qty
+  const baseUomCode = item.base_uom_code ??
     item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
-    item.product_inventory?.product_uom?.uom?.code
-  return `${sign}${(item.qty ?? 0).toLocaleString('id-ID')}${uomCode ? ` ${uomCode}` : ''}`
+    item.product_inventory?.product_uom?.uom?.code ?? ''
+
+  const conversions =
+    item.product_inventory?.product_uom_batch?.product_uom?.product?.conversions ??
+    item.product_inventory?.product_uom?.product?.conversions
+
+  const best = findBestDisplayUom(qty, baseQty, baseUomCode, conversions)
+  return `${sign}${best.value.toLocaleString('id-ID')} ${best.uomCode}`
 }
 
 // Shared "Document" cell content: links to the source document's detail page

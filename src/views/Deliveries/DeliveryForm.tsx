@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
@@ -251,7 +251,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // actually have stock at the supplying branch, with the REAL per-branch
   // quantity (not the global batch stock). Per-branch stock lives in
   // product_inventory, so we source the picker from there.
-  const { data: inventoryData } = useQuery({
+  const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching } = useQuery({
     queryKey: ['source-branch-inventory', sourceBranchId],
     enabled: !!sourceBranchId,
     queryFn: async () => {
@@ -264,7 +264,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             page,
             per_page: 100,
             'filter[branch_id]': sourceBranchId,
-            include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+            include: 'product_uom_batch,product_uom_batch.product_uom',
           } as any)
           .then((r) => r.data)
         const items = (res as any)?.data ?? []
@@ -292,67 +292,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // uoms changes. Each fetch still covers the whole branch (like
   // sourceInventory above), so results are merged back onto the matching
   // rows by product_inventory id.
-  const lineProductUomIds = useMemo(() => {
-    const ids = new Set<number>()
-    ;(watchDetails ?? []).forEach((d: any) => {
-      const id = Number(d?.product_uom_id)
-      if (id > 0) ids.add(id)
-    })
-    return Array.from(ids)
-  }, [watchDetails])
-
-  const convertedInventoryQueries = useQueries({
-    queries: lineProductUomIds.map((uomId) => ({
-      queryKey: ['source-branch-inventory-converted', sourceBranchId, uomId],
-      enabled: !!sourceBranchId && !!uomId,
-      queryFn: async () => {
-        let allRows: any[] = []
-        let page = 1
-        let totalPages = 1
-        do {
-          const res = await productInventoriesService
-            .list({
-              page,
-              per_page: 100,
-              'filter[branch_id]': sourceBranchId,
-              display_in_product_uom_id: uomId,
-              include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
-            } as any)
-            .then((r) => r.data)
-          const items = (res as any)?.data ?? []
-          allRows = allRows.concat(items)
-          totalPages =
-            (res as any)?.meta?.last_page ??
-            (res as any)?.meta?.total_pages ??
-            1
-          page += 1
-        } while (page <= totalPages)
-        return { uomId, rows: allRows }
-      },
-    })),
-  })
-
-  // uomId -> product_inventory id -> { converted_qty, converted_uom_code }.
-  // converted_qty/converted_uom_code are additive fields the backend may
-  // not send yet (spec not regenerated at the time of writing) — always
-  // optional, always nullable, read as-is with no client-side factor math.
-  const convertedQtyByUomAndInventoryId = useMemo(() => {
-    const outer = new Map<number, Map<number, { converted_qty?: number | null; converted_uom_code?: string | null }>>()
-    convertedInventoryQueries.forEach((q) => {
-      const result = q.data as { uomId: number; rows: any[] } | undefined
-      if (!result) return
-      const inner = new Map<number, { converted_qty?: number | null; converted_uom_code?: string | null }>()
-      result.rows.forEach((inv: any) => {
-        inner.set(inv.id, {
-          converted_qty: inv.converted_qty ?? null,
-          converted_uom_code: inv.converted_uom_code ?? null,
-        })
-      })
-      outer.set(result.uomId, inner)
-    })
-    return outer
-  }, [convertedInventoryQueries])
-
   // Batches already committed to this delivery's lines when it was
   // created — a delivery ALREADY shipped a specific batch, so editing must
   // show that stored batch regardless of current live stock (its stock may
@@ -419,21 +358,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
         return false
       })
-      .map((inv: any) => {
-        const converted = convertedQtyByUomAndInventoryId.get(productUomId)?.get(inv.id)
-        return {
-          batchId: inv.product_uom_batch.id as number,
-          code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
-          expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
-          stock: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
-          stockUomCode: inv.display_uom_code ?? inv.base_uom_code ?? undefined,
-          convertedQty: converted?.converted_qty ?? undefined,
-          convertedUomCode: converted?.converted_uom_code ?? undefined,
-        }
-      })
+      .map((inv: any) => ({
+        batchId: inv.product_uom_batch.id as number,
+        code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
+        expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
+        stock: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
+      }))
 
     const stored = storedBatchesByUomId.get(productUomId) ?? []
-    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number; stockUomCode?: string; convertedQty?: number | null; convertedUomCode?: string | null }>()
+    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number }>()
     for (const b of stored) merged.set(b.batchId, { ...b, stock: undefined })
     for (const b of stockBatches) merged.set(b.batchId, { ...merged.get(b.batchId), ...b })
 
@@ -518,6 +451,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const showLinkedPO =
     watchSourceType === 'po_from_supplier' || watchSourceType === 'po_from_branch'
   const showLinkedSO = watchSourceType === 'so_to_branch'
+
+  // Track whether the linked order's line items have been loaded into the
+  // form. Without this, the batch selector flashes "No stock" between the
+  // PO/SO query finishing and the form's replace() taking effect.
+  const hasLinkedOrder = !!(prefill?.purchase_order_id || prefill?.sales_order_id)
+  const [linkedOrderFormReady, setLinkedOrderFormReady] = useState(!hasLinkedOrder)
   const targetBranchReadonly =
     watchSourceType === 'po_from_supplier' ||
     watchSourceType === 'po_from_branch' ||
@@ -581,6 +520,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     })
 
     replace(newDetails)
+    setLinkedOrderFormReady(true)
 
     if (
       (watchSourceType === 'po_from_supplier' ||
@@ -616,6 +556,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         }
       })
       replace(newDetails)
+      setLinkedOrderFormReady(true)
       toast.info('Items loaded from Sales Order')
     }
   }, [soDetail?.id])
@@ -624,11 +565,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     if (!showLinkedPO) {
       setValue('purchase_order_id', undefined)
     }
-  }, [showLinkedPO])
+    setLinkedOrderFormReady(false)
+  }, [showLinkedPO, watchPurchaseOrderId])
 
   useEffect(() => {
     if (!showLinkedSO) {
       setValue('sales_order_id', undefined)
+    }
+    // No linked order → form is immediately ready
+    if (!showLinkedPO && !showLinkedSO) {
+      setLinkedOrderFormReady(true)
     }
   }, [showLinkedSO])
 
@@ -875,12 +821,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const formatBatchOptionLabel = (b: any) => {
     const rawCode = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
     const shortCode = rawCode.length > 7 ? `${rawCode.substring(0, 7)}...` : rawCode
-    if (b.convertedQty !== undefined && b.convertedQty !== null && b.convertedUomCode) {
-      return `${shortCode} (${b.convertedQty.toLocaleString('id-ID')} ${b.convertedUomCode})`
-    }
     if (b.stock !== undefined) {
-      const uom = b.stockUomCode ? ` ${b.stockUomCode}` : ''
-      return `${shortCode} (${b.stock.toLocaleString('id-ID')}${uom})`
+      return `${shortCode} (${b.stock.toLocaleString('id-ID')})`
     }
     return shortCode
   }
@@ -1348,56 +1290,74 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     const batches = getBatchOptionsForUom(
                       watchDetails[index]?.product_uom_id ?? 0,
                     )
-                    // Last-resort safety net: the selected batch must always
-                    // have a matching <option>, even if it came from neither
-                    // live stock nor the stored product_uom_batch relation
-                    // (e.g. that relation wasn't eager-loaded for some
-                    // reason) — otherwise the <select> silently falls back
-                    // to showing the placeholder despite a real value.
                     const batchOptions =
                       f.value && !batches.some((b: any) => b.batchId === f.value)
                         ? [...batches, { batchId: f.value, code: undefined, expiry_date: undefined, stock: undefined }]
                         : batches
                     const batchError = errors.details?.[index]?.product_uom_batch_id
                       ?.message as string | undefined
+                    const showBatchLoading = inventoryFetching || !linkedOrderFormReady
                     return (
                       <div
                         style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}
                       >
-                        <select
-                          value={f.value ?? 0}
-                          onChange={(e) =>
-                            f.onChange(Number(e.target.value) || undefined)
-                          }
-                          style={{
-                            ...lineInputStyle,
-                            border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'}`,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <option value={0}>
-                            {batchOptions.length === 0
-                              ? 'No stock'
-                              : 'Select batch...'}
-                          </option>
-                          {batchOptions.map((b: any) => {
-                            const stockTitle =
-                              b.convertedQty !== undefined && b.convertedQty !== null && b.convertedUomCode
-                                ? ` | Stock: ${b.convertedQty.toLocaleString('id-ID')} ${b.convertedUomCode}`
-                                : b.stock !== undefined
-                                  ? ` | Stock: ${b.stock.toLocaleString('id-ID')}${b.stockUomCode ? ` ${b.stockUomCode}` : ''}`
-                                  : ''
-                            return (
-                              <option
-                                key={b.batchId}
-                                value={b.batchId}
-                                title={`${b.code ?? `Batch #${b.batchId}`}${b.expiry_date ? ` | Exp: ${String(b.expiry_date).split('T')[0]}` : ''}${stockTitle}`}
-                              >
-                                {formatBatchOptionLabel(b)}
-                              </option>
-                            )
-                          })}
-                        </select>
+                        {showBatchLoading ? (
+                          <div
+                            style={{
+                              ...lineInputStyle,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                              color: 'var(--foreground-muted)',
+                              background: 'var(--surface)',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 99,
+                                border: '2px solid var(--border)',
+                                borderTop: '2px solid var(--accent)',
+                                animation: 'spin 0.8s linear infinite',
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span style={{ fontSize: 12 }}>Loading stock...</span>
+                          </div>
+                        ) : (
+                          <select
+                            value={f.value ?? 0}
+                            onChange={(e) =>
+                              f.onChange(Number(e.target.value) || undefined)
+                            }
+                            style={{
+                              ...lineInputStyle,
+                              border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'}`,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value={0}>
+                              {batchOptions.length === 0
+                                ? 'No stock'
+                                : 'Select batch...'}
+                            </option>
+                            {batchOptions.map((b: any) => {
+                              const stockTitle = b.stock !== undefined
+                                ? ` | Stock: ${b.stock.toLocaleString('id-ID')}`
+                                : ''
+                              return (
+                                <option
+                                  key={b.batchId}
+                                  value={b.batchId}
+                                  title={`${b.code ?? `Batch #${b.batchId}`}${b.expiry_date ? ` | Exp: ${String(b.expiry_date).split('T')[0]}` : ''}${stockTitle}`}
+                                >
+                                  {formatBatchOptionLabel(b)}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        )}
                         {batchError && (
                           <span
                             style={{ fontSize: 10, color: 'var(--destructive)' }}
