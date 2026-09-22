@@ -218,7 +218,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // lightweight lookup (rather than reordering the larger
   // po-detail-for-delivery query below, which doesn't request this field).
   const watchPurchaseOrderIdForSource = watch('purchase_order_id')
-  const { data: poSourceBranchData } = useQuery({
+  const { data: poSourceBranchData, isLoading: poSourceBranchLoading } = useQuery({
     queryKey: ['po-supplier-branch-for-delivery', watchPurchaseOrderIdForSource],
     queryFn: () =>
       purchaseOrdersService
@@ -251,7 +251,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // actually have stock at the supplying branch, with the REAL per-branch
   // quantity (not the global batch stock). Per-branch stock lives in
   // product_inventory, so we source the picker from there.
-  const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching } = useQuery({
+  const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
     queryKey: ['source-branch-inventory', sourceBranchId],
     enabled: !!sourceBranchId,
     queryFn: async () => {
@@ -520,7 +520,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     })
 
     replace(newDetails)
-    setLinkedOrderFormReady(true)
+    // Mark form as ready AFTER replace() so the batch selector doesn't
+    // flash "No stock" before the form values are actually set. Using
+    // setTimeout(0) ensures React has flushed the replace() and painted.
+    setTimeout(() => {
+      setLinkedOrderFormReady(true)
+    }, 0)
 
     if (
       (watchSourceType === 'po_from_supplier' ||
@@ -556,7 +561,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         }
       })
       replace(newDetails)
-      setLinkedOrderFormReady(true)
+      setTimeout(() => setLinkedOrderFormReady(true), 0)
       toast.info('Items loaded from Sales Order')
     }
   }, [soDetail?.id])
@@ -1296,7 +1301,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         : batches
                     const batchError = errors.details?.[index]?.product_uom_batch_id
                       ?.message as string | undefined
-                    const showBatchLoading = inventoryFetching || !linkedOrderFormReady
+                    // Show spinner when ANY of these are true:
+                    // 1. sourceBranchId not yet resolved (poSourceBranchData still loading for fulfill flow)
+                    // 2. inventory query has never fetched or is currently fetching
+                    // 3. productUoms not yet loaded (puomToProduct map not ready)
+                    // 4. linked order form data not yet applied to form (PO/SO useEffect replace() pending)
+                    const sourceBranchPending = showLinkedPO && poSourceBranchLoading
+                    const inventoryPending = !inventoryFetched || inventoryFetching
+                    const showBatchLoading = sourceBranchPending || inventoryPending || productUomsLoading || !linkedOrderFormReady
                     return (
                       <div
                         style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}
