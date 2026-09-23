@@ -20,6 +20,7 @@ import {
   MovementDocumentLink,
 } from '@/views/StockMovement'
 import type { StockMovement } from '@/views/StockMovement'
+import { loadStoredMode, persistMode, type UnitDisplayMode } from '@/utils/unitDisplay'
 import { LayoutList, Download, Loader2 } from 'lucide-react'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
@@ -39,6 +40,13 @@ export default function StockCardView() {
   const [ownerFilter, setOwnerFilter] = useState('')
   const [stageFilter, setStageFilter] = useState('')
   const [directionFilter, setDirectionFilter] = useState<'' | 'in' | 'out'>('')
+  const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() =>
+    loadStoredMode((user as any)?.branch?.type),
+  )
+
+  useEffect(() => {
+    persistMode(unitMode)
+  }, [unitMode])
 
   useEffect(() => {
     const t = setTimeout(() => setProductSearchDebounced(productSearch), 400)
@@ -297,6 +305,49 @@ export default function StockCardView() {
         </div>
 
         <div>
+          <label style={labelStyle}>Unit Display</label>
+          <div
+            role="group"
+            aria-label="Unit display mode"
+            style={{
+              display: 'inline-flex',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              overflow: 'hidden',
+              background: 'var(--surface-raised)',
+              width: '100%',
+            }}
+          >
+            {([
+              { key: 'smallest', label: 'Smallest' },
+              { key: 'largest', label: 'Largest' },
+            ] as { key: UnitDisplayMode; label: string }[]).map((opt) => {
+              const active = unitMode === opt.key
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setUnitMode(opt.key)}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    border: 'none',
+                    background: active ? 'var(--accent)' : 'transparent',
+                    color: active ? 'white' : 'var(--foreground-muted)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
           <label style={labelStyle}>Owner (Dimensi)</label>
           <SearchableSelect
             value={ownerFilter}
@@ -468,14 +519,14 @@ export default function StockCardView() {
                         <td style={tdStyle}>
                           {item.direction === 'in' && (
                             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>
-                              {formatMovementQty(item)}
+                              {formatMovementQty(item, unitMode)}
                             </span>
                           )}
                         </td>
                         <td style={tdStyle}>
                           {item.direction === 'out' && (
                             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--destructive)' }}>
-                              {formatMovementQty(item)}
+                              {formatMovementQty(item, unitMode)}
                             </span>
                           )}
                         </td>

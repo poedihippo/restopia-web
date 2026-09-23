@@ -11,6 +11,14 @@ import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
 import {
+  formatQtyInMode,
+  formatSignedMovementQty,
+  loadStoredMode,
+  persistMode,
+  type ConversionEntry,
+  type UnitDisplayMode,
+} from '@/utils/unitDisplay'
+import {
   Plus,
   Search,
   ChevronLeft,
@@ -108,42 +116,32 @@ export const TYPE_META = {
 
 // conversions.amount paling kecil = satuan terbesar.
 // Tampilkan qty dengan uom_name dari conversion tersebut.
-function findBestDisplayUom(
-  qty: number,
-  baseQty: number,
-  baseUomCode: string,
-  conversions?: {
-    uom_name: string
-    uom_code: string
-    target_uom_name: string
-    target_uom_code: string
-    amount: number
-  }[]
-): { value: number; uomCode: string } {
-  if (!conversions || conversions.length === 0) {
-    return { value: baseQty, uomCode: baseUomCode }
-  }
-  // Smallest amount = largest UOM → use uom_name as label
-  const smallest = conversions.reduce((min, c) =>
-    c.amount < min.amount ? c : min
-  , conversions[0])
-  return { value: qty, uomCode: smallest.uom_name }
+function getConversions(item: StockMovement): ConversionEntry[] | undefined {
+  return (
+    item.product_inventory?.product_uom_batch?.product_uom?.product?.conversions ??
+    item.product_inventory?.product_uom?.product?.conversions ??
+    undefined
+  )
 }
 
-export function formatMovementQty(item: StockMovement): string {
-  const sign = item.direction === 'out' ? '−' : '+'
+function getBaseUomCode(item: StockMovement): string {
+  return (
+    item.base_uom_code ??
+    item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
+    item.product_inventory?.product_uom?.uom?.code ??
+    ''
+  )
+}
+
+export function formatMovementQty(
+  item: StockMovement,
+  mode: UnitDisplayMode = 'smallest',
+): string {
   const qty = item.qty ?? 0
   const baseQty = item.base_qty ?? qty
-  const baseUomCode = item.base_uom_code ??
-    item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
-    item.product_inventory?.product_uom?.uom?.code ?? ''
-
-  const conversions =
-    item.product_inventory?.product_uom_batch?.product_uom?.product?.conversions ??
-    item.product_inventory?.product_uom?.product?.conversions
-
-  const best = findBestDisplayUom(qty, baseQty, baseUomCode, conversions)
-  return `${sign}${best.value.toLocaleString('id-ID')} ${best.uomCode}`
+  const baseUomCode = getBaseUomCode(item)
+  const conversions = getConversions(item)
+  return formatSignedMovementQty(baseQty, qty, baseUomCode, item.direction, conversions, mode)
 }
 
 // Shared "Document" cell content: links to the source document's detail page
@@ -192,7 +190,7 @@ export function MovementDocumentLink({ item }: { item: StockMovement }) {
 }
 
 export default function StockMovementView() {
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
   const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
@@ -205,6 +203,9 @@ export default function StockMovementView() {
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() =>
+    loadStoredMode((user as any)?.branch?.type),
+  )
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -223,6 +224,10 @@ export default function StockMovementView() {
   useEffect(() => {
     setPage(1)
   }, [debouncedSearch, directionFilter, productId])
+
+  useEffect(() => {
+    persistMode(unitMode)
+  }, [unitMode])
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['stock-movements-product-search', productSearchDebounced],
@@ -374,6 +379,47 @@ export default function StockMovementView() {
           <option value="in">Stock In</option>
           <option value="out">Stock Out</option>
         </select>
+
+        {/* Unit display mode toggle */}
+        <div
+          role="group"
+          aria-label="Unit display mode"
+          style={{
+            display: 'inline-flex',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            overflow: 'hidden',
+            background: 'var(--surface-raised)',
+          }}
+        >
+          {([
+            { key: 'smallest', label: 'Smallest', hint: 'base_qty + base_uom_code (e.g. −2,5 GR)' },
+            { key: 'largest', label: 'Largest', hint: 'convert ke satuan terbesar yang muat (e.g. −1 PACK, −2,5 KG)' },
+          ] as { key: UnitDisplayMode; label: string; hint: string }[]).map((opt) => {
+            const active = unitMode === opt.key
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setUnitMode(opt.key)}
+                title={opt.hint}
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  background: active ? 'var(--accent)' : 'transparent',
+                  color: active ? 'white' : 'var(--foreground-muted)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'all 0.12s ease',
+                }}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
 
         {/* Product filter */}
         <div style={{ width: 260 }}>
@@ -611,7 +657,7 @@ export default function StockMovementView() {
                             ? 'var(--destructive)' : 'var(--success)',
                         }}
                       >
-                        {formatMovementQty(item)}
+                        {formatMovementQty(item, unitMode)}
                       </span>
                     </td>
                     {/* Notes */}
