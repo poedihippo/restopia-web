@@ -12353,8 +12353,8 @@ export interface operations {
                 "filter[stock_gte]"?: string;
                 /** @description Filter by search */
                 "filter[search]"?: string;
-                /** @description Filter by product_uom_batch_id_in */
-                "filter[product_uom_batch_id_in]"?: string;
+                /** @description Filter by product_uom_batch_ids (comma-separated) */
+                "filter[product_uom_batch_ids]"?: string;
                 /** @description Filter by stock_lte */
                 "filter[stock_lte]"?: string;
                 /** @description Filter by expiry_date_lte */

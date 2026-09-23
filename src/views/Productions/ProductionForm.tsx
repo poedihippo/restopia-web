@@ -856,30 +856,16 @@ export default function ProductionForm({
     enabled: !!activeBranchId,
     refetchOnMount: 'always',
     staleTime: 0,
-    queryFn: async () => {
-      let allInventories: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productInventoriesService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
-            page,
-            per_page: 100,
-            include:
-              'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
-            'filter[branch_id]': activeBranchId,
-           } as any)
-          .then((r) => r.data)
-        const items = unwrapList(res)
-        allInventories = allInventories.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allInventories }
-    },
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          include:
+            'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
+          'filter[branch_id]': activeBranchId,
+        } as any)
+        .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
 

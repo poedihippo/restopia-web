@@ -121,26 +121,17 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const { data: deliveriesData, isLoading: deliveriesLoading } = useQuery({
     queryKey: ['deliveries-pending'],
-    queryFn: async () => {
-      let allDeliveries: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await deliveriesService
-          .list({ page, per_page: 100, 'filter[status]': 'final', include: 'branch,target_branch' } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allDeliveries = allDeliveries.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allDeliveries.sort((a: any, b: any) => b.id - a.id) }
-    },
+    queryFn: () =>
+      deliveriesService
+        .list({
+          per_page: 1000,
+          'filter[status]': 'final',
+          include: 'branch,target_branch',
+        } as any)
+        .then((r) => r.data),
   })
-  const deliveries = (deliveriesData as any)?.data ?? []
+  const allDeliveries: any[] = (deliveriesData as any)?.data ?? []
+  const deliveries = [...allDeliveries].sort((a: any, b: any) => b.id - a.id)
 
   const watchDeliveryId = watch('delivery_id')
 

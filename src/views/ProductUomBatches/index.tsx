@@ -149,26 +149,18 @@ export default function ProductUomBatchesView() {
   })
   const categories = (categoriesData as any)?.data ?? []
 
-  // Product UOMs for the filter dropdown (paginate all pages)
+  // Product UOMs for the filter dropdown — single call, no loop.
   const { data: puData } = useQuery({
     queryKey: ['product-uoms-all', activeProductTypes],
-    queryFn: async () => {
-      let all: any[] = []
-      let p = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ page: p, per_page: perPage, include: 'product,uom', 'filter[product_types]': activeProductTypes, 'filter[is_active]': true } as any)
-          .then((r) => r.data)
-        all = all.concat((res as any)?.data ?? [])
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        p += 1
-      } while (p <= totalPages)
-      return { data: all }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[product_types]': activeProductTypes,
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => r.data),
   })
   const allProductUoms: any[] = (puData as any)?.data ?? []
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))

@@ -116,33 +116,16 @@ export default function DimensionTransferRequestSheet({
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, debouncedDropdownSearch],
     enabled: !!effectiveBranchId && open,
-    queryFn: async () => {
-      let allInv: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productInventoriesService
-          .list({
-            page,
-            per_page: 100,
-            'filter[branch_id]': effectiveBranchId,
-            'filter[search]': debouncedDropdownSearch || undefined,
-            include:
-              'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
-          } as any)
-          .then((r) => r.data)
-        const d = (res as any)?.data
-        const items = Array.isArray(d) ? d : Array.isArray(d?.data) ? d.data : []
-        allInv = allInv.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          (d as any)?.meta?.last_page ??
-          1
-        page += 1
-      } while (page <= totalPages && page <= 5)
-      return { data: allInv }
-    },
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          per_page: 1000,
+          'filter[branch_id]': effectiveBranchId,
+          'filter[search]': debouncedDropdownSearch || undefined,
+          include:
+            'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+        } as any)
+        .then((r) => r.data),
   })
 
   const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(

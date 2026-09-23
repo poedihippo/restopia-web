@@ -23,26 +23,14 @@ export default function RecipeImportModal({
   const { data: allRecipes = [], isLoading, isFetching } = useQuery({
     queryKey: ['all-recipes-for-modal'],
     enabled: open,
-    queryFn: async () => {
-      let currentPage = 1
-      let totalPages = 1
-      let results: any[] = []
-      do {
-        const res = await recipesService
-          .list({
-            page: currentPage,
-            per_page: 100,
-            include: 'product_uom,recipe_materials',
-            sort: '-id',
-          } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        results = results.concat(items)
-        totalPages = (res as any)?.meta?.last_page ?? (res as any)?.meta?.total_pages ?? 1
-        currentPage++
-      } while (currentPage <= totalPages && currentPage <= 10)
-      return results
-    },
+    queryFn: () =>
+      recipesService
+        .list({
+          per_page: 1000,
+          include: 'product_uom,recipe_materials',
+          sort: '-id',
+        } as any)
+        .then((r) => (r.data as any)?.data ?? []),
     staleTime: 60 * 1000,
   })
 

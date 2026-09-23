@@ -199,26 +199,16 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', debouncedDropdownSearch],
-    queryFn: async () => {
-      let allProductUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom', 'filter[is_active]': true } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProductUoms = allProductUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProductUoms }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => r.data),
   })
-
   const productUoms: ProductUomOption[] = (productUomsData as any)?.data ?? []
 
   const productUomOptions = productUoms.map((pu) => ({

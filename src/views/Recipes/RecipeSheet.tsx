@@ -147,24 +147,14 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
 
   const { data: productUomsData } = useQuery({
     queryKey: ['product-uoms-all'],
-    queryFn: async () => {
-      let allProductUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ page, per_page: 100, include: 'product,product.base_uom,uom', 'filter[is_active]': true })
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProductUoms = allProductUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProductUoms }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          per_page: 1000,
+          include: 'product,product.base_uom,uom',
+          'filter[is_active]': true,
+        })
+        .then((r) => r.data),
   })
   const productUoms = (productUomsData as any)?.data ?? []
 

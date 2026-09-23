@@ -119,66 +119,36 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
-    queryFn: async () => {
-      let allProductUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,
-            page,
-            per_page: 100,
-            include: 'product,uom',
-            'filter[product_types]': activeProductTypes,
-            'filter[is_active]': true,
-          } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProductUoms = allProductUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProductUoms }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[product_types]': activeProductTypes,
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => r.data),
   })
   const allProductUoms = (productUomsData as any)?.data ?? []
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
-  // Available stock at the SOURCE branch (current active branch). We fetch all
-  // active inventory rows for this branch once, then pick a FIFO batch per line
-  // client-side. /v1/product-inventories supports filter[branch_id] directly,
-  // and filter[product_uom_id] per-UOM, but a single branch-wide fetch keeps
-  // this to one query and matches the fetch-all pattern used elsewhere.
+  // Available stock at the SOURCE branch (current active branch). Single
+  // branch-wide fetch keeps this to one query and matches the fetch-all
+  // pattern used elsewhere.
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
     queryKey: ['transfer-out-source-inventory', sourceBranchId],
     enabled: !!sourceBranchId,
-    queryFn: async () => {
-      let allInv: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productInventoriesService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
-            page,
-            per_page: 100,
-            'filter[branch_id]': sourceBranchId,
-            'filter[status]': 'active',
-            include: 'branch,product_uom_batch',
-           } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allInv = allInv.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allInv }
-    },
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          'filter[branch_id]': sourceBranchId,
+          'filter[status]': 'active',
+          include: 'branch,product_uom_batch',
+        } as any)
+        .then((r) => r.data),
   })
   const inventories = (inventoryData as any)?.data ?? []
 

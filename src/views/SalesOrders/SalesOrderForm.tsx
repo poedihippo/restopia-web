@@ -9,7 +9,6 @@ import { toast } from 'sonner'
 import { toastMutationApiError } from '@/utils/apiError'
 import { customersService as customerService } from '@/services/customers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { bundlesService as bundleService } from '@/services/bundles.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { branchesService } from '@/services/branches.service'
@@ -324,31 +323,18 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         const uomIds = Array.from(new Set(poDetails.map((d: any) => d.product_uom_id).filter(Boolean)))
         if (!uomIds.length) return
 
-        // 1. Fetch batches for these UOMs
-        const batchPromises = uomIds.map(id =>
-          productUomBatchesService.list({
-            'filter[product_uom_id]': id,
-            per_page: 100,
-          } as any)
-        )
-        const batchResponses = await Promise.all(batchPromises)
-        const batches = batchResponses.flatMap(res => (res.data as any)?.data ?? [])
-
-        // 2. Fetch inventories for these batches
-        let inventories: any[] = []
-        if (batches.length > 0) {
-          const invPromises = batches.map((b: any) =>
-            productInventoriesService.list({ 'filter[search]': debouncedDropdownSearch || undefined, 
-              'filter[product_uom_batch_id]': b.id,
-              'filter[branch_id]': po.branch_id,
-              'filter[status]': 'active',
-              include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
-              per_page: 1,
-             } as any)
-          )
-          const invResponses = await Promise.all(invPromises)
-          inventories = invResponses.flatMap(res => (res.data as any)?.data ?? [])
-        }
+        // Fetch ALL inventories for these product_uom_ids in ONE call using
+        // the new filter[product_uom_ids] (replaces the previous N parallel
+        // calls per batch). product_uom_batch is requested via include so
+        // downstream code can still read inv.product_uom_batch.product_uom_id.
+        const invRes = await productInventoriesService.list({
+          'filter[product_uom_ids]': uomIds.join(','),
+          'filter[branch_id]': po.branch_id,
+          'filter[status]': 'active',
+          include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+          per_page: uomIds.length * 4,
+        } as any)
+        const inventories: any[] = (invRes.data as any)?.data ?? []
 
         const newItems = poDetails.map((d: any) => {
           const inv = inventories.find((i: any) => i.product_uom_batch?.product_uom_id === d.product_uom_id)

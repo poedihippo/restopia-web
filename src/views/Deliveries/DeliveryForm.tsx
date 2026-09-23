@@ -94,9 +94,45 @@ interface DeliveryFormProps {
 
 export default function DeliveryForm(props: DeliveryFormProps) {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
+  // Per-dropdown search states — keeping them separate prevents the
+  // "type in product dropdown → /v1/companies & /v1/branches get hit"
+  // cross-fire that happens when one global search state is shared by all
+  // SearchableSelect components and all queries.
+  const [productSearch, setProductSearch] = useState('')
+  const [productSearchDebounced, setProductSearchDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setProductSearchDebounced(productSearch), 400)
+    return () => clearTimeout(t)
+  }, [productSearch])
+
+  const [branchSearch, setBranchSearch] = useState('')
+  const [branchSearchDebounced, setBranchSearchDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setBranchSearchDebounced(branchSearch), 400)
+    return () => clearTimeout(t)
+  }, [branchSearch])
+
+  const [companySearch, setCompanySearch] = useState('')
+  const [companySearchDebounced, setCompanySearchDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setCompanySearchDebounced(companySearch), 400)
+    return () => clearTimeout(t)
+  }, [companySearch])
+
+  const [poSearch, setPoSearch] = useState('')
+  const [poSearchDebounced, setPoSearchDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setPoSearchDebounced(poSearch), 400)
+    return () => clearTimeout(t)
+  }, [poSearch])
+
+  const [soSearch, setSoSearch] = useState('')
+  const [soSearchDebounced, setSoSearchDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setSoSearchDebounced(soSearch), 400)
+    return () => clearTimeout(t)
+  }, [soSearch])
+
   const { mode, initialData, deliveryId, prefill } = props
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -149,16 +185,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   )
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches-all', debouncedDropdownSearch],
-    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
+    queryKey: ['branches-all', branchSearchDebounced],
+    queryFn: () => branchesService.list({ 'filter[search]': branchSearchDebounced || undefined,  per_page: 100 }).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
 
   // Dimension picker: owner (company) + stage — source only, deliveries have
   // no output dimension.
   const { data: companiesData, isLoading: companiesLoading } = useQuery({
-    queryKey: ['companies-all', debouncedDropdownSearch],
-    queryFn: () => companiesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
+    queryKey: ['companies-all', companySearchDebounced],
+    queryFn: () => companiesService.list({ 'filter[search]': companySearchDebounced || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
   const companyOptions = [
@@ -167,47 +203,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
-    queryKey: ['stages-all', debouncedDropdownSearch],
+    queryKey: ['stages-all'],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
   })
   const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
-  const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
-
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', debouncedDropdownSearch],
-    queryFn: async () => {
-      let allProductUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, include: 'product,uom', 'filter[is_active]': true } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProductUoms = allProductUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProductUoms }
-    },
-  })
-  const productUoms = (productUomsData as any)?.data ?? []
-
-  // Authoritative lookup: product_uom_id -> product_id, built from the
-  // productUoms list which is already loaded with include 'product,uom'.
-  // This avoids relying on fragile 3-level nested includes on inventory rows.
-  const puomToProduct = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const pu of productUoms) {
-      if (pu?.id && (pu.product_id ?? pu.product?.id)) {
-        map.set(pu.id, pu.product_id ?? pu.product.id)
-      }
-    }
-    return map
-  }, [productUoms])
+  const stageOptions = stages.map((s: any) => ({ value: s.code, label: s.name }))
 
   // When creating from a linked branch-PO (the Fulfill flow), the PO's own
   // supplier_branch_id is the actual fulfilling/source branch — it does NOT
@@ -251,32 +251,35 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // actually have stock at the supplying branch, with the REAL per-branch
   // quantity (not the global batch stock). Per-branch stock lives in
   // product_inventory, so we source the picker from there.
+  // Collect product_uom_ids from current delivery details so the inventory
+  // fetch can use the new `filter[product_uom_ids]` (single call) instead of
+  // paginating the entire branch — fixes the silent data loss when total
+  // branch inventory exceeds per_page on the first page.
+  const neededInventoryUomIds = useMemo(() => {
+    const ids = new Set<number>()
+    for (const d of (watchDetails ?? [])) {
+      const id = d?.product_uom_id
+      if (typeof id === 'number' && id > 0) ids.add(id)
+    }
+    return Array.from(ids)
+  }, [watchDetails])
+
   const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
-    queryKey: ['source-branch-inventory', sourceBranchId],
-    enabled: !!sourceBranchId,
-    queryFn: async () => {
-      let allRows: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productInventoriesService
-          .list({
-            page,
-            per_page: 100,
-            'filter[branch_id]': sourceBranchId,
-            include: 'product_uom_batch,product_uom_batch.product_uom',
-          } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allRows = allRows.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allRows }
-    },
+    queryKey: [
+      'source-branch-inventory',
+      sourceBranchId,
+      neededInventoryUomIds.slice().sort((a, b) => a - b).join(','),
+    ],
+    enabled: !!sourceBranchId && neededInventoryUomIds.length > 0,
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          'filter[product_uom_ids]': neededInventoryUomIds.join(','),
+          'filter[branch_id]': sourceBranchId,
+          include: 'product_uom_batch,product_uom_batch.product_uom',
+          per_page: Math.max(neededInventoryUomIds.length * 4, 100),
+        } as any)
+        .then((r) => r.data),
   })
   const sourceInventory = (inventoryData as any)?.data ?? []
 
@@ -385,50 +388,27 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-linkable'],
-    queryFn: async () => {
-      let allOrders: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await purchaseOrdersService
-          .list({ page, per_page: 100, include: 'supplier,supplier_branch', sort: '-id' } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allOrders = allOrders.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      const linkable = allOrders
-        .filter((po: any) => ['accepted', 'final'].includes(po?.status))
-        .sort((a: any, b: any) => b.id - a.id)
-      return { data: linkable }
-    },
+    queryFn: () =>
+      purchaseOrdersService
+        .list({ per_page: 1000, include: 'supplier,supplier_branch', sort: '-id' } as any)
+        .then((r) => r.data),
   })
-  const purchaseOrders = (purchaseOrdersData as any)?.data ?? []
+  const allPurchaseOrders: any[] = (purchaseOrdersData as any)?.data ?? []
+  const purchaseOrders = allPurchaseOrders
+    .filter((po: any) => ['accepted', 'final'].includes(po?.status))
+    .sort((a: any, b: any) => b.id - a.id)
 
   const { data: salesOrdersData, isLoading: salesOrdersLoading } = useQuery({
-    queryKey: ['sales-orders-pending'],
-    queryFn: async () => {
-      let allOrders: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await salesOrdersService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, 'filter[status]': 'final', 'filter[has_delivery]': 'false'  } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allOrders = allOrders.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allOrders }
-    },
+    queryKey: ['sales-orders-pending', soSearchDebounced],
+    queryFn: () =>
+      salesOrdersService
+        .list({
+          'filter[search]': soSearchDebounced || undefined,
+          per_page: 1000,
+          'filter[status]': 'final',
+          'filter[has_delivery]': 'false',
+        } as any)
+        .then((r) => r.data),
   })
   const salesOrders = (salesOrdersData as any)?.data ?? []
 
@@ -486,6 +466,85 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     enabled: !!watchSalesOrderId && (watchSalesOrderId as number) > 0,
   })
   const soDetail = (soData as any)?.data
+
+  // Targeted fetch via the new `filter[ids]` when a PO/SO is linked —
+  // replaces the previous 10x page-loop by resolving every product_uom
+  // referenced by the already-loaded PO/SO details in a single call.
+  const linkedProductUomIds = useMemo(() => {
+    const ids = new Set<number>()
+    const collect = (details: any[] | undefined) => {
+      if (!Array.isArray(details)) return
+      for (const d of details) {
+        const id = d?.product_uom_id ?? d?.product_uom?.id
+        if (typeof id === 'number' && id > 0) ids.add(id)
+      }
+    }
+    collect(poDetail?.purchase_order_details)
+    collect(soDetail?.sales_order_details)
+    return Array.from(ids)
+  }, [poDetail?.id, soDetail?.id])
+
+  // Dropdown options for product picker — always fetched so user can search
+  // and add products whether creating manually or fulfilling from a PO/SO.
+  // (Earlier this was gated on `linkedProductUomIds.length === 0`, which
+  // disabled the search during the Fulfill flow even though users still
+  // needed to look up additional items beyond the PO's pre-filled list.)
+  const { data: dropdownProductUomsData } = useQuery({
+    queryKey: ['product-uoms-all', productSearchDebounced],
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[search]': productSearchDebounced || undefined,
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => r.data),
+  })
+
+  const { data: linkedProductUomsData } = useQuery({
+    queryKey: ['product-uoms-by-ids', linkedProductUomIds.slice().sort((a, b) => a - b).join(',')],
+    enabled: linkedProductUomIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[ids]': linkedProductUomIds.join(','),
+          include: 'product,uom',
+          per_page: linkedProductUomIds.length,
+        } as any)
+        .then((r) => r.data),
+  })
+
+  const linkedProductUoms: any[] = (linkedProductUomsData as any)?.data ?? []
+  const dropdownProductUoms: any[] = (dropdownProductUomsData as any)?.data ?? []
+  // Loading = either query is still resolving. Both run in parallel.
+  const productUomsLoading =
+    linkedProductUomsData === undefined || dropdownProductUomsData === undefined
+
+  // Merge for the puomToProduct lookup + dropdown options
+  const productUoms = useMemo(() => {
+    const map = new Map<number, any>()
+    for (const pu of linkedProductUoms) {
+      if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
+    }
+    for (const pu of dropdownProductUoms) {
+      if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
+    }
+    return Array.from(map.values())
+  }, [linkedProductUoms, dropdownProductUoms])
+
+  // Authoritative lookup: product_uom_id -> product_id, built from the
+  // productUoms list which is already loaded with include 'product,uom'.
+  // This avoids relying on fragile 3-level nested includes on inventory rows.
+  const puomToProduct = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const pu of productUoms) {
+      if (pu?.id && (pu.product_id ?? pu.product?.id)) {
+        map.set(pu.id, pu.product_id ?? pu.product.id)
+      }
+    }
+    return map
+  }, [productUoms])
 
   useEffect(() => {
     if (!poDetail?.purchase_order_details?.length) return
@@ -993,8 +1052,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.target_branch_id?.message as string | undefined}
-                      onSearchChange={setDropdownSearch}
-/>
+                      onSearchChange={setBranchSearch}
+                    />
                   )}
                 />
               )}
@@ -1014,8 +1073,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       placeholder="No linked PO"
                       searchPlaceholder="Search POs..."
                       loading={purchaseOrdersLoading}
-                      onSearchChange={setDropdownSearch}
-/>
+                      onSearchChange={setPoSearch}
+                    />
                   )}
                 />
                 {!!watchPurchaseOrderId && watchPurchaseOrderId > 0 && poDetail && (
@@ -1047,8 +1106,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       placeholder="No linked SO"
                       searchPlaceholder="Search SOs..."
                       loading={salesOrdersLoading}
-                      onSearchChange={setDropdownSearch}
-/>
+                      onSearchChange={setSoSearch}
+                    />
                   )}
                 />
                 {!!watchSalesOrderId && watchSalesOrderId > 0 && soDetail && (
@@ -1107,8 +1166,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     searchPlaceholder="Cari perusahaan..."
                     loading={companiesLoading}
                     error={errors.source_owner_ref?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
-/>
+                    onSearchChange={setCompanySearch}
+                  />
                 )}
               />
             </div>
@@ -1128,8 +1187,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
                     error={errors.source_stage?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
-/>
+                    onSearchChange={setCompanySearch}
+                    // Stage dropdown filters client-side only — no server-side search needed
+                  />
                 )}
               />
             </div>
@@ -1281,7 +1341,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         | string
                         | undefined
                       }
-                      onSearchChange={setDropdownSearch}
+                      onSearchChange={setProductSearch}
                     />
                   )}
                 />

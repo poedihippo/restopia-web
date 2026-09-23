@@ -189,62 +189,33 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
   const branches = (branchesData as any)?.data ?? []
 
-  // Query utama: hanya aktif + default
+  // Query utama: hanya aktif + default — single call, no loop.
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch, showAllUoms],
-    queryFn: async () => {
-      let allProductUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,
-            page,
-            per_page: 100,
-            include: 'product,uom',
-            'filter[product_types]': activeProductTypes,
-            'filter[is_default]': showAllUoms ? undefined : true,
-            'filter[is_active]': true,
-          } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProductUoms = allProductUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProductUoms }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[product_types]': activeProductTypes,
+          'filter[is_default]': showAllUoms ? undefined : true,
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => r.data),
   })
 
   // Query tambahan: termasuk produk inactive (untuk import resep)
   const { data: allProductUomsData } = useQuery({
     queryKey: ['product-uoms-all-with-inactive'],
-    queryFn: async () => {
-      let all: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({
-            page,
-            per_page: 100,
-            include: 'product,uom',
-            'filter[is_active]': '1',
-          } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        all = all.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: all }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[is_active]': '1',
+        } as any)
+        .then((r) => r.data),
   })
 
   const handleImportRecipes = (selectedRecipes: any[]) => {
@@ -916,8 +887,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           {/* Column headers */}
           {(() => {
             const poGridCols = watchType === 'branch'
-              ? '36px minmax(280px, 3fr) 110px minmax(180px, 2fr) 40px'
-              : '36px minmax(280px, 3fr) 110px 160px 80px minmax(180px, 1.5fr) 40px'
+              ? '36px minmax(280px, 3fr) 110px 140px minmax(180px, 2fr) 40px'
+              : '36px minmax(280px, 3fr) 110px 160px 80px 140px minmax(180px, 1.5fr) 40px'
 
             return (
               <>
@@ -932,7 +903,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                     alignItems: 'center',
                   }}
                 >
-                  {(watchType === 'branch' ? ['#', 'Product / UOM', 'Qty', 'Notes', ''] : ['#', 'Product / UOM', 'Qty', 'Unit Price', 'Taxable', 'Notes', '']).map((h, i) => (
+                  {(watchType === 'branch'
+                    ? ['#', 'Product / UOM', 'Qty', 'Subtotal', 'Notes', '']
+                    : ['#', 'Product / UOM', 'Qty', 'Unit Price', 'Taxable', 'Subtotal', 'Notes', '']
+                  ).map((h, i) => (
                     <span
                       key={i}
                       style={{
@@ -941,7 +915,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         color: 'var(--foreground-muted)',
                         textTransform: 'uppercase',
                         letterSpacing: '0.5px',
-                        textAlign: h === 'Taxable' || h === '#' || h === '' ? 'center' : 'left',
+                        textAlign: h === 'Taxable' || h === '#' || h === '' ? 'center' : 'right',
                       }}
                     >
                       {h}
@@ -950,7 +924,21 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 </div>
 
                 {/* Line item rows */}
-                {fields.map((field, index) => (
+                {(() => {
+                  // Single useWatch for the whole array — keeps the hook count
+                  // stable across renders (rules of hooks friendly).
+                  const watchedDetails = (useWatch({ control, name: 'details' }) ?? []) as any[]
+                  const canReadPrice = getCanReadPrice()
+                  return fields.map((field, index) => {
+                    // Per-row subtotal: qty × price, computed reactively.
+                    // For branch-type POs (no price column) it falls back to qty.
+                    const rowQty = watchedDetails?.[index]?.qty
+                    const rowPrice = watchedDetails?.[index]?.price
+                    const rowSubtotal =
+                      watchType === 'branch'
+                        ? Number(rowQty ?? 0)
+                        : Number(rowQty ?? 0) * Number(rowPrice ?? 0)
+                    return (
                   <div
                     key={field.id}
                     data-po-row-index={index}
@@ -1115,6 +1103,26 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 </div>
               )}
 
+              {/* Subtotal (qty × price, or qty for branch-type POs) */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  height: 38,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--foreground)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {watchType === 'branch'
+                  ? Number(rowQty ?? 0).toLocaleString('id-ID')
+                  : canReadPrice
+                    ? `Rp ${rowSubtotal.toLocaleString('id-ID')}`
+                    : 'Rp ***'}
+              </div>
+
               {/* Description */}
               <input
                 {...register(`details.${index}.description`)}
@@ -1144,7 +1152,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 </button>
               </div>
             </div>
-          ))}
+                    )
+                  })
+                })()}
           </>
           )})()}
 

@@ -2,7 +2,7 @@
 
 import React, { useState,  useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -110,31 +110,17 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', debouncedDropdownSearch, showAllUoms],
-    queryFn: async () => {
-      let allProductUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,
-            page,
-            per_page: 100,
-            include: 'product,uom',
-            'filter[product_types]': 'wip,raw,supply',
-            'filter[is_default]': showAllUoms ? undefined : true,
-            'filter[is_active]': true,
-           } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProductUoms = allProductUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProductUoms }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[product_types]': 'wip,raw,supply',
+          'filter[is_default]': showAllUoms ? undefined : true,
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => r.data),
   })
   const allProductUoms = (productUomsData as any)?.data ?? []
   const productUoms = allProductUoms
@@ -339,7 +325,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     boxSizing: 'border-box',
   }
 
-  const lineGridCols = '36px minmax(280px, 3fr) 110px minmax(180px, 2fr) 40px'
+  const lineGridCols = '36px minmax(280px, 3fr) 110px 140px minmax(180px, 2fr) 40px'
 
   return (
     <div
@@ -636,7 +622,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               alignItems: 'center',
             }}
           >
-            {['#', 'Product / UOM', 'Qty', 'Notes', ''].map((h, i) => (
+            {['#', 'Product / UOM', 'Qty', 'Subtotal', 'Notes', ''].map((h, i) => (
               <span
                 key={i}
                 style={{
@@ -645,7 +631,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                   color: 'var(--foreground-muted)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
-                  textAlign: h === '#' || h === '' ? 'center' : 'left',
+                  textAlign: h === 'Subtotal' ? 'right' : h === '#' || h === '' ? 'center' : 'left',
                 }}
               >
                 {h}
@@ -654,7 +640,13 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
           </div>
 
           {/* Line item rows */}
-          {fields.map((field, index) => (
+          {(() => {
+            // Single useWatch for the whole array — keeps the hook count
+            // stable across renders (rules of hooks friendly).
+            const watchedDetails = (useWatch({ control, name: 'details' }) ?? []) as any[]
+            return fields.map((field, index) => {
+              const rowQty = watchedDetails?.[index]?.qty
+              return (
             <div
               key={field.id}
               data-io-row-index={index}
@@ -725,6 +717,22 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                 />
               </div>
 
+              {/* Subtotal (qty — internal orders have no per-item price) */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  height: 38,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--foreground)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {Number(rowQty ?? 0).toLocaleString('id-ID')}
+              </div>
+
               {/* Description */}
               <input
                 {...register(`details.${index}.description`)}
@@ -754,7 +762,9 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                 </button>
               </div>
             </div>
-          ))}
+              )
+            })
+          })()}
 
           {/* Array-level error */}
           {errors.details && typeof (errors.details as any).message === 'string' && (

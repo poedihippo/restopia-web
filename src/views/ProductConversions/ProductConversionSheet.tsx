@@ -69,47 +69,29 @@ export default function ProductConversionSheet({
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['products-all', 'active', activeProductTypes, debouncedDropdownSearch],
-    queryFn: async () => {
-      let allProducts: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100, sort: 'name', 'filter[status]': 'active', 'filter[is_active]': true, 'filter[types]': activeProductTypes })
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allProducts = allProducts.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allProducts }
-    },
+    queryFn: () =>
+      productsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          sort: 'name',
+          'filter[status]': 'active',
+          'filter[is_active]': true,
+          'filter[types]': activeProductTypes,
+        })
+        .then((r) => r.data),
   })
   const products = (productsData as any)?.data ?? []
 
   const { data: uomsData, isLoading: uomsLoading } = useQuery({
     queryKey: ['uoms-all', debouncedDropdownSearch],
-    queryFn: async () => {
-      let allUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await uomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100 })
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allUoms = allUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allUoms }
-    },
+    queryFn: () =>
+      uomsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+        })
+        .then((r) => r.data),
   })
   const uoms = (uomsData as any)?.data ?? []
 

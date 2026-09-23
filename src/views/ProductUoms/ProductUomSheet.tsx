@@ -115,24 +115,13 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
 
   const { data: uomsData, isLoading: uomsLoading } = useQuery({
     queryKey: ['uoms-all', debouncedDropdownSearch],
-    queryFn: async () => {
-      let allUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await uomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page, per_page: 100  })
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allUoms = allUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allUoms }
-    },
+    queryFn: () =>
+      uomsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+        })
+        .then((r) => r.data),
   })
   const uoms = (uomsData as any)?.data ?? []
 

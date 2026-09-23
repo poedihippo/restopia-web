@@ -69,27 +69,20 @@ export default function ProductUomBatchSheet({
 
   const activeProductTypes = useActiveBranchProductTypes()
 
-  // Create mode — product UOMs for the picker (paginate all pages)
+  // Create mode — product UOMs for the picker (single call, no loop)
   const { data: puData, isLoading: puLoading } = useQuery({
     queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch],
     enabled: open,
-    queryFn: async () => {
-      let all: any[] = []
-      let p = 1
-      let totalPages = 1
-      do {
-        const res = await productUomsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined,  page: p, per_page: 100, include: 'product,uom', 'filter[product_types]': activeProductTypes, 'filter[is_active]': true } as any)
-          .then((r) => r.data)
-        all = all.concat((res as any)?.data ?? [])
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        p += 1
-      } while (p <= totalPages)
-      return { data: all }
-    },
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[product_types]': activeProductTypes,
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => r.data),
   })
   const allProductUoms = (puData as any)?.data ?? []
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))

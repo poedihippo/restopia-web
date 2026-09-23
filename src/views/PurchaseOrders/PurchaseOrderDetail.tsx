@@ -461,6 +461,12 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
           <button
             type="button"
             onClick={() => router.push(`/purchase/purchase-orders/${id}/edit`)}
+            disabled={(order as any)?.status === 'delivered'}
+            title={
+              (order as any)?.status === 'delivered'
+                ? 'Delivered — cannot edit'
+                : 'Edit'
+            }
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -472,7 +478,8 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               fontSize: 13,
               fontWeight: 500,
               color: 'var(--foreground)',
-              cursor: 'pointer',
+              cursor: (order as any)?.status === 'delivered' ? 'not-allowed' : 'pointer',
+              opacity: (order as any)?.status === 'delivered' ? 0.4 : 1,
             }}
           >
             <Pencil size={13} />

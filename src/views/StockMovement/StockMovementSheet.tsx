@@ -91,28 +91,14 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
 
   const { data: batchesData } = useQuery({
     queryKey: ['product-uom-batches-all', debouncedDropdownSearch],
-    queryFn: async () => {
-      let allBatches: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productUomBatchesService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
-            page,
-            per_page: 100,
-            include: 'product_uom',
-          } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allBatches = allBatches.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allBatches }
-    },
+    queryFn: () =>
+      productUomBatchesService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 1000,
+          include: 'product_uom',
+        } as any)
+        .then((r) => r.data),
   })
   const batchesItems = (batchesData as any)?.data ?? []
 

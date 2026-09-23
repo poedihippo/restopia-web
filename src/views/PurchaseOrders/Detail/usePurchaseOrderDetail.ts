@@ -32,12 +32,14 @@ const usePurchaseOrderDetail = ({ id }: Props) => {
 
             if (!batches.length) return [];
 
-            // 2. Fetch inventories
+            // 2. Fetch inventories using the renamed filter
+            //    `filter[product_uom_batch_ids]` (comma-separated) so a single
+            //    call resolves every batch's inventory instead of looping.
             const batchIds = batches.map((b: any) => b.id).join(',');
             let allInventories: any[] = [];
 
             const invRes = await productInventoriesService.list({
-                'filter[product_uom_batch_id]': batchIds,
+                'filter[product_uom_batch_ids]': batchIds,
                 'filter[branch_id]': poData!.branch_id,
                 'filter[status]': 'active',
                 include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
@@ -48,7 +50,7 @@ const usePurchaseOrderDetail = ({ id }: Props) => {
             if (allInventories.length === 0) {
                 const invPromises = batches.map((b: any) =>
                     productInventoriesService.list({
-                        'filter[product_uom_batch_id]': b.id,
+                        'filter[product_uom_batch_ids]': String(b.id),
                         'filter[branch_id]': poData!.branch_id,
                         'filter[status]': 'active',
                         include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',

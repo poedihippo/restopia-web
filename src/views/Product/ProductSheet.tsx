@@ -238,24 +238,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
   const { data: uomsData } = useQuery({
     queryKey: ['uoms-all'],
-    queryFn: async () => {
-      let allUoms: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await uomsService
-          .list({ page, per_page: 100 } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allUoms = allUoms.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allUoms }
-    },
+    queryFn: () =>
+      uomsService
+        .list({ per_page: 1000 } as any)
+        .then((r) => r.data),
   })
   const uoms: any[] = (uomsData as any)?.data ?? []
 

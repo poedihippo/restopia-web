@@ -109,14 +109,18 @@ const PurchaseOrders = () => {
             <Eye className="h-4 w-4" />
           </button>
         </Link>
-        {canUpdate('purchase-order') ? (
+        {canUpdate('purchase-order') && (_record as any).status !== 'delivered' ? (
           <Link href={`/purchase/purchase-orders/${_record.id}/edit`}>
             <button className="p-2 rounded-md bg-yellow-500 hover:bg-yellow-600 text-white cursor-pointer">
               <Pencil className="h-4 w-4" />
             </button>
           </Link>
         ) : (
-          <button disabled className="p-2 rounded-md bg-gray-400 text-white cursor-not-allowed">
+          <button
+            disabled
+            title={(_record as any).status === 'delivered' ? 'Delivered — cannot edit' : 'No permission'}
+            className="p-2 rounded-md bg-gray-400 text-white cursor-not-allowed"
+          >
             <Pencil className="h-4 w-4" />
           </button>
         )}

@@ -30,7 +30,7 @@ interface PurchaseOrder {
   date: string
   type?: string
   total_price: number
-  status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final'
+  status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final' | 'partially_delivered' | 'delivered'
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
@@ -617,11 +617,26 @@ export default function PurchaseOrdersView() {
                           <ShoppingCart size={14} />
                         </button>
                         {canEdit && (<button
-                          onClick={() =>
+                          onClick={() => {
+                            if (item.status === 'delivered') {
+                              toast.error('Cannot edit a delivered Purchase Order')
+                              return
+                            }
                             router.push(`/purchase/purchase-orders/${item.id}/edit`)
+                          }}
+                          disabled={item.status === 'delivered'}
+                          style={{
+                            ...actionBtnStyle,
+                            ...(item.status === 'delivered'
+                              ? { opacity: 0.4, cursor: 'not-allowed' }
+                              : {}),
+                          }}
+                          title={
+                            item.status === 'delivered'
+                              ? 'Delivered — cannot edit'
+                              : 'Edit'
                           }
-                          style={actionBtnStyle}
-                          title="Edit">
+                        >
                           <Pencil size={14} />
                         </button>)}
                         {canDelete && (<button

@@ -92,39 +92,27 @@ export default function StockCardView() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['stock-card', productId, branchId, directionFilter],
     enabled: productId > 0,
-    queryFn: async () => {
-      let allRows: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await stockMovementsService
-          .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
-            page,
-            per_page: 500,
-            sort: 'created_at',
-            'filter[product_id]': productId,
-            'filter[branch_id]': branchId || undefined,
-            'filter[direction]': directionFilter || undefined,
-            include:
-              'product_inventory,' +
-              'product_inventory.product_uom_batch,' +
-              'product_inventory.product_uom_batch.product_uom,' +
-              'product_inventory.product_uom_batch.product_uom.product,' +
-              'product_inventory.product_uom_batch.product_uom.uom,' +
-              'product_inventory.product_uom,' +
-              'product_inventory.product_uom.product,' +
-              'product_inventory.product_uom.uom,' +
-              'branch',
-           } as any)
-          .then((r) => r.data)
-        const rows = (res as any)?.data ?? []
-        allRows = allRows.concat(rows)
-        totalPages =
-          (res as any)?.meta?.last_page ?? (res as any)?.meta?.total_pages ?? 1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allRows }
-    },
+    queryFn: () =>
+      stockMovementsService
+        .list({
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 500,
+          sort: 'created_at',
+          'filter[product_id]': productId,
+          'filter[branch_id]': branchId || undefined,
+          'filter[direction]': directionFilter || undefined,
+          include:
+            'product_inventory,' +
+            'product_inventory.product_uom_batch,' +
+            'product_inventory.product_uom_batch.product_uom,' +
+            'product_inventory.product_uom_batch.product_uom.product,' +
+            'product_inventory.product_uom_batch.product_uom.uom,' +
+            'product_inventory.product_uom,' +
+            'product_inventory.product_uom.product,' +
+            'product_inventory.product_uom.uom,' +
+            'branch',
+        } as any)
+        .then((r) => r.data),
   })
 
   const allRows: StockMovement[] = (data as any)?.data ?? []

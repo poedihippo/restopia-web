@@ -2,7 +2,6 @@ import { formatDate } from '@/utils/date';
 import React, { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import { formatCurrency } from '@/utils/price';
 
@@ -744,30 +743,19 @@ function BundleBatchPickerModal({
       const promises = details.map(async (d: any) => {
         const itemId = selectedItems[d.id]
         if (!itemId) return null
-        
+
         const item = d.items?.find((i: any) => i.id === itemId) || d.items?.[0] || d
-        // First get batches for this product_uom_id
-        const batchRes = await productUomBatchesService.list({
-          'filter[product_uom_id]': item.product_uom_id,
+
+        // Single call using the new filter[product_uom_ids] — replaces the
+        // previous flow that fetched batches first, then N parallel
+        // inventory calls per batch.
+        const invRes = await productInventoriesService.list({
+          'filter[product_uom_ids]': String(item.product_uom_id),
+          include: 'product_uom_batch',
           per_page: 100,
         } as any)
-        const batches = (batchRes.data as any)?.data || []
-        
-        let allInventories: any[] = []
-        
-        if (batches.length > 0) {
-          // Fetch inventories for these batches one by one
-          const invPromises = batches.map((b: any) =>
-            productInventoriesService.list({
-              'filter[product_uom_batch_id]': b.id,
-              include: 'product_uom_batch',
-              per_page: 100,
-            } as any)
-          )
-          const invResponses = await Promise.all(invPromises)
-          allInventories = invResponses.flatMap((res: any) => res.data?.data || [])
-        }
-        
+        const allInventories: any[] = (invRes.data as any)?.data || []
+
         return {
           detailId: d.id,
           inventories: allInventories,
