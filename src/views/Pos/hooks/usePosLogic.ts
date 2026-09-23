@@ -275,6 +275,25 @@ export function usePosLogic() {
   })
   const salesChannels: any[] = (salesChannelsData as any)?.data ?? []
 
+  // Auto-default to "Walk-in" sales channel when channels first load
+  useEffect(() => {
+    if (salesChannelId === null && salesChannels.length > 0) {
+      const walkIn = salesChannels.find((c: any) => {
+        const name = (c.name ?? '').toLowerCase().trim()
+        const code = (c.code ?? '').toLowerCase().trim()
+        return (
+          name === 'walk-in' ||
+          name === 'walk in' ||
+          name === 'walkin' ||
+          code === 'walk-in' ||
+          code === 'walkin' ||
+          code === 'walk_in'
+        )
+      })
+      if (walkIn) setSalesChannelId(walkIn.id)
+    }
+  }, [salesChannels, salesChannelId])
+
   const { data: puData } = useQuery({
     queryKey: ['product-uoms-pos'],
     queryFn: () =>
@@ -681,9 +700,9 @@ export function usePosLogic() {
         return salesOrdersService.update(editingOrderId, payload as any)
       }
       // Build payments array for atomic checkout
-      const paidAmount = isCashMethod
-        ? Number(cashTendered.replace(/\D/g, ''))
-        : payload.total_price
+      // Payment amount always equals the sale total; cashTendered is only
+      // used for change calculation in the UI, not sent as the payment amount.
+      const paidAmount = payload.total_price
       let checkoutPayments: {
         payment_method_id: number
         amount: number
@@ -736,9 +755,7 @@ export function usePosLogic() {
       // Only create payments separately for edited (held) orders.
       if (editingOrderId) {
         const salesOrderId = editingOrderId
-        const paidAmount = isCashMethod
-          ? Number(cashTendered.replace(/\D/g, ''))
-          : variables.total_price
+        const paidAmount = variables.total_price
 
         const dateStr = new Date().toISOString().split('T')[0]
         let paymentsPayload: any[] = []

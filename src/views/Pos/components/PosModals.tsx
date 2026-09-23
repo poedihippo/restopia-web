@@ -445,31 +445,98 @@ export default function PosModals({
                   No payment methods found. Add one in Settings first.
                 </p>
               )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {paymentMethods.map((pm: any) => (
-                  <button
-                    key={pm.id}
-                    type="button"
-                    onClick={() => {
-                      setPaymentMethodId(pm.id)
-                      setCashTendered('')
-                    }}
-                    style={{
-                      flex: '1 1 auto',
-                      height: 42,
-                      border: '1px solid',
-                      borderColor: paymentMethodId === pm.id ? 'var(--accent)' : 'var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      background: paymentMethodId === pm.id ? 'var(--accent)' : 'var(--surface)',
-                      color: paymentMethodId === pm.id ? 'white' : 'var(--foreground)',
-                      fontWeight: 600,
-                      fontSize: 14,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {pm.name}
-                  </button>
-                ))}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: 8,
+                }}
+              >
+                {paymentMethods.map((pm: any) => {
+                  const isSelected = paymentMethodId === pm.id
+                  const typeLabel =
+                    pm.type === 'sales_orders'
+                      ? 'Sales'
+                      : pm.type === 'purchase_orders'
+                        ? 'Purchase'
+                        : 'All'
+                  return (
+                    <button
+                      key={pm.id}
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethodId(pm.id)
+                        setCashTendered('')
+                      }}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        gap: 3,
+                        padding: '10px 12px',
+                        minHeight: 56,
+                        border: '1px solid',
+                        borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: isSelected ? 'var(--accent-light-bg)' : 'var(--surface)',
+                        color: isSelected ? 'var(--accent)' : 'var(--foreground)',
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? '0 0 0 1px var(--accent)' : 'none',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 6,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {pm.name}
+                        </span>
+                        {isSelected && (
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: 99,
+                              background: 'var(--accent)',
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 500,
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.4,
+                          color: isSelected
+                            ? 'var(--accent)'
+                            : 'var(--foreground-muted)',
+                        }}
+                      >
+                        {typeLabel}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
 

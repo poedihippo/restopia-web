@@ -14,6 +14,7 @@ import { toastMutationApiError } from '@/utils/apiError';
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
+  type: z.enum(['warehouse', 'production', 'outlet']).default('outlet'),
   timezone: z.string().optional(),
   price_list_id: z.number().optional().nullable(),
   is_default: z.boolean().default(false),
@@ -27,6 +28,7 @@ interface BranchSheetProps {
     id: number
     code: string
     name: string
+    type?: 'warehouse' | 'production' | 'outlet'
     is_default?: boolean
     timezone?: string
     price_list_id?: number | null
@@ -51,7 +53,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { code: '', name: '',
-      timezone: 'Asia/Jakarta', is_default: false },
+      type: 'outlet', timezone: 'Asia/Jakarta', is_default: false },
   })
 
   useEffect(() => {
@@ -59,12 +61,14 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
       reset({
         code: editData.code,
         name: editData.name,
+        type: editData.type ?? 'outlet',
         timezone: editData.timezone ?? 'Asia/Jakarta',
         price_list_id: editData.price_list_id ?? null,
         is_default: editData.is_default ?? false,
       })
     } else {
       reset({ code: '', name: '',
+        type: 'outlet',
         timezone: 'Asia/Jakarta',
         price_list_id: null,
         is_default: false })
@@ -258,6 +262,24 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
                 <option value="Asia/Jayapura">Asia/Jayapura</option>
               </select>
               {errors.timezone && <div style={errorStyle}>{errors.timezone.message}</div>}
+            </div>
+
+            {/* Branch Type */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Branch Type
+                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              </label>
+              <select
+                {...register('type')}
+                style={errors.type ? inputErrorStyle : inputStyle}
+              >
+                <option value="outlet">Outlet</option>
+                <option value="warehouse">Warehouse</option>
+                <option value="production">Production</option>
+              </select>
+              {errors.type && <div style={errorStyle}>{errors.type.message}</div>}
+              <div style={hintStyle}>Warehouse can only hold WIP, Production can manufacture, Outlet sells to customers</div>
             </div>
 
             {/* Price List */}

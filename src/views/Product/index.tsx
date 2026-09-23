@@ -121,7 +121,7 @@ export default function ProductView() {
           sort: sortParam,
           include: 'product_category',
           'filter[search]': debouncedSearch || undefined,
-          'filter[types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+          'filter[types]': typeFilter === '' ? 'raw,supply,wip' : String(typeFilter),
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
         } as any)
         .then((r) => r.data),

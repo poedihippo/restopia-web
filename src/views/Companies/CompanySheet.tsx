@@ -44,9 +44,9 @@ function parseProductTypes(value?: string | null): ProductTypeValue[] {
 }
 
 const CRON_PRESETS: { label: string; value: string }[] = [
-  { label: 'Monthly (1st)', value: '0 0 1 * *' },
-  { label: 'Weekly (Mon)', value: '0 0 * * 1' },
-  { label: 'Daily', value: '0 0 * * *' },
+  { label: 'Monthly (1st)', value: '0 0 0 1 * *' },
+  { label: 'Weekly (Mon)', value: '0 0 0 ? * MON' },
+  { label: 'Daily', value: '0 0 0 * * ?' },
 ]
 
 export default function CompanySheet({ open, onClose, editData }: CompanySheetProps) {
@@ -73,26 +73,32 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
   const watchedCron = watch('credit_reset_cron') ?? ''
   const watchedProductTypes = watch('product_types') ?? []
   const allChecked =
-    watchedProductTypes.length === 0 ||
+    productTypes.length > 0 &&
     productTypes.every((t) => watchedProductTypes.includes(t))
 
   useEffect(() => {
+    if (productTypesLoading || productTypes.length === 0) return
+
     if (editData) {
+      const parsed = parseProductTypes(editData.product_types)
+      const isFullSet =
+        parsed.length === productTypes.length &&
+        productTypes.every((t) => parsed.includes(t))
       reset({
         name: editData.name,
         credit_reset_cron: editData.credit_reset_cron ?? '',
         credit_reset_amount: editData.credit_reset_amount ?? 0,
-        product_types: parseProductTypes(editData.product_types),
+        product_types: isFullSet ? productTypes : parsed,
       })
     } else {
       reset({
         name: '',
         credit_reset_cron: '',
         credit_reset_amount: 0,
-        product_types: [],
+        product_types: productTypes,
       })
     }
-  }, [editData, open, reset])
+  }, [editData, open, productTypes, productTypesLoading, reset])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => companiesService.create(data as any),
@@ -115,13 +121,15 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
   })
 
   const onSubmit = (data: FormValues) => {
-    const productTypesSelected = (data.product_types ?? []).length
+    const selected = data.product_types ?? []
+    const allSelected =
+      productTypes.length > 0 &&
+      productTypes.every((t) => selected.includes(t))
     const payload = {
       name: data.name,
       credit_reset_cron: data.credit_reset_cron || undefined,
       credit_reset_amount: data.credit_reset_amount,
-      product_types:
-        productTypesSelected > 0 ? (data.product_types ?? []).join(',') : null,
+      product_types: allSelected ? null : selected.join(','),
     }
     if (editData) updateMutation.mutate(payload as any)
     else createMutation.mutate(payload as any)
@@ -280,23 +288,18 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
                         type="button"
                                                 onClick={() => {
                           const isPresent = watchedProductTypes.includes(type)
-                          if (allChecked) {
-                            const next = productTypes.filter((t) => t !== type)
-                            setValue('product_types', next, { shouldDirty: true })
-                          } else if (isPresent) {
-                            const next = watchedProductTypes.filter((t) => t !== type)
-                            if (next.length === 0) {
-                              setValue('product_types', [], { shouldDirty: true })
-                            } else {
-                              setValue('product_types', next, { shouldDirty: true })
-                            }
+                          if (isPresent) {
+                            setValue(
+                              'product_types',
+                              watchedProductTypes.filter((t) => t !== type),
+                              { shouldDirty: true },
+                            )
                           } else {
-                            const next = [...watchedProductTypes, type]
-                            if (next.length === productTypes.length) {
-                              setValue('product_types', [], { shouldDirty: true })
-                            } else {
-                              setValue('product_types', next, { shouldDirty: true })
-                            }
+                            setValue(
+                              'product_types',
+                              [...watchedProductTypes, type],
+                              { shouldDirty: true },
+                            )
                           }
                         }}
                         style={{
@@ -381,7 +384,7 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
                   <input
                     type="text"
                     {...register('credit_reset_cron')}
-                    placeholder="e.g. 0 0 1 * * (monthly)"
+                    placeholder="e.g. 0 0 0 1 * * (monthly, Quartz 6-field)"
                     style={inputStyle}
                   />
                   <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>

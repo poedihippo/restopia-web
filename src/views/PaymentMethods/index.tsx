@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Eye, X, Search } from 'lucide-react'
 import { paymentMethodsService as paymentMethodService } from '@/services/payment-methods.service'
+import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function PaymentMethodsView() {
@@ -21,6 +22,7 @@ export default function PaymentMethodsView() {
   const [editing, setEditing] = useState<any>(null)
   const [name, setName] = useState('')
   const [type, setType] = useState('all')
+  const [chartOfAccountId, setChartOfAccountId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
   const [selectedItem, setSelectedItem] = useState<{
     id: number
@@ -40,6 +42,16 @@ export default function PaymentMethodsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [originFilter, setOriginFilter] = useState<'all' | 'manual' | 'bank' | 'coa'>('all')
   const [bankAccountFilter, setBankAccountFilter] = useState<number | null>(null)
+
+  const { data: chartOfAccountsData } = useQuery({
+    queryKey: ['chart-of-accounts-pm'],
+    queryFn: () =>
+      chartOfAccountsService
+        .list({ per_page: 500, sort: 'code', 'filter[use_as_payment_method]': 'true' } as any)
+        .then((r) => (r.data as any)?.data ?? []),
+    enabled: showForm,
+  })
+  const chartOfAccounts = chartOfAccountsData ?? []
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -78,10 +90,13 @@ export default function PaymentMethodsView() {
   })
 
   const { mutate: save, isPending: saving } = useMutation({
-    mutationFn: () =>
-      editing
-        ? paymentMethodService.update(editing.id, { name, type })
-        : paymentMethodService.create({ name, type }),
+    mutationFn: () => {
+      const payload: any = { name, type }
+      if (chartOfAccountId !== null) payload.chart_of_account_id = chartOfAccountId
+      return editing
+        ? paymentMethodService.update(editing.id, payload)
+        : paymentMethodService.create(payload)
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payment-methods'] })
       qc.invalidateQueries({ queryKey: ['payment-methods-all'] })
@@ -90,6 +105,7 @@ export default function PaymentMethodsView() {
       setEditing(null)
       setName('')
       setType('all')
+      setChartOfAccountId(null)
     },
     onError: (err: any) => {
       const errData = err?.response?.data
@@ -161,6 +177,7 @@ export default function PaymentMethodsView() {
             setEditing(null)
             setName('')
             setType('all')
+            setChartOfAccountId(null)
             setShowForm(true)
           }}
           style={{
@@ -350,12 +367,13 @@ export default function PaymentMethodsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && !isBankLinked && (<button
+                      {canEdit && (<button
                         type="button"
                         onClick={() => {
                           setEditing(item)
                           setName(item.name)
                           setType(item.type || 'all')
+                          setChartOfAccountId(item.chart_of_account_id ?? null)
                           setShowForm(true)
                         }}
                         style={{
@@ -367,7 +385,7 @@ export default function PaymentMethodsView() {
                           cursor: 'pointer',
                         }}>Edit
                                                                      </button>)}
-                      {canDelete && !isBankLinked && (<button
+                      {canDelete && (<button
                         type="button"
                         onClick={() => setDeleteTarget(item)}
                         style={{
@@ -448,71 +466,87 @@ export default function PaymentMethodsView() {
                 ×
               </button>
             </div>
-            <div style={{ flex: 1, padding: 24 }}>
-              {editing?.bank_account_id ? (
+            <div style={{ flex: 1, padding: 24, overflowY: 'auto' }}>
+              {editing?.bank_account_id && (
                 <div
                   style={{
-                    padding: 16,
+                    padding: 12,
+                    marginBottom: 16,
                     background: 'var(--warning-bg)',
                     border: '1px solid var(--warning)',
                     borderRadius: 'var(--radius-md)',
                     color: 'var(--warning)',
-                    fontSize: 13,
-                    lineHeight: 1.6,
+                    fontSize: 12,
+                    lineHeight: 1.5,
                   }}
                 >
-                  This payment method is linked to bank account{' '}
+                  Linked to bank account{' '}
                   <strong>
                     {editing.bank_account?.bank_name ?? 'Bank'} {editing.bank_account?.account_number ?? ''}
-                  </strong>.
-                  Changes must be made on the Bank Accounts page.
+                  </strong>
+                  . The bank link itself cannot be changed here — only name, type, and COA.
                 </div>
-              ) : (
-                <>
-                  <label
-                    style={{
-                      fontSize: 13,
-                      color: 'var(--foreground-muted)',
-                      display: 'block',
-                      marginBottom: 6,
-                    }}
-                  >
-                    Method Name *
-                  </label>
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Cash, Transfer BCA, QRIS"
-                    style={{
-                      width: '100%',
-                      height: 40,
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '0 12px',
-                      fontSize: 14,
-                      color: 'var(--foreground)',
-                      background: 'var(--surface-raised)',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <p style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 6 }}>
-                    Tip: include &quot;cash&quot; in the name (e.g. &quot;Cash&quot;) to enable change
-                    calculation in POS.
-                  </p>
-                  <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6, marginTop: 16 }}>
-                    Type *
-                  </label>
-                  <select
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                    style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
-                  >
-                    <option value="all">All</option>
-                    <option value="sales_orders">Sales Orders</option>
-                    <option value="purchase_orders">Purchase Orders</option>
-                  </select>
-                </>
               )}
+              <label
+                style={{
+                  fontSize: 13,
+                  color: 'var(--foreground-muted)',
+                  display: 'block',
+                  marginBottom: 6,
+                }}
+              >
+                Method Name *
+              </label>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Cash, Transfer BCA, QRIS"
+                style={{
+                  width: '100%',
+                  height: 40,
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '0 12px',
+                  fontSize: 14,
+                  color: 'var(--foreground)',
+                  background: 'var(--surface-raised)',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <p style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 6 }}>
+                Tip: include &quot;cash&quot; in the name (e.g. &quot;Cash&quot;) to enable change
+                calculation in POS.
+              </p>
+              <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6, marginTop: 16 }}>
+                Type *
+              </label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
+              >
+                <option value="all">All</option>
+                <option value="sales_orders">Sales Orders</option>
+                <option value="purchase_orders">Purchase Orders</option>
+              </select>
+              <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6, marginTop: 16 }}>
+                Chart of Account
+              </label>
+              <select
+                value={chartOfAccountId ?? ''}
+                onChange={(e) => setChartOfAccountId(e.target.value ? Number(e.target.value) : null)}
+                style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
+              >
+                <option value="">— None —</option>
+                {chartOfAccounts.map((coa: any) => (
+                  <option key={coa.id} value={coa.id}>
+                    {coa.code} — {coa.name}
+                  </option>
+                ))}
+              </select>
+              <p style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 6 }}>
+                Account used to record payments made with this method.
+              </p>
             </div>
             <div
               style={{
@@ -537,33 +571,31 @@ export default function PaymentMethodsView() {
               >
                 Cancel
               </button>
-              {!editing?.bank_account_id && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!name.trim()) {
-                      toast.error('Name is required')
-                      return
-                    }
-                    save()
-                  }}
-                  disabled={saving}
-                  style={{
-                    flex: 1,
-                    height: 42,
-                    border: 'none',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--accent)',
-                    color: 'white',
-                    cursor: saving ? 'not-allowed' : 'pointer',
-                    fontSize: 14,
-                    fontWeight: 600,
-                    opacity: saving ? 0.7 : 1,
-                  }}
-                >
-                  {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!name.trim()) {
+                    toast.error('Name is required')
+                    return
+                  }
+                  save()
+                }}
+                disabled={saving}
+                style={{
+                  flex: 1,
+                  height: 42,
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--accent)',
+                  color: 'white',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
+              </button>
             </div>
           </div>
         </div>
