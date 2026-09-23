@@ -18,11 +18,32 @@ export const salesOrdersService = {
     api.delete<ApiResponse<unknown>>(`/sales-orders/${id}`),
 
   checkout: (data: {
-    branch_id: number
-    customer_id?: number
+    type: string
+    sales_channel_id: number
+    date: string
+    fulfillment_date: string
+    status: string
+    settlement_status: string
+    customer_id?: number | null
+    customer_name?: string
+    customer_phone?: string
+    credit_by_id?: number
     voucher_id?: number
-    details: { product_uom_batch_id: number; quantity: number; price: number }[]
-    payments: { payment_method_id: number; amount: number }[]
+    description?: string
+    details: {
+      product_inventory_id?: number
+      bundle_id?: number
+      qty: number
+      price: number
+      status: string
+      bundle_details?: { product_inventory_id: number; bundle_detail_item_id: number }[]
+    }[]
+    payments: {
+      payment_method_id: number
+      amount: number
+      description?: string
+      allocations?: { sales_order_id?: number; amount: number }[]
+    }[]
   }) =>
     api.post<ApiResponse<unknown>>('/sales-orders/checkout', data, {
       headers: { 'Idempotency-Key': crypto.randomUUID() },

@@ -684,23 +684,49 @@ export function usePosLogic() {
       const paidAmount = isCashMethod
         ? Number(cashTendered.replace(/\D/g, ''))
         : payload.total_price
-      let checkoutPayments: { payment_method_id: number; amount: number }[] = []
+      let checkoutPayments: {
+        payment_method_id: number
+        amount: number
+        description?: string
+        allocations?: { sales_order_id?: number; amount: number }[]
+      }[] = []
       if (isSplitPayment) {
         checkoutPayments = splitPayments.map(sp => ({
           payment_method_id: sp.paymentMethodId,
           amount: sp.amount,
+          description: orderNote || undefined,
         }))
       } else if (paymentMethodId) {
-        checkoutPayments = [{ payment_method_id: paymentMethodId, amount: paidAmount }]
+        checkoutPayments = [{
+          payment_method_id: paymentMethodId,
+          amount: paidAmount,
+          description: orderNote || undefined,
+        }]
       }
+      // Forward the full payload to checkout — it already contains all
+      // required fields (type, sales_channel_id, date, fulfillment_date,
+      // status, settlement_status). Only remap detail field names and
+      // add the payments array.
       return salesOrdersService.checkout({
-        branch_id: payload.branch_id,
+        type: payload.type,
+        sales_channel_id: payload.sales_channel_id,
+        date: payload.date,
+        fulfillment_date: payload.fulfillment_date,
+        status: payload.status,
+        settlement_status: payload.settlement_status,
         customer_id: payload.customer_id,
+        customer_name: payload.customer_name,
+        customer_phone: payload.customer_phone,
+        credit_by_id: payload.credit_by_id,
         voucher_id: payload.voucher_id,
+        description: payload.description,
         details: payload.details.map((d: any) => ({
-          product_uom_batch_id: d.product_uom_batch_id,
-          quantity: d.qty,
+          product_inventory_id: d.product_inventory_id ?? undefined,
+          bundle_id: d.bundle_id ?? undefined,
+          qty: d.qty,
           price: d.price,
+          status: d.status,
+          bundle_details: d.bundle_details ?? undefined,
         })),
         payments: checkoutPayments,
       })
