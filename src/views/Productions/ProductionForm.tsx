@@ -647,8 +647,8 @@ export default function ProductionForm({
   const detailProductTypes: string =
     branchType === 'warehouse' || branchType === 'production' ? 'wip' : 'raw,final'
 
-  // Materials always use raw + wip regardless of branch type
-  const materialProductTypes = 'raw,wip'
+  // Materials include supply + wip + raw (supply = packaging consumables)
+  const materialProductTypes = 'supply,wip,raw'
 
   const [expandedDetails, setExpandedDetails] = useState<number[]>([0])
   const [loadingRecipeFor, setLoadingRecipeFor] = useState<number | null>(null)
