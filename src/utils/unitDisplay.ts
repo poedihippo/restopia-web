@@ -61,6 +61,15 @@ export function buildConversionChain(
 /**
  * Convert a qty from the base unit up through the conversion chain.
  * Returns the value in `targetUomCode` if reachable, otherwise null.
+ *
+ * The conversion chain is: each entry has uom_code (source) → target_uom_code.
+ * To walk UP from base: find step where target_uom_code === current, then
+ * divide value by amount, set current = step.uom_code.
+ *
+ * Example: GR base, chain: PACK(12)→KG, KG(1000)→GR
+ *   GR → find KG(1000)→GR: value /= 1000, current = KG
+ *   KG → find PACK(12)→KG: value /= 12, current = PACK
+ *   PACK found → return 8
  */
 export function convertUp(
   baseQty: number,
@@ -90,22 +99,20 @@ export function convertUp(
 /**
  * Format a quantity for display according to the chosen mode.
  *
- * - smallest: show baseQty + baseUomCode directly (e.g. "2,5 GR").
- *             Always precise, matches the `base_qty` / `base_uom_code`
- *             fields on the API response.
+ * The API response provides:
+ *   qty        → quantity in the LARGEST unit (e.g. 8 PACK, 30 PACK)
+ *   base_qty   → quantity in the SMALLEST unit (e.g. 96000 GR)
+ *   base_uom   → code of the smallest unit (GR, PCS, etc.)
+ *   conversions → chain of unit conversions (PACK(12)→KG(1000)→GR)
  *
- * - largest:  PROPERLY CONVERT baseQty up the conversion chain to the
- *             largest meaningful unit (the largest unit where the
- *             converted value is >= 1). If no larger unit can fit a whole
- *             value (e.g. 2,5 GR for a product sold in PACK / KG), fall
- *             back to the base unit so the user never sees misleading
- *             fractional PACK values like "0,0002 PACK".
+ * - smallest: always show base_qty + base_uom (e.g. "96.000 GR")
+ *   = the raw value in the smallest/most granular unit.
  *
- *             Examples (Non Dairy Cream: PACK(12)→KG→GR):
- *               2,5 GR    → "2,5 GR"   (no unit fits ≥1 above)
- *               2.500 GR  → "2,5 KG"
- *               12.000 GR → "1 PACK"
- *               24.000 GR → "2 PACK"
+ * - largest: show qty + the name of the largest UOM (e.g. "8 PACK")
+ *   The backend has already converted qty into the largest unit, so we
+ *   just need to read `qty` and find the label of the largest UOM from
+ *   the conversion chain (the conversion with the smallest `amount`).
+ *   If there are no conversions, fall back to base_qty + base_uom.
  *
  * Direction sign (in/out) is applied by the caller.
  */
@@ -116,28 +123,45 @@ export function formatQtyInMode(
   conversions?: ConversionEntry[] | null,
   mode: UnitDisplayMode = 'smallest',
 ): string {
-  if (!baseUomCode) return String(qty ?? baseQty ?? 0)
-
   if (mode === 'smallest') {
     return `${formatNumber(baseQty)} ${baseUomCode}`
   }
 
-  // mode === 'largest': walk up the chain while the next value is >= 1
-  const chain = buildConversionChain(conversions)
-  if (chain.length === 0) {
+  // mode === 'largest': find the unit the qty value is in, using the
+  // conversion chain. Walk from base→top (find step where
+  // target_uom_code === current), divide value, repeat.
+  // If chain stops early (data has non-linear branches like
+  // PACK→GR + KG→GR), fallback to the connected unit with the
+  // largest amount (= largest unit that directly connects to base).
+  if (!conversions || conversions.length === 0) {
     return `${formatNumber(baseQty)} ${baseUomCode}`
   }
 
+  const chain = buildConversionChain(conversions)
   let value = baseQty
   let unit = baseUomCode
   let safety = MAX_CHAIN_DEPTH
 
-  for (const step of chain) {
-    if (safety-- <= 0) break
-    const nextValue = value / step.amount
-    if (nextValue < 1) break
-    value = nextValue
+  while (safety-- > 0) {
+    const step = chain.find((c) => c.target_uom_code === unit)
+    if (!step) break
+    value = value / step.amount
     unit = step.uom_code
+  }
+
+  // Sanity check: if chain result doesn't match qty (data has non-linear
+  // branches), fallback to the unit with the largest amount that directly
+  // connects to the base unit. This handles cases like:
+  //   PACK(3000)→GR + KG(500)→GR (non-linear, both connect to GR)
+  if (unit !== baseUomCode && Math.abs(value - qty) > 1) {
+    const connected = conversions.filter((c) => c.target_uom_code === baseUomCode)
+    if (connected.length > 0) {
+      const largest = connected.reduce((max, c) =>
+        c.amount > max.amount ? c : max,
+        connected[0],
+      )
+      return `${formatNumber(qty)} ${largest.uom_name}`
+    }
   }
 
   return `${formatNumber(value)} ${unit}`

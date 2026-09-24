@@ -251,35 +251,32 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // actually have stock at the supplying branch, with the REAL per-branch
   // quantity (not the global batch stock). Per-branch stock lives in
   // product_inventory, so we source the picker from there.
-  // Collect product_uom_ids from current delivery details so the inventory
-  // fetch can use the new `filter[product_uom_ids]` (single call) instead of
-  // paginating the entire branch — fixes the silent data loss when total
-  // branch inventory exceeds per_page on the first page.
-  const neededInventoryUomIds = useMemo(() => {
-    const ids = new Set<number>()
-    for (const d of (watchDetails ?? [])) {
-      const id = d?.product_uom_id
-      if (typeof id === 'number' && id > 0) ids.add(id)
-    }
-    return Array.from(ids)
-  }, [watchDetails])
-
   const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
-    queryKey: [
-      'source-branch-inventory',
-      sourceBranchId,
-      neededInventoryUomIds.slice().sort((a, b) => a - b).join(','),
-    ],
-    enabled: !!sourceBranchId && neededInventoryUomIds.length > 0,
-    queryFn: () =>
-      productInventoriesService
-        .list({
-          'filter[product_uom_ids]': neededInventoryUomIds.join(','),
-          'filter[branch_id]': sourceBranchId,
-          include: 'product_uom_batch,product_uom_batch.product_uom',
-          per_page: Math.max(neededInventoryUomIds.length * 4, 100),
-        } as any)
-        .then((r) => r.data),
+    queryKey: ['source-branch-inventory', sourceBranchId],
+    enabled: !!sourceBranchId,
+    queryFn: async () => {
+      let allRows: any[] = []
+      let page = 1
+      let totalPages = 1
+      do {
+        const res = await productInventoriesService
+          .list({
+            page,
+            per_page: 100,
+            'filter[branch_id]': sourceBranchId,
+            include: 'product_uom_batch,product_uom_batch.product_uom',
+          } as any)
+          .then((r) => r.data)
+        const items = (res as any)?.data ?? []
+        allRows = allRows.concat(items)
+        totalPages =
+          (res as any)?.meta?.last_page ??
+          (res as any)?.meta?.total_pages ??
+          1
+        page += 1
+      } while (page <= totalPages)
+      return { data: allRows }
+    },
   })
   const sourceInventory = (inventoryData as any)?.data ?? []
 
