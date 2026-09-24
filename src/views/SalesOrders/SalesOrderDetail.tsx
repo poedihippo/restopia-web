@@ -995,7 +995,11 @@ export default function SalesOrderDetail() {
                     if (typeof snap === 'string') {
                       try { snap = JSON.parse(snap) } catch (e) { }
                     }
+                    // Prefer product_uom_snapshot (frozen at order time) over
+                    // product_inventory_snapshot which may be null.
+                    const uomSnap = d.product_uom_snapshot
                     const name =
+                      uomSnap?.product?.name ??
                       snap?.product_uom?.product?.name ??
                       snap?.product_uom_batch?.product_uom?.product?.name ??
                       snap?.name ??
@@ -1004,6 +1008,8 @@ export default function SalesOrderDetail() {
                       d.bundle?.name ??
                       (isBundle ? 'Bundle' : `Item ${d.id ?? idx + 1}`)
                     const code =
+                      uomSnap?.product?.code ??
+                      uomSnap?.code ??
                       snap?.product_uom_batch?.product_uom?.product?.code ??
                       snap?.product_uom?.product?.code ??
                       snap?.code ??
@@ -1365,7 +1371,10 @@ export default function SalesOrderDetail() {
                   if (typeof snap === 'string') {
                       try { snap = JSON.parse(snap) } catch (e) { }
                   }
+                  // Prefer product_uom_snapshot (frozen at order time)
+                  const uomSnap = item.product_uom_snapshot
                   const name =
+                      uomSnap?.product?.name ??
                       snap?.product_uom?.product?.name ??
                       snap?.product_uom_batch?.product_uom?.product?.name ??
                       snap?.name ??

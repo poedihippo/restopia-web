@@ -50,6 +50,11 @@ export default function ProductConversionSheet({
   const queryClient = useQueryClient()
   const activeProductTypes = useActiveBranchProductTypes()
 
+  // Conversion-factor change confirmation state
+  const [showFactorChangeConfirm, setShowFactorChangeConfirm] = useState(false)
+  const [factorChangeReason, setFactorChangeReason] = useState('')
+  const [pendingPayload, setPendingPayload] = useState<FormValues | null>(null)
+
   const {
     register,
     handleSubmit,
@@ -136,24 +141,54 @@ export default function ProductConversionSheet({
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FormValues) =>
+    mutationFn: (data: FormValues & { confirm_conversion_factor_change?: boolean; reason?: string }) =>
       productConversionsService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-conversions'] })
       toast.success('Conversion updated')
       onClose()
     },
-    onError: (err: any) =>
-      toastMutationApiError(err, 'Failed to update conversion'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.response?.data?.errors?.message ?? ''
+      if (/cannot change conversion factor/i.test(msg)) {
+        setPendingPayload(formValues)
+        setShowFactorChangeConfirm(true)
+      } else {
+        toastMutationApiError(err, 'Failed to update conversion')
+      }
+    },
   })
 
-  const onSubmit = (values: FormValues) => {
+  const formValues = watch()
 
+  const onSubmit = (values: FormValues) => {
     if (editData) {
       updateMutation.mutate(values)
     } else {
       createMutation.mutate(values)
     }
+  }
+
+  const handleConfirmFactorChange = () => {
+    if (!factorChangeReason.trim()) {
+      toast.error('Reason is required')
+      return
+    }
+    if (!pendingPayload) return
+    updateMutation.mutate({
+      ...pendingPayload,
+      confirm_conversion_factor_change: true,
+      reason: factorChangeReason.trim(),
+    })
+    setShowFactorChangeConfirm(false)
+    setFactorChangeReason('')
+    setPendingPayload(null)
+  }
+
+  const handleCancelFactorChange = () => {
+    setShowFactorChangeConfirm(false)
+    setFactorChangeReason('')
+    setPendingPayload(null)
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -548,6 +583,129 @@ export default function ProductConversionSheet({
           </button>
         </div>
       </div>
+
+      {/* Conversion-factor change confirmation dialog */}
+      {showFactorChangeConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.35)',
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--surface)',
+              borderRadius: 'var(--radius-xl)',
+              padding: 32,
+              width: 440,
+              boxShadow: 'var(--shadow-lg)',
+            }}
+          >
+            <h3
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 18,
+                marginBottom: 8,
+                color: 'var(--foreground)',
+              }}
+            >
+              Confirm Conversion Factor Change
+            </h3>
+            <p
+              style={{
+                fontSize: 13,
+                color: 'var(--foreground-muted)',
+                marginBottom: 16,
+                lineHeight: 1.6,
+              }}
+            >
+              Changing the conversion factor <strong>re-interprets existing quantities</strong> on
+              inventory rows that hold stock in the affected unit. A stock adjustment should be run
+              afterwards to realign quantities to physical counts.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                Reason (required)
+              </label>
+              <textarea
+                value={factorChangeReason}
+                onChange={(e) => setFactorChangeReason(e.target.value)}
+                placeholder="e.g. relabeling PACK to the new contract..."
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  color: 'var(--foreground)',
+                  background: 'var(--background)',
+                  outline: 'none',
+                  fontFamily: 'var(--font-sans)',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                Reason will be stored in the audit log.
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={handleCancelFactorChange}
+                style={{
+                  padding: '8px 16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmFactorChange}
+                disabled={updateMutation.isPending || !factorChangeReason.trim()}
+                style={{
+                  padding: '8px 16px',
+                  background: 'var(--destructive)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'white',
+                  cursor:
+                    updateMutation.isPending || !factorChangeReason.trim()
+                      ? 'not-allowed'
+                      : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  opacity: updateMutation.isPending || !factorChangeReason.trim() ? 0.7 : 1,
+                }}
+              >
+                {updateMutation.isPending && (
+                  <Loader2
+                    size={14}
+                    style={{ animation: 'spin 1s linear infinite' }}
+                  />
+                )}
+                Change Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes spin {

@@ -26,12 +26,14 @@ export default function StockOpnameForm() {
   const today = new Date().toISOString().split('T')[0]
   const [date, setDate] = useState(today)
   const [description, setDescription] = useState('')
+  const [productCategoryId, setProductCategoryId] = useState<number | ''>('')
+  const [productType, setProductType] = useState('')
 
   // If created, we render the count sheet immediately from the create response
   const [createdOpname, setCreatedOpname] = useState<StockOpnameResponse | null>(null)
 
   const createMutation = useMutation({
-    mutationFn: (payload: { date: string; description?: string }) =>
+    mutationFn: (payload: { date: string; description?: string; product_category_id?: number; product_type?: string }) =>
       stockOpnamesService.create(payload),
     onSuccess: (res) => {
       const newOpname: StockOpnameResponse = (res.data as any)?.data ?? res.data
@@ -70,6 +72,8 @@ export default function StockOpnameForm() {
     createMutation.mutate({
       date,
       description: description.trim() || undefined,
+      product_category_id: productCategoryId !== '' ? Number(productCategoryId) : undefined,
+      product_type: productType || undefined,
     })
   }
 
@@ -277,6 +281,43 @@ export default function StockOpnameForm() {
                 fontFamily: 'inherit',
               }}
             />
+          </div>
+
+          {/* Product Type */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={labelStyle}>Product Type (Optional)</label>
+            <select
+              id="input-opname-product-type"
+              value={productType}
+              onChange={(e) => setProductType(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">All Types</option>
+              <option value="raw">Raw Material</option>
+              <option value="wip">Work In Progress</option>
+              <option value="final">Final Product</option>
+              <option value="supply">Supply / Packaging</option>
+            </select>
+            <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+              Filter which product type to count
+            </span>
+          </div>
+
+          {/* Product Category */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={labelStyle}>Product Category (Optional)</label>
+            <input
+              id="input-opname-category-id"
+              type="number"
+              min={1}
+              placeholder="Category ID (e.g. 1 = MATERIAL)"
+              value={productCategoryId}
+              onChange={(e) => setProductCategoryId(e.target.value ? Number(e.target.value) : '')}
+              style={inputStyle}
+            />
+            <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+              Leave empty for all categories
+            </span>
           </div>
         </div>
 

@@ -4,6 +4,8 @@ import type { ApiResponse, PaginatedData, ListParams } from '@/types/api'
 export interface CreateStockOpnameRequest {
   date: string
   description?: string
+  product_category_id?: number
+  product_type?: string
   details?: Array<{ product_inventory_id: number; description?: string }> // optional legacy compatibility
 }
 
