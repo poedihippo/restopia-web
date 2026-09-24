@@ -86,7 +86,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const { data, isLoading } = useQuery({
     queryKey: ['stock-opnames', resolvedId],
     queryFn: () =>
-      stockOpnamesService.findById(Number(resolvedId), { include: 'products' }).then((r) => r.data),
+      stockOpnamesService.findById(Number(resolvedId), { include: 'products,product_uoms' }).then((r) => r.data),
     enabled: !!resolvedId,
     initialData: initialData
       ? {
@@ -138,11 +138,28 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     }
   }, [item?.id, item?.date, item?.description])
 
-  // Normalize product groups (support new products[] and legacy flat stock_opname_details)
+  // Normalize product groups (support new products[], product_uoms[], and legacy flat stock_opname_details)
   const productGroups: StockOpnameProductGroup[] = useMemo(() => {
     if (!item) return []
     if (item.products && item.products.length > 0) {
       return item.products
+    }
+    // Backend may return product_uoms[] instead of products[]
+    const puItems = (item as any).product_uoms
+    if (puItems && puItems.length > 0) {
+      const groupMap = new Map<number, StockOpnameProductGroup>()
+      puItems.forEach((d: any) => {
+        const puId = d.product_uom_id ?? d.id
+        if (!groupMap.has(puId)) {
+          groupMap.set(puId, {
+            product_uom_id: puId,
+            product_uom: d.product_uom ?? d,
+            stock_opname_details: [],
+          })
+        }
+        groupMap.get(puId)!.stock_opname_details.push(d)
+      })
+      return Array.from(groupMap.values())
     }
     if (item.stock_opname_details && item.stock_opname_details.length > 0) {
       const groupMap = new Map<number, StockOpnameProductGroup>()
@@ -191,6 +208,10 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     if (item.products && item.products.length > 0) {
       item.products.forEach((g) => {
         g.stock_opname_details?.forEach(processDetail)
+      })
+    } else if ((item as any).product_uoms && (item as any).product_uoms.length > 0) {
+      (item as any).product_uoms.forEach((d: any) => {
+        processDetail(d)
       })
     } else if (item.stock_opname_details) {
       item.stock_opname_details.forEach(processDetail)

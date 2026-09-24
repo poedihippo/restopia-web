@@ -40,7 +40,7 @@ const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
-  qty: z.coerce.number().min(1, 'Qty must be > 0'),
+  qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
   description: z.string().optional(),
   is_price_locked: z.boolean().optional(),
@@ -1005,8 +1005,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <input
                   type="number"
-                  min={1}
-                  step={1}
+                  min="0.001"
+                  step="any"
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={{
                     ...lineInputStyle,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { recipesService } from '@/services/recipes.service'
 import { X, Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 interface RecipeImportModalProps {
   open: boolean
@@ -19,9 +20,15 @@ export default function RecipeImportModal({
   const perPage = 15
   const [selectedRecipesMap, setSelectedRecipesMap] = useState<Record<number, any>>({})
 
+  // Filter recipes by logged-in user's branch type
+  const { user } = useAuth()
+  const recipeTypeFilter = user?.type === 'superadmin'
+    ? undefined
+    : user?.branch?.type
+
   // Fetch ALL recipes (total is only 178 recipes, takes only 2 fast requests of 100 items)
   const { data: allRecipes = [], isLoading, isFetching } = useQuery({
-    queryKey: ['all-recipes-for-modal'],
+    queryKey: ['all-recipes-for-modal', recipeTypeFilter],
     enabled: open,
     queryFn: () =>
       recipesService
@@ -29,6 +36,7 @@ export default function RecipeImportModal({
           per_page: 1000,
           include: 'product_uom,recipe_materials',
           sort: '-id',
+          ...(recipeTypeFilter ? { 'filter[type]': recipeTypeFilter } : {}),
         } as any)
         .then((r) => (r.data as any)?.data ?? []),
     staleTime: 60 * 1000,

@@ -1253,10 +1253,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                   <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
                     <input
                       type="number"
-                      min={1}
+                      min="0.001"
+                      step="any"
                       value={item.qty}
                       onChange={(e) =>
-                        updateItem(idx, 'qty', Math.max(1, Number(e.target.value)))
+                        updateItem(idx, 'qty', Math.max(0.001, Number(e.target.value)))
                       }
                       style={{
                         width: 64,

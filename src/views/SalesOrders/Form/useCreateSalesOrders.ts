@@ -13,7 +13,7 @@ const DetailSchema = z.object({
   product_inventory_id: z
     .number()
     .min(1, "Choose at least 1 product inventory"),
-  qty: z.number().min(1, "Quantity is required"),
+  qty: z.number().min(0.001, "Quantity is required"),
   price: z.number().min(1, "Price is required"),
   status: z.string().min(1, "Please choose status"),
   description: z.string(),

@@ -43,7 +43,7 @@ interface DimensionInventoryRow {
 
 const schema = z.object({
   source_inventory_id: z.coerce.number().min(1, 'Pilih item sumber'),
-  qty: z.coerce.number().min(1, 'Qty minimal 1'),
+  qty: z.coerce.number().min(0.001, 'Qty minimal 1'),
   from_owner_ref: z.string().min(1, 'Owner asal wajib diisi'),
   from_stage: z.string().min(1, 'Stage asal wajib diisi'),
   from_location_ref: z.string().default('GENERAL'),
@@ -404,8 +404,8 @@ export default function DimensionTransferView() {
             </label>
             <input
               type="number"
-              min={1}
-              step={1}
+              min="0.001"
+              step="any"
               {...register('qty', { valueAsNumber: true })}
               style={{
                 ...inputStyle,

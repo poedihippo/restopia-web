@@ -95,15 +95,24 @@ export default function RecipesView() {
     setPage(1)
   }, [selectedProductId])
 
-  // Fetch all recipes (there are only 178 total recipes, fetched in 2 quick batches of 100)
+  // Fetch all recipes, filtered by the logged-in user's branch type.
+  // production branch → only sees type:production recipes
+  // outlet branch → only sees type:outlet recipes
+  // superadmin → sees all (no filter)
+  const { user } = useAuth()
+  const recipeTypeFilter = user?.type === 'superadmin'
+    ? undefined
+    : user?.branch?.type
+
   const { data: allRecipes = [], isLoading, isError } = useQuery({
-    queryKey: ['all-recipes-list'],
+    queryKey: ['all-recipes-list', recipeTypeFilter],
     queryFn: () =>
       recipesService
         .list({
           per_page: 1000,
           include: 'product_uom,recipe_materials',
           sort: '-id',
+          ...(recipeTypeFilter ? { 'filter[type]': recipeTypeFilter } : {}),
         } as any)
         .then((r) => (r.data as any)?.data ?? []),
     staleTime: 60 * 1000,

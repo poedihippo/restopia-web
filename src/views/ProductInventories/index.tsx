@@ -14,6 +14,12 @@ import ProductInventorySheet from './ProductInventorySheet'
 import ProductInventoryConvertSheet from './ConvertSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
+  loadStoredMode,
+  persistMode,
+  type ConversionEntry,
+  type UnitDisplayMode,
+} from '@/utils/unitDisplay'
+import {
   Plus,
   Search,
   Pencil,
@@ -47,7 +53,13 @@ interface ProductInventory {
   product_uom?: {
     id: number
     code?: string
-    product?: { id: number; name: string; type?: string }
+    product?: {
+      id: number
+      name: string
+      type?: string
+      conversions?: ConversionEntry[]
+      product_category?: { id: number; name: string }
+    }
     uom?: { id: number; name: string; code: string }
   }
   product_uom_batch?: {
@@ -62,6 +74,7 @@ interface ProductInventory {
         id: number
         name: string
         type?: string
+        conversions?: ConversionEntry[]
         product_category?: { id: number; name: string }
       }
       uom?: { id: number; name: string; code: string }
@@ -72,7 +85,7 @@ interface ProductInventory {
 
 export default function ProductInventoriesView({ defaultType }: { defaultType?: string }) {
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { user, hasPermission } = useAuth()
   const activeProductTypes = useActiveBranchProductTypes()
   const allowedTypes = activeProductTypes
     ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
@@ -124,6 +137,13 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() =>
+    loadStoredMode((user as any)?.branch?.type),
+  )
+
+  useEffect(() => {
+    persistMode(unitMode)
+  }, [unitMode])
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -391,6 +411,47 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           />
         </div>
 
+        {/* Unit display mode toggle */}
+        <div
+          role="group"
+          aria-label="Unit display mode"
+          style={{
+            display: 'inline-flex',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            overflow: 'hidden',
+            background: 'var(--surface-raised)',
+          }}
+        >
+          {([
+            { key: 'smallest', label: 'Smallest', hint: 'base_qty + base_uom (e.g. 4.200 GR)' },
+            { key: 'largest', label: 'Largest', hint: 'convert to largest UOM (e.g. 1 PACK)' },
+          ] as { key: UnitDisplayMode; label: string; hint: string }[]).map((opt) => {
+            const active = unitMode === opt.key
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setUnitMode(opt.key)}
+                title={opt.hint}
+                style={{
+                  padding: '8px 12px',
+                  border: 'none',
+                  background: active ? 'var(--accent)' : 'transparent',
+                  color: active ? 'white' : 'var(--foreground-muted)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'all 0.12s ease',
+                }}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+
         <select
           value={categoryFilter}
           onChange={(e) => {
@@ -606,11 +667,38 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading &&
               filteredItems.map((item, idx) => {
-                const displayQty = item.display_qty ?? item.stock ?? 0
+                const conversions: ConversionEntry[] | undefined =
+                  item.product_uom_batch?.product_uom?.product?.conversions ??
+                  item.product_uom?.product?.conversions ??
+                  undefined
+                const baseQty = item.base_stock ?? item.stock ?? item.qty ?? 0
+                const baseUomCode = item.base_uom_code ??
+                  item.product_uom_batch?.product_uom?.uom?.code ??
+                  item.product_uom?.uom?.code ?? ''
+
+                // For "largest" mode: walk the conversion chain from base → top,
+                // dividing by each amount. The resulting value is in the
+                // largest UOM. Fall back to base if chain is incomplete.
+                let stockQty = baseQty
+                let stockUnit = baseUomCode
+                if (unitMode === 'largest' && conversions && conversions.length > 0) {
+                  const chain = [...conversions].sort((a, b) => a.amount - b.amount)
+                  for (const step of chain) {
+                    const next = stockQty / step.amount
+                    if (next < 1) break
+                    stockQty = next
+                    stockUnit = step.uom_code
+                  }
+                }
+                const stockDisplay =
+                  unitMode === 'smallest'
+                    ? `${baseQty.toLocaleString('id-ID')} ${baseUomCode}`
+                    : `${stockQty.toLocaleString('id-ID')} ${stockUnit}`
+
                 const isLow =
                   item.min_qty !== undefined &&
                   item.min_qty !== null &&
-                  displayQty <= (item.min_qty ?? 0)
+                  baseQty <= (item.min_qty ?? 0)
                 const puFallback = getProductUom(item.product_uom_id)
 
                 return (
@@ -671,13 +759,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {item.display_uom_code
-                          ?? item.product_uom_batch?.product_uom?.uom?.code
-                          ?? item.product_uom_batch?.product_uom?.uom?.name
-                          ?? item.product_uom?.uom?.code
-                          ?? puFallback?.uom?.code
-                          ?? puFallback?.uom?.name
-                          ?? '—'}
+                        {stockUnit || '—'}
                       </span>
                     </td>
                     {/* Batch Code */}
@@ -709,7 +791,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           color: isLow ? 'var(--warning)' : 'var(--foreground)',
                         }}
                       >
-                        {displayQty.toLocaleString('id-ID')}
+                        {stockDisplay}
                       </span>
                     </td>
 
@@ -1002,6 +1084,24 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 const puCode =
                   batchPu?.code ?? selectedItem.product_uom?.code ?? detailPu?.code
                 const uom = batchPu?.uom ?? selectedItem.product_uom?.uom ?? detailPu?.uom
+                const bUomCode = selectedItem.base_uom_code ??
+                  batchPu?.uom?.code ?? selectedItem.product_uom?.uom?.code ?? detailPu?.uom?.code ?? ''
+                const convs: ConversionEntry[] | undefined =
+                  batchPu?.product?.conversions ??
+                  selectedItem.product_uom_batch?.product_uom?.product?.conversions ??
+                  selectedItem.product_uom?.product?.conversions
+                let displayUom = uom?.name ?? ''
+                if (unitMode === 'largest' && convs && convs.length > 0) {
+                  const chain = [...convs].sort((a, b) => a.amount - b.amount)
+                  let val = selectedItem.base_stock ?? selectedItem.stock ?? 0
+                  for (const step of chain) {
+                    const next = val / step.amount
+                    if (next < 1) break
+                    displayUom = step.uom_name
+                    break
+                  }
+                }
+
                 return [
                   { label: 'ID', value: selectedItem.id },
                   { label: 'SKU Code', value: selectedItem.code },
@@ -1009,15 +1109,31 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                   { label: 'Product UOM', value: puCode },
                   {
                     label: 'UOM',
-                    value: uom ? `${uom.name} (${uom.code})` : undefined,
+                    value: displayUom || undefined,
                   },
                   { label: 'Branch', value: selectedItem.branch?.name },
-                  {
-                    label: 'Current Stock',
-                    value: `${(selectedItem.display_qty ?? selectedItem.stock ?? 0).toLocaleString('id-ID')}${
-                      selectedItem.display_uom_code ?? uom?.code ? ` ${selectedItem.display_uom_code ?? uom?.code}` : ''
-                    }`,
-                  },
+                  { label: 'Current Stock', value: (() => {
+                    const conversions: ConversionEntry[] | undefined =
+                      selectedItem.product_uom_batch?.product_uom?.product?.conversions ??
+                      selectedItem.product_uom?.product?.conversions
+                    const bQty = selectedItem.base_stock ?? selectedItem.stock ?? 0
+                    const bUom = selectedItem.base_uom_code ??
+                      selectedItem.product_uom_batch?.product_uom?.uom?.code ?? ''
+
+                    if (unitMode === 'largest' && conversions && conversions.length > 0) {
+                      let val = bQty
+                      let unit = bUom
+                      const chain = [...conversions].sort((a, b) => a.amount - b.amount)
+                      for (const step of chain) {
+                        const next = val / step.amount
+                        if (next < 1) break
+                        val = next
+                        unit = step.uom_code
+                      }
+                      return `${val.toLocaleString('id-ID')} ${unit}`
+                    }
+                    return `${bQty.toLocaleString('id-ID')} ${bUom}`
+                  })() },
                   { label: 'Status', value: selectedItem.status },
                   { label: 'Expiry Date', value: selectedItem.expiry_date },
                   {

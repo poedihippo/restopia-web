@@ -29,9 +29,6 @@ export default function StockOpnameForm() {
   const [productCategoryId, setProductCategoryId] = useState<number | ''>('')
   const [productType, setProductType] = useState('')
 
-  // If created, we render the count sheet immediately from the create response
-  const [createdOpname, setCreatedOpname] = useState<StockOpnameResponse | null>(null)
-
   const createMutation = useMutation({
     mutationFn: (payload: { date: string; description?: string; product_category_id?: number; product_type?: string }) =>
       stockOpnamesService.create(payload),
@@ -43,21 +40,20 @@ export default function StockOpnameForm() {
       queryClient.setQueryData(['stock-opnames', Number(newOpname.id)], { data: newOpname })
       queryClient.invalidateQueries({ queryKey: ['stock-opnames'] })
 
+      // POST response typically only returns header data (no products yet).
+      // The detail page will fetch full data with include=products,product_uoms.
+      const productCount =
+        newOpname.products?.length ??
+        (newOpname as any).product_uoms?.length ??
+        0
       toast.success(
-        `Stock Opname ${newOpname.code || ''} generated successfully with ${
-          newOpname.products?.length ?? 0
-        } product groups!`
+        `Stock Opname ${newOpname.code || ''} created. Product groups will be loaded from the detail page.`
       )
 
-      // Update URL to the new detail page without a hard reload
-      router.replace(
+      // Navigate to the detail page — it will re-fetch with includes
+      router.push(
         `/products/product-inventory/stock-opname/${newOpname.id}`,
-        undefined,
-        { shallow: true }
       )
-
-      // Render count sheet immediately from response
-      setCreatedOpname(newOpname)
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to create Stock Opname'),
   })
@@ -75,11 +71,6 @@ export default function StockOpnameForm() {
       product_category_id: productCategoryId !== '' ? Number(productCategoryId) : undefined,
       product_type: productType || undefined,
     })
-  }
-
-  // If already created, render Count Sheet immediately from the create response!
-  if (createdOpname) {
-    return <StockOpnameDetail initialData={createdOpname} idProp={createdOpname.id} />
   }
 
   return (

@@ -348,10 +348,11 @@ export default function PosCartSidebar({
                   </button>
                   <input
                     type="number"
-                    min={1}
+                    min="0.001"
+                    step="any"
                     value={item.qty}
                     onChange={(e) => {
-                      const val = Math.max(1, Number(e.target.value))
+                      const val = Math.max(0.001, Number(e.target.value))
                       setCart((prev: any) =>
                         prev.map((c: any) =>
                           c.product_inventory_id === item.product_inventory_id
@@ -469,10 +470,11 @@ export default function PosCartSidebar({
                 </button>
                 <input
                   type="number"
-                  min={1}
+                  min="0.001"
+                  step="any"
                   value={item.qty}
                   onChange={(e) => {
-                    const val = Math.max(1, Number(e.target.value))
+                    const val = Math.max(0.001, Number(e.target.value))
                     setBundleCart((prev: any) =>
                       prev.map((c: any) =>
                         c.bundle_id === item.bundle_id ? { ...c, qty: val } : c
