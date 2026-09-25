@@ -135,7 +135,8 @@ export default function ProductInventorySheet({
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
     label: pu.product?.name ?? `Product UOM #${pu.id}`,
-    sublabel: pu.code ?? pu.uom?.name ?? undefined,
+    sublabel: pu.uom?.name ?? undefined,
+    description: pu.code ?? undefined,
   }))
 
   useEffect(() => {

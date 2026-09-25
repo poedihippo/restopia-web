@@ -214,7 +214,8 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
   const productUomOptions = productUoms.map((pu) => ({
     value: pu.id,
     label: pu.product?.name ?? `Product UOM #${pu.id}`,
-    sublabel: pu.uom?.name ?? pu.code ?? undefined,
+    sublabel: pu.uom?.name ?? undefined,
+    description: pu.code ?? undefined,
   }))
 
   useEffect(() => {

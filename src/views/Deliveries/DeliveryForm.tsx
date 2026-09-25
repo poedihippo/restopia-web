@@ -14,10 +14,11 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { companiesService } from '@/services/companies.service'
+import { dimensionTransferRequestsService } from '@/services/dimension-transfer-requests.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/hooks/useApi'
-import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Loader2, Save, ArrowRightLeft } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
@@ -183,6 +184,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     (sum, d) => sum + Number(d.qty ?? 0) * Number(d.price ?? 0),
     0
   )
+
+  // Dimension transfer state
+  const [enableDimensionTransfer, setEnableDimensionTransfer] = useState(false)
+  const [dimTransferToOwner, setDimTransferToOwner] = useState('')
+  const [dimTransferToStage, setDimTransferToStage] = useState('')
+  const [dimTransferToLocation, setDimTransferToLocation] = useState('GENERAL')
+  const [dimTransferDescription, setDimTransferDescription] = useState('')
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all', branchSearchDebounced],
@@ -672,7 +680,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
-    sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
+    sublabel: (pu.uom?.name as string) ?? '',
+    description: (pu.code as string) ?? undefined,
     base_price: pu.base_price ?? 0,
   })
   // The paginated product-uoms query may not (yet, or ever, if a page
@@ -759,8 +768,42 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const createMutation = useMutation({
     mutationFn: (values: FormValues) =>
       deliveriesService.create(buildPayload(values) as any),
-    onSuccess: () => {
+    onSuccess: async (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
+
+      // Create dimension transfer requests if enabled
+      if (enableDimensionTransfer && dimTransferToOwner && dimTransferToStage) {
+        const details = getValues('details')
+        const sourceOwner = getValues('source_owner_ref')
+        const sourceStage = getValues('source_stage')
+        const sourceLocation = getValues('source_location_ref') || 'GENERAL'
+        const branchId = myBranchId
+
+        if (branchId && details?.length > 0) {
+          let transferCount = 0
+          for (const d of details) {
+            if (!d.product_uom_batch_id || !d.qty) continue
+            try {
+              await dimensionTransferRequestsService.create({
+                branch_id: branchId,
+                product_uom_batch_id: d.product_uom_batch_id,
+                qty: d.qty,
+                from: { owner_ref: sourceOwner, stage: sourceStage, location_ref: sourceLocation },
+                to: { owner_ref: dimTransferToOwner, stage: dimTransferToStage, location_ref: dimTransferToLocation || 'GENERAL' },
+                description: dimTransferDescription || `Dimension transfer dari delivery`,
+              })
+              transferCount++
+            } catch (e) {
+              console.error('Dimension transfer request failed for item', d.product_uom_batch_id, e)
+            }
+          }
+          if (transferCount > 0) {
+            queryClient.invalidateQueries({ queryKey: ['dimension-transfer-requests'] })
+            toast.success(`${transferCount} permintaan transfer dimensi diajukan`)
+          }
+        }
+      }
+
       toast.success('Delivery created')
       router.push('/transfer/deliveries')
     },
@@ -1191,6 +1234,116 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               />
             </div>
           </div>
+        </div>
+
+        {/* Section 1c — Dimension Transfer (Optional) */}
+        <div style={cardStyle}>
+          <div
+            style={{
+              ...sectionHeaderStyle,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+            onClick={() => setEnableDimensionTransfer(!enableDimensionTransfer)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ArrowRightLeft size={14} style={{ color: 'var(--accent)' }} />
+              <span style={sectionLabelStyle}>Dimension Transfer (Opsional)</span>
+            </div>
+            <div
+              style={{
+                width: 36,
+                height: 20,
+                borderRadius: 10,
+                background: enableDimensionTransfer ? 'var(--accent)' : 'var(--border)',
+                position: 'relative',
+                transition: 'background 0.2s',
+                cursor: 'pointer',
+              }}
+            >
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: 'white',
+                  position: 'absolute',
+                  top: 2,
+                  left: enableDimensionTransfer ? 18 : 2,
+                  transition: 'left 0.2s',
+                }}
+              />
+            </div>
+          </div>
+
+          {enableDimensionTransfer && (
+            <div
+              style={{
+                padding: 20,
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 16,
+              }}
+            >
+              <div style={{ gridColumn: 'span 2' }}>
+                <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: 0 }}>
+                  Pindahkan stok dari dimensi asal (Owner/Stage di atas) ke dimensi tujuan yang baru.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>
+                  Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <SearchableSelect
+                  value={dimTransferToOwner}
+                  onChange={setDimTransferToOwner}
+                  options={companyOptions}
+                  placeholder="Pilih owner tujuan..."
+                  searchPlaceholder="Cari perusahaan..."
+                  loading={companiesLoading}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>
+                  Stage Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
+                </label>
+                <SearchableSelect
+                  value={dimTransferToStage}
+                  onChange={setDimTransferToStage}
+                  options={stageOptions}
+                  placeholder="Pilih stage tujuan..."
+                  searchPlaceholder="Cari stage..."
+                  loading={stagesLoading}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Lokasi Tujuan</label>
+                <input
+                  type="text"
+                  value={dimTransferToLocation}
+                  onChange={(e) => setDimTransferToLocation(e.target.value)}
+                  placeholder="GENERAL"
+                  style={lineInputStyle}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Catatan Transfer</label>
+                <input
+                  type="text"
+                  value={dimTransferDescription}
+                  onChange={(e) => setDimTransferDescription(e.target.value)}
+                  placeholder="Opsional"
+                  style={lineInputStyle}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Section 2 — Line Items */}

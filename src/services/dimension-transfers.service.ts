@@ -10,7 +10,23 @@ export interface DimensionTransferRequest {
   description?: string
 }
 
+export interface BulkDimensionTransferItem {
+  product_uom_batch_id: number
+  qty: number
+}
+
+export interface BulkDimensionTransferRequest {
+  branch_id: number
+  items: BulkDimensionTransferItem[]
+  from: { owner_ref: string; stage: string; location_ref: string }
+  to: { owner_ref: string; stage: string; location_ref: string }
+  description?: string
+}
+
 export const dimensionTransfersService = {
   create: (data: DimensionTransferRequest) =>
     api.post<ApiResponse<unknown>>('/stock-movements/dimension-transfer', data),
+
+  bulkCreate: (data: BulkDimensionTransferRequest) =>
+    api.post<ApiResponse<unknown>>('/stock-movements/dimension-transfer/bulk', data),
 }

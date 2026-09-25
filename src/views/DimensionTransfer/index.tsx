@@ -9,10 +9,12 @@ import { toast } from 'sonner'
 import { dimensionTransfersService } from '@/services/dimension-transfers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
+import { branchesService } from '@/services/branches.service'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
-import { Loader2, ArrowRightLeft } from 'lucide-react'
+import { Loader2, ArrowRightLeft, Layers } from 'lucide-react'
+import BulkDimensionTransfer from './BulkDimensionTransfer'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'General (Umum)' }
 
@@ -56,6 +58,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 export default function DimensionTransferView() {
+  const [activeTab, setActiveTab] = useState<'single' | 'bulk'>('single')
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
   useEffect(() => {
@@ -63,8 +66,24 @@ export default function DimensionTransferView() {
     return () => clearTimeout(t)
   }, [dropdownSearch])
 
-  const { user } = useAuth()
-  const branchId = user?.branch?.id
+  const { user, isSuperadmin } = useAuth()
+  const [selectedBranchId, setSelectedBranchId] = useState<number | undefined>(user?.branch?.id)
+
+  useEffect(() => {
+    if (!selectedBranchId && user?.branch?.id) {
+      setSelectedBranchId(user.branch.id)
+    }
+  }, [user?.branch?.id, selectedBranchId])
+
+  // Fetch available branches
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const allBranches: any[] = (branchesData as any)?.data ?? []
+  const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
+  const effectiveBranchId = selectedBranchId || user?.branch?.id
+
   const queryClient = useQueryClient()
 
   const {
@@ -91,13 +110,13 @@ export default function DimensionTransferView() {
   })
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['dimension-transfer-source-inventory', branchId, debouncedDropdownSearch],
-    enabled: !!branchId,
+    queryKey: ['dimension-transfer-source-inventory', effectiveBranchId, debouncedDropdownSearch],
+    enabled: !!effectiveBranchId,
     queryFn: () =>
       productInventoriesService
         .list({
           per_page: 1000,
-          'filter[branch_id]': branchId,
+          'filter[branch_id]': effectiveBranchId,
           'filter[search]': debouncedDropdownSearch || undefined,
           include:
             'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
@@ -262,13 +281,13 @@ export default function DimensionTransferView() {
       return
     }
 
-    if (!branchId) {
+    if (!effectiveBranchId) {
       toast.error('Tidak ada cabang aktif')
       return
     }
 
     createMutation.mutate({
-      branch_id: branchId,
+      branch_id: effectiveBranchId,
       product_uom_batch_id: batchId,
       qty: values.qty,
       from: {
@@ -321,7 +340,7 @@ export default function DimensionTransferView() {
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 780,
+        maxWidth: 980,
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
@@ -341,19 +360,107 @@ export default function DimensionTransferView() {
           Dimension Transfer
         </h1>
         <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-          Pindahkan stok antar owner/stage/lokasi untuk item yang sama sesuai skema OpenAPI
+          Pindahkan stok antar owner/stage/lokasi sesuai skema OpenAPI
         </p>
       </div>
 
+      {/* Branch Selector */}
       <div
         style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '12px 16px',
           background: 'var(--surface)',
           border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 24,
-          boxShadow: 'var(--shadow-sm)',
+          borderRadius: 'var(--radius-md)',
         }}
       >
+        <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', whiteSpace: 'nowrap' }}>
+          Cabang:
+        </label>
+        <div style={{ minWidth: 250 }}>
+          <SearchableSelect
+            value={effectiveBranchId ?? 0}
+            onChange={(val) => {
+              setSelectedBranchId(val as number)
+            }}
+            options={availableBranches.map((b: any) => ({
+              value: b.id,
+              label: b.name,
+              sublabel: b.company?.name,
+            }))}
+            placeholder="Pilih cabang..."
+            searchPlaceholder="Cari cabang..."
+          />
+        </div>
+        {!effectiveBranchId && (
+          <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+            Pilih cabang terlebih dahulu
+          </span>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: 8,
+        }}
+      >
+        <button
+          onClick={() => setActiveTab('single')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: activeTab === 'single' ? 600 : 500,
+            background: activeTab === 'single' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'single' ? 'white' : 'var(--foreground-muted)',
+          }}
+        >
+          <ArrowRightLeft size={14} />
+          Satuan
+        </button>
+        <button
+          onClick={() => setActiveTab('bulk')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 14px',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 13,
+            fontWeight: activeTab === 'bulk' ? 600 : 500,
+            background: activeTab === 'bulk' ? 'var(--accent)' : 'transparent',
+            color: activeTab === 'bulk' ? 'white' : 'var(--foreground-muted)',
+          }}
+        >
+          <Layers size={14} />
+          Bulk (Banyak Item)
+        </button>
+      </div>
+
+      {activeTab === 'single' ? (
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 24,
+            boxShadow: 'var(--shadow-sm)',
+          }}
+        >
         <form
           onSubmit={handleSubmit(onSubmit, onInvalid)}
           style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
@@ -633,6 +740,9 @@ export default function DimensionTransferView() {
           @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         `}</style>
       </div>
+      ) : (
+        <BulkDimensionTransfer branchId={effectiveBranchId} />
+      )}
     </div>
   )
 }

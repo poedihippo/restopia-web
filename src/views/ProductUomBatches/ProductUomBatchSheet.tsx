@@ -92,7 +92,7 @@ export default function ProductUomBatchSheet({
     label: `${pu.product?.name ?? 'Product'} — ${
       pu.uom?.name ?? pu.uom?.code ?? 'UOM'
     }`,
-    sublabel: pu.code ?? undefined,
+    description: pu.code ?? undefined,
   }))
 
   // Populate / reset the form whenever the sheet opens

@@ -151,7 +151,8 @@ export default function ProductInventoryConvertSheet({
   const targetOptions = sameProductUoms.map((pu: any) => ({
     value: pu.id as number,
     label: pu.uom?.name ?? `UOM #${pu.uom_id ?? pu.id}`,
-    sublabel: pu.uom?.code ?? pu.code ?? undefined,
+    sublabel: pu.uom?.code ?? undefined,
+    description: pu.code ?? undefined,
   }))
 
   const selectedTargetPu = sameProductUoms.find((pu: any) => pu.id === Number(targetPuId))

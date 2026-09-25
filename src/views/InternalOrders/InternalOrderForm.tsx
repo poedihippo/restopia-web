@@ -146,7 +146,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
     label: (pu.product?.name as string) ?? '',
-    sublabel: (pu.uom?.name as string) ?? (pu.code as string) ?? '',
+    sublabel: (pu.uom?.name as string) ?? '',
+    description: (pu.code as string) ?? undefined,
     price: pu.base_price ?? 0,
   }))
 

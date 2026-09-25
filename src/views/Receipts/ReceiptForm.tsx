@@ -290,7 +290,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     const deliveryOpts = deliveryDetail?.delivery_details?.map((dd: any) => ({
       value: dd.product_uom?.id ?? dd.product_uom_id ?? 0,
       label: (dd.product_uom?.product?.name as string) ?? '',
-      sublabel: (dd.product_uom?.uom?.name as string) ?? (dd.product_uom?.code as string) ?? '',
+      sublabel: (dd.product_uom?.uom?.name as string) ?? '',
+      description: (dd.product_uom?.code as string) ?? undefined,
       base_price: dd.product_uom?.base_price ?? 0,
       original: dd.product_uom
     })) ?? []
@@ -298,7 +299,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     const receiptOpts = initialData?.receipt_details?.map((rd: any) => ({
       value: rd.product_uom?.id ?? rd.product_uom_id ?? 0,
       label: (rd.product_uom?.product?.name as string) ?? '',
-      sublabel: (rd.product_uom?.uom?.name as string) ?? (rd.product_uom?.code as string) ?? '',
+      sublabel: (rd.product_uom?.uom?.name as string) ?? '',
+      description: (rd.product_uom?.code as string) ?? undefined,
       base_price: rd.product_uom?.base_price ?? 0,
       original: rd.product_uom
     })) ?? []

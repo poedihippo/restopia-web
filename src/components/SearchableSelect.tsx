@@ -8,6 +8,7 @@ export interface SearchableSelectOption {
   value: number | string
   label: string
   sublabel?: string
+  description?: string
 }
 
 export interface SearchableSelectProps {
@@ -169,7 +170,8 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
       ? options.filter(
           (o) =>
             o.label.toLowerCase().includes(needle) ||
-            (o.sublabel ?? '').toLowerCase().includes(needle),
+            (o.sublabel ?? '').toLowerCase().includes(needle) ||
+            (o.description ?? '').toLowerCase().includes(needle),
         )
       : options
 
@@ -485,16 +487,23 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                       >
                         {option.label}
                       </span>
-                      {option.sublabel && (
+                      {(option.sublabel || option.description) && (
                         <span
                           style={{
                             fontSize: 11,
-                            fontFamily: 'monospace',
                             color: 'var(--foreground-muted)',
                             marginTop: 1,
+                            display: 'flex',
+                            gap: 6,
+                            alignItems: 'center',
                           }}
                         >
-                          {option.sublabel}
+                          {option.sublabel && (
+                            <span style={{ fontFamily: 'monospace' }}>{option.sublabel}</span>
+                          )}
+                          {option.description && (
+                            <span style={{ fontStyle: 'italic' }}>{option.description}</span>
+                          )}
                         </span>
                       )}
                     </button>

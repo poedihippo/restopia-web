@@ -226,7 +226,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const resourcePlural = resource.endsWith('y') ? resource.slice(0, -1) + 'ies' : resource.endsWith('s') ? resource : resource + 's';
       const resourceUnderPlural = resourceUnder.endsWith('y') ? resourceUnder.slice(0, -1) + 'ies' : resourceUnder.endsWith('s') ? resourceUnder : resourceUnder + 's';
       
-      const actions = action === 'menu' ? ['menu', 'read', 'view', 'list'] : [action];
+      const actions = [action];
       const resourceVariants = Array.from(new Set([resource, resourceUnder, resourcePlural, resourceUnderPlural]));
       const possiblePerms: string[] = [];
       for (const res of resourceVariants) {
