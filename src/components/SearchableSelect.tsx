@@ -131,7 +131,10 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
 
     useEffect(() => {
       if (!open) return
-      updatePosition()
+      // Delay position calc to ensure DOM has settled after other dropdowns closed
+      const raf = requestAnimationFrame(() => {
+        updatePosition()
+      })
       const handler = (e: MouseEvent) => {
         const target = e.target as Node
         if (
@@ -145,6 +148,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
       window.addEventListener('scroll', updatePosition, true)
       window.addEventListener('resize', updatePosition)
       return () => {
+        cancelAnimationFrame(raf)
         document.removeEventListener('mousedown', handler)
         window.removeEventListener('scroll', updatePosition, true)
         window.removeEventListener('resize', updatePosition)

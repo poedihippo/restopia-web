@@ -12,6 +12,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import api from '@/hooks/useApi'
 import { X, Loader2, Trash2 } from 'lucide-react'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
+import { useAuth } from '@/hooks/useAuth'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ const schema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Product is required'),
   qty: z.coerce.number().min(0.001, 'Yield qty must be > 0'),
   is_default: z.boolean().default(false),
+  type: z.string().min(1, 'Type is required'),
   materials: z.array(materialSchema).min(1, 'At least one material required'),
 })
 
@@ -39,6 +41,7 @@ interface RecipeSheetProps {
     product_uom_id: number
     qty: number
     is_default: boolean
+    type?: string
     product_uom?: {
       id: number
       code?: string
@@ -106,6 +109,8 @@ function unwrapProductsList(resp: any): any[] {
 export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProps) {
   const queryClient = useQueryClient()
   const activeProductTypes = useActiveBranchProductTypes()
+  const { user } = useAuth()
+  const defaultType = user?.branch?.type ?? 'production'
 
   const [materialSearch, setMaterialSearch] = useState('')
   const [materialSearchDebounced, setMaterialSearchDebounced] = useState('')
@@ -139,11 +144,15 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       product_uom_id: 0,
       qty: 1,
       is_default: false,
+      type: defaultType,
       materials: [],
     },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: 'materials' })
+  const materialsEndRef = React.useRef<HTMLDivElement>(null)
+  const formBodyRef = React.useRef<HTMLFormElement>(null)
+  const materialSearchRef = React.useRef<HTMLInputElement>(null)
 
   const { data: productUomsData } = useQuery({
     queryKey: ['product-uoms-all'],
@@ -262,6 +271,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         product_uom_id: editData.product_uom_id,
         qty: editData.qty,
         is_default: editData.is_default,
+        type: editData.type ?? defaultType,
         materials:
           editData.recipe_materials?.map((m) => ({
             product_uom_id: m.product_uom_id,
@@ -293,6 +303,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         product_uom_id: 0,
         qty: 1,
         is_default: false,
+        type: defaultType,
         materials: [],
       })
       setMaterialInfoMap({})
@@ -416,6 +427,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
 
         {/* Form body */}
         <form
+          ref={formBodyRef}
           onSubmit={handleSubmit(onSubmit)}
           style={{
             flex: 1,
@@ -674,6 +686,37 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
             )}
           </div>
 
+          {/* Type selector */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+              Recipe Type
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
+            <Controller
+              name="type"
+              control={control}
+              render={({ field }) => (
+                <select
+                  value={field.value}
+                  onChange={field.onChange}
+                  style={{
+                    ...fieldStyle,
+                    border: `1px solid ${errors.type ? 'var(--destructive)' : 'var(--border)'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="production">Production</option>
+                  <option value="outlet">Outlet</option>
+                  <option value="warehouse">Warehouse</option>
+                </select>
+              )}
+            />
+            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4 }}>
+              Menyesuaikan dengan tipe branch Anda
+            </span>
+            {errors.type && <span style={errorTextStyle}>{errors.type.message}</span>}
+          </div>
+
           {/* Qty + is_default row */}
           <div
             style={{
@@ -803,6 +846,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
               style={{ position: 'relative', marginBottom: 12 }}
             >
               <input
+                ref={materialSearchRef}
                 type="text"
                 value={materialSearch}
                 onChange={(e) => {
@@ -980,6 +1024,10 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         setSelectedMaterialProductId(null)
                         setSelectedMaterialProductName('')
                         setSelectedMaterialBaseUom(null)
+                        // Scroll to the newly added material after a short delay
+                        setTimeout(() => {
+                          materialsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                        }, 100)
                       }}
                       style={{
                         padding: '6px 14px',
@@ -1142,6 +1190,8 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                 </div>
               )
             })}
+            {/* Ref for scrolling to newly added material */}
+            <div ref={materialsEndRef} />
 
             {/* Add another ingredient — reopens the search so the next picked
                 product+UOM appends a new row via the existing append flow. */}
@@ -1153,6 +1203,11 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                 setShowMaterialUomPicker(false)
                 setMaterialSearch('')
                 setShowMaterialDrop(true)
+                // Scroll to the material search input
+                setTimeout(() => {
+                  materialSearchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  materialSearchRef.current?.focus()
+                }, 100)
               }}
               style={{
                 marginTop: 8,

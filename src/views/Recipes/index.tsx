@@ -95,24 +95,39 @@ export default function RecipesView() {
     setPage(1)
   }, [selectedProductId])
 
-  // Fetch all recipes, filtered by the logged-in user's branch type.
+  // Auto-filter recipes by branch type from auth/me
   // production branch → only sees type:production recipes
   // outlet branch → only sees type:outlet recipes
+  // warehouse branch → only sees type:warehouse recipes
   // superadmin → sees all (no filter)
   const { user } = useAuth()
-  const recipeTypeFilter = user?.type === 'superadmin'
-    ? undefined
-    : user?.branch?.type
+  const branchType = user?.branch?.type
+  const isSuperadmin = user?.type === 'superadmin'
+
+  // Manual type filter (dropdown) — defaults to branch type for non-superadmin
+  const [typeFilter, setTypeFilter] = useState<string>(() => {
+    if (isSuperadmin) return ''
+    return branchType ?? ''
+  })
+
+  // Sync typeFilter when branch type loads (e.g. after auth refresh)
+  React.useEffect(() => {
+    if (!isSuperadmin && branchType && !typeFilter) {
+      setTypeFilter(branchType)
+    }
+  }, [branchType, isSuperadmin])
+
+  const effectiveTypeFilter = isSuperadmin ? typeFilter : (typeFilter || branchType)
 
   const { data: allRecipes = [], isLoading, isError } = useQuery({
-    queryKey: ['all-recipes-list', recipeTypeFilter],
+    queryKey: ['all-recipes-list', effectiveTypeFilter],
     queryFn: () =>
       recipesService
         .list({
           per_page: 1000,
           include: 'product_uom,recipe_materials',
           sort: '-id',
-          ...(recipeTypeFilter ? { 'filter[type]': recipeTypeFilter } : {}),
+          ...(effectiveTypeFilter ? { 'filter[type]': effectiveTypeFilter } : {}),
         } as any)
         .then((r) => (r.data as any)?.data ?? []),
     staleTime: 60 * 1000,
@@ -215,6 +230,26 @@ export default function RecipesView() {
             searchPlaceholder="Search product by name..."
           />
         </div>
+        <div style={{ width: 160 }}>
+          <SearchableSelect
+            value={effectiveTypeFilter ?? ''}
+            onChange={(val) => {
+              setTypeFilter(String(val))
+            }}
+            options={[
+              { value: '', label: 'All Types' },
+              { value: 'production', label: 'Production' },
+              { value: 'outlet', label: 'Outlet' },
+              { value: 'warehouse', label: 'Warehouse' },
+            ]}
+            placeholder="Filter by Type"
+          />
+        </div>
+        {effectiveTypeFilter && (
+          <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+            {isSuperadmin ? 'Filtered' : 'Auto'}: <strong>{effectiveTypeFilter}</strong>
+          </span>
+        )}
       </div>
 
       {/* Recipe cards */}

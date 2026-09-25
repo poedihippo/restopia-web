@@ -39,8 +39,7 @@ export default function MultiSearchableSelect({
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
-  useEffect(() => {
-    if (!open) return
+  const updatePosition = () => {
     const rect = triggerRef.current?.getBoundingClientRect()
     if (!rect) return
     const dropdownHeight = 260
@@ -52,10 +51,13 @@ export default function MultiSearchableSelect({
       left: rect.left,
       width: rect.width,
     })
-  }, [open])
+  }
 
   useEffect(() => {
     if (!open) return
+    const raf = requestAnimationFrame(() => {
+      updatePosition()
+    })
     const handler = (e: MouseEvent) => {
       const target = e.target as Node
       if (!triggerRef.current?.contains(target) && !dropdownRef.current?.contains(target)) {
@@ -64,7 +66,14 @@ export default function MultiSearchableSelect({
       }
     }
     document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('mousedown', handler)
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
   }, [open])
 
   useEffect(() => {
