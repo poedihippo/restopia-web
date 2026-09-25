@@ -747,6 +747,8 @@ export default function ProductionForm({
   }, [focusNewDetailIndex, detailFields.length])
 
   const watchDetails = watch('details')
+  const watchSourceOwnerRef = watch('source_owner_ref')
+  const watchSourceStage = watch('source_stage')
 
   // Debounce effects
   useEffect(() => {
@@ -855,7 +857,7 @@ export default function ProductionForm({
   const prodItemUoms = unwrapList(prodItemUomData)
 
   const { data: inventoriesData } = useQuery({
-    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch],
+    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch, watchSourceOwnerRef, watchSourceStage],
     enabled: !!activeBranchId,
     refetchOnMount: 'always',
     staleTime: 0,
@@ -867,6 +869,8 @@ export default function ProductionForm({
           include:
             'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
           'filter[branch_id]': activeBranchId,
+          'filter[owner_ref]': watchSourceOwnerRef || undefined,
+          'filter[stage]': watchSourceStage || undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -894,7 +898,7 @@ export default function ProductionForm({
   // Inventories for selected material product (Step 2) — hits
   // /product-inventories fresh every time with the supported includes only
   const { data: prodMaterialInvData } = useQuery({
-    queryKey: ['prod-material-inventories', sharedMaterialProductId, activeBranchId],
+    queryKey: ['prod-material-inventories', sharedMaterialProductId, activeBranchId, watchSourceOwnerRef, watchSourceStage],
     enabled: !!sharedMaterialProductId && !!activeBranchId,
     refetchOnMount: 'always',
     staleTime: 0,
@@ -906,6 +910,8 @@ export default function ProductionForm({
             include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
             'filter[status]': 'active',
             'filter[branch_id]': activeBranchId,
+            'filter[owner_ref]': watchSourceOwnerRef || undefined,
+            'filter[stage]': watchSourceStage || undefined,
           },
         })
         .then((r) => r.data),

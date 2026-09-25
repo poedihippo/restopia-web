@@ -7,12 +7,17 @@ import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productCategoriesService } from '@/services/product-categories.service'
+import { companiesService } from '@/services/companies.service'
+import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
 import ProductInventoryConvertSheet from './ConvertSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import SearchableSelect from '@/components/SearchableSelect'
+import MultiSearchableSelect from '@/components/MultiSearchableSelect'
+import api from '@/hooks/useApi'
 import {
   loadStoredMode,
   persistMode,
@@ -120,6 +125,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [expiryDateGte, setExpiryDateGte] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [typeFilter, setTypeFilter] = useState<string | ''>(defaultType ?? '')
+  const [ownerRefFilter, setOwnerRefFilter] = useState<(number | string)[]>([])
+  const [stageFilter, setStageFilter] = useState<(number | string)[]>([])
+  const [locationRefFilter, setLocationRefFilter] = useState<(number | string)[]>([])
   useEffect(() => {
     if (defaultType !== undefined) {
       setTypeFilter(defaultType)
@@ -128,6 +136,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [debouncedStockGte, setDebouncedStockGte] = useState<string>('')
   const [debouncedStockLte, setDebouncedStockLte] = useState<string>('')
   const [debouncedExpiryDateGte, setDebouncedExpiryDateGte] = useState<string>('')
+  const [debouncedOwnerRef, setDebouncedOwnerRef] = useState<(number | string)[]>([])
+  const [debouncedStage, setDebouncedStage] = useState<(number | string)[]>([])
+  const [debouncedLocationRef, setDebouncedLocationRef] = useState<(number | string)[]>([])
   const [hideEmpty, setHideEmpty] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
@@ -151,9 +162,12 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
       setDebouncedStockGte(stockGte)
       setDebouncedStockLte(stockLte)
       setDebouncedExpiryDateGte(expiryDateGte)
+      setDebouncedOwnerRef(ownerRefFilter)
+      setDebouncedStage(stageFilter)
+      setDebouncedLocationRef(locationRefFilter)
     }, 500)
     return () => clearTimeout(t)
-  }, [search, stockGte, stockLte, expiryDateGte])
+  }, [search, stockGte, stockLte, expiryDateGte, ownerRefFilter, stageFilter, locationRefFilter])
 
   const handleExport = async () => {
     try {
@@ -186,7 +200,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter])
+  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, debouncedOwnerRef, debouncedStage, debouncedLocationRef])
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -197,8 +211,36 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   })
   const categories = (categoriesData as any)?.data ?? []
 
+  // Companies for Owner filter
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+  const ownerOptions = [
+    { value: 'GENERAL', label: 'General (Umum)' },
+    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ]
+
+  // Stages for Stage filter
+  const { data: stagesData } = useQuery({
+    queryKey: ['stages-all'],
+    queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
+  })
+  const stages: { code?: string; name: string }[] = (stagesData as any)?.data ?? []
+  const stageOptions = stages.length > 0
+    ? stages.map((s) => ({ value: s.code || s.name, label: s.name }))
+    : [
+        { value: 'GENERAL', label: 'General' },
+        { value: 'RAW', label: 'Raw' },
+        { value: 'WIP', label: 'WIP' },
+        { value: 'FINISHED', label: 'Finished' },
+        { value: 'CHILLED', label: 'Chilled' },
+        { value: 'NORMAL', label: 'Normal' },
+      ]
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, perPage, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, activeProductTypes],
+    queryKey: ['product-inventories', page, perPage, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -212,6 +254,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
           'filter[product_type]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+          'filter[owner_refs]': debouncedOwnerRef.length > 0 ? debouncedOwnerRef.join(',') : undefined,
+          'filter[stages]': debouncedStage.length > 0 ? debouncedStage.join(',') : undefined,
+          'filter[location_refs]': debouncedLocationRef.length > 0 ? debouncedLocationRef.join(',') : undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -409,6 +454,37 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             }}
             title="Min Expiry Date"
           />
+        </div>
+
+        {/* Dimension Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 170 }}>
+            <MultiSearchableSelect
+              value={ownerRefFilter}
+              onChange={setOwnerRefFilter}
+              options={ownerOptions}
+              placeholder="Semua Owner"
+              searchPlaceholder="Cari owner..."
+            />
+          </div>
+          <div style={{ width: 150 }}>
+            <MultiSearchableSelect
+              value={stageFilter}
+              onChange={setStageFilter}
+              options={stageOptions}
+              placeholder="Semua Stage"
+              searchPlaceholder="Cari stage..."
+            />
+          </div>
+          <div style={{ width: 150 }}>
+            <MultiSearchableSelect
+              value={locationRefFilter}
+              onChange={setLocationRefFilter}
+              options={[{ value: 'GENERAL', label: 'General' }]}
+              placeholder="Semua Lokasi"
+              searchPlaceholder="Cari lokasi..."
+            />
+          </div>
         </div>
 
         {/* Unit display mode toggle */}

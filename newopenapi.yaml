@@ -236,13 +236,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: company, created_by, updated_by,
-            chart_of_account, account_setting_key"
+        - description: "Comma-separated relations: created_by, updated_by,
+            chart_of_account, account_setting_key, company"
           in: query
           name: include
           required: false
           schema:
-            example: company,created_by,updated_by,chart_of_account,account_setting_key
+            example: created_by,updated_by,chart_of_account,account_setting_key,company
             type: string
         - description: "Sort by field (prefix - for desc): id, account_setting_keys.key,
             created_at"
@@ -639,24 +639,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by action
-          in: query
-          name: filter[action]
-          required: false
-          schema:
-            type: string
         - description: Filter by reference_type
           in: query
           name: filter[reference_type]
@@ -678,6 +660,24 @@ paths:
         - description: Filter by created_at_lte
           in: query
           name: filter[created_at_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by branch_id
+          in: query
+          name: filter[branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by action
+          in: query
+          name: filter[action]
           required: false
           schema:
             type: string
@@ -780,13 +780,13 @@ paths:
       description: ""
       operationId: getCurrentUser
       parameters:
-        - description: "Comma-separated relations: branches, departments, created_by,
-            updated_by, roles, permissions"
+        - description: "Comma-separated relations: created_by, updated_by, roles,
+            permissions, branches, departments"
           in: query
           name: include
           required: false
           schema:
-            example: branches,departments,created_by,updated_by,roles,permissions
+            example: created_by,updated_by,roles,permissions,branches,departments
             type: string
       responses:
         "200":
@@ -921,12 +921,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by is_active
-          in: query
-          name: filter[is_active]
-          required: false
-          schema:
-            type: string
         - description: Filter by search
           in: query
           name: filter[search]
@@ -942,6 +936,12 @@ paths:
         - description: Filter by account_type
           in: query
           name: filter[account_type]
+          required: false
+          schema:
+            type: string
+        - description: Filter by is_active
+          in: query
+          name: filter[is_active]
           required: false
           schema:
             type: string
@@ -1349,13 +1349,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: period, chart_of_account, created_by,
-            updated_by, branch"
+        - description: "Comma-separated relations: created_by, updated_by, branch, period,
+            chart_of_account"
           in: query
           name: include
           required: false
           schema:
-            example: period,chart_of_account,created_by,updated_by,branch
+            example: created_by,updated_by,branch,period,chart_of_account
             type: string
         - description: "Sort by field (prefix - for desc): id, amount, created_at"
           in: query
@@ -1604,13 +1604,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, media,
-            bundle_details"
+        - description: "Comma-separated relations: media, bundle_details, created_by,
+            updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,media,bundle_details
+            example: media,bundle_details,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, price, status,
             description, created_at, updated_at"
@@ -2039,13 +2039,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, account_type,
-            parent, children"
+        - description: "Comma-separated relations: parent, children, created_by,
+            updated_by, account_type"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,account_type,parent,children
+            example: parent,children,created_by,updated_by,account_type
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, created_at"
           in: query
@@ -2053,24 +2053,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by account_type_id
-          in: query
-          name: filter[account_type_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by parent_id
-          in: query
-          name: filter[parent_id]
-          required: false
-          schema:
             type: string
         - description: Filter by is_header
           in: query
@@ -2093,6 +2075,24 @@ paths:
         - description: Filter by account_category_id
           in: query
           name: filter[account_category_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by account_type_id
+          in: query
+          name: filter[account_type_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by parent_id
+          in: query
+          name: filter[parent_id]
           required: false
           schema:
             type: string
@@ -2284,12 +2284,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by
+            example: updated_by,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, name, credit_reset_cron,
             credit_reset_amount, created_at, updated_at"
@@ -2753,13 +2753,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: purchase_order, sales_order, media,
-            delivery_details, created_by, updated_by, target_branch"
+        - description: "Comma-separated relations: created_by, updated_by, target_branch,
+            purchase_order, sales_order, media, delivery_details"
           in: query
           name: include
           required: false
           schema:
-            example: purchase_order,sales_order,media,delivery_details,created_by,updated_by,target_branch
+            example: created_by,updated_by,target_branch,purchase_order,sales_order,media,delivery_details
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code,
             source_type, target_branch_id, purchase_order_id, sales_order_id,
@@ -2770,33 +2770,9 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by date_lte
-          in: query
-          name: filter[date_lte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by target_branch_id
-          in: query
-          name: filter[target_branch_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by status
           in: query
           name: filter[status]
-          required: false
-          schema:
-            type: string
-        - description: Filter by has_receipt
-          in: query
-          name: filter[has_receipt]
           required: false
           schema:
             type: string
@@ -2812,6 +2788,36 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by target_branch_id
+          in: query
+          name: filter[target_branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by sales_order_id
+          in: query
+          name: filter[sales_order_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_gte
+          in: query
+          name: filter[date_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by has_receipt
+          in: query
+          name: filter[has_receipt]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
         - description: Filter by purchase_order_id
           in: query
           name: filter[purchase_order_id]
@@ -2824,21 +2830,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by sales_order_id
-          in: query
-          name: filter[sales_order_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by sales_order_ids
           in: query
           name: filter[sales_order_ids]
           required: false
           schema:
             type: string
-        - description: Filter by date_gte
+        - description: Filter by date_lte
           in: query
-          name: filter[date_gte]
+          name: filter[date_lte]
           required: false
           schema:
             type: string
@@ -3030,12 +3030,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, parent, children"
+        - description: "Comma-separated relations: parent, children, created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,parent,children
+            example: parent,children,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, sort_order,
             created_at, updated_at"
@@ -3251,13 +3251,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: branch, product_uom_batch,
-            requested_by, approved_by, created_by, updated_by"
+        - description: "Comma-separated relations: requested_by, approved_by, created_by,
+            updated_by, branch, product_uom_batch"
           in: query
           name: include
           required: false
           schema:
-            example: branch,product_uom_batch,requested_by,approved_by,created_by,updated_by
+            example: requested_by,approved_by,created_by,updated_by,branch,product_uom_batch
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id,
             product_uom_batch_id, qty, status, requested_at, approved_at,
@@ -3488,12 +3488,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: company, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, company"
           in: query
           name: include
           required: false
           schema:
-            example: company,created_by,updated_by
+            example: created_by,updated_by,company
             type: string
         - description: "Sort by field (prefix - for desc): id, name, start_date, end_date,
             created_at"
@@ -3502,6 +3502,12 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by is_closed
+          in: query
+          name: filter[is_closed]
+          required: false
+          schema:
             type: string
         - description: Filter by search
           in: query
@@ -3512,12 +3518,6 @@ paths:
         - description: Filter by is_active
           in: query
           name: filter[is_active]
-          required: false
-          schema:
-            type: string
-        - description: Filter by is_closed
-          in: query
-          name: filter[is_closed]
           required: false
           schema:
             type: string
@@ -3744,14 +3744,14 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: billed_branch, additional_charges,
-            invoice_details, sales_order_details, invoice_sales_orders,
-            created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, billed_branch,
+            additional_charges, invoice_details, sales_order_details,
+            invoice_sales_orders, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: billed_branch,additional_charges,invoice_details,sales_order_details,invoice_sales_orders,created_by,updated_by
+            example: updated_by,billed_branch,additional_charges,invoice_details,sales_order_details,invoice_sales_orders,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code,
             billed_branch_id, date, due_date, subtotal_price, tax_amount,
@@ -3762,6 +3762,18 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by billed_branch_id
+          in: query
+          name: filter[billed_branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by status
+          in: query
+          name: filter[status]
+          required: false
+          schema:
             type: string
         - description: Filter by search
           in: query
@@ -3775,21 +3787,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by billed_branch_id
+        - description: Filter by date_gte
           in: query
-          name: filter[billed_branch_id]
+          name: filter[date_gte]
           required: false
           schema:
             type: string
         - description: Filter by date_lte
           in: query
           name: filter[date_lte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_gte
-          in: query
-          name: filter[date_gte]
           required: false
           schema:
             type: string
@@ -3802,12 +3808,6 @@ paths:
         - description: Filter by due_date_lte
           in: query
           name: filter[due_date_lte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by status
-          in: query
-          name: filter[status]
           required: false
           schema:
             type: string
@@ -3965,13 +3965,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, posted_by,
-            period, journal_details"
+        - description: "Comma-separated relations: period, journal_details, created_by,
+            updated_by, posted_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,posted_by,period,journal_details
+            example: period,journal_details,created_by,updated_by,posted_by
             type: string
         - description: "Sort by field (prefix - for desc): id, journal_number, date,
             created_at"
@@ -3980,12 +3980,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by period_id
-          in: query
-          name: filter[period_id]
-          required: false
-          schema:
             type: string
         - description: Filter by type
           in: query
@@ -4014,6 +4008,12 @@ paths:
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by period_id
+          in: query
+          name: filter[period_id]
           required: false
           schema:
             type: string
@@ -4543,6 +4543,18 @@ paths:
           schema:
             example: id
             type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by branch_id
+          in: query
+          name: filter[branch_id]
+          required: false
+          schema:
+            type: string
         - description: Filter by open_mode
           in: query
           name: filter[open_mode]
@@ -4558,18 +4570,6 @@ paths:
         - description: Filter by shift_mode
           in: query
           name: filter[shift_mode]
-          required: false
-          schema:
-            type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
           required: false
           schema:
             type: string
@@ -4761,12 +4761,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, created_by"
+        - description: "Comma-separated relations: created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,created_by
+            example: created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id,
             operation_rule_id, operation_rule_snapshot, opened_at, opened_by_id,
@@ -4983,12 +4983,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, bank_account, created_by"
+        - description: "Comma-separated relations: created_by, updated_by, bank_account"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,bank_account,created_by
+            example: created_by,updated_by,bank_account
             type: string
         - description: "Sort by field (prefix - for desc): id, name, type, created_at,
             updated_at"
@@ -5204,13 +5204,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, branch,
-            payment_method, allocations"
+        - description: "Comma-separated relations: branch, payment_method, allocations,
+            created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,branch,payment_method,allocations
+            example: branch,payment_method,allocations,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id,
             payment_method_id, amount, date, created_at, updated_at"
@@ -5219,12 +5219,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by is_reversed
-          in: query
-          name: filter[is_reversed]
-          required: false
-          schema:
             type: string
         - description: Filter by search
           in: query
@@ -5238,9 +5232,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by type
+        - description: Filter by payment_method_id
           in: query
-          name: filter[type]
+          name: filter[payment_method_id]
           required: false
           schema:
             type: string
@@ -5250,15 +5244,27 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by journal_id
+        - description: Filter by unallocated_amount
           in: query
-          name: filter[journal_id]
+          name: filter[unallocated_amount]
           required: false
           schema:
             type: string
-        - description: Filter by reversing_id
+        - description: Filter by description
           in: query
-          name: filter[reversing_id]
+          name: filter[description]
+          required: false
+          schema:
+            type: string
+        - description: Filter by is_reversed
+          in: query
+          name: filter[is_reversed]
+          required: false
+          schema:
+            type: string
+        - description: Filter by type
+          in: query
+          name: filter[type]
           required: false
           schema:
             type: string
@@ -5274,21 +5280,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by payment_method_id
+        - description: Filter by journal_id
           in: query
-          name: filter[payment_method_id]
+          name: filter[journal_id]
           required: false
           schema:
             type: string
-        - description: Filter by unallocated_amount
+        - description: Filter by reversing_id
           in: query
-          name: filter[unallocated_amount]
-          required: false
-          schema:
-            type: string
-        - description: Filter by description
-          in: query
-          name: filter[description]
+          name: filter[reversing_id]
           required: false
           schema:
             type: string
@@ -5371,12 +5371,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: payment, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, payment"
           in: query
           name: include
           required: false
           schema:
-            example: payment,created_by,updated_by
+            example: created_by,updated_by,payment
             type: string
         - description: "Sort by field (prefix - for desc): id, payment_id, amount,
             created_at"
@@ -5385,12 +5385,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by purchase_order_id
-          in: query
-          name: filter[purchase_order_id]
-          required: false
-          schema:
             type: string
         - description: Filter by payment_id
           in: query
@@ -5413,6 +5407,12 @@ paths:
         - description: Filter by sales_order_id
           in: query
           name: filter[sales_order_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by purchase_order_id
+          in: query
+          name: filter[purchase_order_id]
           required: false
           schema:
             type: string
@@ -5604,13 +5604,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, closed_by,
-            fiscal_year, company"
+        - description: "Comma-separated relations: updated_by, closed_by, fiscal_year,
+            company, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,closed_by,fiscal_year,company
+            example: updated_by,closed_by,fiscal_year,company,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, name, start_date, end_date,
             created_at"
@@ -5889,12 +5889,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, created_by"
+        - description: "Comma-separated relations: created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,created_by
+            example: created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, name, is_active,
             created_at, updated_at"
@@ -6663,13 +6663,13 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: product, uom, target_uom, created_by,
-            updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, product, uom,
+            target_uom"
           in: query
           name: include
           required: false
           schema:
-            example: product,uom,target_uom,created_by,updated_by
+            example: created_by,updated_by,product,uom,target_uom
             type: string
       responses:
         "200":
@@ -6773,27 +6773,9 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by product_uom_batch_id
+        - description: Filter by stages
           in: query
-          name: filter[product_uom_batch_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by product_uom_batch_ids
-          in: query
-          name: filter[product_uom_batch_ids]
-          required: false
-          schema:
-            type: string
-        - description: Filter by status
-          in: query
-          name: filter[status]
-          required: false
-          schema:
-            type: string
-        - description: Filter by expiry_date_gte
-          in: query
-          name: filter[expiry_date_gte]
+          name: filter[stages]
           required: false
           schema:
             type: string
@@ -6815,6 +6797,18 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by owner_ref
+          in: query
+          name: filter[owner_ref]
+          required: false
+          schema:
+            type: string
+        - description: Filter by location_ref
+          in: query
+          name: filter[location_ref]
+          required: false
+          schema:
+            type: string
         - description: Filter by product_category_id
           in: query
           name: filter[product_category_id]
@@ -6833,6 +6827,12 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by product_uom_batch_ids
+          in: query
+          name: filter[product_uom_batch_ids]
+          required: false
+          schema:
+            type: string
         - description: Filter by stock_gte
           in: query
           name: filter[stock_gte]
@@ -6842,6 +6842,42 @@ paths:
         - description: Filter by stock_lte
           in: query
           name: filter[stock_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by status
+          in: query
+          name: filter[status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by location_refs
+          in: query
+          name: filter[location_refs]
+          required: false
+          schema:
+            type: string
+        - description: Filter by expiry_date_gte
+          in: query
+          name: filter[expiry_date_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by stage
+          in: query
+          name: filter[stage]
+          required: false
+          schema:
+            type: string
+        - description: Filter by product_uom_batch_id
+          in: query
+          name: filter[product_uom_batch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by owner_refs
+          in: query
+          name: filter[owner_refs]
           required: false
           schema:
             type: string
@@ -7140,12 +7176,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: product_uom, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, product_uom"
           in: query
           name: include
           required: false
           schema:
-            example: product_uom,created_by,updated_by
+            example: created_by,updated_by,product_uom
             type: string
         - description: "Sort by field (prefix - for desc): id, product_uom_id, batch_code,
             expiry_date, reference_type, reference_id, created_at, updated_at"
@@ -7154,6 +7190,12 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by product_uom_id
+          in: query
+          name: filter[product_uom_id]
+          required: false
+          schema:
             type: string
         - description: Filter by expiry_date_gte
           in: query
@@ -7182,12 +7224,6 @@ paths:
         - description: Filter by search
           in: query
           name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by product_uom_id
-          in: query
-          name: filter[product_uom_id]
           required: false
           schema:
             type: string
@@ -7386,13 +7422,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: uom, default_recipe, created_by,
-            updated_by, product"
+        - description: "Comma-separated relations: created_by, updated_by, product, uom,
+            default_recipe"
           in: query
           name: include
           required: false
           schema:
-            example: uom,default_recipe,created_by,updated_by,product
+            example: created_by,updated_by,product,uom,default_recipe
             type: string
         - description: "Sort by field (prefix - for desc): id, product_id, uom_id,
             base_price, online_price, franchise_price, price_editable,
@@ -7404,15 +7440,21 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by franchise_price_lte
+        - description: Filter by product_id
           in: query
-          name: filter[franchise_price_lte]
+          name: filter[product_id]
           required: false
           schema:
             type: string
-        - description: Filter by price_editable
+        - description: Filter by base_price_gte
           in: query
-          name: filter[price_editable]
+          name: filter[base_price_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by base_price_lte
+          in: query
+          name: filter[base_price_lte]
           required: false
           schema:
             type: string
@@ -7428,39 +7470,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by online_price_lte
-          in: query
-          name: filter[online_price_lte]
-          required: false
-          schema:
-            type: string
         - description: Filter by franchise_price_gte
           in: query
           name: filter[franchise_price_gte]
           required: false
           schema:
             type: string
-        - description: Filter by search
+        - description: Filter by price_editable
           in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by product_id
-          in: query
-          name: filter[product_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by uom_id
-          in: query
-          name: filter[uom_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by base_price_gte
-          in: query
-          name: filter[base_price_gte]
+          name: filter[price_editable]
           required: false
           schema:
             type: string
@@ -7470,9 +7488,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by base_price_lte
+        - description: Filter by product_type
           in: query
-          name: filter[base_price_lte]
+          name: filter[product_type]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
           required: false
           schema:
             type: string
@@ -7482,15 +7506,27 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by is_default
+        - description: Filter by online_price_lte
           in: query
-          name: filter[is_default]
+          name: filter[online_price_lte]
           required: false
           schema:
             type: string
-        - description: Filter by product_type
+        - description: Filter by franchise_price_lte
           in: query
-          name: filter[product_type]
+          name: filter[franchise_price_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by uom_id
+          in: query
+          name: filter[uom_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by is_default
+          in: query
+          name: filter[is_default]
           required: false
           schema:
             type: string
@@ -7696,13 +7732,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, media, production_details,
-            created_by"
+        - description: "Comma-separated relations: created_by, updated_by, media,
+            production_details"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,media,production_details,created_by
+            example: created_by,updated_by,media,production_details
             type: string
         - description: "Sort by field (prefix - for desc): id, code, date, status,
             created_at, updated_at"
@@ -7711,6 +7747,12 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by date_lte
+          in: query
+          name: filter[date_lte]
+          required: false
+          schema:
             type: string
         - description: Filter by status
           in: query
@@ -7733,12 +7775,6 @@ paths:
         - description: Filter by date_gte
           in: query
           name: filter[date_gte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_lte
-          in: query
-          name: filter[date_lte]
           required: false
           schema:
             type: string
@@ -7930,13 +7966,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by,
-            product_category, base_uom"
+        - description: "Comma-separated relations: base_uom, created_by, updated_by,
+            product_category"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,product_category,base_uom
+            example: base_uom,created_by,updated_by,product_category
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, type,
             is_active, created_at, updated_at"
@@ -8163,14 +8199,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: media, additional_charges,
-            purchase_order_details, created_by, updated_by, supplier,
-            supplier_branch"
+        - description: "Comma-separated relations: updated_by, supplier, supplier_branch,
+            media, additional_charges, purchase_order_details, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: media,additional_charges,purchase_order_details,created_by,updated_by,supplier,supplier_branch
+            example: updated_by,supplier,supplier_branch,media,additional_charges,purchase_order_details,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code, type,
             supplier_id, supplier_branch_id, date, subtotal_price,
@@ -8182,33 +8217,15 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by type
-          in: query
-          name: filter[type]
-          required: false
-          schema:
-            type: string
-        - description: Filter by supplier_id
-          in: query
-          name: filter[supplier_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by date_gte
           in: query
           name: filter[date_gte]
           required: false
           schema:
             type: string
-        - description: Filter by date_lte
+        - description: Filter by has_remaining_qty
           in: query
-          name: filter[date_lte]
+          name: filter[has_remaining_qty]
           required: false
           schema:
             type: string
@@ -8218,9 +8235,21 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by supplier_id
+          in: query
+          name: filter[supplier_id]
+          required: false
+          schema:
+            type: string
         - description: Filter by supplier_branch_id
           in: query
           name: filter[supplier_branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by date_lte
+          in: query
+          name: filter[date_lte]
           required: false
           schema:
             type: string
@@ -8230,9 +8259,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by has_remaining_qty
+        - description: Filter by search
           in: query
-          name: filter[has_remaining_qty]
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by type
+          in: query
+          name: filter[type]
           required: false
           schema:
             type: string
@@ -8516,6 +8551,12 @@ paths:
           schema:
             example: id
             type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
         - description: Filter by branch_id
           in: query
           name: filter[branch_id]
@@ -8549,12 +8590,6 @@ paths:
         - description: Filter by status
           in: query
           name: filter[status]
-          required: false
-          schema:
-            type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
           required: false
           schema:
             type: string
@@ -8746,13 +8781,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, product_uom,
-            recipe_materials, created_by"
+        - description: "Comma-separated relations: created_by, updated_by, product_uom,
+            recipe_materials"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,product_uom,recipe_materials,created_by
+            example: created_by,updated_by,product_uom,recipe_materials
             type: string
         - description: "Sort by field (prefix - for desc): id, product_uom_id, type, qty,
             is_default, created_at, updated_at"
@@ -8761,6 +8796,18 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by product_uom_id
+          in: query
+          name: filter[product_uom_id]
+          required: false
+          schema:
             type: string
         - description: Filter by is_default
           in: query
@@ -8777,18 +8824,6 @@ paths:
         - description: Filter by types
           in: query
           name: filter[types]
-          required: false
-          schema:
-            type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by product_uom_id
-          in: query
-          name: filter[product_uom_id]
           required: false
           schema:
             type: string
@@ -9938,12 +9973,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, permissions"
+        - description: "Comma-separated relations: permissions, created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,permissions
+            example: permissions,created_by,updated_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, created_at, updated_at"
           in: query
@@ -9952,15 +9987,15 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
         - description: Filter by company_id
           in: query
           name: filter[company_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by search
+          in: query
+          name: filter[search]
           required: false
           schema:
             type: string
@@ -10067,12 +10102,12 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: created_by, updated_by, permissions"
+        - description: "Comma-separated relations: permissions, created_by, updated_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,permissions
+            example: permissions,created_by,updated_by
             type: string
       responses:
         "200":
@@ -10174,15 +10209,15 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by sales_order_type
-          in: query
-          name: filter[sales_order_type]
-          required: false
-          schema:
-            type: string
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by sales_order_type
+          in: query
+          name: filter[sales_order_type]
           required: false
           schema:
             type: string
@@ -10374,14 +10409,14 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, shift,
-            customer, sales_channel, credit_by, sales_order_details,
-            additional_charges, media"
+        - description: "Comma-separated relations: additional_charges, created_by, shift,
+            credit_by, media, sales_order_details, updated_by, customer,
+            sales_channel"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,shift,customer,sales_channel,credit_by,sales_order_details,additional_charges,media
+            example: additional_charges,created_by,shift,credit_by,media,sales_order_details,updated_by,customer,sales_channel
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, shift_id, code,
             type, sales_channel_id, customer_id, customer_name, customer_phone,
@@ -10395,24 +10430,6 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by shift_id
-          in: query
-          name: filter[shift_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by status
-          in: query
-          name: filter[status]
-          required: false
-          schema:
-            type: string
-        - description: Filter by settlement_at_lte
-          in: query
-          name: filter[settlement_at_lte]
-          required: false
-          schema:
-            type: string
         - description: Filter by has_purchase_order
           in: query
           name: filter[has_purchase_order]
@@ -10425,21 +10442,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by type
+        - description: Filter by customer_id
           in: query
-          name: filter[type]
-          required: false
-          schema:
-            type: string
-        - description: Filter by sales_channel_id
-          in: query
-          name: filter[sales_channel_id]
-          required: false
-          schema:
-            type: string
-        - description: Filter by date_gte
-          in: query
-          name: filter[date_gte]
+          name: filter[customer_id]
           required: false
           schema:
             type: string
@@ -10449,15 +10454,57 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by settlement_status
+        - description: Filter by fulfillment_date_lte
           in: query
-          name: filter[settlement_status]
+          name: filter[fulfillment_date_lte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by status
+          in: query
+          name: filter[status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by payment_status
+          in: query
+          name: filter[payment_status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by type
+          in: query
+          name: filter[type]
           required: false
           schema:
             type: string
         - description: Filter by settlement_at_gte
           in: query
           name: filter[settlement_at_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by sales_channel_id
+          in: query
+          name: filter[sales_channel_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by voucher_id
+          in: query
+          name: filter[voucher_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by settlement_status
+          in: query
+          name: filter[settlement_status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by credit_by_id
+          in: query
+          name: filter[credit_by_id]
           required: false
           schema:
             type: string
@@ -10473,15 +10520,15 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by customer_id
+        - description: Filter by shift_id
           in: query
-          name: filter[customer_id]
+          name: filter[shift_id]
           required: false
           schema:
             type: string
-        - description: Filter by voucher_id
+        - description: Filter by date_gte
           in: query
-          name: filter[voucher_id]
+          name: filter[date_gte]
           required: false
           schema:
             type: string
@@ -10491,27 +10538,15 @@ paths:
           required: false
           schema:
             type: string
+        - description: Filter by settlement_at_lte
+          in: query
+          name: filter[settlement_at_lte]
+          required: false
+          schema:
+            type: string
         - description: Filter by has_delivery
           in: query
           name: filter[has_delivery]
-          required: false
-          schema:
-            type: string
-        - description: Filter by fulfillment_date_lte
-          in: query
-          name: filter[fulfillment_date_lte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by payment_status
-          in: query
-          name: filter[payment_status]
-          required: false
-          schema:
-            type: string
-        - description: Filter by credit_by_id
-          in: query
-          name: filter[credit_by_id]
           required: false
           schema:
             type: string
@@ -10874,15 +10909,15 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
-          required: false
-          schema:
-            type: string
         - description: Filter by search
           in: query
           name: filter[search]
+          required: false
+          schema:
+            type: string
+        - description: Filter by branch_id
+          in: query
+          name: filter[branch_id]
           required: false
           schema:
             type: string
@@ -11510,12 +11545,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, product_inventory"
+        - description: "Comma-separated relations: product_inventory, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,product_inventory
+            example: product_inventory,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id,
             product_inventory_id, reference_type, reference_id, qty,
@@ -11525,6 +11560,12 @@ paths:
           required: false
           schema:
             example: id
+            type: string
+        - description: Filter by branch_id
+          in: query
+          name: filter[branch_id]
+          required: false
+          schema:
             type: string
         - description: Filter by product_inventory_id
           in: query
@@ -11565,12 +11606,6 @@ paths:
         - description: Filter by search
           in: query
           name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by branch_id
-          in: query
-          name: filter[branch_id]
           required: false
           schema:
             type: string
@@ -11756,13 +11791,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: updated_by, stock_opname_details,
-            products, branch, created_by"
+        - description: "Comma-separated relations: branch, created_by, updated_by,
+            stock_opname_details, products"
           in: query
           name: include
           required: false
           schema:
-            example: updated_by,stock_opname_details,products,branch,created_by
+            example: branch,created_by,updated_by,stock_opname_details,products
             type: string
         - description: "Sort by field (prefix - for desc): id, branch_id, code, date,
             status, description, created_at, updated_at"
@@ -12058,12 +12093,12 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by"
+        - description: "Comma-separated relations: updated_by, created_by"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by
+            example: updated_by,created_by
             type: string
         - description: "Sort by field (prefix - for desc): id, code, name, pic, phone,
             email, created_at, updated_at"
@@ -12697,13 +12732,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: created_by, updated_by, roles,
-            permissions, branches, departments"
+        - description: "Comma-separated relations: permissions, branches, departments,
+            created_by, updated_by, roles"
           in: query
           name: include
           required: false
           schema:
-            example: created_by,updated_by,roles,permissions,branches,departments
+            example: permissions,branches,departments,created_by,updated_by,roles
             type: string
         - description: "Sort by field (prefix - for desc): id, nik, name, email, type,
             credit, created_at, updated_at"
@@ -12712,12 +12747,6 @@ paths:
           required: false
           schema:
             example: id
-            type: string
-        - description: Filter by department_id
-          in: query
-          name: filter[department_id]
-          required: false
-          schema:
             type: string
         - description: Filter by search
           in: query
@@ -12734,6 +12763,12 @@ paths:
         - description: Filter by branch_id
           in: query
           name: filter[branch_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by department_id
+          in: query
+          name: filter[department_id]
           required: false
           schema:
             type: string
@@ -12933,13 +12968,13 @@ paths:
           schema:
             example: 10
             type: integer
-        - description: "Comma-separated relations: activated_by, voucher_branches,
-            voucher_product_uoms, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, activated_by,
+            voucher_branches, voucher_product_uoms"
           in: query
           name: include
           required: false
           schema:
-            example: activated_by,voucher_branches,voucher_product_uoms,created_by,updated_by
+            example: created_by,updated_by,activated_by,voucher_branches,voucher_product_uoms
             type: string
         - description: "Sort by field (prefix - for desc): id, company_id, code, name,
             discount_type, discount_value, min_subtotal_price, scope,
@@ -12951,9 +12986,9 @@ paths:
           schema:
             example: id
             type: string
-        - description: Filter by company_id
+        - description: Filter by search
           in: query
-          name: filter[company_id]
+          name: filter[search]
           required: false
           schema:
             type: string
@@ -12969,15 +13004,9 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by valid_from_gte
+        - description: Filter by valid_until_gte
           in: query
-          name: filter[valid_from_gte]
-          required: false
-          schema:
-            type: string
-        - description: Filter by valid_from_lte
-          in: query
-          name: filter[valid_from_lte]
+          name: filter[valid_until_gte]
           required: false
           schema:
             type: string
@@ -12993,18 +13022,6 @@ paths:
           required: false
           schema:
             type: string
-        - description: Filter by search
-          in: query
-          name: filter[search]
-          required: false
-          schema:
-            type: string
-        - description: Filter by valid_until_gte
-          in: query
-          name: filter[valid_until_gte]
-          required: false
-          schema:
-            type: string
         - description: Filter by activated_at_lte
           in: query
           name: filter[activated_at_lte]
@@ -13014,6 +13031,24 @@ paths:
         - description: Filter by status
           in: query
           name: filter[status]
+          required: false
+          schema:
+            type: string
+        - description: Filter by company_id
+          in: query
+          name: filter[company_id]
+          required: false
+          schema:
+            type: string
+        - description: Filter by valid_from_gte
+          in: query
+          name: filter[valid_from_gte]
+          required: false
+          schema:
+            type: string
+        - description: Filter by valid_from_lte
+          in: query
+          name: filter[valid_from_lte]
           required: false
           schema:
             type: string
@@ -13120,13 +13155,13 @@ paths:
           required: true
           schema:
             type: string
-        - description: "Comma-separated relations: activated_by, voucher_branches,
-            voucher_product_uoms, created_by, updated_by"
+        - description: "Comma-separated relations: created_by, updated_by, activated_by,
+            voucher_branches, voucher_product_uoms"
           in: query
           name: include
           required: false
           schema:
-            example: activated_by,voucher_branches,voucher_product_uoms,created_by,updated_by
+            example: created_by,updated_by,activated_by,voucher_branches,voucher_product_uoms
             type: string
       responses:
         "200":

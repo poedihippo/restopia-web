@@ -180,6 +180,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const { fields, append, remove, replace } = useFieldArray({ control, name: 'details' })
 
   const watchDetails = watch('details')
+  const watchSourceOwnerRef = watch('source_owner_ref')
+  const watchSourceStage = watch('source_stage')
   const totalPrice = watchDetails.reduce(
     (sum, d) => sum + Number(d.qty ?? 0) * Number(d.price ?? 0),
     0
@@ -260,7 +262,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // quantity (not the global batch stock). Per-branch stock lives in
   // product_inventory, so we source the picker from there.
   const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
-    queryKey: ['source-branch-inventory', sourceBranchId],
+    queryKey: ['source-branch-inventory', sourceBranchId, watchSourceOwnerRef, watchSourceStage],
     enabled: !!sourceBranchId,
     queryFn: async () => {
       let allRows: any[] = []
@@ -272,6 +274,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             page,
             per_page: 100,
             'filter[branch_id]': sourceBranchId,
+            'filter[owner_ref]': watchSourceOwnerRef || undefined,
+            'filter[stage]': watchSourceStage || undefined,
             include: 'product_uom_batch,product_uom_batch.product_uom',
           } as any)
           .then((r) => r.data)
