@@ -237,6 +237,30 @@ export function MaterialsFieldArray({
         </div>
       </div>
 
+      {/* Column headers */}
+      {fields.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '24px 1fr 90px 92px 32px',
+            gap: 8,
+            padding: '0 2px',
+          }}
+        >
+          <span />
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Bahan Baku
+          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Qty
+          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Stok
+          </span>
+          <span />
+        </div>
+      )}
+
       {/* Rows */}
       {fields.map((field, matIndex) => {
         const isActive =
@@ -257,6 +281,18 @@ export function MaterialsFieldArray({
         const hasNoInventory = !invId || invId <= 0
         const isOutOfStock = inv && availableStock <= 0
         const isInsufficient = inv && availableStock > 0 && availableStock < reqQty
+        const hasLabel = existingLabel && existingLabel !== `Material #${matIndex + 1}`
+        const stockBadge = hasNoInventory
+          ? hasLabel
+            ? { text: 'Blm ada stok', color: 'var(--destructive)' }
+            : null
+          : isOutOfStock
+          ? { text: 'Stok: 0', color: 'var(--destructive)' }
+          : isInsufficient
+          ? { text: `Stok: ${availableStock}`, color: 'var(--warning)' }
+          : inv
+          ? { text: `Stok: ${availableStock}`, color: 'var(--success)' }
+          : null
 
         return (
           <div
@@ -265,9 +301,11 @@ export function MaterialsFieldArray({
               position: 'relative',
               zIndex: isActive ? 1000 : 1,
               display: 'grid',
-              gridTemplateColumns: '24px 1fr 120px 32px',
+              gridTemplateColumns: '24px 1fr 90px 92px 32px',
               gap: 8,
-              alignItems: 'start',
+              alignItems: 'center',
+              paddingBottom: 8,
+              borderBottom: matIndex < fields.length - 1 ? '1px solid var(--border)' : 'none',
             }}
           >
             {/* Material Row Index */}
@@ -362,27 +400,6 @@ export function MaterialsFieldArray({
                 }}
               />
 
-              {hasNoInventory && existingLabel && existingLabel !== `Material #${matIndex + 1}` && (
-                <span style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2, display: 'block', fontWeight: 500 }}>
-                  ⚠ Stok belum ada di cabang ini
-                </span>
-              )}
-              {isOutOfStock && (
-                <span style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2, display: 'block', fontWeight: 500 }}>
-                  ⚠ Stok habis (0)
-                </span>
-              )}
-              {isInsufficient && (
-                <span style={{ fontSize: 10, color: 'var(--warning)', marginTop: 2, display: 'block', fontWeight: 500 }}>
-                  ⚠ Stok kurang (tersedia: {availableStock})
-                </span>
-              )}
-              {inv && availableStock >= reqQty && availableStock > 0 && (
-                <span style={{ fontSize: 10, color: 'var(--foreground-muted)', marginTop: 2, display: 'block' }}>
-                  Stok tersedia: {availableStock}
-                </span>
-              )}
-
               {isActive && sharedMaterialSearch.length >= 2 && !sharedShowMaterialUomPicker && (
                 <div
                   style={{
@@ -409,10 +426,26 @@ export function MaterialsFieldArray({
                     <div
                       key={p.id}
                       onClick={() => {
+                        const candidates = inventories.filter((inv: any) => {
+                          const pid =
+                            inv.product_uom_batch?.product_uom?.product_id ?? inv.product_uom?.product_id
+                          return Number(pid) === Number(p.id)
+                        })
+                        if (candidates.length === 1) {
+                          onSelectMaterialInventory(detailIndex, matIndex, candidates[0], p.name)
+                          setActiveMaterialIndex(null)
+                          setSharedMaterialSearch('')
+                          setSharedMaterialProductId(null)
+                          setSharedShowMaterialUomPicker(false)
+                          return
+                        }
                         setSharedMaterialProductId(p.id)
                         setSharedMaterialProductName(p.name)
                         setSharedShowMaterialUomPicker(true)
                         setSharedMaterialSearch('')
+                        if (candidates.length > 1) {
+                          toast.info(`${candidates.length} stok ditemukan untuk ${p.name}, silakan pilih salah satu`)
+                        }
                       }}
                       style={{
                         padding: '8px 12px',
@@ -598,6 +631,24 @@ export function MaterialsFieldArray({
               )
             })()}
 
+            {/* Stock badge */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                height: 34,
+                fontSize: 10,
+                fontWeight: 600,
+                color: stockBadge?.color ?? 'var(--foreground-subtle)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title={stockBadge?.text}
+            >
+              {stockBadge?.text ?? '—'}
+            </div>
+
             <div style={{ position: 'relative', zIndex: 20, flexShrink: 0 }}>
               <button
                 type="button"
@@ -614,7 +665,6 @@ export function MaterialsFieldArray({
                   color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
                   display: 'flex',
                   alignItems: 'center',
-                  marginTop: 2,
                 }}
               >
                 <Trash2 size={13} />
@@ -682,6 +732,7 @@ export default function ProductionForm({
     control,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -749,6 +800,7 @@ export default function ProductionForm({
   const watchDetails = watch('details')
   const watchSourceOwnerRef = watch('source_owner_ref')
   const watchSourceStage = watch('source_stage')
+  const watchSourceLocationRef = watch('source_location_ref')
 
   // Debounce effects
   useEffect(() => {
@@ -856,8 +908,8 @@ export default function ProductionForm({
   })
   const prodItemUoms = unwrapList(prodItemUomData)
 
-  const { data: inventoriesData } = useQuery({
-    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch, watchSourceOwnerRef, watchSourceStage],
+  const { data: inventoriesData, isFetching: isFetchingInventories } = useQuery({
+    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch, watchSourceOwnerRef, watchSourceStage, watchSourceLocationRef],
     enabled: !!activeBranchId,
     refetchOnMount: 'always',
     staleTime: 0,
@@ -871,6 +923,7 @@ export default function ProductionForm({
           'filter[branch_id]': activeBranchId,
           'filter[owner_ref]': watchSourceOwnerRef || undefined,
           'filter[stage]': watchSourceStage || undefined,
+          'filter[location_ref]': watchSourceLocationRef || undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -898,7 +951,7 @@ export default function ProductionForm({
   // Inventories for selected material product (Step 2) — hits
   // /product-inventories fresh every time with the supported includes only
   const { data: prodMaterialInvData } = useQuery({
-    queryKey: ['prod-material-inventories', sharedMaterialProductId, activeBranchId, watchSourceOwnerRef, watchSourceStage],
+    queryKey: ['prod-material-inventories', sharedMaterialProductId, activeBranchId, watchSourceOwnerRef, watchSourceStage, watchSourceLocationRef],
     enabled: !!sharedMaterialProductId && !!activeBranchId,
     refetchOnMount: 'always',
     staleTime: 0,
@@ -912,6 +965,7 @@ export default function ProductionForm({
             'filter[branch_id]': activeBranchId,
             'filter[owner_ref]': watchSourceOwnerRef || undefined,
             'filter[stage]': watchSourceStage || undefined,
+            'filter[location_ref]': watchSourceLocationRef || undefined,
           },
         })
         .then((r) => r.data),
@@ -1098,6 +1152,107 @@ export default function ProductionForm({
     () => ({ ...derivedMaterialLabels, ...materialLabels }),
     [derivedMaterialLabels, materialLabels],
   )
+
+  // Cache every inventory row ever seen, keyed by id, so a stale
+  // product_inventory_id (invalidated by an owner/stage/location change)
+  // can still be traced back to the product it belonged to.
+  const inventoryCacheRef = useRef<Map<number, any>>(new Map())
+  useEffect(() => {
+    inventories.forEach((inv: any) => {
+      if (inv?.id != null) inventoryCacheRef.current.set(Number(inv.id), inv)
+    })
+  }, [inventories])
+
+  // Re-validate selected materials whenever the source dimension (owner /
+  // stage / location) changes: a previously selected product_inventory_id
+  // may no longer exist under the new dimension. If exactly one matching
+  // inventory remains for that material's product, auto-select it; if none
+  // or more than one match, clear the selection and notify the user to pick
+  // again.
+  const prevSourceDimKeyRef = useRef<string | null>(null)
+  const pendingSourceDimKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    const dimKey = `${watchSourceOwnerRef ?? ''}|${watchSourceStage ?? ''}|${watchSourceLocationRef ?? ''}`
+
+    if (prevSourceDimKeyRef.current === null) {
+      prevSourceDimKeyRef.current = dimKey
+      return
+    }
+    if (dimKey !== prevSourceDimKeyRef.current) {
+      prevSourceDimKeyRef.current = dimKey
+      pendingSourceDimKeyRef.current = dimKey
+      return
+    }
+    if (pendingSourceDimKeyRef.current !== dimKey) return
+    if (isFetchingInventories) return
+    pendingSourceDimKeyRef.current = null
+
+    const currentDetails = getValues('details') || []
+    let autoCount = 0
+    const ambiguous: string[] = []
+    const noStock: string[] = []
+
+    currentDetails.forEach((d, di) => {
+      ;(d.materials || []).forEach((m, mi) => {
+        const invId = Number(m.product_inventory_id)
+        if (!invId) return
+        const stillValid = inventories.some((i: any) => Number(i.id) === invId)
+        if (stillValid) return
+
+        const cached = inventoryCacheRef.current.get(invId)
+        const productId =
+          cached?.product_uom_batch?.product_uom?.product_id ?? cached?.product_uom?.product_id
+        if (!productId) return
+
+        const key = `${di}-${mi}`
+        const productName =
+          cached?.product_uom_batch?.product_uom?.product?.name ??
+          cached?.product_uom?.product?.name ??
+          mergedMaterialLabels[key]?.split(/\s+[·—]\s+/)[0] ??
+          `Material #${mi + 1}`
+
+        const candidates = inventories.filter((i: any) => {
+          const pid = i.product_uom_batch?.product_uom?.product_id ?? i.product_uom?.product_id
+          return Number(pid) === Number(productId)
+        })
+
+        if (candidates.length === 1) {
+          const match = candidates[0]
+          setValue(`details.${di}.materials.${mi}.product_inventory_id` as any, match.id, {
+            shouldValidate: true,
+          })
+          const uomCode =
+            match.product_uom_batch?.product_uom?.uom?.code ?? match.product_uom?.uom?.code ?? ''
+          setMaterialLabels((prev) => ({
+            ...prev,
+            [key]: `${productName} — ${uomCode} SKU: ${match.code ?? match.id}`,
+          }))
+          autoCount++
+        } else {
+          setValue(`details.${di}.materials.${mi}.product_inventory_id` as any, 0, {
+            shouldValidate: true,
+          })
+          setMaterialLabels((prev) => ({ ...prev, [key]: productName }))
+          if (candidates.length === 0) noStock.push(productName)
+          else ambiguous.push(productName)
+        }
+      })
+    })
+
+    if (autoCount > 0) {
+      toast.success(`${autoCount} material otomatis dipilih ulang sesuai dimensi baru`)
+    }
+    if (ambiguous.length > 0) {
+      toast.warning(
+        `Ditemukan lebih dari satu stok untuk: ${ambiguous.join(', ')}. Silakan pilih ulang inventory pada material tersebut.`
+      )
+    }
+    if (noStock.length > 0) {
+      toast.warning(
+        `Stok tidak ditemukan di dimensi baru untuk: ${noStock.join(', ')}. Silakan pilih ulang inventory.`
+      )
+    }
+  }, [inventories, isFetchingInventories, watchSourceOwnerRef, watchSourceStage, watchSourceLocationRef])
 
   const handleSelectMaterialInventory = useCallback(
     (detailIndex: number, matIndex: number, inv: any, productName: string) => {
@@ -1501,6 +1656,15 @@ export default function ProductionForm({
                     )}
                   />
                 </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={labelStyle}>Lokasi</label>
+                  <input
+                    type="text"
+                    placeholder="GENERAL"
+                    {...register('source_location_ref')}
+                    style={fieldInputStyle}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1548,6 +1712,15 @@ export default function ProductionForm({
                         onSearchChange={setDropdownSearch}
 />
                     )}
+                  />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={labelStyle}>Lokasi</label>
+                  <input
+                    type="text"
+                    placeholder="GENERAL"
+                    {...register('output_location_ref')}
+                    style={fieldInputStyle}
                   />
                 </div>
               </div>
@@ -1600,6 +1773,26 @@ export default function ProductionForm({
               </kbd>
             </button>
           </div>
+
+          {detailFields.length > 0 && (
+            <div
+              style={{
+                padding: '8px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--background)',
+              }}
+            >
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, minWidth: 24, textAlign: 'center' }}>#</span>
+              <span style={{ width: 24 }} />
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, flex: 1 }}>Produk</span>
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, width: 100 }}>Qty</span>
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, width: 96 }}>Status</span>
+              <span style={{ width: 22 }} />
+            </div>
+          )}
 
           <div style={{ padding: 0, borderRadius: '0 0 var(--radius-lg) var(--radius-lg)' }}>
             {detailFields.map((field, detailIndex) => {
