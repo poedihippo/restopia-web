@@ -36,7 +36,7 @@ export function FloatingPanel({
     const width = Math.max(r.width, minWidth)
     const left = Math.max(margin, Math.min(r.left, window.innerWidth - width - margin))
 
-    setStyle({
+    const newStyle: React.CSSProperties = {
       position: 'fixed',
       left,
       width,
@@ -47,7 +47,8 @@ export function FloatingPanel({
       overflowY: 'auto',
       zIndex: 9999,
       visibility: 'visible',
-    })
+    }
+    setStyle(newStyle)
   }, [anchorRef, maxHeight, minWidth])
 
   useLayoutEffect(() => {
@@ -85,7 +86,7 @@ export function FloatingPanel({
 
   if (!open || typeof document === 'undefined') return null
   return createPortal(
-    <div ref={panelRef} style={{
+    <div ref={panelRef} data-floating-panel style={{
       ...style,
       background: 'var(--surface-raised)',
       border: '1px solid var(--border-strong)',

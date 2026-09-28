@@ -157,6 +157,7 @@ export function MaterialPicker({
   const rootRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
+  const autoSelectDoneRef = useRef(false)
 
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -224,7 +225,28 @@ export function MaterialPicker({
     onOpenChange?.(true)
   }
 
-  // Close on click outside, recalc position on scroll/resize — handled by FloatingPanel
+  // Close on click outside — handled by FloatingPanel, but also need to
+  // prevent closing when clicking inside ANY FloatingPanel (child dropdowns
+  // like SearchableSelect inside our popover).
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node
+      // Don't close if click is inside our trigger, our popover, or any
+      // FloatingPanel (e.g. a SearchableSelect dropdown inside our popover)
+      if (
+        rootRef.current?.contains(target) ||
+        popoverRef.current?.contains(target) ||
+        (target as HTMLElement).closest?.('[data-floating-panel]')
+      ) {
+        return
+      }
+      close()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   // Focus search input when opening on the products step
   useEffect(() => {
@@ -261,7 +283,7 @@ export function MaterialPicker({
 
   // Inventories for the selected product — same filters as the previous
   // shared query, merged with the branch-wide list already loaded.
-  const { data: invData } = useQuery({
+  const { data: invData, isFetching: invFetching } = useQuery({
     queryKey: ['material-picker-inventories', productId, branchId, ownerFilter, stagesFilter],
     enabled: open && step === 'inventory' && !!productId && !!branchId,
     refetchOnMount: 'always',
@@ -311,6 +333,25 @@ export function MaterialPicker({
     el?.scrollIntoView({ block: 'nearest' })
   }, [highlightIndex])
 
+  // Auto-select when inventory list has exactly 1 item (after query finishes loading)
+  useEffect(() => {
+    if (
+      step !== 'inventory' ||
+      invFetching ||
+      autoSelectDoneRef.current ||
+      pickerInventories.length !== 1
+    ) {
+      return
+    }
+    // Don't auto-select if this item is already selected (reopening popover)
+    if (Number(pickerInventories[0].id) === Number(selectedInventoryId)) {
+      return
+    }
+    autoSelectDoneRef.current = true
+    onSelectInventory(pickerInventories[0], productName)
+    close()
+  }, [step, invFetching, pickerInventories, selectedInventoryId])
+
   const chooseProduct = (p: any) => {
     setProductId(Number(p.id))
     setProductName(String(p.name ?? ''))
@@ -318,6 +359,7 @@ export function MaterialPicker({
     setSearch('')
     setDebouncedSearch('')
     setHighlightIndex(0)
+    autoSelectDoneRef.current = false
   }
 
   const chooseInventory = (mi: any) => {
@@ -530,12 +572,32 @@ export function MaterialPicker({
                 </button>
               </div>
               <div style={{ maxHeight: 220, overflowY: 'auto', padding: 4 }}>
-                {pickerInventories.length === 0 ? (
+                {invFetching ? (
+                  <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--foreground-muted)' }}>
+                    Memuat stok...
+                  </div>
+                ) : pickerInventories.length === 0 ? (
                   <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--destructive)' }}>
                     Tidak ada stok aktif
                   </div>
                 ) : (
-                  pickerInventories.map((mi: any, i: number) => {
+                  <>
+                    {pickerInventories.length > 1 && (
+                      <div
+                        style={{
+                          padding: '6px 10px',
+                          marginBottom: 6,
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: 'var(--warning)',
+                          background: 'var(--warning-bg)',
+                        }}
+                      >
+                        Ada {pickerInventories.length} stok tersedia, silakan pilih salah satu
+                      </div>
+                    )}
+                    {pickerInventories.map((mi: any, i: number) => {
                     const uomCode =
                       mi.product_uom?.uom?.code ??
                       mi.product_uom_batch?.product_uom?.uom?.code ??
@@ -609,7 +671,8 @@ export function MaterialPicker({
                         </span>
                       </button>
                     )
-                  })
+                  })}
+                  </>
                 )}
               </div>
             </>
@@ -633,6 +696,8 @@ interface MaterialsFieldArrayProps {
   onSelectMaterialInventory: (detailIndex: number, matIndex: number, inv: any, productName: string) => void
   onRemoveMaterial: (detailIndex: number, matIndex: number) => void
   materialLabels: Record<string, string>
+  needsStockPick: Record<string, boolean>
+  materialProductUomIds: Record<string, number>
   setValue: any
   onMaterialQtyEdit?: (detailIndex: number, matIndex: number, qty: number) => void
   companyOptions: { value: string; label: string }[]
@@ -653,6 +718,8 @@ export function MaterialsFieldArray({
   onSelectMaterialInventory,
   onRemoveMaterial,
   materialLabels,
+  needsStockPick,
+  materialProductUomIds,
   setValue,
   companyOptions,
   stageOptions,
@@ -820,11 +887,15 @@ export function MaterialsFieldArray({
                 })()}
               />
 
-              {hasNoInventory && existingLabel && existingLabel !== `Material #${matIndex + 1}` && (
+              {needsStockPick[`${detailIndex}-${matIndex}`] ? (
+                <span style={{ fontSize: 9, color: 'var(--warning)', marginTop: 1, display: 'block', fontWeight: 500 }}>
+                  Ada {inventories.filter((i: any) => Number(i.product_uom_batch?.product_uom_id) === Number(materialProductUomIds[`${detailIndex}-${matIndex}`])).length} pilihan stok, silakan pilih
+                </span>
+              ) : hasNoInventory && existingLabel && existingLabel !== `Material #${matIndex + 1}` ? (
                 <span style={{ fontSize: 9, color: 'var(--destructive)', marginTop: 1, display: 'block', fontWeight: 500 }}>
                   Stok belum ada
                 </span>
-              )}
+              ) : null}
               {isOutOfStock && (
                 <span style={{ fontSize: 9, color: 'var(--destructive)', marginTop: 1, display: 'block', fontWeight: 500 }}>
                   Stok habis (0)
@@ -1002,6 +1073,11 @@ export default function ProductionForm({
 
   // label per detail+mat key
   const [materialLabels, setMaterialLabels] = useState<Record<string, string>>({})
+  // Track materials that need manual stock selection (>1 match from recipe)
+  const [needsStockPick, setNeedsStockPick] = useState<Record<string, boolean>>({})
+  // Map `${detailIndex}-${matIndex}` → product_uom_id for recipe-loaded materials,
+  // so we can re-run auto-select when the source stage/owner changes.
+  const [materialProductUomIds, setMaterialProductUomIds] = useState<Record<string, number>>({})
 
   const {
     register,
@@ -1010,6 +1086,7 @@ export default function ProductionForm({
     control,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -1300,7 +1377,11 @@ export default function ProductionForm({
         const prodQty = recipeQty // override with recipe's yield qty
         setValue(`details.${detailIndex}.qty` as any, prodQty)
         const missing: string[] = []
+        const needsPickKeys: string[] = []
+        const productUomMap: Record<string, number> = {}
+        let mappedIndex = 0
         const mappedMaterials = materials.map((mat: any) => {
+          productUomMap[`${detailIndex}-${mappedIndex}`] = Number(mat.product_uom_id)
           const matches = inventories.filter(
             (inv: any) =>
               inv.product_uom_batch?.product_uom_id === mat.product_uom_id
@@ -1319,17 +1400,41 @@ export default function ProductionForm({
               : Infinity
             return aExp - bExp
           })
-          const match = sorted[0]
-          if (!match) {
+          const qty = Number(mat.qty) || 0
+          if (matches.length === 0) {
+            // No stock at all
             missing.push(
               mat.product_uom?.product?.name ??
               String(mat.product_uom?.product_id ?? '?')
             )
+            mappedIndex++
+            return {
+              product_inventory_id: 0,
+              qty,
+              base_ratio: recipeQty > 0 ? qty / recipeQty : 0,
+              owner_ref: null,
+              stage: null,
+              location_ref: null,
+            }
           }
-          const qty = Number(mat.qty) || 0
+          if (matches.length === 1) {
+            // Exactly 1 match → auto-select
+            mappedIndex++
+            return {
+              product_inventory_id: sorted[0].id,
+              qty,
+              base_ratio: recipeQty > 0 ? qty / recipeQty : 0,
+              owner_ref: null,
+              stage: null,
+              location_ref: null,
+            }
+          }
+          // Multiple matches → don't select, mark as needing manual pick
+          needsPickKeys.push(`${detailIndex}-${mappedIndex}`)
+          mappedIndex++
           return {
-            product_inventory_id: match?.id ?? 0,
-            qty: qty,
+            product_inventory_id: 0,
+            qty,
             base_ratio: recipeQty > 0 ? qty / recipeQty : 0,
             owner_ref: null,
             stage: null,
@@ -1353,18 +1458,39 @@ export default function ProductionForm({
           })
           return { ...next, ...labels }
         })
+        // Update needsStockPick: clear old entries for this detail, set new ones
+        setNeedsStockPick((prev) => {
+          const next = { ...prev }
+          Object.keys(next).forEach((k) => {
+            if (k.startsWith(`${detailIndex}-`)) delete next[k]
+          })
+          needsPickKeys.forEach((k) => { next[k] = true })
+          return next
+        })
+        // Store product_uom_id per material row for reactive auto-select
+        setMaterialProductUomIds((prev) => {
+          const next = { ...prev }
+          Object.keys(next).forEach((k) => {
+            if (k.startsWith(`${detailIndex}-`)) delete next[k]
+          })
+          return { ...next, ...productUomMap }
+        })
         setValue(
           `details.${detailIndex}.materials`,
           mappedMaterials.length > 0
             ? mappedMaterials
-            : [{ product_inventory_id: 0, qty: 1 }]
+            : [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }]
         )
-        if (missing.length > 0) {
+        if (needsPickKeys.length > 0) {
           toast.warning(
-            `Loaded ${materials.length} material(s) from recipe. Perhatian: ${missing.length} material belum ada stok/inventori di cabang ini: ${missing.join(', ')}`
+            `${needsPickKeys.length} material punya lebih dari satu stok, silakan pilih stok`
+          )
+        } else if (missing.length > 0) {
+          toast.warning(
+            `Loaded ${materials.length} material(s) dari resep. ${missing.length} material belum ada stok: ${missing.join(', ')}`
           )
         } else {
-          toast.success(`Loaded ${materials.length} material(s) from recipe`)
+          toast.success(`Loaded ${materials.length} material(s) dari resep`)
         }
       } catch {
         toast.error('Failed to load recipe')
@@ -1416,6 +1542,28 @@ export default function ProductionForm({
       )
       const label = `${productName} — ${inv.product_uom?.uom?.code ?? ''} SKU: ${inv.code ?? inv.id}`
       setMaterialLabels((prev) => ({ ...prev, [`${detailIndex}-${matIndex}`]: label }))
+      // Clear "needs stock pick" flag for this material
+      setNeedsStockPick((prev) => {
+        const key = `${detailIndex}-${matIndex}`
+        if (!prev[key]) return prev
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+      // Remember the product_uom_id for reactive auto-select on stage change
+      const puid = Number(
+        inv?.product_uom_batch?.product_uom_id ??
+        inv?.product_uom?.product_uom_id ??
+        inv?.product_uom_batch?.product_uom?.id ??
+        inv?.product_uom?.id ??
+        0,
+      )
+      if (puid > 0) {
+        setMaterialProductUomIds((prev) => ({
+          ...prev,
+          [`${detailIndex}-${matIndex}`]: puid,
+        }))
+      }
     },
     [setValue],
   )
@@ -1436,9 +1584,84 @@ export default function ProductionForm({
         })
         return next
       })
+      setNeedsStockPick((prev) => {
+        const next: Record<string, boolean> = {}
+        Object.entries(prev).forEach(([key, value]) => {
+          const [detail, material] = key.split('-').map(Number)
+          if (detail !== detailIndex) {
+            next[key] = value
+          } else if (material < matIndex) {
+            next[key] = value
+          } else if (material > matIndex) {
+            next[`${detail}-${material - 1}`] = value
+          }
+        })
+        return next
+      })
+      setMaterialProductUomIds((prev) => {
+        const next: Record<string, number> = {}
+        Object.entries(prev).forEach(([key, value]) => {
+          const [detail, material] = key.split('-').map(Number)
+          if (detail !== detailIndex) {
+            next[key] = value
+          } else if (material < matIndex) {
+            next[key] = value
+          } else if (material > matIndex) {
+            next[`${detail}-${material - 1}`] = value
+          }
+        })
+        return next
+      })
     },
     [],
   )
+
+  // Reactive auto-select: when the source stage/owner changes (which refetches
+  // `inventories` with new dimension filters), auto-select materials that have
+  // exactly 1 matching stock — without requiring the user to open the picker.
+  useEffect(() => {
+    if (!inventories.length) return
+    const details = (getValues('details') as any[]) ?? []
+    const toSelect: Array<{ di: number; mi: number; inv: any }> = []
+    const toFlag: string[] = []
+    const toClear: string[] = []
+    details.forEach((d: any, di: number) => {
+      ;(d?.materials ?? []).forEach((m: any, mi: number) => {
+        if (Number(m?.product_inventory_id) > 0) return
+        const key = `${di}-${mi}`
+        const puid = materialProductUomIds[key]
+        if (!puid) return
+        const matches = inventories.filter(
+          (inv: any) =>
+            Number(inv.product_uom_batch?.product_uom_id) === Number(puid),
+        )
+        if (matches.length === 1) {
+          toSelect.push({ di, mi, inv: matches[0] })
+        } else if (matches.length > 1) {
+          toFlag.push(key)
+        } else {
+          toClear.push(key)
+        }
+      })
+    })
+    if (toSelect.length > 0) {
+      toSelect.forEach(({ di, mi, inv }) => {
+        setValue(
+          `details.${di}.materials.${mi}.product_inventory_id` as any,
+          inv.id,
+        )
+      })
+    }
+    if (toSelect.length > 0 || toFlag.length > 0 || toClear.length > 0) {
+      setNeedsStockPick((prev) => {
+        const next = { ...prev }
+        toSelect.forEach(({ di, mi }) => { delete next[`${di}-${mi}`] })
+        toClear.forEach((k) => { delete next[k] })
+        toFlag.forEach((k) => { next[k] = true })
+        return next
+      })
+    }
+  }, [inventories, materialProductUomIds, getValues, setValue])
 
   const buildPayload = (values: FormValues) => ({
     date: values.date,
@@ -1515,6 +1738,9 @@ export default function ProductionForm({
         const label = materialLabels[labelKey] || derivedMaterialLabels[labelKey] || `Material #${mIndex + 1}`
 
         if (!m.product_inventory_id || m.product_inventory_id <= 0) {
+          if (needsStockPick[labelKey]) {
+            return `Pilih stok untuk ${label} (Item produksi #${dIndex + 1})`
+          }
           return `Stok produk yang dibutuhkan belum ada di cabang ini: ${label} (Item produksi #${dIndex + 1})`
         }
 
@@ -2419,6 +2645,8 @@ export default function ProductionForm({
                         onSelectMaterialInventory={handleSelectMaterialInventory}
                         onRemoveMaterial={handleRemoveMaterial}
                         materialLabels={mergedMaterialLabels}
+                        needsStockPick={needsStockPick}
+                        materialProductUomIds={materialProductUomIds}
                         setValue={setValue}
                         companyOptions={companyOptions}
                         stageOptions={stageOptions}
