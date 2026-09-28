@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { ArrowLeft } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
+import { getProductUomName } from '@/utils/productUomName'
 import usePurchaseOrderDetail from './usePurchaseOrderDetail'
 
 interface Props {
@@ -78,14 +79,15 @@ const PurchaseOrderDetail = ({ id }: Props) => {
                     <h1 className='text-xl font-semibold mb-4'>Purchase Order Details</h1>
                     <div className='space-y-4'>
                         {data.purchase_order_details.map((detail, index) => {
-                            const product = detail.product_inventory?.product_uom?.product
-                            const uom = detail.product_inventory?.product_uom?.uom
+                            const productUom = detail.product_inventory?.product_uom
+                            const product = productUom?.product
+                            const uom = productUom?.uom
                             return (
                                 <div key={detail.id ?? index} className='border rounded-xl overflow-hidden'>
                                     <div className='bg-gray-50 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 border-b'>
                                         <div>
                                             <p className='text-xs text-gray-400'>Product</p>
-                                            <p className='font-semibold text-sm'>{product?.name ?? '-'}</p>
+                                            <p className='font-semibold text-sm'>{getProductUomName(productUom, product?.name) || '-'}</p>
                                         </div>
                                         <div>
                                             <p className='text-xs text-gray-400'>SKU</p>

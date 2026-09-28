@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import { ArrowLeft } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { productionsService } from '@/services/productions.service'
+import { getProductUomName } from '@/utils/productUomName'
 
 interface Props {
   id: number
@@ -177,6 +178,7 @@ export default function ProductionDetail({ id }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {production.production_details.map((detail: any, index: number) => {
                 const product = detail.product_uom?.product
+                const productUomName = getProductUomName(detail.product_uom, product?.name)
                 const uom = detail.product_uom?.uom
                 const batch = detail.product_uom_batch
                 let batchLine: string | null = null
@@ -218,7 +220,7 @@ export default function ProductionDetail({ id }: Props) {
                       <div>
                         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Product</span>
                         <p style={{ margin: '2px 0 0', fontWeight: 600, fontSize: 13 }}>
-                          {product?.name ?? '—'}
+                          {productUomName || '—'}
                         </p>
                         {batchLine && (
                           <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--foreground-muted)' }}>
@@ -282,12 +284,14 @@ export default function ProductionDetail({ id }: Props) {
                           </thead>
                           <tbody>
                             {detail.production_detail_materials.map((mat: any, mi: number) => {
-                              const mp = mat.product_inventory?.product_uom_batch?.product_uom?.product
-                              const mu = mat.product_inventory?.product_uom_batch?.product_uom?.uom
+                              const matProductUom = mat.product_inventory?.product_uom_batch?.product_uom
+                              const mp = matProductUom?.product
+                              const mu = matProductUom?.uom
+                              const matName = getProductUomName(matProductUom, mp?.name)
                               return (
                                 <tr key={mat.id ?? mi} style={{ borderBottom: '1px solid var(--border)' }}>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mi + 1}</td>
-                                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{mp?.name ?? '—'}</td>
+                                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{matName || '—'}</td>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mat.product_inventory?.product_uom_batch?.product_uom?.code ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{mat.qty ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mu?.name ?? '—'}</td>

@@ -13,6 +13,7 @@ import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
+import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { ArrowLeft, Package, Check, Loader2 } from 'lucide-react'
@@ -100,7 +101,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
 
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
-    label: (pu.product?.name as string) ?? '',
+    label: getProductUomName(pu, pu.product?.name),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
   }))

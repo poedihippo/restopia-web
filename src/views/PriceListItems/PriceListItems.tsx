@@ -11,6 +11,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/router'
 import { formatCurrency } from '@/utils/price'
+import { getProductUomName } from '@/utils/productUomName'
 
 export default function PriceListItemsView() {
   const router = useRouter()
@@ -158,7 +159,7 @@ export default function PriceListItemsView() {
                       {(() => {
                         const pu = item.product_uom
                         const label = pu
-                          ? `${pu.product?.name ?? 'Unknown'} — ${pu.uom?.name ?? pu.uom?.code ?? ''}`.trim()
+                          ? `${getProductUomName(pu, pu.product?.name) || 'Unknown'} — ${pu.uom?.name ?? pu.uom?.code ?? ''}`.trim()
                           : '-'
                         return label
                       })()}

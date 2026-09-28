@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getCanReadPrice, formatCurrency } from '@/utils/price'
 import { useQuery } from '@tanstack/react-query'
 import { taxesService } from '@/services/taxes.service'
+import { getProductUomName } from '@/utils/productUomName'
 
 export interface AcceptPODetailPayload {
   id?: number
@@ -183,7 +184,7 @@ export default function AcceptPOModal({
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '16px 8px' }}>
                       <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>
-                        {item.product_uom?.product?.name}
+                        {getProductUomName(item.product_uom, item.product_uom?.product?.name)}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
                         {item.product_uom?.uom?.name}

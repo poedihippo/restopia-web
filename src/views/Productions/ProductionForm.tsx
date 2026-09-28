@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import { getProductUomName } from '@/utils/productUomName'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -354,10 +355,9 @@ export function MaterialsFieldArray({
                   // inventory whose product name matches this exact row.
                   const labelInv = labelProductName
                     ? inventories.find((i: any) => {
-                        const productName =
-                          i?.product_uom_batch?.product_uom?.product?.name ??
-                          i?.product_uom?.product?.name ??
-                          ''
+                        const productName = getProductUomName(
+                          i?.product_uom_batch?.product_uom ?? i?.product_uom,
+                        )
                         return productName === labelProductName
                       })
                     : null
@@ -370,10 +370,10 @@ export function MaterialsFieldArray({
                     selInv?.product_uom?.product_id ??
                     null
                   if (pid) {
-                    const pname =
-                      selInv?.product_uom_batch?.product_uom?.product?.name ??
-                      selInv?.product_uom?.product?.name ??
-                      existingLabel
+                    const pname = getProductUomName(
+                      selInv?.product_uom_batch?.product_uom ?? selInv?.product_uom,
+                      existingLabel,
+                    )
                     setSharedMaterialProductId(Number(pid))
                     setSharedMaterialProductName(String(pname))
                     setSharedShowMaterialUomPicker(true)
@@ -1070,8 +1070,7 @@ export default function ProductionForm({
           const match = sorted[0]
           if (!match) {
             missing.push(
-              mat.product_uom?.product?.name ??
-              String(mat.product_uom?.product_id ?? '?')
+              getProductUomName(mat.product_uom, String(mat.product_uom?.product_id ?? '?'))
             )
           }
           const qty = Number(mat.qty) || 0
@@ -1085,8 +1084,7 @@ export default function ProductionForm({
         // Stock availability will be validated when the user submits Create Production.
         const labels: Record<string, string> = {}
         materials.forEach((m: any, idx: number) => {
-          const productName =
-            m.product_uom?.product?.name ?? String(m.product_uom?.product_id ?? '?')
+          const productName = getProductUomName(m.product_uom, String(m.product_uom?.product_id ?? '?'))
           const uomCode = m.product_uom?.uom?.code ?? ''
           const sku = m.product_uom?.code ?? ''
           labels[`${detailIndex}-${idx}`] = `${productName} · ${uomCode} · ${sku}`
@@ -1131,10 +1129,8 @@ export default function ProductionForm({
           const inv = inventories.find((i: any) => i.id === id)
           if (!inv) return
           const name =
-            inv?.product_uom_batch?.product_uom?.product?.name ??
-            inv?.product_uom?.product?.name ??
-            inv?.code ??
-            `Material #${id}`
+            getProductUomName(inv?.product_uom_batch?.product_uom ?? inv?.product_uom) ||
+            (inv?.code ?? `Material #${id}`)
           const uomCode =
             inv?.product_uom_batch?.product_uom?.uom?.code ??
             inv?.product_uom?.uom?.code ??
@@ -1206,9 +1202,8 @@ export default function ProductionForm({
 
         const key = `${di}-${mi}`
         const productName =
-          cached?.product_uom_batch?.product_uom?.product?.name ??
-          cached?.product_uom?.product?.name ??
-          mergedMaterialLabels[key]?.split(/\s+[·—]\s+/)[0] ??
+          getProductUomName(cached?.product_uom_batch?.product_uom ?? cached?.product_uom) ||
+          mergedMaterialLabels[key]?.split(/\s+[·—]\s+/)[0] ||
           `Material #${mi + 1}`
 
         const candidates = inventories.filter((i: any) => {
@@ -1260,7 +1255,11 @@ export default function ProductionForm({
         `details.${detailIndex}.materials.${matIndex}.product_inventory_id` as any,
         inv.id,
       )
-      const label = `${productName} — ${inv.product_uom?.uom?.code ?? ''} SKU: ${inv.code ?? inv.id}`
+      const displayName = getProductUomName(
+        inv?.product_uom_batch?.product_uom ?? inv?.product_uom,
+        productName,
+      )
+      const label = `${displayName} — ${inv.product_uom?.uom?.code ?? ''} SKU: ${inv.code ?? inv.id}`
       setMaterialLabels((prev) => ({ ...prev, [`${detailIndex}-${matIndex}`]: label }))
     },
     [setValue],

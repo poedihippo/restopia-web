@@ -2,6 +2,7 @@
 
 import React, { useState,  useEffect, useMemo } from 'react'
 import { getCanReadPrice } from '@/utils/price'
+import { getProductUomName } from '@/utils/productUomName'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -289,7 +290,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const productUomOptions = useMemo(() => {
     const deliveryOpts = deliveryDetail?.delivery_details?.map((dd: any) => ({
       value: dd.product_uom?.id ?? dd.product_uom_id ?? 0,
-      label: (dd.product_uom?.product?.name as string) ?? '',
+      label: getProductUomName(dd.product_uom),
       sublabel: (dd.product_uom?.uom?.name as string) ?? '',
       description: (dd.product_uom?.code as string) ?? undefined,
       base_price: dd.product_uom?.base_price ?? 0,
@@ -298,7 +299,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
     const receiptOpts = initialData?.receipt_details?.map((rd: any) => ({
       value: rd.product_uom?.id ?? rd.product_uom_id ?? 0,
-      label: (rd.product_uom?.product?.name as string) ?? '',
+      label: getProductUomName(rd.product_uom),
       sublabel: (rd.product_uom?.uom?.name as string) ?? '',
       description: (rd.product_uom?.code as string) ?? undefined,
       base_price: rd.product_uom?.base_price ?? 0,

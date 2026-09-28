@@ -13,6 +13,7 @@ import api from '@/hooks/useApi'
 import { X, Loader2, Trash2 } from 'lucide-react'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { useAuth } from '@/hooks/useAuth'
+import { getProductUomName } from '@/utils/productUomName'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ const errorTextStyle: React.CSSProperties = {
 }
 
 function productUomOptionLabel(pu: any) {
-  return `${pu.product?.name ?? '—'} — ${pu.uom?.name ?? ''}${pu.uom?.code ? ` (${pu.uom.code})` : ''}${pu.code ? ` · SKU: ${pu.code}` : ''}`
+  return `${getProductUomName(pu, pu.product?.name) || '—'} — ${pu.uom?.name ?? ''}${pu.uom?.code ? ` (${pu.uom.code})` : ''}${pu.code ? ` · SKU: ${pu.code}` : ''}`
 }
 
 /** API envelope is either `{ data: T[] }` or `{ data: { data: T[], meta } }`. */
@@ -628,7 +629,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                       key={pu.id}
                       type="button"
                       onClick={() => {
-                        const label = `${selectedFinishedProductName} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`
+                        const label = `${getProductUomName(pu, selectedFinishedProductName)} — ${pu.uom?.name ?? ''} (${pu.uom?.code ?? ''}) · SKU: ${pu.code}`
                         setValue('product_uom_id', pu.id)
                         setSelectedFinishedLabel(label)
                         setShowUomPicker(false)
@@ -1015,6 +1016,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                         setMaterialInfoMap((prev) => ({
                           ...prev,
                           [pu.id]: {
+                            name: pu.name,
                             product: { name: selectedMaterialProductName, base_uom: selectedMaterialBaseUom },
                             uom: { name: pu.uom?.name ?? '', code: pu.uom?.code ?? '' },
                             code: pu.code,
@@ -1081,8 +1083,10 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
               const puId = (field as any).product_uom_id
               const info = materialInfoMap[puId]
               const fromAll = productUoms.find((p: any) => p.id === puId)
-              const displayName =
-                info?.product?.name ?? fromAll?.product?.name ?? `Item #${puId}`
+              const matPu = info ?? fromAll
+              const displayName = matPu
+                ? getProductUomName(matPu, matPu.product?.name) || `Item #${puId}`
+                : `Item #${puId}`
               const uomCode = info?.uom?.code ?? fromAll?.uom?.code ?? ''
               const sku = info?.code ?? fromAll?.code ?? ''
               const baseUomName =

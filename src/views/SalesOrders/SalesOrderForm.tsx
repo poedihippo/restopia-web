@@ -19,6 +19,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
+import { getProductUomName } from '@/utils/productUomName'
 
 const generateKey = () =>
   Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -123,11 +124,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
       // d.description, which is '' (not nullish) on these rows and so
       // stopped the ?? chain there instead of reaching a real fallback.
       const name =
-        snap?.product_uom?.product?.name ??
-        snap?.product_uom_batch?.product_uom?.product?.name ??
+        (getProductUomName(snap?.product_uom) || undefined) ??
+        (getProductUomName(snap?.product_uom_batch?.product_uom) || undefined) ??
         snap?.name ??
-        d.product_inventory?.product_uom?.product?.name ??
-        d.product_uom_batch?.product_uom?.product?.name ??
+        (getProductUomName(d.product_inventory?.product_uom) || undefined) ??
+        (getProductUomName(d.product_uom_batch?.product_uom) || undefined) ??
         d.bundle?.name ??
         (isBundle ? 'Bundle' : `Item ${d.id ?? idx + 1}`)
       const code =
@@ -346,10 +347,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             bundle_details: null,
             purchase_order_detail_id: d.id,
             name: inv
-              ? inv.product_uom_batch?.product_uom?.product?.name ??
-              inv.product_uom?.product?.name ??
+              ? (getProductUomName(inv.product_uom_batch?.product_uom) || undefined) ??
+              (getProductUomName(inv.product_uom) || undefined) ??
               inv.code
-              : d.product_uom?.product?.name ?? 'Unknown Product',
+              : getProductUomName(d.product_uom, d.product_uom?.product?.name) || 'Unknown Product',
             code: inv?.code ?? d.product_uom?.code ?? '',
             qty: d.qty,
             price: d.price,
@@ -392,8 +393,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             bundle_id: null,
             bundle_details: null,
             name:
-              p.product_uom_batch?.product_uom?.product?.name
-              ?? p.product_uom?.product?.name
+              (getProductUomName(p.product_uom_batch?.product_uom) || undefined)
+              ?? (getProductUomName(p.product_uom) || undefined)
               ?? p.code,
             code: p.code,
             qty: 1,
@@ -1083,8 +1084,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                             <div style={{ fontSize: 13, fontWeight: isHighlighted ? 700 : 600, color: isHighlighted ? 'var(--accent)' : 'var(--foreground)', paddingRight: 8 }}>
-                              {p.product_uom_batch?.product_uom?.product?.name
-                                ?? p.product_uom?.product?.name
+                              {(getProductUomName(p.product_uom_batch?.product_uom) || undefined)
+                                ?? (getProductUomName(p.product_uom) || undefined)
                                 ?? p.code}
                             </div>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>

@@ -1,6 +1,7 @@
 'use client'
 import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime } from '@/utils/date';
+import { getProductUomName } from '@/utils/productUomName';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -506,7 +507,10 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                 STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
               
               const deliveryDetail = (receipt?.delivery as any)?.delivery_details?.find((dd: any) => dd.id === detail.delivery_detail_id)
-              const productName = deliveryDetail?.product_uom?.product?.name ?? detail.product_uom?.product?.name ?? '—'
+              const productName =
+                getProductUomName(deliveryDetail?.product_uom) ||
+                getProductUomName(detail.product_uom) ||
+                '—'
               
               return (
                 <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>

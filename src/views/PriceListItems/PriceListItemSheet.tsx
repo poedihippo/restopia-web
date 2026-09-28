@@ -13,6 +13,7 @@ import useGetProductUomsList from '@/hooks/product-uoms/useGetProductUomsList'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
+import { getProductUomName } from '@/utils/productUomName'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -157,7 +158,7 @@ export default function PriceListItemSheet({ priceListId, open, onClose, editDat
                           ?.filter((uom: any) => isProductTypeAllowed(uom.product, activeProductTypes))
                           ?.map((uom: any) => ({
                             value: uom.id,
-                            label: `${uom.product?.name} - ${uom.uom?.code}`,
+                            label: `${getProductUomName(uom, uom.product?.name)} - ${uom.uom?.code}`,
                           })) ?? []}
                         value={field.value ?? 0}
                         onChange={field.onChange}

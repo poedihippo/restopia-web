@@ -19,6 +19,7 @@ import { Control, Controller, FormProvider, useFormContext, useWatch } from "rea
 import Image from "next/image";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { getProductUomName } from "@/utils/productUomName";
 import { PurchaseOrdersFormValues, useEditPurchaseOrders } from "./useEditPurchaseOrders";
 import useGetSupplierList from "@/hooks/suppliers/useGetSupplierList";
 import useGetBranchList from "@/hooks/branches/useGetBranchList";
@@ -69,7 +70,7 @@ const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) =>
                 options={
                   productInventoryData?.data?.map((item) => ({
                     value: item.id,
-                    label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
+                    label: `${item.branch?.name} - ${getProductUomName(item.product_uom, item.product_uom?.product?.name)} - ${item.product_uom?.uom?.code}`,
                   })) ?? []
                 }
                 value={
@@ -77,7 +78,7 @@ const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) =>
                     ?.filter((item) => item.id === field.value)
                     .map((item) => ({
                       value: item.id,
-                      label: `${item.branch?.name} - ${item.product_uom?.product?.name} - ${item.product_uom?.uom?.code}`,
+                      label: `${item.branch?.name} - ${getProductUomName(item.product_uom, item.product_uom?.product?.name)} - ${item.product_uom?.uom?.code}`,
                     }))[0] ?? null
                 }
                 onChange={(selected) => {

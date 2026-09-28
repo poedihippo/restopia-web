@@ -4,6 +4,7 @@ import type { PosCartItem, PosCartBundle } from '@/types/api'
 import useGetVoucherList from '@/hooks/voucher/useGetVoucherList'
 import SearchableSelect from '@/components/SearchableSelect'
 import { formatCurrency } from '@/utils/price';
+import { getProductUomName } from '@/utils/productUomName'
 
 // Some styling constants for the sidebar
 const inputStyle: React.CSSProperties = {
@@ -435,7 +436,7 @@ export default function PosCartSidebar({
               {item.bundle_details && item.bundle_details.length > 0 && (
                 <div style={{ marginTop: 8, padding: '6px 8px', background: 'rgba(0,0,0,0.02)', borderRadius: 'var(--radius-sm)' }}>
                   {item.bundle_details.map((bd: any, idx: number) => {
-                    const prodName = bd.product_name || bd.product_uom?.product?.name || bd.product_inventory?.product_uom?.product?.name || `Item`
+                    const prodName = bd.product_name || getProductUomName(bd.product_uom, bd.product_uom?.product?.name) || getProductUomName(bd.product_inventory?.product_uom, bd.product_inventory?.product_uom?.product?.name) || `Item`
                     return (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--foreground-subtle)', marginBottom: idx === item.bundle_details.length - 1 ? 0 : 4 }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
+import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -616,9 +617,12 @@ export default function StockMovementView() {
                           color: 'var(--foreground)',
                         }}
                       >
-                        {item.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
-                          item.product_inventory?.product_uom?.product?.name ??
-                          item.product_inventory?.code ??
+                        {getProductUomName(
+                          item.product_inventory?.product_uom_batch?.product_uom ?? item.product_inventory?.product_uom,
+                          item.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
+                            item.product_inventory?.product_uom?.product?.name,
+                        ) ||
+                          item.product_inventory?.code ||
                           `INV-${item.product_inventory_id ?? '?'}`}
                       </div>
                       <div

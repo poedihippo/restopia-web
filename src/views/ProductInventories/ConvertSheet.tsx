@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 import type { ConvertProductInventoryResponse } from '@/types/api'
 import { X, Loader2, ArrowLeftRight, CheckCircle2, AlertTriangle } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -296,8 +297,8 @@ export default function ProductInventoryConvertSheet({
               Source Inventory
             </span>
             <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>
-              {inventory.product_uom_batch?.product_uom?.product?.name ??
-                inventory.product_uom?.product?.name ??
+              {getProductUomName(inventory.product_uom_batch?.product_uom, undefined) ||
+                getProductUomName(inventory.product_uom, undefined) ||
                 `Inventory #${inventory.id}`}
             </div>
             <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
