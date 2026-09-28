@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
 import { productCategoriesService } from '@/services/product-categories.service'
+import { uomsService } from '@/services/uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
@@ -24,6 +25,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Loader2,
 } from 'lucide-react'
 
 interface Product {
@@ -574,122 +576,13 @@ export default function ProductView() {
       )}
       {/* Detail panel */}
       {selectedItem && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 40,
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <div
-            onClick={() => setSelectedItem(null)}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(0,0,0,0.18)',
-            }}
-          />
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 50,
-              width: 420,
-              height: '100%',
-              background: 'var(--surface)',
-              borderLeft: '1px solid var(--border)',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: 'var(--shadow-lg)',
-              overflowY: 'auto',
-            }}
-          >
-            <div
-              style={{
-                padding: '20px 24px',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <h2
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 18,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: 'var(--foreground)',
-                }}
-              >
-                Product Detail
-              </h2>
-              <button
-                onClick={() => setSelectedItem(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 4,
-                  display: 'flex',
-                }}
-              >
-                <X size={18} color="var(--foreground-muted)" />
-              </button>
-            </div>
-            <div
-              style={{
-                padding: 24,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-              }}
-            >
-              {[
-                { label: 'ID', value: selectedItem.id },
-                { label: 'Code', value: selectedItem.code },
-                { label: 'Name', value: selectedItem.name },
-                { label: 'Type', value: selectedItem.type },
-                { label: 'Category', value: selectedItem.product_category?.name },
-                { label: 'Description', value: selectedItem.description },
-                {
-                  label: 'Created At',
-                  value: selectedItem.created_at
-                    ? formatDateTime(selectedItem.created_at)
-                    : '—',
-                },
-              ].map((f) => (
-                <div
-                  key={f.label}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--foreground-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.6px',
-                    }}
-                  >
-                    {f.label}
-                  </span>
-                  {f.label === 'Type' && selectedItem.type ? (
-                    <span style={typePillStyle(selectedItem.type)}>
-                      {selectedItem.type.charAt(0).toUpperCase() +
-                        selectedItem.type.slice(1)}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
-                      {f.value ?? '—'}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ProductDetailPanel
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          typePillStyle={typePillStyle}
+          onEdit={(item) => { setEditData(item); setSelectedItem(null); setSheetOpen(true) }}
+          canEdit={canEdit}
+        />
       )}
       {/* Sheet */}
       <ProductSheet
@@ -705,4 +598,485 @@ export default function ProductView() {
       `}</style>
     </div>
   );
+}
+
+// ── Product Detail Panel ──────────────────────────────────────────────────────
+
+interface ProductDetailPanelProps {
+  item: Product
+  onClose: () => void
+  typePillStyle: (type?: string) => React.CSSProperties
+  onEdit: (item: Product) => void
+  canEdit: boolean
+}
+
+function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: ProductDetailPanelProps) {
+  const { data: detailData, isLoading } = useQuery({
+    queryKey: ['product-detail', item.id],
+    queryFn: () => productsService.findById(item.id, { include: 'product_category,product_uoms,product_uoms.uom,product_uoms.conversions' } as any).then((r) => r.data),
+    enabled: !!item.id,
+  })
+  const detail = (detailData as any)?.data
+
+  const { data: uomsData } = useQuery({
+    queryKey: ['uoms-all'],
+    queryFn: () => uomsService.list({ per_page: 1000 } as any).then((r) => r.data),
+  })
+  const allUoms: { id: number; name: string; code: string }[] = (uomsData as any)?.data ?? []
+  const uomNameById = (id: number) => allUoms.find((u) => u.id === id)
+
+  const productUoms = detail?.product_uoms ?? []
+  const baseUomId = detail?.base_uom_id
+
+  const sectionHeader: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 700,
+    color: 'var(--foreground-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.6px',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--foreground-subtle)',
+  }
+
+  const valueStyle: React.CSSProperties = {
+    fontSize: 14,
+    color: 'var(--foreground)',
+  }
+
+  const codePill: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '2px 8px',
+    background: 'var(--accent-light-bg)',
+    color: 'var(--accent)',
+    borderRadius: 'var(--radius-sm)',
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: 0.5,
+    fontFamily: 'monospace',
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 40,
+        display: 'flex',
+        justifyContent: 'flex-end',
+      }}
+    >
+      <div
+        onClick={onClose}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }}
+      />
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 50,
+          width: 520,
+          height: '100%',
+          background: 'var(--surface)',
+          borderLeft: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: 'var(--shadow-lg)',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: '20px 24px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 18,
+              fontWeight: 500,
+              margin: 0,
+              color: 'var(--foreground)',
+            }}
+          >
+            Product Detail
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {canEdit && (
+              <button
+                onClick={() => onEdit(item)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  background: 'var(--accent-light-bg)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                <Pencil size={12} /> Edit
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+              }}
+            >
+              <X size={18} color="var(--foreground-muted)" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 24,
+          }}
+        >
+          {isLoading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 48 }}>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--foreground-muted)' }} />
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading...</span>
+            </div>
+          ) : (
+            <>
+              {/* ── General Info ─────────────────────── */}
+              <div
+                style={{
+                  background: 'var(--background)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                }}
+              >
+                <span style={sectionHeader}>Informasi Umum</span>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Name</span>
+                    <span style={{ ...valueStyle, fontWeight: 600 }}>{detail?.name ?? item.name ?? '—'}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Code</span>
+                    {detail?.code ? (
+                      <span style={codePill}>{detail.code}</span>
+                    ) : (
+                      <span style={valueStyle}>—</span>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Category</span>
+                    <span style={valueStyle}>{detail?.product_category?.name ?? item.product_category?.name ?? '—'}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Type</span>
+                    <span style={typePillStyle(detail?.type ?? item.type)}>
+                      {(detail?.type ?? item.type)
+                        ? (detail?.type ?? item.type)!.charAt(0).toUpperCase() + (detail?.type ?? item.type)!.slice(1)
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Base Unit</span>
+                    <span style={valueStyle}>
+                      {baseUomId
+                        ? (() => { const u = uomNameById(baseUomId); return u ? `${u.name} (${u.code})` : `UOM #${baseUomId}` })()
+                        : '—'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Reorder Point</span>
+                    <span style={valueStyle}>{detail?.reorder_point ?? '—'}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={labelStyle}>Active</span>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '2px 10px',
+                      borderRadius: 99,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      width: 'fit-content',
+                      background: (detail?.is_active ?? item.is_active) ? 'var(--success-bg)' : 'var(--destructive-bg)',
+                      color: (detail?.is_active ?? item.is_active) ? 'var(--success)' : 'var(--destructive)',
+                    }}
+                  >
+                    {(detail?.is_active ?? item.is_active) ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+
+                {(detail?.description ?? item.description) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Description</span>
+                    <span style={{ ...valueStyle, fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      {detail?.description ?? item.description}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Units & Prices ─────────────────────── */}
+              <div
+                style={{
+                  background: 'var(--background)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={sectionHeader}>Units &amp; Prices</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      background: 'var(--surface)',
+                      padding: '2px 8px',
+                      borderRadius: 99,
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    {productUoms.length} unit{productUoms.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                {productUoms.length === 0 ? (
+                  <div style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--foreground-subtle)' }}>
+                    No units configured
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {productUoms.map((pu: any, i: number) => {
+                      const uomInfo = pu.uom_id ? uomNameById(pu.uom_id) : null
+                      const isBase = pu.uom_id === baseUomId
+                      return (
+                        <div
+                          key={pu.id ?? i}
+                          style={{
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-md)',
+                            padding: 14,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 10,
+                            background: 'var(--surface)',
+                          }}
+                        >
+                          {/* UOM header */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                                {uomInfo?.name ?? `UOM #${pu.uom_id}`}
+                              </span>
+                              {uomInfo?.code && (
+                                <span style={codePill}>{uomInfo.code}</span>
+                              )}
+                              {pu.is_default && (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  color: 'var(--success)',
+                                  background: 'var(--success-bg)',
+                                  padding: '1px 6px',
+                                  borderRadius: 99,
+                                }}>
+                                  Default
+                                </span>
+                              )}
+                              {isBase && (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  color: 'var(--accent)',
+                                  background: 'var(--accent-light-bg)',
+                                  padding: '1px 6px',
+                                  borderRadius: 99,
+                                }}>
+                                  Base
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {!pu.is_active && (
+                                <span style={{
+                                  fontSize: 10,
+                                  fontWeight: 600,
+                                  color: 'var(--destructive)',
+                                  background: 'var(--destructive-bg)',
+                                  padding: '1px 6px',
+                                  borderRadius: 99,
+                                }}>
+                                  Inactive
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* SKU */}
+                          {pu.code && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={labelStyle}>SKU:</span>
+                              <span style={{ fontSize: 13, fontFamily: 'monospace', color: 'var(--foreground)' }}>{pu.code}</span>
+                            </div>
+                          )}
+
+                          {/* Prices */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                            {[
+                              { label: 'Base Price', value: pu.base_price },
+                              { label: 'Online Price', value: pu.online_price },
+                              { label: 'Franchise Price', value: pu.franchise_price },
+                            ].map((p) => (
+                              <div key={p.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span style={{ fontSize: 10, color: 'var(--foreground-subtle)' }}>{p.label}</span>
+                                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                                  {p.value != null && p.value > 0
+                                    ? `Rp ${(p.value).toLocaleString('id-ID')}`
+                                    : '—'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Flags */}
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {pu.price_editable && (
+                              <span style={{ fontSize: 11, color: 'var(--info)', background: 'var(--info-bg)', padding: '2px 8px', borderRadius: 99 }}>
+                                Price Editable
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Conversions */}
+                          {pu.conversions && pu.conversions.length > 0 && (
+                            <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
+                              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                Conversions
+                              </span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                                {pu.conversions.map((c: any, ci: number) => {
+                                  const targetUom = c.target_uom_id ? uomNameById(c.target_uom_id) : null
+                                  return (
+                                    <div
+                                      key={ci}
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        fontSize: 12,
+                                        color: 'var(--foreground-muted)',
+                                      }}
+                                    >
+                                      <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>
+                                        1 {uomInfo?.code ?? '?'}
+                                      </span>
+                                      <span>=</span>
+                                      <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                                        {c.amount?.toLocaleString('id-ID') ?? '?'}
+                                      </span>
+                                      <span>{targetUom?.code ?? `UOM #${c.target_uom_id}`}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Audit Info ─────────────────────── */}
+              <div
+                style={{
+                  background: 'var(--background)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <span style={sectionHeader}>Audit</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Created At</span>
+                    <span style={{ ...valueStyle, fontSize: 13 }}>
+                      {detail?.created_at ? formatDateTime(detail.created_at) : '—'}
+                    </span>
+                    {detail?.created_by && (
+                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                        by {detail.created_by.name}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={labelStyle}>Updated At</span>
+                    <span style={{ ...valueStyle, fontSize: 13 }}>
+                      {detail?.updated_at ? formatDateTime(detail.updated_at) : '—'}
+                    </span>
+                    {detail?.updated_by && (
+                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                        by {detail.updated_by.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  )
 }

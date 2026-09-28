@@ -55,6 +55,9 @@ interface ProductInventory {
   created_at?: string
   product_uom_id: number
   branch_id: number
+  owner_ref?: string
+  stage?: string
+  location_ref?: string
   product_uom?: {
     id: number
     code?: string
@@ -650,6 +653,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 { label: 'Product', width: undefined },
                 { label: 'UOM', width: 100 },
                 { label: 'Batch Code', width: 160 },
+                { label: 'Owner', width: 120 },
+                { label: 'Stage', width: 110 },
+                { label: 'Location', width: 120 },
                 { label: 'Branch', width: 160 },
                 { label: 'Qty', width: 100 },
                 { label: 'Min Qty', width: 100 },
@@ -678,7 +684,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={12} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -707,7 +713,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             {isError && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={12}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -722,7 +728,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={12}>
                   <div
                     style={{
                       padding: 48,
@@ -847,6 +853,36 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                       }}
                     >
                       {canRead ? item.product_uom_batch?.batch_code ?? '—' : "***"}
+                    </td>
+                    {/* Owner */}
+                    <td
+                      style={{
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      {item.owner_ref ?? '—'}
+                    </td>
+                    {/* Stage */}
+                    <td
+                      style={{
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      {item.stage ?? '—'}
+                    </td>
+                    {/* Location */}
+                    <td
+                      style={{
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      {item.location_ref ?? '—'}
                     </td>
                     {/* Branch */}
                     <td

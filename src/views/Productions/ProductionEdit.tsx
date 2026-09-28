@@ -42,6 +42,11 @@ function mapApiToForm(production: any) {
       (d.production_detail_materials ?? d.materials ?? []).map((m: any) => ({
         product_inventory_id: m.product_inventory_id ?? 0,
         qty: m.qty ?? 1,
+        // Per-material dimension overrides: null = inherit from header
+        // Only set if explicitly different from header (user override)
+        owner_ref: null,
+        stage: null,
+        location_ref: null,
       }))
     return {
       product_uom_id: d.product_uom_id ?? 0,
@@ -49,7 +54,11 @@ function mapApiToForm(production: any) {
       status: d.status ?? 'pending',
       expiry_date: parseDate(d.expiry_date) ? parseDate(d.expiry_date) : '',
       description: d.description ?? '',
-      materials: mats.length > 0 ? mats : [{ product_inventory_id: 0, qty: 1 }],
+      // Per-detail dimension overrides: null = inherit from header
+      owner_ref: null,
+      stage: null,
+      location_ref: null,
+      materials: mats.length > 0 ? mats : [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }],
     }
   })
 
@@ -63,7 +72,10 @@ function mapApiToForm(production: any) {
           status: 'pending' as const,
           expiry_date: '',
           description: '',
-          materials: [{ product_inventory_id: 0, qty: 1 }],
+          owner_ref: null,
+          stage: null,
+          location_ref: null,
+          materials: [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }],
         },
       ]
 

@@ -25,6 +25,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { FloatingPanel } from '@/components/FloatingPanel'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
@@ -35,6 +36,9 @@ const materialSchema = z.object({
   product_inventory_id: z.coerce.number().min(0),
   qty: z.coerce.number().min(0.001),
   base_ratio: z.number().optional(),
+  owner_ref: z.string().nullable().optional(),
+  stage: z.string().nullable().optional(),
+  location_ref: z.string().nullable().optional(),
 })
 
 const detailSchema = z.object({
@@ -44,6 +48,9 @@ const detailSchema = z.object({
   expiry_date: z.string().optional(),
   planned_batch_code: z.string().optional(),
   description: z.string().optional(),
+  owner_ref: z.string().nullable().optional(),
+  stage: z.string().nullable().optional(),
+  location_ref: z.string().nullable().optional(),
   materials: z.array(materialSchema),
 })
 
@@ -75,10 +82,10 @@ interface ProductionFormProps {
 
 const fieldInputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 10px',
+  padding: '6px 8px',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
-  fontSize: 13,
+  fontSize: 12,
   color: 'var(--foreground)',
   background: 'var(--surface-raised)',
   outline: 'none',
@@ -87,15 +94,15 @@ const fieldInputStyle: React.CSSProperties = {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 500,
   color: 'var(--foreground)',
-  marginBottom: 4,
+  marginBottom: 2,
   display: 'block',
 }
 
 const sectionHeaderStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 10,
   fontWeight: 700,
   color: 'var(--foreground-muted)',
   textTransform: 'uppercase',
@@ -111,6 +118,508 @@ function unwrapList(resp: any): any[] {
   return []
 }
 
+// ── MaterialPicker ────────────────────────────────────────────────────────────
+// Trigger + popover combobox for selecting a material (product → inventory).
+// All state is local per-row: no shared search state across rows.
+
+const MATERIAL_PRODUCT_TYPES = 'supply,wip,raw'
+
+interface MaterialPickerProps {
+  label: string
+  hasValue: boolean
+  selectedInventoryId: number
+  inventories: any[]
+  ownerFilter?: string
+  stagesFilter?: string
+  onSelectInventory: (inv: any, productName: string) => void
+  onOpenChange?: (open: boolean) => void
+  /** Product ID resolved from label name (for materials without inventory yet). */
+  resolvedProductId?: number | null
+  /** Product name resolved from label name. */
+  resolvedProductName?: string
+}
+
+export function MaterialPicker({
+  label,
+  hasValue,
+  selectedInventoryId,
+  inventories,
+  ownerFilter,
+  stagesFilter,
+  onSelectInventory,
+  onOpenChange,
+  resolvedProductId,
+  resolvedProductName,
+}: MaterialPickerProps) {
+  const { user } = useAuth()
+  const branchId = user?.branch?.id
+
+  const rootRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [step, setStep] = useState<'products' | 'inventory'>('products')
+  const [productId, setProductId] = useState<number | null>(null)
+  const [productName, setProductName] = useState('')
+  const [highlightIndex, setHighlightIndex] = useState(0)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const close = () => {
+    setOpen(false)
+    setSearch('')
+    setDebouncedSearch('')
+    setStep('products')
+    setProductId(null)
+    setProductName('')
+    setHighlightIndex(0)
+    onOpenChange?.(false)
+  }
+
+  const openPicker = () => {
+    let resolvedPid: number | null = null
+    let resolvedName = ''
+    if (hasValue && selectedInventoryId > 0) {
+      const sel = inventories.find(
+        (i: any) => Number(i.id) === Number(selectedInventoryId),
+      )
+      if (sel) {
+        const pid = Number(
+          sel?.product_uom_batch?.product_uom?.product_id ??
+            sel?.product_uom?.product_id ??
+            0,
+        )
+        if (pid > 0) resolvedPid = pid
+        resolvedName =
+          sel?.product_uom_batch?.product_uom?.product?.name ??
+          sel?.product_uom?.product?.name ??
+          ''
+      }
+    }
+    // Fallback: use the resolved product info from the label (for materials
+    // loaded from a recipe that don't have inventory yet).
+    if (!resolvedPid && resolvedProductId && resolvedProductId > 0) {
+      resolvedPid = resolvedProductId
+      resolvedName = resolvedProductName ?? ''
+    }
+    if (resolvedPid) {
+      setProductId(resolvedPid)
+      setProductName(resolvedName)
+      setStep('inventory')
+    } else {
+      setProductId(null)
+      setProductName('')
+      setStep('products')
+    }
+    setSearch('')
+    setDebouncedSearch('')
+    setHighlightIndex(0)
+    setOpen(true)
+    onOpenChange?.(true)
+  }
+
+  // Close on click outside, recalc position on scroll/resize — handled by FloatingPanel
+
+  // Focus search input when opening on the products step
+  useEffect(() => {
+    if (open && step === 'products') {
+      const t = setTimeout(() => searchInputRef.current?.focus(), 0)
+      return () => clearTimeout(t)
+    }
+  }, [open, step])
+
+  // Focus the popover container on the inventory step so keyboard nav works
+  useEffect(() => {
+    if (open && step === 'inventory') {
+      popoverRef.current?.focus()
+    }
+  }, [open, step])
+
+  // Products list — no minimum search length, max 50, sorted by name
+  const { data: productsData, isFetching: productsFetching } = useQuery({
+    queryKey: ['material-picker-products', debouncedSearch],
+    enabled: open && step === 'products',
+    queryFn: () =>
+      api
+        .get('/products', {
+          params: {
+            per_page: 50,
+            'filter[types]': MATERIAL_PRODUCT_TYPES,
+            sort: 'name',
+            ...(debouncedSearch ? { 'filter[search]': debouncedSearch } : {}),
+          },
+        })
+        .then((r) => r.data),
+  })
+  const products = useMemo(() => unwrapList(productsData), [productsData])
+
+  // Inventories for the selected product — same filters as the previous
+  // shared query, merged with the branch-wide list already loaded.
+  const { data: invData } = useQuery({
+    queryKey: ['material-picker-inventories', productId, branchId, ownerFilter, stagesFilter],
+    enabled: open && step === 'inventory' && !!productId && !!branchId,
+    refetchOnMount: 'always',
+    staleTime: 0,
+    queryFn: () =>
+      api
+        .get('/product-inventories', {
+          params: {
+            per_page: 500,
+            include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+            'filter[status]': 'active',
+            'filter[branch_id]': branchId,
+            'filter[owner_refs]': ownerFilter,
+            'filter[stages]': stagesFilter,
+          },
+        })
+        .then((r) => r.data),
+  })
+  const pickerInventories = useMemo(() => {
+    const byId = new Map<number, any>()
+    ;[...unwrapList(invData), ...inventories].forEach((inv: any) => {
+      if (inv?.id != null) byId.set(Number(inv.id), inv)
+    })
+    return Array.from(byId.values()).filter((inv: any) => {
+      const pid =
+        inv.product_uom_batch?.product_uom?.product_id ?? inv.product_uom?.product_id
+      return Number(pid) === Number(productId)
+    })
+  }, [invData, inventories, productId])
+
+  // Reset highlight when the visible list changes
+  useEffect(() => {
+    if (step === 'products') {
+      setHighlightIndex(0)
+    } else {
+      const idx = pickerInventories.findIndex(
+        (mi: any) => Number(mi.id) === Number(selectedInventoryId),
+      )
+      setHighlightIndex(idx >= 0 ? idx : 0)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, products, pickerInventories])
+
+  // Keep the highlighted row in view while navigating with the keyboard
+  useEffect(() => {
+    const el = popoverRef.current?.querySelector(`[data-idx="${highlightIndex}"]`)
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [highlightIndex])
+
+  const chooseProduct = (p: any) => {
+    setProductId(Number(p.id))
+    setProductName(String(p.name ?? ''))
+    setStep('inventory')
+    setSearch('')
+    setDebouncedSearch('')
+    setHighlightIndex(0)
+  }
+
+  const chooseInventory = (mi: any) => {
+    onSelectInventory(mi, productName)
+    close()
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      close()
+      return
+    }
+    const list = step === 'products' ? products : pickerInventories
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlightIndex((prev) => (list.length > 0 ? (prev + 1) % list.length : 0))
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightIndex((prev) =>
+        list.length > 0 ? (prev - 1 + list.length) % list.length : 0,
+      )
+      return
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const item = list[highlightIndex]
+      if (!item) return
+      if (step === 'products') chooseProduct(item)
+      else chooseInventory(item)
+    }
+  }
+
+  const optionRowStyle = (highlighted: boolean): React.CSSProperties => ({
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '6px 10px',
+    background: highlighted ? 'var(--accent-light-bg)' : 'transparent',
+    border: 'none',
+    borderBottom: '1px solid var(--border)',
+    cursor: 'pointer',
+    textAlign: 'left',
+    fontSize: 11,
+  })
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative', minWidth: 0 }} data-material-row>
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => (open ? close() : openPicker())}
+        style={{
+          width: '100%',
+          height: 30,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 6,
+          padding: '0 8px',
+          border: `1px solid ${open ? 'var(--accent-light)' : 'var(--border)'}`,
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--surface-raised)',
+          cursor: 'pointer',
+          fontSize: 11,
+          textAlign: 'left',
+          color: label && !label.startsWith('Material #') ? 'var(--foreground)' : 'var(--foreground-subtle)',
+          fontFamily: 'var(--font-sans)',
+          boxSizing: 'border-box',
+          boxShadow: open ? '0 0 0 2px var(--accent-light-bg)' : 'none',
+        }}
+      >
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label && !label.startsWith('Material #') ? label : 'Pilih bahan...'}
+        </span>
+        <ChevronDown
+          size={12}
+          color="var(--foreground-muted)"
+          style={{
+            flexShrink: 0,
+            transform: open ? 'rotate(180deg)' : 'none',
+            transition: 'transform 150ms',
+          }}
+        />
+      </button>
+
+      {/* Popover via FloatingPanel */}
+      <FloatingPanel
+        anchorRef={rootRef}
+        open={open}
+        onClose={close}
+        minWidth={360}
+        maxHeight={280}
+      >
+        <div
+          ref={popoverRef}
+          tabIndex={-1}
+          onKeyDown={handleKeyDown}
+          style={{ outline: 'none' }}
+        >
+          {/* Step 1 — product search */}
+          {step === 'products' && (
+            <>
+              <div style={{ padding: 6, borderBottom: '1px solid var(--border)' }}>
+                <input
+                  ref={searchInputRef}
+                  autoFocus
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Cari bahan..."
+                  style={{
+                    width: '100%',
+                    padding: '5px 8px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 11,
+                    outline: 'none',
+                    background: 'var(--surface-raised)',
+                    fontFamily: 'var(--font-sans)',
+                    color: 'var(--foreground)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                {products.length === 0 ? (
+                  <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--foreground-muted)' }}>
+                    {productsFetching ? 'Memuat...' : 'Tidak ditemukan'}
+                  </div>
+                ) : (
+                  products.map((p: any, i: number) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      data-idx={i}
+                      onClick={() => chooseProduct(p)}
+                      onMouseEnter={() => setHighlightIndex(i)}
+                      style={optionRowStyle(i === highlightIndex)}
+                    >
+                      <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{p.name}</span>
+                      <span style={{ color: 'var(--foreground-muted)', fontSize: 10 }}>{p.code}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Step 2 — inventory picker */}
+          {step === 'inventory' && (
+            <>
+              <div
+                style={{
+                  padding: '6px 10px',
+                  borderBottom: '1px solid var(--border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--foreground-muted)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                  }}
+                >
+                  <strong style={{ color: 'var(--foreground)' }}>{productName}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('products')
+                    setProductId(null)
+                    setProductName('')
+                    setSearch('')
+                    setDebouncedSearch('')
+                    setHighlightIndex(0)
+                  }}
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--accent)',
+                    background: 'var(--accent-light-bg)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '2px 6px',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    flexShrink: 0,
+                  }}
+                >
+                  ← Ganti Produk
+                </button>
+              </div>
+              <div style={{ maxHeight: 220, overflowY: 'auto', padding: 4 }}>
+                {pickerInventories.length === 0 ? (
+                  <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--destructive)' }}>
+                    Tidak ada stok aktif
+                  </div>
+                ) : (
+                  pickerInventories.map((mi: any, i: number) => {
+                    const uomCode =
+                      mi.product_uom?.uom?.code ??
+                      mi.product_uom_batch?.product_uom?.uom?.code ??
+                      'UOM'
+                    const sku = mi.code ?? `#${mi.id}`
+                    const stock = mi.display_qty ?? mi.qty ?? 0
+                    const isSelected = Number(mi.id) === Number(selectedInventoryId)
+                    return (
+                      <button
+                        key={mi.id}
+                        type="button"
+                        data-idx={i}
+                        onClick={() => chooseInventory(mi)}
+                        onMouseEnter={() => setHighlightIndex(i)}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '5px 8px',
+                          border: `1px solid ${isSelected ? 'var(--accent-light)' : 'var(--border)'}`,
+                          borderRadius: 'var(--radius-sm)',
+                          background:
+                            i === highlightIndex
+                              ? 'var(--accent-light-bg)'
+                              : isSelected
+                                ? 'var(--accent-light-bg)'
+                                : 'var(--surface)',
+                          color: 'var(--foreground)',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: 11,
+                          marginBottom: 3,
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                          <span
+                            style={{
+                              padding: '1px 5px',
+                              background: 'var(--accent-light-bg)',
+                              color: 'var(--accent)',
+                              borderRadius: 'var(--radius-sm)',
+                              fontSize: 9,
+                              fontWeight: 600,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {uomCode}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {sku}
+                          </span>
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: stock > 0 ? 'var(--success)' : 'var(--destructive)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {stock > 0 ? stock : '0'}
+                        </span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </FloatingPanel>
+    </div>
+  )
+}
+
 // ── MaterialsFieldArray ───────────────────────────────────────────────────────
 
 interface MaterialsFieldArrayProps {
@@ -121,25 +630,15 @@ interface MaterialsFieldArrayProps {
   errors: any
   onLoadFromRecipe: (index: number) => void
   isLoadingRecipe: boolean
-  // material search props
-  activeMaterialIndex: { detail: number; mat: number } | null
-  sharedMaterialSearch: string
-  sharedMaterialSearchDebounced: string
-  sharedMaterialProductId: number | null
-  sharedMaterialProductName: string
-  sharedShowMaterialUomPicker: boolean
-  materialProducts: any[]
-  materialInventories: any[]
-  setActiveMaterialIndex: (v: { detail: number; mat: number } | null) => void
-  setSharedMaterialSearch: (v: string) => void
-  setSharedMaterialProductId: (v: number | null) => void
-  setSharedMaterialProductName: (v: string) => void
-  setSharedShowMaterialUomPicker: (v: boolean) => void
   onSelectMaterialInventory: (detailIndex: number, matIndex: number, inv: any, productName: string) => void
   onRemoveMaterial: (detailIndex: number, matIndex: number) => void
   materialLabels: Record<string, string>
   setValue: any
   onMaterialQtyEdit?: (detailIndex: number, matIndex: number, qty: number) => void
+  companyOptions: { value: string; label: string }[]
+  stageOptions: { value: string; label: string }[]
+  ownerFilter?: string
+  stagesFilter?: string
 }
 
 export function MaterialsFieldArray({
@@ -151,28 +650,16 @@ export function MaterialsFieldArray({
   onLoadFromRecipe,
   onMaterialQtyEdit,
   isLoadingRecipe,
-  activeMaterialIndex,
-  sharedMaterialSearch,
-  sharedMaterialSearchDebounced,
-  sharedMaterialProductId,
-  sharedMaterialProductName,
-  sharedShowMaterialUomPicker,
-  materialProducts,
-  materialInventories,
-  setActiveMaterialIndex,
-  setSharedMaterialSearch,
-  setSharedMaterialProductId,
-  setSharedMaterialProductName,
-  setSharedShowMaterialUomPicker,
   onSelectMaterialInventory,
   onRemoveMaterial,
   materialLabels,
   setValue,
+  companyOptions,
+  stageOptions,
+  ownerFilter,
+  stagesFilter,
 }: MaterialsFieldArrayProps) {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const { fields, append, remove } = useFieldArray({
     control,
     name: `details.${detailIndex}.materials` as any,
@@ -183,12 +670,15 @@ export function MaterialsFieldArray({
     name: `details.${detailIndex}.materials`
   })
 
+  // Which row's picker popover is open (boosts z-index above sibling rows)
+  const [openMatIndex, setOpenMatIndex] = useState<number | null>(null)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={sectionHeaderStyle}>Raw Materials</span>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <span style={sectionHeaderStyle}>Bahan Baku</span>
+        <div style={{ display: 'flex', gap: 4 }}>
           <button
             type="button"
             onClick={() => onLoadFromRecipe(detailIndex)}
@@ -196,52 +686,49 @@ export function MaterialsFieldArray({
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 5,
-              padding: '4px 10px',
+              gap: 4,
+              padding: '3px 8px',
               background: 'var(--accent-light-bg)',
               color: 'var(--accent)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 500,
               cursor: isLoadingRecipe ? 'not-allowed' : 'pointer',
               opacity: isLoadingRecipe ? 0.7 : 1,
             }}
           >
             {isLoadingRecipe ? (
-              <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+              <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
             ) : (
-              <BookOpen size={11} />
+              <BookOpen size={10} />
             )}
-            {isLoadingRecipe ? 'Loading...' : 'Load from Recipe'}
+            {isLoadingRecipe ? 'Loading...' : 'Load Recipe'}
           </button>
           <button
             type="button"
-            onClick={() => append({ product_inventory_id: 0, qty: 1 })}
+            onClick={() => append({ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null })}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
-              padding: '4px 10px',
+              gap: 3,
+              padding: '3px 8px',
               background: 'var(--surface)',
               color: 'var(--foreground-muted)',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)',
-              fontSize: 11,
+              fontSize: 10,
               cursor: 'pointer',
             }}
           >
-            <Plus size={11} />
-            Add Material
+            <Plus size={10} />
+            Add
           </button>
         </div>
       </div>
 
       {/* Rows */}
       {fields.map((field, matIndex) => {
-        const isActive =
-          activeMaterialIndex?.detail === detailIndex &&
-          activeMaterialIndex?.mat === matIndex
         const labelKey = `${detailIndex}-${matIndex}`
         const existingLabel =
           materialLabels[labelKey] ?? `Material #${matIndex + 1}`
@@ -249,24 +736,22 @@ export function MaterialsFieldArray({
         const currentMat = watchedMaterials?.[matIndex]
         const invId = currentMat?.product_inventory_id
         const inv = inventories.find((i: any) => i.id === invId)
-        // Material qty is entered in this inventory row's own product_uom
-        // (sent as product_inventory_id + qty as-is), so availability must
-        // compare against display_qty, not base_stock.
         const availableStock = inv ? Number(inv.display_qty ?? inv.stock ?? 0) : 0
         const reqQty = Number(currentMat?.qty ?? 0)
         const hasNoInventory = !invId || invId <= 0
         const isOutOfStock = inv && availableStock <= 0
         const isInsufficient = inv && availableStock > 0 && availableStock < reqQty
+        const hasValue = !!invId && invId > 0
+        const isActive = openMatIndex === matIndex
 
         return (
           <div
             key={field.id}
             style={{
               position: 'relative',
-              zIndex: isActive ? 1000 : 1,
               display: 'grid',
-              gridTemplateColumns: '24px 1fr 120px 32px',
-              gap: 8,
+              gridTemplateColumns: '20px 1fr 80px 28px',
+              gap: 6,
               alignItems: 'start',
             }}
           >
@@ -276,8 +761,8 @@ export function MaterialsFieldArray({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                height: 34,
-                fontSize: 12,
+                height: 30,
+                fontSize: 10,
                 fontWeight: 600,
                 color: 'var(--foreground-muted)',
               }}
@@ -285,284 +770,75 @@ export function MaterialsFieldArray({
               {matIndex + 1}
             </div>
 
-            {/* Material search input + pickers */}
+            {/* Material picker (trigger + popover) */}
             <div
               style={{
                 position: 'relative',
-                zIndex: isActive ? 1001 : 1,
                 minWidth: 0,
               }}
-              data-material-row
             >
-              <input
-                type="text"
-                value={isActive ? sharedMaterialSearch || existingLabel : existingLabel}
-                onChange={(e) => {
-                  setActiveMaterialIndex({ detail: detailIndex, mat: matIndex })
-                  setSharedMaterialSearch(e.target.value)
-                  setSharedShowMaterialUomPicker(false)
-                  setSharedMaterialProductId(null)
-                }}
-                onFocus={() => {
-                  setActiveMaterialIndex({ detail: detailIndex, mat: matIndex })
-                  // If the row already has an inventory selected, pop up the
-                  // inventory selector for that row's product right away.
-                  const selInvId = watchedMaterials?.[matIndex]?.product_inventory_id
-                  const labelProductName = existingLabel
-                    .split(/\s+[·—]\s+/)[0]
+              <MaterialPicker
+                label={existingLabel}
+                hasValue={hasValue}
+                selectedInventoryId={invId ? Number(invId) : 0}
+                inventories={inventories}
+                ownerFilter={ownerFilter}
+                stagesFilter={stagesFilter}
+                onSelectInventory={(mi, productName) =>
+                  onSelectMaterialInventory(detailIndex, matIndex, mi, productName)
+                }
+                onOpenChange={(isOpen) => setOpenMatIndex(isOpen ? matIndex : null)}
+                resolvedProductId={(() => {
+                  // Resolve product ID from label name (for recipe-loaded materials
+                  // that don't have product_inventory_id yet).
+                  const productNameFromLabel = existingLabel
+                    .split(/\s*[·—]\s*/)[0]
                     .trim()
-                  // Labels loaded from a recipe identify the material more
-                  // reliably than a stale/mismatched inventory id. Prefer the
-                  // inventory whose product name matches this exact row.
-                  const labelInv = labelProductName
-                    ? inventories.find((i: any) => {
-                        const productName =
-                          i?.product_uom_batch?.product_uom?.product?.name ??
-                          i?.product_uom?.product?.name ??
-                          ''
-                        return productName === labelProductName
-                      })
-                    : null
-                  const selectedInv = selInvId
-                    ? inventories.find((i: any) => i.id === Number(selInvId))
-                    : null
-                  const selInv = labelInv ?? selectedInv
-                  const pid =
-                    selInv?.product_uom_batch?.product_uom?.product_id ??
-                    selInv?.product_uom?.product_id ??
-                    null
-                  if (pid) {
-                    const pname =
-                      selInv?.product_uom_batch?.product_uom?.product?.name ??
-                      selInv?.product_uom?.product?.name ??
-                      existingLabel
-                    setSharedMaterialProductId(Number(pid))
-                    setSharedMaterialProductName(String(pname))
-                    setSharedShowMaterialUomPicker(true)
-                  } else {
-                    setSharedMaterialSearch('')
-                    setSharedShowMaterialUomPicker(false)
-                    setSharedMaterialProductId(null)
+                  if (!productNameFromLabel || productNameFromLabel.startsWith('Material #')) return null
+                  const match = inventories.find((i: any) => {
+                    const name =
+                      i?.product_uom_batch?.product_uom?.product?.name ??
+                      i?.product_uom?.product?.name ??
+                      ''
+                    return name === productNameFromLabel
+                  })
+                  if (match) {
+                    const pid = Number(
+                      match?.product_uom_batch?.product_uom?.product_id ??
+                      match?.product_uom?.product_id ?? 0,
+                    )
+                    return pid > 0 ? pid : null
                   }
-                }}
-                placeholder="Search ingredient..."
-                style={{
-                  width: '100%',
-                  height: 34,
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '0 10px',
-                  fontSize: 12,
-                  color: 'var(--foreground)',
-                  background: 'var(--surface-raised)',
-                  boxSizing: 'border-box',
-                  fontFamily: 'var(--font-sans)',
-                  borderColor: isActive ? 'var(--accent-light)' : 'var(--border)',
-                  boxShadow: isActive ? '0 0 0 2px var(--accent-light-bg)' : 'none',
-                }}
+                  return null
+                })()}
+                resolvedProductName={(() => {
+                  const productNameFromLabel = existingLabel
+                    .split(/\s*[·—]\s*/)[0]
+                    .trim()
+                  if (!productNameFromLabel || productNameFromLabel.startsWith('Material #')) return ''
+                  return productNameFromLabel
+                })()}
               />
 
               {hasNoInventory && existingLabel && existingLabel !== `Material #${matIndex + 1}` && (
-                <span style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2, display: 'block', fontWeight: 500 }}>
-                  ⚠ Stok belum ada di cabang ini
+                <span style={{ fontSize: 9, color: 'var(--destructive)', marginTop: 1, display: 'block', fontWeight: 500 }}>
+                  Stok belum ada
                 </span>
               )}
               {isOutOfStock && (
-                <span style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2, display: 'block', fontWeight: 500 }}>
-                  ⚠ Stok habis (0)
+                <span style={{ fontSize: 9, color: 'var(--destructive)', marginTop: 1, display: 'block', fontWeight: 500 }}>
+                  Stok habis (0)
                 </span>
               )}
               {isInsufficient && (
-                <span style={{ fontSize: 10, color: 'var(--warning)', marginTop: 2, display: 'block', fontWeight: 500 }}>
-                  ⚠ Stok kurang (tersedia: {availableStock})
+                <span style={{ fontSize: 9, color: 'var(--warning)', marginTop: 1, display: 'block', fontWeight: 500 }}>
+                  Stok kurang ({availableStock})
                 </span>
               )}
               {inv && availableStock >= reqQty && availableStock > 0 && (
-                <span style={{ fontSize: 10, color: 'var(--foreground-muted)', marginTop: 2, display: 'block' }}>
-                  Stok tersedia: {availableStock}
+                <span style={{ fontSize: 9, color: 'var(--foreground-muted)', marginTop: 1, display: 'block' }}>
+                  Stok: {availableStock}
                 </span>
-              )}
-
-              {isActive && sharedMaterialSearch.length >= 2 && !sharedShowMaterialUomPicker && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    left: 0,
-                    right: 0,
-                    width: '100%',
-                    zIndex: 1100,
-                    background: 'var(--surface-raised)',
-                    border: '1px solid var(--border-strong)',
-                    borderRadius: 'var(--radius-md)',
-                    boxShadow: 'var(--shadow-lg)',
-                    maxHeight: 200,
-                    overflowY: 'auto',
-                  }}
-                >
-                  {materialProducts.length === 0 && (
-                    <p style={{ padding: '10px 12px', fontSize: 12, color: 'var(--foreground-muted)', margin: 0 }}>
-                      No products found
-                    </p>
-                  )}
-                  {materialProducts.map((p: any) => (
-                    <div
-                      key={p.id}
-                      onClick={() => {
-                        setSharedMaterialProductId(p.id)
-                        setSharedMaterialProductName(p.name)
-                        setSharedShowMaterialUomPicker(true)
-                        setSharedMaterialSearch('')
-                      }}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        borderBottom: '1px solid var(--border)',
-                        fontSize: 12,
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
-                       onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--surface-raised)')}
-                    >
-                      <span style={{ fontWeight: 600 }}>{p.name}</span>
-                      <span style={{ color: 'var(--foreground-muted)', marginLeft: 6, fontSize: 11 }}>
-                        {p.code} · {p.type}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {isActive && sharedShowMaterialUomPicker && sharedMaterialProductId && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 6px)',
-                    left: 0,
-                    right: 0,
-                    width: '100%',
-                    zIndex: 1100,
-                    background: 'var(--surface-raised)',
-                    border: '1px solid var(--border-strong)',
-                    borderRadius: 'var(--radius-md)',
-                    boxShadow: 'var(--shadow-lg)',
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 10 }}>
-                    Pilih inventory untuk <strong style={{ color: 'var(--foreground)' }}>{sharedMaterialProductName}</strong>
-                  </div>
-                  {materialInventories.length === 0 && (
-                    <p style={{ fontSize: 12, color: 'var(--destructive)', margin: 0 }}>
-                      No active inventory found for this product.
-                    </p>
-                  )}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {materialInventories.map((inv: any) => {
-                      const uomCode =
-                        inv.product_uom?.uom?.code ??
-                        inv.product_uom_batch?.product_uom?.uom?.code ??
-                        'UOM'
-                      const sku = inv.code ?? `#${inv.id}`
-                      const stock = inv.display_qty ?? inv.qty ?? 0
-                      return (
-                        <button
-                          key={inv.id}
-                          type="button"
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = 'var(--background)')
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = 'var(--surface)')
-                          }
-                          onClick={() => {
-                            onSelectMaterialInventory(detailIndex, matIndex, inv, sharedMaterialProductName)
-                            setSharedShowMaterialUomPicker(false)
-                            setSharedMaterialProductId(null)
-                            setSharedMaterialProductName('')
-                            setActiveMaterialIndex(null)
-                          }}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: 10,
-                            width: '100%',
-                            padding: '8px 12px',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-md)',
-                            background: 'var(--surface)',
-                            color: 'var(--foreground)',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              minWidth: 0,
-                            }}
-                          >
-                            <span
-                              style={{
-                                padding: '2px 8px',
-                                background: 'var(--accent-light-bg)',
-                                color: 'var(--accent)',
-                                borderRadius: 'var(--radius-sm)',
-                                fontSize: 11,
-                                fontWeight: 600,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {uomCode}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 500,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              SKU: {sku}
-                            </span>
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: stock > 0 ? 'var(--success)' : 'var(--destructive)',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {stock > 0 ? `Stok: ${stock}` : 'Stok: 0'}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSharedShowMaterialUomPicker(false)
-                      setSharedMaterialProductId(null)
-                      setSharedMaterialProductName('')
-                    }}
-                    style={{
-                      marginTop: 8,
-                      fontSize: 11,
-                      color: 'var(--foreground-muted)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                    }}
-                  >
-                    ← Back
-                  </button>
-                </div>
               )}
             </div>
 
@@ -583,10 +859,10 @@ export function MaterialsFieldArray({
                   }}
                   placeholder="Qty"
                   style={{
-                    padding: '7px 10px',
+                    padding: '5px 8px',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: 12,
+                    fontSize: 11,
                     outline: 'none',
                     width: '100%',
                     color: 'var(--foreground)',
@@ -620,6 +896,66 @@ export function MaterialsFieldArray({
                 <Trash2 size={13} />
               </button>
             </div>
+            {/* Per-material source dimension overrides */}
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: 6,
+                alignItems: 'center',
+                marginTop: 2,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: 9, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Source Owner</label>
+                <Controller
+                  name={`details.${detailIndex}.materials.${matIndex}.owner_ref` as any}
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={(v) => field.onChange(v || null)}
+                      options={[{ value: 'GENERAL', label: 'General' }, ...companyOptions.filter(o => o.value !== 'GENERAL')]}
+                      placeholder="Ikuti header..."
+                      searchPlaceholder="Cari owner..."
+                    />
+                  )}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: 9, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Source Stage</label>
+                <Controller
+                  name={`details.${detailIndex}.materials.${matIndex}.stage` as any}
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={(v) => field.onChange(v || null)}
+                      options={[{ value: 'GENERAL', label: 'General' }, ...stageOptions.filter(o => o.value !== 'GENERAL')]}
+                      placeholder="Ikuti header..."
+                      searchPlaceholder="Cari stage..."
+                    />
+                  )}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: 9, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Source Location</label>
+                <Controller
+                  name={`details.${detailIndex}.materials.${matIndex}.location_ref` as any}
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? ''}
+                      onChange={(v) => field.onChange(v || null)}
+                      options={[{ value: 'GENERAL', label: 'General' }]}
+                      placeholder="Ikuti header..."
+                      searchPlaceholder="Cari lokasi..."
+                    />
+                  )}
+                />
+              </div>
+            </div>
           </div>
         )
       })}
@@ -650,8 +986,7 @@ export default function ProductionForm({
     branchType === 'warehouse' ? 'wip' :
     'raw,final'
 
-  // Materials include supply + wip + raw (supply = packaging consumables)
-  const materialProductTypes = 'supply,wip,raw'
+  // Materials include supply + wip + raw — hardcoded inside MaterialPicker.
 
   const [expandedDetails, setExpandedDetails] = useState<number[]>([0])
   const [loadingRecipeFor, setLoadingRecipeFor] = useState<number | null>(null)
@@ -665,13 +1000,6 @@ export default function ProductionForm({
   const [sharedShowUomPicker, setSharedShowUomPicker] = useState(false)
   const [detailLabels, setDetailLabels] = useState<Record<number, string>>({})
 
-  // ── Material two-step search ───────────────────────────────────────────────
-  const [activeMaterialIndex, setActiveMaterialIndex] = useState<{ detail: number; mat: number } | null>(null)
-  const [sharedMaterialSearch, setSharedMaterialSearch] = useState('')
-  const [sharedMaterialSearchDebounced, setSharedMaterialSearchDebounced] = useState('')
-  const [sharedMaterialProductId, setSharedMaterialProductId] = useState<number | null>(null)
-  const [sharedMaterialProductName, setSharedMaterialProductName] = useState('')
-  const [sharedShowMaterialUomPicker, setSharedShowMaterialUomPicker] = useState(false)
   // label per detail+mat key
   const [materialLabels, setMaterialLabels] = useState<Record<string, string>>({})
 
@@ -702,7 +1030,10 @@ export default function ProductionForm({
           status: 'final',
           expiry_date: '',
           description: '',
-          materials: [{ product_inventory_id: 0, qty: 1 }],
+          owner_ref: null,
+          stage: null,
+          location_ref: null,
+          materials: [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }],
         },
       ],
     },
@@ -720,7 +1051,10 @@ export default function ProductionForm({
       status: 'final',
       expiry_date: '',
       description: '',
-      materials: [{ product_inventory_id: 0, qty: 1 }],
+      owner_ref: null,
+      stage: null,
+      location_ref: null,
+      materials: [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }],
     })
     const nextIdx = detailFields.length
     setExpandedDetails((prev) => [...prev, nextIdx])
@@ -750,18 +1084,54 @@ export default function ProductionForm({
   const watchSourceOwnerRef = watch('source_owner_ref')
   const watchSourceStage = watch('source_stage')
 
+  // Track per-material stage/owner overrides via a form subscription.
+  // This avoids useWatch (which re-renders on every keystroke) and
+  // avoids useMemo on the watch() proxy (which never detects changes).
+  const [materialStagesKey, setMaterialStagesKey] = useState('')
+  const [materialOwnersKey, setMaterialOwnersKey] = useState('')
+
+  useEffect(() => {
+    const subscription = watch((value) => {
+      const stages = new Set<string>()
+      const owners = new Set<string>()
+      ;(value.details ?? []).forEach((d: any) => {
+        ;(d?.materials ?? []).forEach((m: any) => {
+          if (m?.stage) stages.add(m.stage)
+          if (m?.owner_ref) owners.add(m.owner_ref)
+        })
+      })
+      const newStagesKey = Array.from(stages).sort().join(',')
+      const newOwnersKey = Array.from(owners).sort().join(',')
+      setMaterialStagesKey((prev) => (prev !== newStagesKey ? newStagesKey : prev))
+      setMaterialOwnersKey((prev) => (prev !== newOwnersKey ? newOwnersKey : prev))
+    })
+    return subscription.unsubscribe
+  }, [watch])
+
+  // Build comma-separated filter values: header value + all per-material overrides.
+  // Derived from the subscription keys above (stable strings that only change
+  // when the actual stage/owner values change).
+  const effectiveStagesFilter = useMemo(() => {
+    const all = new Set<string>()
+    if (watchSourceStage) all.add(watchSourceStage)
+    materialStagesKey.split(',').filter(Boolean).forEach((s) => all.add(s))
+    return all.size > 0 ? Array.from(all).join(',') : undefined
+  }, [watchSourceStage, materialStagesKey])
+
+  const effectiveOwnerFilter = useMemo(() => {
+    const all = new Set<string>()
+    if (watchSourceOwnerRef) all.add(watchSourceOwnerRef)
+    materialOwnersKey.split(',').filter(Boolean).forEach((o) => all.add(o))
+    return all.size > 0 ? Array.from(all).join(',') : undefined
+  }, [watchSourceOwnerRef, materialOwnersKey])
+
   // Debounce effects
   useEffect(() => {
     const t = setTimeout(() => setSharedProductSearchDebounced(sharedProductSearch), 400)
     return () => clearTimeout(t)
   }, [sharedProductSearch])
 
-  useEffect(() => {
-    const t = setTimeout(() => setSharedMaterialSearchDebounced(sharedMaterialSearch), 400)
-    return () => clearTimeout(t)
-  }, [sharedMaterialSearch])
-
-  // Click-outside handler — close both dropdowns
+  // Click-outside handler — close the finished-product dropdown
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement
@@ -771,16 +1141,10 @@ export default function ProductionForm({
           setSharedProductSearch('')
         }
       }
-      if (!target.closest('[data-material-row]')) {
-        if (!sharedShowMaterialUomPicker) {
-          setActiveMaterialIndex(null)
-          setSharedMaterialSearch('')
-        }
-      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [sharedShowUomPicker, sharedShowMaterialUomPicker])
+  }, [sharedShowUomPicker])
 
   // Queries
 
@@ -857,7 +1221,7 @@ export default function ProductionForm({
   const prodItemUoms = unwrapList(prodItemUomData)
 
   const { data: inventoriesData } = useQuery({
-    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch, watchSourceOwnerRef, watchSourceStage],
+    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch, effectiveOwnerFilter, effectiveStagesFilter],
     enabled: !!activeBranchId,
     refetchOnMount: 'always',
     staleTime: 0,
@@ -869,70 +1233,12 @@ export default function ProductionForm({
           include:
             'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
           'filter[branch_id]': activeBranchId,
-          'filter[owner_ref]': watchSourceOwnerRef || undefined,
-          'filter[stage]': watchSourceStage || undefined,
+          'filter[owner_refs]': effectiveOwnerFilter,
+          'filter[stages]': effectiveStagesFilter,
         } as any)
         .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
-
-  // Material product search (Step 1) — /products has reliable name search
-  const { data: prodMaterialData } = useQuery({
-    queryKey: ['prod-material-search', sharedMaterialSearchDebounced, materialProductTypes],
-    enabled: sharedMaterialSearchDebounced.length >= 2,
-    refetchOnMount: 'always',
-    queryFn: () =>
-      api
-        .get('/products', {
-          params: {
-            per_page: 500,
-            'filter[types]': materialProductTypes,
-            sort: 'name',
-            'filter[search]': sharedMaterialSearchDebounced,
-          },
-        })
-        .then((r) => r.data),
-  })
-  const materialProducts = unwrapList(prodMaterialData)
-
-  // Inventories for selected material product (Step 2) — hits
-  // /product-inventories fresh every time with the supported includes only
-  const { data: prodMaterialInvData } = useQuery({
-    queryKey: ['prod-material-inventories', sharedMaterialProductId, activeBranchId, watchSourceOwnerRef, watchSourceStage],
-    enabled: !!sharedMaterialProductId && !!activeBranchId,
-    refetchOnMount: 'always',
-    staleTime: 0,
-    queryFn: () =>
-      api
-        .get('/product-inventories', {
-          params: {
-            per_page: 500,
-            include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
-            'filter[status]': 'active',
-            'filter[branch_id]': activeBranchId,
-            'filter[owner_ref]': watchSourceOwnerRef || undefined,
-            'filter[stage]': watchSourceStage || undefined,
-          },
-        })
-        .then((r) => r.data),
-  })
-  const allMaterialInventories = unwrapList(prodMaterialInvData)
-  const materialInventories = useMemo(() => {
-    // The main inventory query loads every page. Merge it with the picker
-    // query so products already visible in the form cannot show a false
-    // "No active inventory" state when the picker query's first page omits it.
-    const byId = new Map<number, any>()
-    ;[...allMaterialInventories, ...inventories].forEach((inv: any) => {
-      if (inv?.id != null) byId.set(Number(inv.id), inv)
-    })
-
-    return Array.from(byId.values()).filter((inv: any) => {
-      const productId =
-        inv.product_uom_batch?.product_uom?.product_id ??
-        inv.product_uom?.product_id
-      return Number(productId) === Number(sharedMaterialProductId)
-    })
-  }, [allMaterialInventories, inventories, sharedMaterialProductId])
 
   // Edit mode: prefill
   useEffect(() => {
@@ -1025,6 +1331,9 @@ export default function ProductionForm({
             product_inventory_id: match?.id ?? 0,
             qty: qty,
             base_ratio: recipeQty > 0 ? qty / recipeQty : 0,
+            owner_ref: null,
+            stage: null,
+            location_ref: null,
           }
         })
         // Still set labels and materials even if some materials lack inventory at this branch.
@@ -1149,10 +1458,16 @@ export default function ProductionForm({
         expiry_date: d.expiry_date || undefined,
         planned_batch_code: d.planned_batch_code || undefined,
         description: d.description || undefined,
+        owner_ref: d.owner_ref ?? undefined,
+        stage: d.stage ?? undefined,
+        location_ref: d.location_ref ?? undefined,
         materials: (d.materials ?? [])
           .map((m) => ({
             product_inventory_id: m.product_inventory_id,
             qty: m.qty,
+            owner_ref: m.owner_ref ?? undefined,
+            stage: m.stage ?? undefined,
+            location_ref: m.location_ref ?? undefined,
           }))
           .filter((m) => m.product_inventory_id > 0),
       }))
@@ -1439,7 +1754,7 @@ export default function ProductionForm({
         >
           <div
             style={{
-              padding: '14px 20px',
+              padding: '10px 16px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
             }}
@@ -1449,16 +1764,16 @@ export default function ProductionForm({
 
           <div
             style={{
-              padding: 20,
+              padding: '10px 16px',
               display: 'grid',
               gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 16,
+              gap: 12,
             }}
           >
             {/* Konsumsi Dari */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span style={{ ...sectionHeaderStyle, fontSize: 10 }}>Konsumsi Dari</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ ...sectionHeaderStyle, fontSize: 9 }}>Konsumsi Dari</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 <div>
                   <label style={labelStyle}>
                     Owner <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -1501,13 +1816,29 @@ export default function ProductionForm({
                     )}
                   />
                 </div>
+                <div>
+                  <label style={labelStyle}>Location</label>
+                  <Controller
+                    name="source_location_ref"
+                    control={control}
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        options={[{ value: 'GENERAL', label: 'General' }]}
+                        placeholder="Pilih lokasi..."
+                        searchPlaceholder="Cari lokasi..."
+                      />
+                    )}
+                  />
+                </div>
               </div>
             </div>
 
             {/* Output Ke */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span style={{ ...sectionHeaderStyle, fontSize: 10 }}>Output Ke</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ ...sectionHeaderStyle, fontSize: 9 }}>Output Ke</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 <div>
                   <label style={labelStyle}>
                     Owner <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -1550,6 +1881,22 @@ export default function ProductionForm({
                     )}
                   />
                 </div>
+                <div>
+                  <label style={labelStyle}>Location</label>
+                  <Controller
+                    name="output_location_ref"
+                    control={control}
+                    render={({ field }) => (
+                      <SearchableSelect
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        options={[{ value: 'GENERAL', label: 'General' }]}
+                        placeholder="Pilih lokasi..."
+                        searchPlaceholder="Cari lokasi..."
+                      />
+                    )}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1566,7 +1913,7 @@ export default function ProductionForm({
         >
           <div
             style={{
-              padding: '14px 20px',
+              padding: '10px 16px',
               borderBottom: '1px solid var(--border)',
               background: 'var(--background)',
               borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
@@ -1582,20 +1929,20 @@ export default function ProductionForm({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '5px 12px',
+                gap: 4,
+                padding: '4px 10px',
                 background: 'var(--accent-light-bg)',
                 color: 'var(--accent)',
                 border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)',
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 500,
                 cursor: 'pointer',
               }}
             >
-              <Plus size={13} />
+              <Plus size={12} />
               Add Item
-              <kbd style={{ fontSize: 10, opacity: 0.7, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
+              <kbd style={{ fontSize: 9, opacity: 0.7, background: 'var(--muted)', padding: '1px 4px', borderRadius: 3, border: '1px solid var(--border)' }}>
                 Ctrl+B
               </kbd>
             </button>
@@ -1613,20 +1960,20 @@ export default function ProductionForm({
                   {/* Detail header row */}
                   <div
                     style={{
-                      padding: '12px 20px',
+                      padding: '8px 16px',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 12,
+                      gap: 8,
                       background: isExpanded ? 'var(--accent-light-bg)' : 'var(--background)',
                     }}
                   >
                     {/* Item Number */}
                     <span
                       style={{
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: 600,
                         color: 'var(--foreground-muted)',
-                        minWidth: 24,
+                        minWidth: 20,
                         textAlign: 'center',
                       }}
                     >
@@ -1637,8 +1984,8 @@ export default function ProductionForm({
                     <div
                       onClick={() => toggleDetail(detailIndex)}
                       style={{
-                        width: 24,
-                        height: 24,
+                        width: 20,
+                        height: 20,
                         background: 'var(--border)',
                         borderRadius: 'var(--radius-sm)',
                         display: 'flex',
@@ -1649,9 +1996,9 @@ export default function ProductionForm({
                       }}
                     >
                       {isExpanded ? (
-                        <ChevronUp size={13} style={{ color: 'var(--foreground-muted)' }} />
+                        <ChevronUp size={12} style={{ color: 'var(--foreground-muted)' }} />
                       ) : (
-                        <ChevronDown size={13} style={{ color: 'var(--foreground-muted)' }} />
+                        <ChevronDown size={12} style={{ color: 'var(--foreground-muted)' }} />
                       )}
                     </div>
 
@@ -1846,7 +2193,7 @@ export default function ProductionForm({
 
                     {/* Qty */}
                     <div
-                      style={{ width: 100 }}
+                      style={{ width: 80 }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {(() => {
@@ -1876,10 +2223,10 @@ export default function ProductionForm({
                             placeholder="Qty"
                             style={{
                               width: '100%',
-                              padding: '6px 10px',
+                              padding: '5px 8px',
                               border: '1px solid var(--border)',
                               borderRadius: 'var(--radius-md)',
-                              fontSize: 13,
+                              fontSize: 11,
                               outline: 'none',
                               color: 'var(--foreground)',
                               background: 'var(--surface-raised)',
@@ -1897,7 +2244,7 @@ export default function ProductionForm({
                         name={`details.${detailIndex}.status` as any}
                         control={control}
                         render={({ field: f }) => (
-                          <div style={{ display: 'flex', gap: 4 }}>
+                          <div style={{ display: 'flex', gap: 3 }}>
                             {(['pending', 'final'] as const).map((s) => {
                               const isSel = f.value === s
                               return (
@@ -1906,8 +2253,8 @@ export default function ProductionForm({
                                   type="button"
                                   onClick={() => f.onChange(s)}
                                   style={{
-                                    padding: '4px 10px',
-                                    fontSize: 11,
+                                    padding: '3px 8px',
+                                    fontSize: 10,
                                     fontWeight: 600,
                                     borderRadius: 'var(--radius-sm)',
                                     border: 'none',
@@ -1959,12 +2306,12 @@ export default function ProductionForm({
                   {isExpanded && (
                     <div
                       style={{
-                        padding: '16px 20px 20px',
+                        padding: '12px 16px 16px',
                         background: 'var(--surface)',
                         borderTop: '1px solid var(--border)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 16,
+                        gap: 10,
                       }}
                     >
                       {/* Batch + Expiry + description row */}
@@ -1972,7 +2319,7 @@ export default function ProductionForm({
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '1fr 1fr 1fr',
-                          gap: 12,
+                          gap: 8,
                         }}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -2001,6 +2348,64 @@ export default function ProductionForm({
                         </div>
                       </div>
 
+                      {/* Per-detail output dimension overrides */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr 1fr',
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Output Owner</label>
+                          <Controller
+                            name={`details.${detailIndex}.owner_ref` as any}
+                            control={control}
+                            render={({ field }) => (
+                              <SearchableSelect
+                                value={field.value ?? ''}
+                                onChange={(v) => field.onChange(v || null)}
+                                options={[{ value: 'GENERAL', label: 'General' }, ...companyOptions.filter(o => o.value !== 'GENERAL')]}
+                                placeholder="Ikuti header..."
+                                searchPlaceholder="Cari owner..."
+                              />
+                            )}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Output Stage</label>
+                          <Controller
+                            name={`details.${detailIndex}.stage` as any}
+                            control={control}
+                            render={({ field }) => (
+                              <SearchableSelect
+                                value={field.value ?? ''}
+                                onChange={(v) => field.onChange(v || null)}
+                                options={[{ value: 'GENERAL', label: 'General' }, ...stageOptions.filter(o => o.value !== 'GENERAL')]}
+                                placeholder="Ikuti header..."
+                                searchPlaceholder="Cari stage..."
+                              />
+                            )}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Output Location</label>
+                          <Controller
+                            name={`details.${detailIndex}.location_ref` as any}
+                            control={control}
+                            render={({ field }) => (
+                              <SearchableSelect
+                                value={field.value ?? ''}
+                                onChange={(v) => field.onChange(v || null)}
+                                options={[{ value: 'GENERAL', label: 'General' }]}
+                                placeholder="Ikuti header..."
+                                searchPlaceholder="Cari lokasi..."
+                              />
+                            )}
+                          />
+                        </div>
+                      </div>
+
                       {/* Materials */}
                       <MaterialsFieldArray
                         key={`materials-${detailIndex}-${watchDetails[detailIndex]?.materials?.length ?? 0}`}
@@ -2011,23 +2416,14 @@ export default function ProductionForm({
                         errors={errors}
                         onLoadFromRecipe={handleLoadFromRecipe}
                         isLoadingRecipe={loadingRecipeFor === detailIndex}
-                        activeMaterialIndex={activeMaterialIndex}
-                        sharedMaterialSearch={sharedMaterialSearch}
-                        sharedMaterialSearchDebounced={sharedMaterialSearchDebounced}
-                        sharedMaterialProductId={sharedMaterialProductId}
-                        sharedMaterialProductName={sharedMaterialProductName}
-                        sharedShowMaterialUomPicker={sharedShowMaterialUomPicker}
-                        materialProducts={materialProducts}
-                        materialInventories={materialInventories}
-                        setActiveMaterialIndex={setActiveMaterialIndex}
-                        setSharedMaterialSearch={setSharedMaterialSearch}
-                        setSharedMaterialProductId={setSharedMaterialProductId}
-                        setSharedMaterialProductName={setSharedMaterialProductName}
-                        setSharedShowMaterialUomPicker={setSharedShowMaterialUomPicker}
                         onSelectMaterialInventory={handleSelectMaterialInventory}
                         onRemoveMaterial={handleRemoveMaterial}
                         materialLabels={mergedMaterialLabels}
                         setValue={setValue}
+                        companyOptions={companyOptions}
+                        stageOptions={stageOptions}
+                        ownerFilter={effectiveOwnerFilter}
+                        stagesFilter={effectiveStagesFilter}
                       />
                     </div>
                   )}

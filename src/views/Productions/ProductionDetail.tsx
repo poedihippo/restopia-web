@@ -10,7 +10,7 @@ interface Props {
   id: number
 }
 
-const INCLUDE = 'branch,created_by,updated_by,production_details'
+const INCLUDE = 'branch,created_by,updated_by,production_details,production_details.production_detail_materials'
 
 const DETAIL_STATUS_META: Record<
   string,
@@ -148,6 +148,57 @@ export default function ProductionDetail({ id }: Props) {
               {production?.description ?? '—'}
             </p>
           </div>
+
+          {/* Dimension fields */}
+          <div
+            style={{
+              marginTop: 16,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+              gap: 12,
+              padding: 12,
+              background: 'var(--background)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+            }}
+          >
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Source Owner</span>
+              <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                {production?.source_owner_ref ?? '—'}
+              </p>
+            </div>
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Source Stage</span>
+              <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                {production?.source_stage ?? '—'}
+              </p>
+            </div>
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Source Location</span>
+              <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                {production?.source_location_ref ?? '—'}
+              </p>
+            </div>
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Output Owner</span>
+              <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                {production?.output_owner_ref ?? '—'}
+              </p>
+            </div>
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Output Stage</span>
+              <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                {production?.output_stage ?? '—'}
+              </p>
+            </div>
+            <div>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Output Location</span>
+              <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                {production?.output_location_ref ?? '—'}
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -267,6 +318,29 @@ export default function ProductionDetail({ id }: Props) {
                           )}
                         </p>
                       </div>
+                      {/* Per-detail effective dimensions */}
+                      {(detail.owner_ref || detail.stage || detail.location_ref) && (
+                        <>
+                          <div>
+                            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Output Owner</span>
+                            <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                              {detail.owner_ref ?? '—'}
+                            </p>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Output Stage</span>
+                            <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                              {detail.stage ?? '—'}
+                            </p>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Output Location</span>
+                            <p style={{ margin: '2px 0 0', fontSize: 13, fontWeight: 500 }}>
+                              {detail.location_ref ?? '—'}
+                            </p>
+                          </div>
+                        </>
+                      )}
                     </div>
                     {detail.production_detail_materials && detail.production_detail_materials.length > 0 ? (
                       <div style={{ overflowX: 'auto' }}>
@@ -278,6 +352,9 @@ export default function ProductionDetail({ id }: Props) {
                               <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Code</th>
                               <th style={{ textAlign: 'right', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Qty</th>
                               <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>UoM</th>
+                              <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Owner</th>
+                              <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Stage</th>
+                              <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--foreground-muted)', fontSize: 11, textTransform: 'uppercase' }}>Location</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -291,6 +368,9 @@ export default function ProductionDetail({ id }: Props) {
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mat.product_inventory?.product_uom_batch?.product_uom?.code ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600 }}>{mat.qty ?? '—'}</td>
                                   <td style={{ padding: '10px 12px', color: 'var(--foreground-muted)' }}>{mu?.name ?? '—'}</td>
+                                  <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--foreground-muted)' }}>{mat.owner_ref ?? '—'}</td>
+                                  <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--foreground-muted)' }}>{mat.stage ?? '—'}</td>
+                                  <td style={{ padding: '10px 12px', fontSize: 13, color: 'var(--foreground-muted)' }}>{mat.location_ref ?? '—'}</td>
                                 </tr>
                               )
                             })}

@@ -171,27 +171,19 @@ export interface ProductInventory {
   code?: string
   stock?: number
   qty?: number
-  // Base-authoritative stock fields (backend now returns these alongside the
-  // legacy `stock` int). display_qty/display_uom_code are the on-hand
-  // quantity in this row's own product_uom (what `stock` used to mean);
-  // base_stock/base_uom_code are the same quantity in the product's base
-  // unit. Never derive one from the other client-side — always read what
-  // the API sent.
   display_qty?: number | null
   display_uom_code?: string | null
   base_stock?: number | null
   base_uom_code?: string | null
-  // Additive fields for GET /v1/product-inventories?display_in_product_uom_id=<uom>:
-  // the row's qty converted into that requested product_uom, and that
-  // uom's code. Not yet reflected in the generated openapi spec/api.d.ts
-  // at the time this was added — will be superseded by the next real
-  // typegen. Always optional/nullable; never computed client-side.
   converted_qty?: number | null
   converted_uom_code?: string | null
   min_qty?: number
   expiry_date?: string
   status?: 'active' | 'inactive'
   created_at?: string
+  owner_ref?: string
+  stage?: string
+  location_ref?: string
   branch?: { id: number; name: string; code?: string }
   product_uom_batch?: {
     id: number
@@ -269,6 +261,9 @@ export interface RecipeRequest {
 export interface ProductionMaterial {
   product_inventory_id: number
   qty: number
+  owner_ref?: string | null
+  stage?: string | null
+  location_ref?: string | null
 }
 export interface ProductionDetail {
   product_uom_id: number
@@ -276,6 +271,9 @@ export interface ProductionDetail {
   status: 'pending' | 'final'
   expiry_date?: string
   description?: string
+  owner_ref?: string | null
+  stage?: string | null
+  location_ref?: string | null
   materials?: ProductionMaterial[]
 }
 export interface ProductionRequest {
@@ -283,6 +281,12 @@ export interface ProductionRequest {
   date: string
   status: 'pending' | 'final'
   description?: string
+  source_owner_ref?: string
+  source_stage?: string
+  source_location_ref?: string
+  output_owner_ref?: string
+  output_stage?: string
+  output_location_ref?: string
   details: ProductionDetail[]
 }
 
