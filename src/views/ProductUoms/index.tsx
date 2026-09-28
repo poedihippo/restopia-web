@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductUomSheet from './ProductUomSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { getProductUomName } from '@/utils/productUomName'
 import {
   Plus,
   Pencil,
@@ -27,6 +28,7 @@ import {
 interface ProductUom {
   id: number
   code?: string
+  name?: string | null
   base_price?: number
   online_price?: number
   franchise_price?: number
@@ -556,7 +558,12 @@ export default function ProductUomsView() {
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span>{item.product?.name ?? '—'}</span>
+                      <span>{getProductUomName(item, item.product?.name) || '—'}</span>
+                      {item.name && item.name.trim() !== '' && item.name !== item.product?.name && (
+                        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                          {item.product?.name}
+                        </span>
+                      )}
                       {item.product?.code && (
                         <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--foreground-muted)' }}>
                           {item.product.code}
@@ -824,6 +831,7 @@ export default function ProductUomsView() {
               {[
                 { label: 'ID', value: selectedItem.id },
                 { label: 'SKU Code', value: selectedItem.code },
+                { label: 'Name', value: getProductUomName(selectedItem, selectedItem.product?.name) || '—' },
                 { label: 'Product', value: selectedItem.product?.name },
                 { label: 'Product Code', value: selectedItem.product?.code },
                 { label: 'UOM Code', value: selectedItem.uom?.code },

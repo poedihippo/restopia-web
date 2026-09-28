@@ -12,9 +12,10 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
-import { X, Loader2 } from 'lucide-react'
+import { X, Loader2, Sparkles } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
+import { describeSuggestionReason } from '@/utils/productUomName'
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
@@ -25,6 +26,7 @@ const schema = z.object({
   product_id: z.coerce.number().min(1, 'Product is required'),
   uom_id: z.coerce.number().min(1, 'UOM is required'),
   code: z.string().min(1, 'Code is required'),
+  name: z.string().max(255, 'Max 255 characters').optional(),
   base_price: z.coerce.number().min(0).optional(),
   online_price: z.coerce.number().min(0).optional(),
   franchise_price: z.coerce.number().min(0).optional(),
@@ -42,6 +44,7 @@ interface ProductUomSheetProps {
     product_id: number
     uom_id: number
     code?: string
+    name?: string | null
     base_price?: number
     online_price?: number
     franchise_price?: number
@@ -78,6 +81,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       product_id: editData?.product_id ?? 0,
       uom_id: editData?.uom_id ?? 0,
       code: '',
+      name: '',
       base_price: 0,
       online_price: 0,
       franchise_price: 0,
@@ -167,12 +171,25 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     return base
   }, [uoms, editData])
 
+  // Name suggestions (edit mode only — the endpoint suggests names for a
+  // product's EXISTING product-uom rows, matched here by this row's own id).
+  const { data: suggestionsData, isFetching: suggestionsLoading, isError: suggestionsError } = useQuery({
+    queryKey: ['product-uom-name-suggestions', editData?.product_id],
+    enabled: open && isEdit && !!editData?.product_id,
+    retry: false,
+    queryFn: () => productUomsService.nameSuggestions(editData!.product_id).then((r) => r.data),
+  })
+  const suggestion = (suggestionsData as any)?.data?.suggestions?.find(
+    (s: any) => s.product_uom_id === editData?.id,
+  )
+
   useEffect(() => {
     if (editData) {
       reset({
         product_id: editData.product_id ?? 0,
         uom_id: editData.uom_id ?? 0,
         code: editData.code ?? '',
+        name: editData.name ?? '',
         base_price: editData.base_price ?? 0,
         online_price: editData.online_price ?? 0,
         franchise_price: editData.franchise_price ?? 0,
@@ -185,6 +202,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         product_id: 0,
         uom_id: 0,
         code: '',
+        name: '',
         base_price: 0,
         online_price: 0,
         franchise_price: 0,
@@ -204,6 +222,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         product_id: 0,
         uom_id: 0,
         code: '',
+        name: '',
         base_price: 0,
         online_price: 0,
         franchise_price: 0,
@@ -399,6 +418,75 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
                 {errors.code.message as string}
               </span>
+            )}
+          </div>
+
+          {/* Name (display label) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                Name
+              </label>
+              {isEdit && suggestionsLoading && (
+                <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                  Mengecek saran...
+                </span>
+              )}
+            </div>
+            <input
+              {...register('name')}
+              placeholder={editData?.product?.name ?? 'Kosongkan untuk pakai nama produk'}
+              style={inputStyle}
+            />
+            {errors.name?.message && (
+              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                {errors.name.message as string}
+              </span>
+            )}
+            {isEdit && !suggestionsLoading && !suggestionsError && suggestion && (
+              suggestion.reason === 'conversion' && suggestion.suggested_name ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '8px 10px',
+                    background: 'var(--accent-light-bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                    <Sparkles size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      Saran: {suggestion.suggested_name}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setValue('name', suggestion.suggested_name, { shouldValidate: true })}
+                    style={{
+                      flexShrink: 0,
+                      padding: '4px 10px',
+                      background: 'var(--accent)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Gunakan
+                  </button>
+                </div>
+              ) : (
+                <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                  {describeSuggestionReason(suggestion.reason)}
+                </span>
+              )
             )}
           </div>
 

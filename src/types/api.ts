@@ -93,6 +93,7 @@ export interface ProductUomPayload {
   id?: number
   uom_id: number
   code: string
+  name?: string
   base_price: number
   online_price?: number
   franchise_price?: number
@@ -133,12 +134,25 @@ export interface ProductUomRequest {
   product_id: number
   uom_id: number
   code?: string
+  name?: string
   base_price: number
   online_price?: number
   franchise_price?: number
   price_editable?: boolean
   is_default?: boolean
   is_active?: boolean
+}
+
+// GET /v1/product-uoms/name-suggestions?product_id=
+export interface ProductUomNameSuggestion {
+  product_uom_id: number
+  uom_id: number
+  uom_name: string
+  base_uom_id: number
+  base_uom_name: string
+  factor: string | null
+  suggested_name: string
+  reason: 'base_uom' | 'conversion' | 'no_conversion_path' | 'ambiguous'
 }
 
 // Product Inventories
