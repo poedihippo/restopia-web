@@ -1,16 +1,20 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { suppliersService } from '@/services/suppliers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { paymentsService } from '@/services/payments.service'
+import { paymentMethodsService } from '@/services/payment-methods.service'
+import { toastMutationApiError } from '@/utils/apiError'
+import SearchableSelect from '@/components/SearchableSelect'
 import { formatDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
-import { ArrowLeft, Building2, FileText, AlertCircle, Loader2, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Building2, FileText, AlertCircle, Loader2, ExternalLink, Wallet, X } from 'lucide-react'
 
 interface Supplier {
   id: number
@@ -73,12 +77,261 @@ const amountTdStyle: React.CSSProperties = {
   fontVariantNumeric: 'tabular-nums',
 }
 
+const todayInputDate = () => new Date().toISOString().split('T')[0]
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '9px 12px',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--surface)',
+  color: 'var(--foreground)',
+  outline: 'none',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 13,
+  boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'var(--foreground-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  display: 'block',
+  marginBottom: 6,
+}
+
+interface PayTarget {
+  id: number
+  code: string
+  outstanding: number
+}
+
+function PayModal({
+  targets,
+  supplierId,
+  onClose,
+}: {
+  targets: PayTarget[]
+  supplierId: number
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const [paymentMethodId, setPaymentMethodId] = useState<number>(0)
+  const [amounts, setAmounts] = useState<Record<number, number>>(() =>
+    Object.fromEntries(targets.map((t) => [t.id, t.outstanding])),
+  )
+  const totalAmount = targets.reduce((s, t) => s + Number(amounts[t.id] || 0), 0)
+  const [date, setDate] = useState<string>(todayInputDate())
+  const [description, setDescription] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const { data: pmData, isLoading: pmLoading } = useQuery({
+    queryKey: ['payment-methods-all', debouncedSearch],
+    queryFn: () =>
+      paymentMethodsService
+        .list({
+          'filter[search]': debouncedSearch || undefined,
+          per_page: 100,
+          sort: 'id',
+          'filter[type]': 'purchase_orders',
+          include: 'bank_account',
+        } as any)
+        .then((r) => r.data),
+  })
+  const methodOptions = ((pmData as any)?.data ?? []).map((m: any) => ({
+    value: m.id as number,
+    label: (m.name as string) ?? `Method #${m.id}`,
+  }))
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      paymentsService.create({
+        type: 'disburse',
+        date,
+        payments: [
+          {
+            payment_method_id: paymentMethodId,
+            amount: totalAmount,
+            description: description || undefined,
+            allocations: targets
+              .filter((t) => Number(amounts[t.id] || 0) > 0)
+              .map((t) => ({ purchase_order_id: t.id, amount: Number(amounts[t.id]) })),
+          },
+        ],
+      } as any),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-debt-detail-payments', supplierId] })
+      qc.invalidateQueries({ queryKey: ['supplier-debt-detail-pos', supplierId] })
+      qc.invalidateQueries({ queryKey: ['po-disburse-payments'] })
+      qc.invalidateQueries({ queryKey: ['po-payments-history'] })
+      toast.success('Pembayaran berhasil dicatat')
+      onClose()
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Gagal mencatat pembayaran'),
+  })
+
+  const handleSubmit = () => {
+    if (paymentMethodId === 0) {
+      toast.error('Pilih metode pembayaran')
+      return
+    }
+    if (targets.some((t) => Number(amounts[t.id] || 0) > t.outstanding) || !(totalAmount > 0)) {
+      toast.error('Jumlah pembayaran tidak valid')
+      return
+    }
+    mutation.mutate()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} onClick={onClose} />
+      <div
+        style={{
+          position: 'relative',
+          width: 440,
+          maxWidth: 'calc(100vw - 32px)',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>
+              {targets.length > 1 ? `Bayar ${targets.length} Invoice` : 'Bayar Invoice'}
+            </div>
+            {targets.length === 1 && (
+              <div style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--foreground-muted)', marginTop: 2 }}>{targets[0].code}</div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto' }}>
+
+          <div>
+            <label style={labelStyle}>Metode Pembayaran *</label>
+            <SearchableSelect
+              value={paymentMethodId}
+              onChange={(v) => setPaymentMethodId(Number(v))}
+              options={methodOptions}
+              placeholder="Pilih metode..."
+              searchPlaceholder="Cari metode..."
+              loading={pmLoading}
+              onSearchChange={setSearch}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Jumlah per Invoice *</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {targets.map((t) => (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, color: 'var(--foreground)' }}>{t.code}</div>
+                    <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                      Sisa: {formatCurrency(t.outstanding)}
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={amounts[t.id] ? Number(amounts[t.id]).toLocaleString('id-ID') : ''}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/[^\d]/g, '')
+                      let v = digits === '' ? 0 : parseInt(digits, 10)
+                      if (v > t.outstanding) {
+                        v = t.outstanding
+                        toast.warning('Jumlah dibatasi sampai sisa hutang')
+                      }
+                      setAmounts((prev) => ({ ...prev, [t.id]: v }))
+                    }}
+                    style={{ ...inputStyle, width: 160, textAlign: 'right' }}
+                  />
+                </div>
+              ))}
+            </div>
+            {targets.length > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 13, fontWeight: 700 }}>
+                <span>Total Pembayaran</span>
+                <span style={{ color: 'var(--accent)' }}>{formatCurrency(totalAmount)}</span>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={labelStyle}>Tanggal *</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Keterangan</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              style={{ ...inputStyle, resize: 'vertical' }}
+            />
+          </div>
+        </div>
+
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ padding: '9px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--foreground)', fontSize: 13, cursor: 'pointer' }}
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={mutation.isPending}
+            style={{
+              padding: '9px 16px',
+              background: 'var(--accent)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              color: 'white',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: mutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: mutation.isPending ? 0.6 : 1,
+            }}
+          >
+            {mutation.isPending ? 'Menyimpan...' : 'Simpan Pembayaran'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SupplierDebtDetailView() {
   const router = useRouter()
   const supplierId = Number(router.query.id)
+  const [payTargets, setPayTargets] = useState<PayTarget[] | null>(null)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
 
   const { hasPermission, isSuperadmin } = useAuth()
   const canRead = isSuperadmin || hasPermission('report.read') || hasPermission('purchase-order.read')
+  const canPay = isSuperadmin || hasPermission('payment.create')
 
   const { data: supplierData, isLoading: supplierLoading } = useQuery({
     queryKey: ['supplier-debt-detail-supplier', supplierId],
@@ -150,6 +403,21 @@ export default function SupplierDebtDetailView() {
   }, [payments, poRows])
 
   const totalOutstanding = useMemo(() => poRows.reduce((sum, row) => sum + row.outstanding, 0), [poRows])
+
+  const selectedRows = poRows.filter((r) => selected.has(r.id))
+  const allSelected = poRows.length > 0 && selectedRows.length === poRows.length
+  const toggleOne = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const toPayTarget = (r: { id: number; code: string; outstanding: number }): PayTarget => ({
+    id: r.id,
+    code: r.code,
+    outstanding: r.outstanding,
+  })
 
   const isLoading = supplierLoading || posLoading || paymentsLoading
 
@@ -246,6 +514,25 @@ export default function SupplierDebtDetailView() {
             </span>
           </div>
           <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+            {canPay && selectedRows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPayTargets(selectedRows.map(toPayTarget))}
+                style={{
+                  marginRight: 12,
+                  padding: '6px 12px',
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Bayar Terpilih ({selectedRows.length})
+              </button>
+            )}
             {poRows.length} invoice
           </span>
         </div>
@@ -284,13 +571,24 @@ export default function SupplierDebtDetailView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  {canPay && (
+                    <th style={{ ...thStyle, width: 40 }}>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={() =>
+                          setSelected(allSelected ? new Set() : new Set(poRows.map((r) => r.id)))
+                        }
+                      />
+                    </th>
+                  )}
                   <th style={thStyle}>No. Invoice / PO</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Sudah Dibayar</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Sisa Hutang</th>
                   <th style={thStyle}>Status</th>
-                  <th style={{ ...thStyle, width: 60 }} />
+                  <th style={{ ...thStyle, width: canPay ? 150 : 60 }} />
                 </tr>
               </thead>
               <tbody>
@@ -301,6 +599,11 @@ export default function SupplierDebtDetailView() {
                     : { label: 'Unpaid', color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
                   return (
                     <tr key={row.id}>
+                      {canPay && (
+                        <td style={tdStyle}>
+                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} />
+                        </td>
+                      )}
                       <td style={tdStyle}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--foreground)' }}>
                           {row.code}
@@ -331,6 +634,29 @@ export default function SupplierDebtDetailView() {
                         </span>
                       </td>
                       <td style={tdStyle}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                        {canPay && (
+                          <button
+                            type="button"
+                            onClick={() => setPayTargets([toPayTarget(row)])}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '6px 12px',
+                              background: 'var(--accent)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Wallet size={13} />
+                            Bayar
+                          </button>
+                        )}
                         <Link
                           href={`/purchase/purchase-orders/${row.id}/detail`}
                           style={{
@@ -345,12 +671,13 @@ export default function SupplierDebtDetailView() {
                         >
                           <ExternalLink size={14} />
                         </Link>
+                        </div>
                       </td>
                     </tr>
                   )
                 })}
                 <tr style={{ background: 'var(--accent-light-bg)' }}>
-                  <td colSpan={4} style={{ ...tdStyle, fontWeight: 700, color: 'var(--foreground)' }}>
+                  <td colSpan={canPay ? 5 : 4} style={{ ...tdStyle, fontWeight: 700, color: 'var(--foreground)' }}>
                     Total Sisa Hutang
                   </td>
                   <td style={{ ...amountTdStyle, fontWeight: 700, color: 'var(--accent)', fontSize: 14 }}>
@@ -441,6 +768,17 @@ export default function SupplierDebtDetailView() {
           </div>
         )}
       </div>
+
+      {payTargets && (
+        <PayModal
+          targets={payTargets}
+          supplierId={supplierId}
+          onClose={() => {
+            setPayTargets(null)
+            setSelected(new Set())
+          }}
+        />
+      )}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
