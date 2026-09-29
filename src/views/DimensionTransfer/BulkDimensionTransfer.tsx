@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useRef, useState, useMemo } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -116,7 +116,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
         .then((r) => r.data),
   })
 
-  const inventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
+  const allInventoryRows: DimensionInventoryRow[] = ((inventoryData as any)?.data ?? []).filter(
     (r: any) => Number(r.display_qty ?? r.stock ?? r.qty ?? 0) > 0,
   )
 
@@ -158,6 +158,35 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     return match?.name ?? ownerRef
   }
 
+  const fromOwner = watch('from_owner_ref')
+  const fromStage = watch('from_stage')
+  const fromLocation = watch('from_location_ref') || 'GENERAL'
+  const toOwnerRef = watch('to_owner_ref')
+  const toStage = watch('to_stage')
+  const toLocationRef = watch('to_location_ref') || 'GENERAL'
+  const watchItems = watch('items')
+
+  // Only offer inventory rows that live in the selected source dimension.
+  const inventoryRows = useMemo(
+    () =>
+      allInventoryRows.filter(
+        (r) =>
+          (r.owner_ref ?? 'GENERAL') === fromOwner &&
+          (r.stage ?? 'GENERAL') === fromStage &&
+          (r.location_ref ?? 'GENERAL') === fromLocation,
+      ),
+    [allInventoryRows, fromOwner, fromStage, fromLocation],
+  )
+
+  // Changing the source dimension invalidates previously picked items.
+  const prevFrom = useRef(`${fromOwner}|${fromStage}|${fromLocation}`)
+  useEffect(() => {
+    const key = `${fromOwner}|${fromStage}|${fromLocation}`
+    if (prevFrom.current === key) return
+    prevFrom.current = key
+    fields.forEach((_, i) => setValue(`items.${i}.source_inventory_id`, 0))
+  }, [fromOwner, fromStage, fromLocation]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const sourceOptions = useMemo(() => inventoryRows.map((row) => {
     const product =
       row.product_uom_batch?.product_uom?.product ||
@@ -181,14 +210,6 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
       sublabel: `batch ${batchCode} · ${owner}/${stage}/${location} · stok ${stock}${stockUom}`,
     }
   }), [inventoryRows, companies])
-
-  const fromOwner = watch('from_owner_ref')
-  const fromStage = watch('from_stage')
-  const fromLocation = watch('from_location_ref') || 'GENERAL'
-  const toOwnerRef = watch('to_owner_ref')
-  const toStage = watch('to_stage')
-  const toLocationRef = watch('to_location_ref') || 'GENERAL'
-  const watchItems = watch('items')
 
   const isSameDimension =
     !!fromOwner &&
@@ -501,18 +522,10 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
                   render={({ field: f }) => (
                     <SearchableSelect
                       value={f.value ?? 0}
-                      onChange={(val) => {
-                        f.onChange(val)
-                        const row = inventoryRows.find((r) => r.id === Number(val))
-                        if (row) {
-                          setValue('from_owner_ref', row.owner_ref ?? 'GENERAL')
-                          setValue('from_stage', row.stage ?? 'GENERAL')
-                          setValue('from_location_ref', row.location_ref ?? 'GENERAL')
-                        }
-                      }}
+                      onChange={f.onChange}
                       options={sourceOptions}
                       placeholder="Pilih item..."
-                      searchPlaceholder="Cari produk atau batch..."
+                      searchPlaceholder="Cari produk atau batch di dimensi asal..."
                       loading={inventoryLoading}
                       error={errors.items?.[index]?.source_inventory_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
