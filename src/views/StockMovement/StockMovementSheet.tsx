@@ -8,6 +8,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { useAuth } from '@/hooks/useAuth'
@@ -114,8 +115,8 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   //trigger
   const batchOptions = batchesItems.map((batch: any) => {
     const name =
-      batch.product_uom?.product?.name ??
-      batch.code ??
+      getProductUomName(batch.product_uom, batch.product_uom?.product?.name) ||
+      batch.code ||
       `BATCH-${batch.id}`
     const uomCode =
       batch.display_uom_code ??

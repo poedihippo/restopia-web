@@ -10,6 +10,7 @@ import { dimensionTransfersService } from '@/services/dimension-transfers.servic
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -162,6 +163,8 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
       row.product_uom_batch?.product_uom?.product ||
       (row as any).product_uom?.product ||
       (row as any).product
+    const productUom = row.product_uom_batch?.product_uom || (row as any).product_uom
+    const productLabel = getProductUomName(productUom, product?.name)
     const batchCode =
       row.product_uom_batch?.batch_code ??
       row.product_uom_batch?.code ??
@@ -174,7 +177,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     const stockUom = row.display_uom_code ? ` ${row.display_uom_code}` : ''
     return {
       value: row.id,
-      label: `${product?.code ?? ''} ${product?.name ?? ''}`.trim() || `Item #${row.id}`,
+      label: `${product?.code ?? ''} ${productLabel}`.trim() || `Item #${row.id}`,
       sublabel: `batch ${batchCode} · ${owner}/${stage}/${location} · stok ${stock}${stockUom}`,
     }
   }), [inventoryRows, companies])

@@ -1,6 +1,7 @@
 'use client'
 import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime } from '@/utils/date';
+import { getProductUomName } from '@/utils/productUomName';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -59,6 +60,7 @@ interface PurchaseOrderFull {
     product_uom?: {
       id: number
       code?: string
+      name?: string | null
       product?: { id: number; name: string }
       uom?: { id: number; name: string; code: string }
     }
@@ -827,7 +829,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {detail.product_uom?.product?.name ?? `Item #${detail.product_uom_id ?? detail.id}`}
+                    {getProductUomName(detail.product_uom, detail.product_uom?.product?.name) || `Item #${detail.product_uom_id ?? detail.id}`}
                     {detail.is_taxable && (
                       <span style={{ fontSize: 10, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--foreground-muted)' }}>
                         Taxable
@@ -1144,7 +1146,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                 <tr key={d.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {d.product_uom?.product?.name ?? `Item #${d.product_uom_id ?? d.id}`}
+                    {getProductUomName(d.product_uom, d.product_uom?.product?.name) || `Item #${d.product_uom_id ?? d.id}`}
                     {d.product_uom?.uom?.name ? ` (${d.product_uom.uom.name})` : ''}
                     {d.is_taxable && <span style={{ fontSize: '8pt', color: '#666', marginLeft: 4 }}>(Taxable)</span>}
                   </td>

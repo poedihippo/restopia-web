@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import BundleSheet from './BundleSheet'
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { getProductUomName } from '@/utils/productUomName'
 import {
   Plus,
   Search,
@@ -462,7 +463,7 @@ export default function BundlesView() {
                                 color: 'var(--foreground)',
                               }}
                             >
-                              {detail.product_uom?.product?.name ?? '—'}
+                              {getProductUomName(detail.product_uom, detail.product_uom?.product?.name) || '—'}
                             </span>
                             <span
                               style={{

@@ -10,6 +10,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import { getProductUomName } from '@/utils/productUomName'
 
 const inputStyle: React.CSSProperties = {
   padding: '7px 10px',
@@ -103,9 +104,9 @@ export default function StockPositionReport() {
     const s = searchText.toLowerCase()
     return items.filter((item: any) => {
       const name =
-        item.product_uom_batch?.product_uom?.product?.name
-        ?? item.product_uom?.product?.name
-        ?? ''
+        getProductUomName(item.product_uom_batch?.product_uom, item.product_uom_batch?.product_uom?.product?.name)
+        || getProductUomName(item.product_uom, item.product_uom?.product?.name)
+        || ''
       const code = item.code ?? ''
       return name.toLowerCase().includes(s) || code.toLowerCase().includes(s)
     })
@@ -535,9 +536,9 @@ export default function StockPositionReport() {
                     {item.code}
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>
-                    {item.product_uom_batch?.product_uom?.product?.name
-                      ?? item.product_uom?.product?.name
-                      ?? '—'}
+                    {getProductUomName(item.product_uom_batch?.product_uom, item.product_uom_batch?.product_uom?.product?.name)
+                      || getProductUomName(item.product_uom, item.product_uom?.product?.name)
+                      || '—'}
                   </td>
                   <td style={{ ...tdStyle, fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {item.display_uom_code

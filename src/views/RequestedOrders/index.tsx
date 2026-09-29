@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import AcceptPOModal, { AcceptPODetailPayload } from './AcceptPOModal'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { getProductUomName } from '@/utils/productUomName'
 
 interface RequestedPO {
   id: number
@@ -624,7 +625,7 @@ export default function RequestedOrdersView() {
                                 color: 'var(--foreground)',
                               }}
                             >
-                              {d.product_uom?.product?.name ?? '—'}
+                              {getProductUomName(d.product_uom, d.product_uom?.product?.name) || '—'}
                             </span>
                             <span
                               style={{

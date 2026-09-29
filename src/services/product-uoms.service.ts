@@ -1,5 +1,5 @@
 import api from '@/hooks/useApi'
-import type { ApiResponse, PaginatedData, ListParams, ProductUomRequest } from '@/types/api'
+import type { ApiResponse, PaginatedData, ListParams, ProductUomRequest, ProductUomNameSuggestion } from '@/types/api'
 
 export const productUomsService = {
   list: (params?: ListParams) =>
@@ -16,4 +16,10 @@ export const productUomsService = {
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/product-uoms/${id}`),
+
+  nameSuggestions: (productId: number) =>
+    api.get<{ data: { suggestions: ProductUomNameSuggestion[] } }>(
+      '/product-uoms/name-suggestions',
+      { params: { product_id: productId } },
+    ),
 }

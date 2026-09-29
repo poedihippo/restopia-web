@@ -9,9 +9,11 @@ import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { uomsService } from '@/services/uoms.service'
+import { productUomsService } from '@/services/product-uoms.service'
 import { parseApiError, toastMutationApiError } from '@/utils/apiError'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
-import { X, Loader2, Plus, Trash2, Repeat } from 'lucide-react'
+import { describeSuggestionReason } from '@/utils/productUomName'
+import { X, Loader2, Plus, Trash2, Repeat, Sparkles } from 'lucide-react'
 
 const conversionSchema = z.object({
   id: z.coerce.number().min(0),
@@ -23,6 +25,7 @@ const uomSchema = z.object({
   id: z.coerce.number().min(0),
   uom_id: z.coerce.number().min(1, 'Unit is required'),
   code: z.string().min(1, 'Code is required'),
+  name: z.string().max(255, 'Max 255 characters').optional(),
   base_price: z.coerce.number().min(0),
   online_price: z.coerce.number().min(0),
   franchise_price: z.coerce.number().min(0),
@@ -92,6 +95,7 @@ const emptyUom = {
   id: 0,
   uom_id: 0,
   code: '',
+  name: '',
   base_price: 0,
   online_price: 0,
   franchise_price: 0,
@@ -232,6 +236,58 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   const productCode = watch('code')
   const baseUomId = watch('base_uom_id')
 
+  // Name suggestions — only meaningful for units that already exist on this
+  // product (matched by product_uom_id), so this is edit-mode only and
+  // manually triggered (see FE TODO §4.6: never auto-overwrite, act off `reason`).
+  const suggestionsQuery = useQuery({
+    queryKey: ['product-uom-name-suggestions', editData?.id],
+    queryFn: () => productUomsService.nameSuggestions(editData!.id).then((r) => r.data),
+    enabled: false,
+    retry: false,
+  })
+
+  const handleSuggestNames = async () => {
+    const res = await suggestionsQuery.refetch()
+    if (res.isError) {
+      const status = (res.error as any)?.response?.status
+      toast.error(
+        status === 404
+          ? 'Fitur saran nama belum tersedia di server (menunggu deploy backend)'
+          : 'Gagal mengambil saran nama'
+      )
+      return
+    }
+    const suggestions = (res.data as any)?.data?.suggestions ?? []
+    if (suggestions.length === 0) {
+      toast.info('Tidak ada saran nama untuk produk ini')
+      return
+    }
+    let applied = 0
+    let skippedFilled = 0
+    watchedUoms.forEach((row: any, idx: number) => {
+      if (!row?.id) return // new/unsaved rows have no product_uom_id to match yet
+      const s = suggestions.find((x: any) => x.product_uom_id === row.id)
+      if (!s || s.reason !== 'conversion' || !s.suggested_name) return
+      if (row.name && row.name.trim() !== '') {
+        skippedFilled++
+        return
+      }
+      setValue(`uoms.${idx}.name` as any, s.suggested_name, { shouldValidate: true })
+      applied++
+    })
+    if (applied > 0) toast.success(`${applied} nama unit terisi otomatis dari saran`)
+    if (applied === 0 && skippedFilled === 0) {
+      toast.info('Belum ada saran yang bisa diterapkan otomatis untuk unit-unit ini')
+    } else if (applied === 0 && skippedFilled > 0) {
+      toast.info(`Semua unit yang ada saran sudah punya nama sendiri (${skippedFilled} dilewati)`)
+    }
+  }
+
+  const suggestionByProductUomId = (id: number) =>
+    ((suggestionsQuery.data as any)?.data?.suggestions ?? []).find(
+      (s: any) => s.product_uom_id === id,
+    )
+
   const { data: catData } = useQuery({
     queryKey: ['product-categories-all'],
     queryFn: () =>
@@ -288,6 +344,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         id: pu.id ?? 0,
         uom_id: pu.uom_id ?? 0,
         code: pu.code ?? '',
+        name: pu.name ?? '',
         base_price: pu.base_price ?? 0,
         online_price: pu.online_price ?? 0,
         franchise_price: pu.franchise_price ?? 0,
@@ -321,6 +378,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       ...(u.id > 0 ? { id: u.id } : {}),
       uom_id: u.uom_id,
       code: u.code.trim(),
+      // Always send an explicit string (never omit): the backend treats an
+      // absent `name` as "unchanged" on PATCH, so an explicit "" is the only
+      // way to actually clear a previously-set name (see FE TODO 2.2/2.4).
+      name: u.name?.trim() ?? '',
       base_price: u.base_price,
       online_price: u.online_price,
       franchise_price: u.franchise_price,
@@ -744,25 +805,55 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                   Units this product is sold/tracked in, with prices and conversions.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => appendUom({ ...emptyUom, conversions: [] })}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '6px 12px',
-                  background: 'var(--accent)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
-                <Plus size={13} /> Add Unit
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {editData && (
+                  <button
+                    type="button"
+                    onClick={handleSuggestNames}
+                    disabled={suggestionsQuery.isFetching}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '6px 12px',
+                      background: 'var(--accent-light-bg)',
+                      color: 'var(--accent)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: suggestionsQuery.isFetching ? 'not-allowed' : 'pointer',
+                      opacity: suggestionsQuery.isFetching ? 0.7 : 1,
+                    }}
+                  >
+                    {suggestionsQuery.isFetching ? (
+                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <Sparkles size={13} />
+                    )}
+                    Suggest Names
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => appendUom({ ...emptyUom, conversions: [] })}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '6px 12px',
+                    background: 'var(--accent)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Plus size={13} /> Add Unit
+                </button>
+              </div>
             </div>
 
             {editData && (
@@ -915,6 +1006,68 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                       {errorMsg(uomErr?.code?.message)}
                     </div>
                   </div>
+
+                  {/* Display name (product_uoms.name) */}
+                  {(() => {
+                    const rowId = Number(watchedUoms[i]?.id)
+                    const rowName = watchedUoms[i]?.name
+                    const suggestion = rowId > 0 ? suggestionByProductUomId(rowId) : null
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {fieldLabel('Name')}
+                        <input
+                          {...register(`uoms.${i}.name` as any)}
+                          placeholder={editData?.name ?? 'Kosongkan untuk pakai nama produk'}
+                          style={inputBase(!!uomErr?.name)}
+                        />
+                        {errorMsg(uomErr?.name?.message)}
+                        {suggestion && (!rowName || rowName.trim() === '') && (
+                          suggestion.reason === 'conversion' && suggestion.suggested_name ? (
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                padding: '6px 10px',
+                                background: 'var(--accent-light-bg)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-sm)',
+                              }}
+                            >
+                              <span style={{ fontSize: 11, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+                                <Sparkles size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  Saran: {suggestion.suggested_name}
+                                </span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setValue(`uoms.${i}.name` as any, suggestion.suggested_name, { shouldValidate: true })}
+                                style={{
+                                  flexShrink: 0,
+                                  padding: '3px 8px',
+                                  background: 'var(--accent)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: 'var(--radius-sm)',
+                                  fontSize: 10,
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                Gunakan
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                              {describeSuggestionReason(suggestion.reason)}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Conversion summary: visual path to base unit */}
                   {currentUomId > 0 && baseUomId && (

@@ -8,6 +8,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -134,7 +135,7 @@ export default function ProductInventorySheet({
 
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
-    label: pu.product?.name ?? `Product UOM #${pu.id}`,
+    label: getProductUomName(pu, pu.product?.name) || `Product UOM #${pu.id}`,
     sublabel: pu.uom?.name ?? undefined,
     description: pu.code ?? undefined,
   }))

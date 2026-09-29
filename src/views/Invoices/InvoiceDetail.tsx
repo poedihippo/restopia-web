@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 
 interface InvoiceDetailProps {
   id: number
@@ -43,6 +44,7 @@ interface InvoiceDetailLine {
     product_inventory_snapshot?: {
       product_uom_batch?: {
         product_uom?: {
+          name?: string | null
           product?: { name: string }
           uom?: { name: string }
         }
@@ -488,7 +490,10 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{index + 1}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name ?? `Item #${line.id}`}
+                    {getProductUomName(
+                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom,
+                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name,
+                    ) || `Item #${line.id}`}
                     {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -841,7 +846,10 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name ?? `Item #${line.id}`}
+                    {getProductUomName(
+                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom,
+                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name,
+                    ) || `Item #${line.id}`}
                     {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.qty.toLocaleString('id-ID')}</td>

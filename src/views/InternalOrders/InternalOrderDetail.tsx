@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
+import { getProductUomName } from '@/utils/productUomName'
 
 interface InternalOrderDetailProps {
   id: number
@@ -698,7 +699,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
                   {index + 1}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                  {detail.product_uom?.product?.name ?? `Item #${detail.product_uom_id ?? detail.id}`}
+                  {getProductUomName(detail.product_uom, detail.product_uom?.product?.name) || `Item #${detail.product_uom_id ?? detail.id}`}
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={pillStyle}>

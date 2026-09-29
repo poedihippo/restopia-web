@@ -10,6 +10,7 @@ import { productCategoriesService } from '@/services/product-categories.service'
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
@@ -811,13 +812,13 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                             color: 'var(--foreground)',
                           }}
                         >
-                          {item.product_uom_batch?.product_uom?.product?.name
-                            ?? item.product_uom?.product?.name
-                            ?? puFallback?.product?.name
-                            ?? item.product_uom_batch?.product_uom?.code
-                            ?? item.product_uom?.code
-                            ?? puFallback?.code
-                            ?? `Item #${item.id}`}
+                          {getProductUomName(item.product_uom_batch?.product_uom, undefined)
+                            || getProductUomName(item.product_uom, undefined)
+                            || getProductUomName(puFallback, undefined)
+                            || item.product_uom_batch?.product_uom?.code
+                            || item.product_uom?.code
+                            || puFallback?.code
+                            || `Item #${item.id}`}
                         </div>
                         <div
                           style={{
@@ -1190,9 +1191,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 const detailPu = getProductUom(selectedItem.product_uom_id)
                 const batchPu = (selectedItem as any).product_uom_batch?.product_uom
                 const productName =
-                  batchPu?.product?.name
-                  ?? selectedItem.product_uom?.product?.name
-                  ?? detailPu?.product?.name
+                  (getProductUomName(batchPu, undefined)
+                  || getProductUomName(selectedItem.product_uom, undefined)
+                  || getProductUomName(detailPu, undefined))
+                  || undefined
                 const puCode =
                   batchPu?.code ?? selectedItem.product_uom?.code ?? detailPu?.code
                 const uom = batchPu?.uom ?? selectedItem.product_uom?.uom ?? detailPu?.uom

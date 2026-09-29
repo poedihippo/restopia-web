@@ -8,6 +8,7 @@ export interface IProductUom {
   product_id?: number;
   uom_id: number;
   code: string;
+  name?: string | null;
   base_price: number;
   online_price: number;
   price_editable: boolean;

@@ -12,6 +12,7 @@ import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
+import { getProductUomName } from '@/utils/productUomName'
 import { X, Loader2 } from 'lucide-react'
 
 const schema = z.object({
@@ -150,7 +151,10 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
   const productUomOptions = React.useMemo(() => {
     return (productUomsData || [])
       .filter((p: any) => isProductTypeAllowed(p.product, activeProductTypes))
-      .map((p: any) => ({ label: p.product?.name ? `${p.product.name} (${p.code || p.uom?.code || p.id})` : (p.code || p.id), value: p.id }))
+      .map((p: any) => {
+        const name = getProductUomName(p, p.product?.name)
+        return { label: name ? `${name} (${p.code || p.uom?.code || p.id})` : (p.code || p.id), value: p.id }
+      })
   }, [productUomsData, activeProductTypes])
 
   const mapPayload = (data: FormValues) => {

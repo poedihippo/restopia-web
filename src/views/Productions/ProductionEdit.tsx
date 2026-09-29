@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 import useGetProduction from '@/hooks/productions/useGetProduction'
 import ProductionForm from './ProductionForm'
 import { parseDate } from '@/helper/parseDate'
+import { getProductUomName } from '@/utils/productUomName'
 
 interface Props {
   id: number
@@ -13,11 +14,7 @@ interface Props {
 const INCLUDE = 'branch,created_by,production_details'
 
 function getProductName(inv: any): string {
-  return (
-    inv?.product_uom_batch?.product_uom?.product?.name ??
-    inv?.product_uom?.product?.name ??
-    ''
-  )
+  return getProductUomName(inv?.product_uom_batch?.product_uom ?? inv?.product_uom)
 }
 
 function getUomCode(inv: any): string {

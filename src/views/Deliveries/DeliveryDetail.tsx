@@ -1,6 +1,7 @@
 'use client'
 import { formatCurrency } from '@/utils/price';
 import { formatDate, formatDateTime } from '@/utils/date';
+import { getProductUomName } from '@/utils/productUomName';
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/router'
@@ -673,7 +674,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                       {index + 1}
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                      {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
+                      {getProductUomName(pu) || `UOM #${detail.product_uom_id}`}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <span style={pillStyle}>
@@ -903,7 +904,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                     {pu?.product?.code ?? '-'}
                   </td>
                   <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                    {pu?.product?.name ?? `UOM #${detail.product_uom_id}`}
+                    {getProductUomName(pu) || `UOM #${detail.product_uom_id}`}
                   </td>
                   <td style={{ border: '1px solid #000', padding: '2mm' }}>
                     {pu?.uom?.name ?? pu?.uom?.code ?? '-'}

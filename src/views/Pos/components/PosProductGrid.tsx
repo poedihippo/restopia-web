@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import { formatCurrency } from '@/utils/price';
+import { getProductUomName } from '@/utils/productUomName'
 
 
 interface PosProductGridProps {
@@ -327,11 +328,11 @@ export default function PosProductGrid({
                           paddingRight: lotCount > 1 ? 52 : 0,
                         }}
                       >
-                        {item.product_uom_batch?.product_uom?.product?.name ??
-                          item.product_uom?.product?.name ??
-                          item.productUom?.product?.name ??
-                          item.product?.name ??
-                          item.code ??
+                        {getProductUomName(item.product_uom_batch?.product_uom, item.product_uom_batch?.product_uom?.product?.name) ||
+                          getProductUomName(item.product_uom, item.product_uom?.product?.name) ||
+                          getProductUomName(item.productUom, item.productUom?.product?.name) ||
+                          item.product?.name ||
+                          item.code ||
                           `#${item.id}`}
                       </span>
                       <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
@@ -879,13 +880,13 @@ function BundleBatchPickerModal({
                   >
                     {detail.items.map((opt: any) => (
                       <option key={opt.id} value={opt.id}>
-                        {opt.product_uom?.product?.name ?? 'Unknown Product'}
+                        {getProductUomName(opt.product_uom, opt.product_uom?.product?.name) || 'Unknown Product'}
                       </option>
                     ))}
                   </select>
                 ) : (
                   <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>
-                    {item.product_uom?.product?.name ?? 'Unknown Product'}
+                    {getProductUomName(item.product_uom, item.product_uom?.product?.name) || 'Unknown Product'}
                   </div>
                 )}
                 

@@ -12,6 +12,7 @@ import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
+import { getProductUomName } from '@/utils/productUomName'
 
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
@@ -69,6 +70,7 @@ interface BundleSheetProps {
 interface ProductUomOption {
   id: number
   code?: string
+  name?: string | null
   product?: { name?: string }
   uom?: { name?: string; code?: string }
 }
@@ -213,7 +215,7 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
 
   const productUomOptions = productUoms.map((pu) => ({
     value: pu.id,
-    label: pu.product?.name ?? `Product UOM #${pu.id}`,
+    label: getProductUomName(pu, pu.product?.name) || `Product UOM #${pu.id}`,
     sublabel: pu.uom?.name ?? undefined,
     description: pu.code ?? undefined,
   }))

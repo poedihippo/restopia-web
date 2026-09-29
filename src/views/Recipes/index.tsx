@@ -11,6 +11,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { getProductUomName } from '@/utils/productUomName'
 import {
   Plus,
   Pencil,
@@ -343,7 +344,7 @@ export default function RecipesView() {
                         fontFamily: 'var(--font-display)',
                       }}
                     >
-                      {item.product_uom?.product?.name ?? '—'}
+                      {item.product_uom ? (getProductUomName(item.product_uom, item.product_uom.product?.name) || '—') : '—'}
                     </span>
                     {item.is_default && (
                       <span
@@ -486,7 +487,7 @@ export default function RecipesView() {
                               color: 'var(--foreground)',
                             }}
                           >
-                            {mat.product_uom?.product?.name ?? '—'}
+                            {mat.product_uom ? (getProductUomName(mat.product_uom, mat.product_uom.product?.name) || '—') : '—'}
                             {mat.product_uom?.uom?.name
                               ? ` — ${mat.product_uom.uom.name}`
                               : ''}

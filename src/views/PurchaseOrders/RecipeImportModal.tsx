@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { recipesService } from '@/services/recipes.service'
 import { X, Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { getProductUomName } from '@/utils/productUomName'
 
 interface RecipeImportModalProps {
   open: boolean
@@ -287,9 +288,9 @@ export default function RecipeImportModal({
                 {paginatedRecipes.map((recipe: any) => {
                   const selected = !!selectedRecipesMap[recipe.id]
                   const recipeName =
-                    recipe.product_uom?.product?.name ??
-                    recipe.product_uom?.code ??
-                    recipe.name ??
+                    getProductUomName(recipe.product_uom, recipe.product_uom?.product?.name) ||
+                    recipe.product_uom?.code ||
+                    recipe.name ||
                     `Recipe #${recipe.id}`
                   const materialCount = recipe.recipe_materials?.length ?? 0
                   const uomCode = recipe.product_uom?.uom?.code || recipe.product_uom?.uom?.name || 'PCS'

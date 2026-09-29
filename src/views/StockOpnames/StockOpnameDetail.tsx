@@ -16,6 +16,7 @@ import { uomsService } from '@/services/uoms.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productConversionsService } from '@/services/product-conversions.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { getProductUomName } from '@/utils/productUomName'
 import { toastMutationApiError } from '@/utils/apiError'
 import {
   ChevronLeft,
@@ -1217,7 +1218,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
           filteredProductGroups.map((group) => {
             const isCollapsed = !!collapsedGroups[group.product_uom_id]
             const productName =
-              group.product_uom?.product?.name ||
+              getProductUomName(group.product_uom, group.product_uom?.product?.name) ||
               group.product_uom?.code ||
               `Product UoM #${group.product_uom_id}`
             const productCode = group.product_uom?.product?.code || group.product_uom?.code || ''
@@ -1950,7 +1951,7 @@ function AddBatchModal({
   }, [rawList, existingInventoryIds, search])
 
   const productName =
-    group.product_uom?.product?.name || group.product_uom?.code || `Product UoM #${group.product_uom_id}`
+    getProductUomName(group.product_uom, group.product_uom?.product?.name) || group.product_uom?.code || `Product UoM #${group.product_uom_id}`
 
   return (
     <div

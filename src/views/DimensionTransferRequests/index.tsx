@@ -8,6 +8,7 @@ import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDate } from '@/utils/date'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -236,7 +237,9 @@ export default function DimensionTransferRequestsView() {
       batch?.product_uom?.product ||
       (batch as any)?.product ||
       (item as any)?.product
-    const productName = product?.name || (batch?.product_uom?.code ? `SKU: ${batch.product_uom.code}` : '—')
+    const productName =
+      getProductUomName(batch?.product_uom, product?.name) ||
+      (batch?.product_uom?.code ? `SKU: ${batch.product_uom.code}` : '—')
     const productCode = product?.code
     const uomName = batch?.product_uom?.uom?.name || batch?.product_uom?.uom?.code
 

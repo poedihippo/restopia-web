@@ -27,6 +27,7 @@ import {
 import SearchableSelect from '@/components/SearchableSelect'
 import { FloatingPanel } from '@/components/FloatingPanel'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import { getProductUomName } from '@/utils/productUomName'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -794,6 +795,30 @@ export function MaterialsFieldArray({
         </div>
       </div>
 
+      {/* Column headers */}
+      {fields.length > 0 && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '24px 1fr 90px 92px 32px',
+            gap: 8,
+            padding: '0 2px',
+          }}
+        >
+          <span />
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Bahan Baku
+          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Qty
+          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Stok
+          </span>
+          <span />
+        </div>
+      )}
+
       {/* Rows */}
       {fields.map((field, matIndex) => {
         const labelKey = `${detailIndex}-${matIndex}`
@@ -809,7 +834,18 @@ export function MaterialsFieldArray({
         const isOutOfStock = inv && availableStock <= 0
         const isInsufficient = inv && availableStock > 0 && availableStock < reqQty
         const hasValue = !!invId && invId > 0
-        const isActive = openMatIndex === matIndex
+        const hasLabel = existingLabel && existingLabel !== `Material #${matIndex + 1}`
+        const stockBadge = hasNoInventory
+          ? hasLabel
+            ? { text: 'Blm ada stok', color: 'var(--destructive)' }
+            : null
+          : isOutOfStock
+          ? { text: 'Stok: 0', color: 'var(--destructive)' }
+          : isInsufficient
+          ? { text: `Stok: ${availableStock}`, color: 'var(--warning)' }
+          : inv
+          ? { text: `Stok: ${availableStock}`, color: 'var(--success)' }
+          : null
 
         return (
           <div
@@ -817,9 +853,11 @@ export function MaterialsFieldArray({
             style={{
               position: 'relative',
               display: 'grid',
-              gridTemplateColumns: '20px 1fr 80px 28px',
-              gap: 6,
-              alignItems: 'start',
+              gridTemplateColumns: '24px 1fr 90px 92px 32px',
+              gap: 8,
+              alignItems: 'center',
+              paddingBottom: 8,
+              borderBottom: matIndex < fields.length - 1 ? '1px solid var(--border)' : 'none',
             }}
           >
             {/* Material Row Index */}
@@ -945,6 +983,24 @@ export function MaterialsFieldArray({
               )
             })()}
 
+            {/* Stock badge */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                height: 34,
+                fontSize: 10,
+                fontWeight: 600,
+                color: stockBadge?.color ?? 'var(--foreground-subtle)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title={stockBadge?.text}
+            >
+              {stockBadge?.text ?? '—'}
+            </div>
+
             <div style={{ position: 'relative', zIndex: 20, flexShrink: 0 }}>
               <button
                 type="button"
@@ -961,7 +1017,6 @@ export function MaterialsFieldArray({
                   color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
                   display: 'flex',
                   alignItems: 'center',
-                  marginTop: 2,
                 }}
               >
                 <Trash2 size={13} />
@@ -1160,6 +1215,7 @@ export default function ProductionForm({
   const watchDetails = watch('details')
   const watchSourceOwnerRef = watch('source_owner_ref')
   const watchSourceStage = watch('source_stage')
+  const watchSourceLocationRef = watch('source_location_ref')
 
   // Track per-material stage/owner overrides via a form subscription.
   // This avoids useWatch (which re-renders on every keystroke) and
@@ -1297,7 +1353,7 @@ export default function ProductionForm({
   })
   const prodItemUoms = unwrapList(prodItemUomData)
 
-  const { data: inventoriesData } = useQuery({
+  const { data: inventoriesData, isFetching: isFetchingInventories } = useQuery({
     queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch, effectiveOwnerFilter, effectiveStagesFilter],
     enabled: !!activeBranchId,
     refetchOnMount: 'always',
@@ -1316,7 +1372,6 @@ export default function ProductionForm({
         .then((r) => r.data),
   })
   const inventories = (inventoriesData as any)?.data ?? []
-
   // Edit mode: prefill
   useEffect(() => {
     if (mode === 'edit' && initialData) {
@@ -1404,8 +1459,7 @@ export default function ProductionForm({
           if (matches.length === 0) {
             // No stock at all
             missing.push(
-              mat.product_uom?.product?.name ??
-              String(mat.product_uom?.product_id ?? '?')
+              getProductUomName(mat.product_uom, String(mat.product_uom?.product_id ?? '?'))
             )
             mappedIndex++
             return {
@@ -1445,8 +1499,7 @@ export default function ProductionForm({
         // Stock availability will be validated when the user submits Create Production.
         const labels: Record<string, string> = {}
         materials.forEach((m: any, idx: number) => {
-          const productName =
-            m.product_uom?.product?.name ?? String(m.product_uom?.product_id ?? '?')
+          const productName = getProductUomName(m.product_uom, String(m.product_uom?.product_id ?? '?'))
           const uomCode = m.product_uom?.uom?.code ?? ''
           const sku = m.product_uom?.code ?? ''
           labels[`${detailIndex}-${idx}`] = `${productName} · ${uomCode} · ${sku}`
@@ -1512,10 +1565,8 @@ export default function ProductionForm({
           const inv = inventories.find((i: any) => i.id === id)
           if (!inv) return
           const name =
-            inv?.product_uom_batch?.product_uom?.product?.name ??
-            inv?.product_uom?.product?.name ??
-            inv?.code ??
-            `Material #${id}`
+            getProductUomName(inv?.product_uom_batch?.product_uom ?? inv?.product_uom) ||
+            (inv?.code ?? `Material #${id}`)
           const uomCode =
             inv?.product_uom_batch?.product_uom?.uom?.code ??
             inv?.product_uom?.uom?.code ??
@@ -1534,13 +1585,117 @@ export default function ProductionForm({
     [derivedMaterialLabels, materialLabels],
   )
 
+  // Cache every inventory row ever seen, keyed by id, so a stale
+  // product_inventory_id (invalidated by an owner/stage/location change)
+  // can still be traced back to the product it belonged to.
+  const inventoryCacheRef = useRef<Map<number, any>>(new Map())
+  useEffect(() => {
+    inventories.forEach((inv: any) => {
+      if (inv?.id != null) inventoryCacheRef.current.set(Number(inv.id), inv)
+    })
+  }, [inventories])
+
+  // Re-validate selected materials whenever the source dimension (owner /
+  // stage / location) changes: a previously selected product_inventory_id
+  // may no longer exist under the new dimension. If exactly one matching
+  // inventory remains for that material's product, auto-select it; if none
+  // or more than one match, clear the selection and notify the user to pick
+  // again.
+  const prevSourceDimKeyRef = useRef<string | null>(null)
+  const pendingSourceDimKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    const dimKey = `${watchSourceOwnerRef ?? ''}|${watchSourceStage ?? ''}|${watchSourceLocationRef ?? ''}`
+
+    if (prevSourceDimKeyRef.current === null) {
+      prevSourceDimKeyRef.current = dimKey
+      return
+    }
+    if (dimKey !== prevSourceDimKeyRef.current) {
+      prevSourceDimKeyRef.current = dimKey
+      pendingSourceDimKeyRef.current = dimKey
+      return
+    }
+    if (pendingSourceDimKeyRef.current !== dimKey) return
+    if (isFetchingInventories) return
+    pendingSourceDimKeyRef.current = null
+
+    const currentDetails = getValues('details') || []
+    let autoCount = 0
+    const ambiguous: string[] = []
+    const noStock: string[] = []
+
+    currentDetails.forEach((d, di) => {
+      ;(d.materials || []).forEach((m, mi) => {
+        const invId = Number(m.product_inventory_id)
+        if (!invId) return
+        const stillValid = inventories.some((i: any) => Number(i.id) === invId)
+        if (stillValid) return
+
+        const cached = inventoryCacheRef.current.get(invId)
+        const productId =
+          cached?.product_uom_batch?.product_uom?.product_id ?? cached?.product_uom?.product_id
+        if (!productId) return
+
+        const key = `${di}-${mi}`
+        const productName =
+          getProductUomName(cached?.product_uom_batch?.product_uom ?? cached?.product_uom) ||
+          mergedMaterialLabels[key]?.split(/\s+[·—]\s+/)[0] ||
+          `Material #${mi + 1}`
+
+        const candidates = inventories.filter((i: any) => {
+          const pid = i.product_uom_batch?.product_uom?.product_id ?? i.product_uom?.product_id
+          return Number(pid) === Number(productId)
+        })
+
+        if (candidates.length === 1) {
+          const match = candidates[0]
+          setValue(`details.${di}.materials.${mi}.product_inventory_id` as any, match.id, {
+            shouldValidate: true,
+          })
+          const uomCode =
+            match.product_uom_batch?.product_uom?.uom?.code ?? match.product_uom?.uom?.code ?? ''
+          setMaterialLabels((prev) => ({
+            ...prev,
+            [key]: `${productName} — ${uomCode} SKU: ${match.code ?? match.id}`,
+          }))
+          autoCount++
+        } else {
+          setValue(`details.${di}.materials.${mi}.product_inventory_id` as any, 0, {
+            shouldValidate: true,
+          })
+          setMaterialLabels((prev) => ({ ...prev, [key]: productName }))
+          if (candidates.length === 0) noStock.push(productName)
+          else ambiguous.push(productName)
+        }
+      })
+    })
+
+    if (autoCount > 0) {
+      toast.success(`${autoCount} material otomatis dipilih ulang sesuai dimensi baru`)
+    }
+    if (ambiguous.length > 0) {
+      toast.warning(
+        `Ditemukan lebih dari satu stok untuk: ${ambiguous.join(', ')}. Silakan pilih ulang inventory pada material tersebut.`
+      )
+    }
+    if (noStock.length > 0) {
+      toast.warning(
+        `Stok tidak ditemukan di dimensi baru untuk: ${noStock.join(', ')}. Silakan pilih ulang inventory.`
+      )
+    }
+  }, [inventories, isFetchingInventories, watchSourceOwnerRef, watchSourceStage, watchSourceLocationRef])
+
   const handleSelectMaterialInventory = useCallback(
     (detailIndex: number, matIndex: number, inv: any, productName: string) => {
       setValue(
         `details.${detailIndex}.materials.${matIndex}.product_inventory_id` as any,
         inv.id,
       )
-      const label = `${productName} — ${inv.product_uom?.uom?.code ?? ''} SKU: ${inv.code ?? inv.id}`
+      const displayName = getProductUomName(
+        inv?.product_uom_batch?.product_uom ?? inv?.product_uom,
+        productName,
+      )
+      const label = `${displayName} — ${inv.product_uom?.uom?.code ?? ''} SKU: ${inv.code ?? inv.id}`
       setMaterialLabels((prev) => ({ ...prev, [`${detailIndex}-${matIndex}`]: label }))
       // Clear "needs stock pick" flag for this material
       setNeedsStockPick((prev) => {
@@ -2042,20 +2197,13 @@ export default function ProductionForm({
                     )}
                   />
                 </div>
-                <div>
-                  <label style={labelStyle}>Location</label>
-                  <Controller
-                    name="source_location_ref"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? ''}
-                        onChange={field.onChange}
-                        options={[{ value: 'GENERAL', label: 'General' }]}
-                        placeholder="Pilih lokasi..."
-                        searchPlaceholder="Cari lokasi..."
-                      />
-                    )}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={labelStyle}>Lokasi</label>
+                  <input
+                    type="text"
+                    placeholder="GENERAL"
+                    {...register('source_location_ref')}
+                    style={fieldInputStyle}
                   />
                 </div>
               </div>
@@ -2107,20 +2255,13 @@ export default function ProductionForm({
                     )}
                   />
                 </div>
-                <div>
-                  <label style={labelStyle}>Location</label>
-                  <Controller
-                    name="output_location_ref"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? ''}
-                        onChange={field.onChange}
-                        options={[{ value: 'GENERAL', label: 'General' }]}
-                        placeholder="Pilih lokasi..."
-                        searchPlaceholder="Cari lokasi..."
-                      />
-                    )}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={labelStyle}>Lokasi</label>
+                  <input
+                    type="text"
+                    placeholder="GENERAL"
+                    {...register('output_location_ref')}
+                    style={fieldInputStyle}
                   />
                 </div>
               </div>
@@ -2173,6 +2314,26 @@ export default function ProductionForm({
               </kbd>
             </button>
           </div>
+
+          {detailFields.length > 0 && (
+            <div
+              style={{
+                padding: '8px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--background)',
+              }}
+            >
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, minWidth: 24, textAlign: 'center' }}>#</span>
+              <span style={{ width: 24 }} />
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, flex: 1 }}>Produk</span>
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, width: 100 }}>Qty</span>
+              <span style={{ ...sectionHeaderStyle, fontSize: 10, width: 96 }}>Status</span>
+              <span style={{ width: 22 }} />
+            </div>
+          )}
 
           <div style={{ padding: 0, borderRadius: '0 0 var(--radius-lg) var(--radius-lg)' }}>
             {detailFields.map((field, detailIndex) => {
