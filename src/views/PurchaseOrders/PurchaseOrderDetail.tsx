@@ -121,7 +121,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         .findById(id, {
           include:
             'branch,supplier,supplier_branch,created_by,updated_by,' +
-            'purchase_order_details,purchase_order_details.product_uom',
+            'purchase_order_details,purchase_order_details.product_uom,additional_charges',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),

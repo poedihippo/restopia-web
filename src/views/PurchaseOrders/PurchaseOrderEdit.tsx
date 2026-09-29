@@ -22,7 +22,7 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
         .findById(id, {
           include:
             'branch,supplier,supplier_branch,created_by,updated_by,' +
-            'purchase_order_details'
+            'purchase_order_details,additional_charges'
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -51,6 +51,11 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
           description: d.description ?? '',
         }))
         : [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
+      additional_charges: (order.additional_charges ?? []).map((c: any) => ({
+        name: c.name ?? '',
+        amount: Number(c.amount ?? 0),
+        description: c.description ?? '',
+      })),
       deliveries: order.deliveries ?? [],
     }
     : undefined
