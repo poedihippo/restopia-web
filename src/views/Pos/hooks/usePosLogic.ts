@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
@@ -32,10 +32,43 @@ const getApiErrorMessage = (err: any, fallback = 'An error occurred'): string =>
   return data?.message || fallback
 }
 
+// Inventory rows carry expiry on the batch, not on the row itself.
+const expiryOf = (row: any): string | null =>
+  row?.product_uom_batch?.expiry_date ?? row?.expiry_date ?? null
+
+const parseJson = (v: any) => {
+  if (typeof v !== 'string') return v
+  try {
+    return JSON.parse(v)
+  } catch {
+    return null
+  }
+}
+
+// Order payloads must only carry fields defined by Create/UpdateSalesOrderRequest:
+// totals are computed by the backend, and optional ints must be omitted, not null.
+const toApiOrder = (payload: any, opts: { keepNull?: string[] } = {}) => {
+  const { code, subtotal_price, discount_price, total_price, ...rest } = payload
+  return Object.fromEntries(
+    Object.entries(rest).filter(
+      ([k, v]) => v !== undefined && (v !== null || opts.keepNull?.includes(k)),
+    ),
+  )
+}
+
 export function usePosLogic() {
   const { user } = useAuth()
   const printer = usePrinter()
   const qc = useQueryClient()
+
+  // One Idempotency-Key per logical submission: retrying the *same* payload
+  // (double click, timeout) reuses the key, a changed payload gets a new one.
+  const idemRef = useRef<{ sig: string; key: string } | null>(null)
+  const idemKeyFor = (scope: string, payload: unknown) => {
+    const sig = scope + JSON.stringify(payload)
+    if (idemRef.current?.sig !== sig) idemRef.current = { sig, key: crypto.randomUUID() }
+    return idemRef.current.key
+  }
 
   // ---------------------------------------------------------------------------
   // 1. STATE DEFINITIONS
@@ -77,6 +110,7 @@ export function usePosLogic() {
     code: string
     discount_amount: number
     voucher_id: number | null
+    subtotal_at_apply: number
   } | null>(null)
   const [voucherLoading, setVoucherLoading] = useState(false)
   const discountAmount = appliedVoucher?.discount_amount ?? 0
@@ -183,22 +217,22 @@ export function usePosLogic() {
   const historyMeta = (historyData as any)?.meta
 
   const loadPreorderToCart = (order: any) => {
+    if (order.type === 'franchise') {
+      toast.error('Order franchise tidak bisa diedit di POS')
+      return
+    }
     setCart([])
     setBundleCart([])
     const details = order.sales_order_details ?? []
     const newCart: PosCartItem[] = details
       .filter((d: any) => !d.bundle_id)
       .map((d: any) => {
-        let snapshot = d.product_inventory_snapshot
-        if (typeof snapshot === 'string') {
-          try {
-            snapshot = JSON.parse(snapshot)
-          } catch (e) { }
-        }
+        const snapshot = parseJson(d.product_inventory_snapshot)
 
         const pu = snapshot?.product_uom_batch?.product_uom ?? snapshot?.product_uom ?? d.product_inventory?.product_uom_batch?.product_uom ?? d.product_inventory?.product_uom
 
         return {
+          detail_id: d.id,
           product_inventory_id: d.product_inventory_id,
           name: pu?.product?.name ?? d.description ?? `Item #${d.product_inventory_id}`,
           code: pu?.code ?? pu?.product?.code ?? '',
@@ -207,7 +241,27 @@ export function usePosLogic() {
           price_editable: snapshot?.price_editable ?? d.product_inventory?.price_editable ?? false,
         }
       })
+    const newBundles: PosCartBundle[] = details
+      .filter((d: any) => d.bundle_id)
+      .map((d: any) => {
+        const rawSnap = parseJson(d.bundle_snapshot)
+        const snap = Array.isArray(rawSnap) ? rawSnap[0] : rawSnap
+        return {
+          detail_id: d.id,
+          bundle_id: d.bundle_id,
+          name: snap?.name ?? d.description ?? `Bundle #${d.bundle_id}`,
+          code: snap?.code ?? '',
+          price: Number(d.price),
+          qty: Number(d.qty),
+          bundle_details: (d.sales_order_detail_bundles ?? []).map((b: any) => ({
+            bundle_detail_item_id: b.bundle_detail_item_id,
+            product_inventory_id: b.product_inventory_id,
+          })),
+        }
+      })
     setCart(newCart)
+    setBundleCart(newBundles)
+    setOrderType(order.type === 'online' ? 'online' : 'offline')
     if (order.customer_id) {
       setSelectedCustomerId(order.customer_id)
       setCustomerSearch(order.customer?.name ?? '')
@@ -221,6 +275,24 @@ export function usePosLogic() {
       setSalesChannelId(order.sales_channel_id)
     } else {
       setSalesChannelId(null)
+    }
+
+    // Keep the voucher the order was saved with, otherwise the next PATCH drops it.
+    if (order.voucher_id) {
+      const vSnap = parseJson(order.voucher_snapshot)
+      const loadedSubtotal =
+        newCart.reduce((sum, c) => sum + c.price * c.qty, 0) +
+        newBundles.reduce((sum, c) => sum + c.price * c.qty, 0)
+      setVoucherCode(order.voucher_id)
+      setAppliedVoucher({
+        code: vSnap?.code ?? '',
+        discount_amount: Number(order.discount_price ?? 0),
+        voucher_id: order.voucher_id,
+        subtotal_at_apply: loadedSubtotal,
+      })
+    } else {
+      setVoucherCode('')
+      setAppliedVoucher(null)
     }
 
     setOrderNote(order.description ?? '')
@@ -344,17 +416,18 @@ export function usePosLogic() {
         'filter[product_type]': 'final',
         'filter[status]': 'active',
         'filter[stage]': 'FINISHED',
-        include: 'branch,product_uom_batch',
+        include:
+          'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
       }
 
       if (selectedCategoryId) params['filter[product_category_id]'] = selectedCategoryId
       if (searchDebounced) params['filter[search]'] = searchDebounced
       if (inStockOnly) params['filter[stock_gte]'] = 1
 
-      if (sortBy === 'price_asc') params['sort'] = 'base_price'
-      else if (sortBy === 'price_desc') params['sort'] = '-base_price'
-      else if (sortBy === 'stock_desc') params['sort'] = '-stock'
-      else params['sort'] = 'code'
+      // The API only sorts inventories by id/branch_id/product_uom_batch_id/stock/
+      // status/created_at/updated_at. Price and name ordering happens client-side
+      // (see groupedItems).
+      if (sortBy === 'stock_desc') params['sort'] = '-stock'
 
       return productInventoriesService.list(params as any).then((r) => r.data)
     },
@@ -365,8 +438,8 @@ export function usePosLogic() {
 
   const fefoCompare = (a: any, b: any) => {
     const now = Date.now()
-    const ae = a.expiry_date ? new Date(a.expiry_date).getTime() : null
-    const be = b.expiry_date ? new Date(b.expiry_date).getTime() : null
+    const ae = expiryOf(a) ? new Date(expiryOf(a) as string).getTime() : null
+    const be = expiryOf(b) ? new Date(expiryOf(b) as string).getTime() : null
     const aExpired = ae !== null && ae < now
     const bExpired = be !== null && be < now
     if (aExpired !== bExpired) return aExpired ? 1 : -1
@@ -406,8 +479,17 @@ export function usePosLogic() {
       g.defaultLot = firstStocked ?? g.lots[0]
       g.representative = g.defaultLot
     }
-    return Array.from(map.values())
-  }, [items])
+    const groups: any[] = Array.from(map.values())
+
+    const uomOf = (g: any) => g.defaultLot?.product_uom_batch?.product_uom ?? g.defaultLot?.product_uom
+    const priceOf = (g: any) => Number(uomOf(g)?.base_price ?? 0)
+    const nameOf = (g: any) =>
+      String(uomOf(g)?.code ?? uomOf(g)?.product?.code ?? uomOf(g)?.product?.name ?? '')
+    if (sortBy === 'price_asc') groups.sort((a, b) => priceOf(a) - priceOf(b))
+    else if (sortBy === 'price_desc') groups.sort((a, b) => priceOf(b) - priceOf(a))
+    else if (sortBy !== 'stock_desc') groups.sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+    return groups
+  }, [items, sortBy])
 
   // ---------------------------------------------------------------------------
   // 4. COMPUTED VALUES
@@ -466,6 +548,7 @@ export function usePosLogic() {
     setShowReceipt(false)
     setEditingOrderId(null)
     setEditingOrderCode(null)
+    idemRef.current = null
   }, [])
 
   const addLotToCart = useCallback((lot: any) => {
@@ -543,48 +626,75 @@ export function usePosLogic() {
     }
   }, [])
 
+  // A voucher discount is only valid for the cart it was calculated on.
+  useEffect(() => {
+    if (appliedVoucher && appliedVoucher.subtotal_at_apply !== subtotal) {
+      setAppliedVoucher(null)
+      setVoucherCode('')
+      toast.info('Keranjang berubah, voucher direset. Terapkan ulang voucher.')
+    }
+  }, [subtotal, appliedVoucher])
+
+  // Order lines in API shape. Optional ints are omitted (never null); `id` is only
+  // sent when updating a held order so existing lines are matched, not recreated.
+  const buildDetails = (status: 'pending' | 'completed', withIds = false) => [
+    ...cart.map((c: any) => ({
+      ...(withIds && c.detail_id ? { id: c.detail_id } : {}),
+      product_inventory_id: c.product_inventory_id,
+      qty: c.qty,
+      price: c.price,
+      status,
+    })),
+    ...bundleCart.map((c: any) => ({
+      ...(withIds && c.detail_id ? { id: c.detail_id } : {}),
+      bundle_id: c.bundle_id,
+      qty: c.qty,
+      price: c.price,
+      status,
+      bundle_details:
+        c.bundle_details?.map((bd: any) => ({
+          product_inventory_id: bd.product_inventory_id,
+          bundle_detail_item_id: bd.bundle_detail_item_id,
+        })) || [],
+    })),
+  ]
+
+  const getSettlement = () => {
+    const splitCreditUser = isSplitPayment
+      ? splitPayments.find((sp) => sp.creditByUserId)?.creditByUserId
+      : null
+    const creditById = isSplitPayment
+      ? splitCreditUser || undefined
+      : isCreditMethod
+        ? creditByUserId
+        : undefined
+    const settlementStatus = isSplitPayment
+      ? splitCreditUser
+        ? 'credit'
+        : 'pending'
+      : isCreditMethod
+        ? 'credit'
+        : 'pending'
+    return { creditById, settlementStatus }
+  }
+
   const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
     if (!selectedVoucher) return
     setVoucherLoading(true)
     try {
       const voucher = selectedVoucher
 
-      const mergedDetails = [
-        ...cart.map((c: any) => ({
-          product_inventory_id: c.product_inventory_id,
-          bundle_id: null,
-          qty: c.qty,
-          price: c.price,
-          status: 'pending',
-        })),
-        ...bundleCart.map((c: any) => ({
-          product_inventory_id: null,
-          bundle_id: c.bundle_id,
-          qty: c.qty,
-          price: c.price,
-          status: 'pending',
-          bundle_details: c.bundle_details?.map((bd: any) => ({
-            product_inventory_id: bd.product_inventory_id,
-            bundle_detail_item_id: bd.bundle_detail_item_id,
-          })) || [],
-        })),
-      ]
-
-      const payload = {
-        code: editingOrderCode ?? `POS-${Date.now()}`,
+      const payload = toApiOrder({
         type: orderType,
-        customer_id: selectedCustomerId ?? null,
+        customer_id: selectedCustomerId ?? undefined,
         date: transactionDate,
         fulfillment_date: fulfillmentDate.slice(0, 10),
         sales_channel_id: salesChannelId,
         voucher_id: voucher.id,
-        subtotal_price: subtotal,
-        discount_price: 0,
-        total_price: total,
         status: 'pending',
         settlement_status: 'pending',
-        details: mergedDetails,
-      }
+        details: buildDetails('pending'),
+      })
 
       const applyRes = await salesOrdersService.applyVoucher(payload)
       const data = (applyRes.data as any)?.data
@@ -592,8 +702,9 @@ export function usePosLogic() {
       if (data?.discount_price !== undefined) {
         setAppliedVoucher({
           code: voucher.code,
-          discount_amount: data.discount_price,
+          discount_amount: Number(data.discount_price),
           voucher_id: voucher.id,
+          subtotal_at_apply: subtotal,
         })
         toast.success('Voucher applied')
       } else {
@@ -615,10 +726,18 @@ export function usePosLogic() {
   }
 
   const { mutate: holdMutate, isPending: isHoldPending } = useMutation({
-    mutationFn: (payload: any) =>
-      editingOrderId
-        ? salesOrdersService.update(editingOrderId, payload as any)
-        : api.post('/sales-orders', payload, { headers: { 'Idempotency-Key': crypto.randomUUID() } }).then(r => r.data),
+    mutationFn: (payload: any) => {
+      if (editingOrderId) {
+        return salesOrdersService.update(
+          editingOrderId,
+          toApiOrder(payload, { keepNull: ['customer_id'] }) as any,
+        )
+      }
+      const body = toApiOrder(payload)
+      return api
+        .post('/sales-orders', body, { headers: { 'Idempotency-Key': idemKeyFor('hold', body) } })
+        .then((r) => r.data)
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       toast.success('Order held as pending')
@@ -639,41 +758,9 @@ export function usePosLogic() {
       return
     }
 
-    const mergedDetails = [
-      ...cart.map((c: any) => ({
-        product_inventory_id: c.product_inventory_id,
-        bundle_id: null,
-        qty: c.qty,
-        price: c.price,
-        status: 'pending',
-      })),
-      ...bundleCart.map((c: any) => ({
-        product_inventory_id: null,
-        bundle_id: c.bundle_id,
-        qty: c.qty,
-        price: c.price,
-        status: 'pending',
-        bundle_details: c.bundle_details?.map((bd: any) => ({
-          product_inventory_id: bd.product_inventory_id,
-          bundle_detail_item_id: bd.bundle_detail_item_id,
-        })) || [],
-      })),
-    ]
-
-    const splitCreditUser = isSplitPayment
-      ? splitPayments.find(sp => sp.creditByUserId)?.creditByUserId
-      : null
-
-    const finalCreditById = isSplitPayment 
-      ? (splitCreditUser || undefined)
-      : (isCreditMethod ? creditByUserId : undefined)
-    
-    const finalSettlementStatus = isSplitPayment 
-      ? (splitCreditUser ? 'credit' : 'pending')
-      : (isCreditMethod ? 'credit' : 'pending')
+    const { creditById, settlementStatus } = getSettlement()
 
     const payload = {
-      code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
       customer_id: selectedCustomerId ?? null,
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
@@ -682,14 +769,11 @@ export function usePosLogic() {
       fulfillment_date: fulfillmentDate.slice(0, 10),
       sales_channel_id: salesChannelId,
       voucher_id: appliedVoucher?.voucher_id ?? undefined,
-      subtotal_price: subtotal,
-      discount_price: discountAmount,
-      total_price: total,
       status: 'pending',
-      settlement_status: finalSettlementStatus,
-      credit_by_id: finalCreditById,
+      settlement_status: settlementStatus,
+      credit_by_id: creditById,
       description: orderNote || undefined,
-      details: mergedDetails,
+      details: buildDetails('pending', !!editingOrderId),
     }
 
     holdMutate(payload)
@@ -698,9 +782,11 @@ export function usePosLogic() {
   const { mutate, isPending } = useMutation({
     mutationFn: (payload: any) => {
       if (editingOrderId) {
-        return salesOrdersService.update(editingOrderId, payload as any)
+        return salesOrdersService.update(
+          editingOrderId,
+          toApiOrder(payload, { keepNull: ['customer_id'] }) as any,
+        )
       }
-      // Build payments array for atomic checkout
       // Payment amount always equals the sale total; cashTendered is only
       // used for change calculation in the UI, not sent as the payment amount.
       const paidAmount = payload.total_price
@@ -708,10 +794,9 @@ export function usePosLogic() {
         payment_method_id: number
         amount: number
         description?: string
-        allocations?: { sales_order_id?: number; amount: number }[]
       }[] = []
       if (isSplitPayment) {
-        checkoutPayments = splitPayments.map(sp => ({
+        checkoutPayments = splitPayments.map((sp) => ({
           payment_method_id: sp.paymentMethodId,
           amount: sp.amount,
           description: orderNote || undefined,
@@ -723,33 +808,23 @@ export function usePosLogic() {
           description: orderNote || undefined,
         }]
       }
-      // Forward the full payload to checkout — it already contains all
-      // required fields (type, sales_channel_id, date, fulfillment_date,
-      // status, settlement_status). Only remap detail field names and
-      // add the payments array.
-      return salesOrdersService.checkout({
+      const body = {
         type: payload.type,
         sales_channel_id: payload.sales_channel_id,
         date: payload.date,
         fulfillment_date: payload.fulfillment_date,
         status: payload.status,
         settlement_status: payload.settlement_status,
-        customer_id: payload.customer_id,
+        customer_id: payload.customer_id ?? undefined,
         customer_name: payload.customer_name,
         customer_phone: payload.customer_phone,
         credit_by_id: payload.credit_by_id,
         voucher_id: payload.voucher_id,
         description: payload.description,
-        details: payload.details.map((d: any) => ({
-          product_inventory_id: d.product_inventory_id ?? undefined,
-          bundle_id: d.bundle_id ?? undefined,
-          qty: d.qty,
-          price: d.price,
-          status: d.status,
-          bundle_details: d.bundle_details ?? undefined,
-        })),
+        details: payload.details,
         payments: checkoutPayments,
-      })
+      }
+      return salesOrdersService.checkout(body, idemKeyFor('checkout', body))
     },
     onSuccess: async (res: any, variables: any) => {
       // Checkout is atomic — payment already created by the backend.
@@ -779,11 +854,15 @@ export function usePosLogic() {
 
         if (paymentsPayload.length > 0) {
           try {
-            await paymentsService.create({
+            const paymentBody = {
               type: 'receive',
               date: dateStr,
               payments: paymentsPayload
-            } as any)
+            }
+            await paymentsService.create(
+              paymentBody as any,
+              idemKeyFor(`pay:${salesOrderId}`, paymentBody),
+            )
           } catch (err: any) {
             toast.error(
               'Order updated but payment recording failed: ' +
@@ -811,41 +890,16 @@ export function usePosLogic() {
   })
 
   const handleConfirmPayment = () => {
-    const mergedDetails = [
-      ...cart.map((c: any) => ({
-        product_inventory_id: c.product_inventory_id,
-        bundle_id: null,
-        qty: c.qty,
-        price: c.price,
-        status: 'completed',
-      })),
-      ...bundleCart.map((c: any) => ({
-        product_inventory_id: null,
-        bundle_id: c.bundle_id,
-        qty: c.qty,
-        price: c.price,
-        status: 'completed',
-        bundle_details: c.bundle_details?.map((bd: any) => ({
-          product_inventory_id: bd.product_inventory_id,
-          bundle_detail_item_id: bd.bundle_detail_item_id,
-        })) || [],
-      })),
-    ]
+    if (isSplitPayment ? splitPayments.length === 0 : !paymentMethodId) {
+      toast.error('Select a payment method')
+      return
+    }
 
-    const splitCreditUser = isSplitPayment
-      ? splitPayments.find(sp => sp.creditByUserId)?.creditByUserId
-      : null
+    const { creditById, settlementStatus } = getSettlement()
 
-    const finalCreditById = isSplitPayment 
-      ? (splitCreditUser || undefined)
-      : (isCreditMethod ? creditByUserId : undefined)
-    
-    const finalSettlementStatus = isSplitPayment 
-      ? (splitCreditUser ? 'credit' : 'pending')
-      : (isCreditMethod ? 'credit' : 'pending')
-
+    // subtotal_price / discount_price / total_price stay local (used for the
+    // payment amount) and are stripped before anything is sent to the API.
     const payload = {
-      code: editingOrderCode ?? `POS-${Date.now()}`,
       type: orderType,
       customer_id: selectedCustomerId ?? null,
       customer_name: selectedCustomerId ? undefined : guestName || undefined,
@@ -858,10 +912,10 @@ export function usePosLogic() {
       discount_price: discountAmount,
       total_price: total,
       status: 'final',
-      settlement_status: finalSettlementStatus,
-      credit_by_id: finalCreditById,
+      settlement_status: settlementStatus,
+      credit_by_id: creditById,
       description: orderNote || undefined,
-      details: mergedDetails,
+      details: buildDetails('completed', !!editingOrderId),
     }
 
     mutate(payload)

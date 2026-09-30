@@ -477,6 +477,8 @@ export interface PosCartLotOption {
 }
 
 export interface PosCartItem {
+  /** sales_order_details.id when the line comes from a held order being edited */
+  detail_id?: number
   product_inventory_id: number
   name: string
   code: string
@@ -498,6 +500,8 @@ export interface Bundle {
 }
 
 export interface PosCartBundle {
+  /** sales_order_details.id when the line comes from a held order being edited */
+  detail_id?: number
   bundle_id: number
   name: string
   code: string

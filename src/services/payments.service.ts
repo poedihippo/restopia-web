@@ -5,9 +5,9 @@ export const paymentsService = {
     api.get('/payments', { params }),
   findById: (id: number, params?: any) =>
     api.get(`/payments/${id}`, { params }),
-  create: (data: any) =>
+  create: (data: any, idempotencyKey: string = crypto.randomUUID()) =>
     api.post('/payments', data, {
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': idempotencyKey },
     }),
   update: (id: number, data: any) =>
     api.patch(`/payments/${id}`, data),

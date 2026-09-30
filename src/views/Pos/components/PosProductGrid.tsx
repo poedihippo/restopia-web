@@ -349,22 +349,22 @@ export default function PosProductGrid({
                       >
                         Stock: {group.totalStock}
                       </span>
-                      {item.expiry_date && (
+                      {(item.product_uom_batch?.expiry_date ?? item.expiry_date) && (
                         <span
                           style={{
                             fontSize: 11,
                             fontWeight: 500,
                             color:
-                              new Date(item.expiry_date) < new Date()
+                              new Date((item.product_uom_batch?.expiry_date ?? item.expiry_date)) < new Date()
                                 ? 'var(--destructive)'
-                                : new Date(item.expiry_date) <
+                                : new Date((item.product_uom_batch?.expiry_date ?? item.expiry_date)) <
                                   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                                   ? 'var(--warning)'
                                   : 'var(--foreground-muted)',
                           }}
                         >
                           Exp:{' '}
-                          {formatDate(item.expiry_date)}
+                          {formatDate((item.product_uom_batch?.expiry_date ?? item.expiry_date))}
                           {lotCount > 1 && ' (earliest)'}
                         </span>
                       )}
