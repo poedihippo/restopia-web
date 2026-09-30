@@ -44,9 +44,9 @@ export const salesOrdersService = {
       description?: string
       allocations?: { sales_order_id?: number; amount: number }[]
     }[]
-  }) =>
+  }, idempotencyKey: string = crypto.randomUUID()) =>
     api.post<ApiResponse<unknown>>('/sales-orders/checkout', data, {
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': idempotencyKey },
     }),
 
   returnOrder: (id: number) =>
