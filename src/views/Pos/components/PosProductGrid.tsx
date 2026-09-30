@@ -752,6 +752,7 @@ function BundleBatchPickerModal({
         // inventory calls per batch.
         const invRes = await productInventoriesService.list({
           'filter[product_uom_ids]': String(item.product_uom_id),
+          'filter[stage]': 'FINISHED',
           include: 'product_uom_batch',
           per_page: 100,
         } as any)
