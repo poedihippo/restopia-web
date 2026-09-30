@@ -27,6 +27,8 @@ interface Branch {
   code: string
   name: string
   is_default?: boolean
+  format?: 'premiere' | 'pickup_point'
+  parent_id?: number | null
   created_at?: string
 }
 
@@ -220,6 +222,7 @@ export default function BranchesView() {
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 120 }}>Code</th>
               <th style={thStyle}>Name</th>
+              <th style={{ ...thStyle, width: 120 }}>Format</th>
               <th style={{ ...thStyle, width: 100 }}>Default</th>
               <th style={{ ...thStyle, width: 140 }}>Created</th>
               <th style={{ ...thStyle, width: 80 }} />
@@ -229,14 +232,14 @@ export default function BranchesView() {
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 5 ? 60 : '75%',
+                          width: j === 6 ? 60 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -246,7 +249,7 @@ export default function BranchesView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load branches.
                   </span>
@@ -254,7 +257,7 @@ export default function BranchesView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -310,6 +313,21 @@ export default function BranchesView() {
                       }}
                     >
                       {item.name}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: item.format === 'pickup_point' ? 'var(--info-bg)' : 'var(--accent-light-bg)',
+                        color: item.format === 'pickup_point' ? 'var(--info)' : 'var(--accent)',
+                      }}
+                    >
+                      {item.format === 'pickup_point' ? 'Pickup Point' : 'Premiere'}
                     </span>
                   </td>
                   <td style={tdStyle}>

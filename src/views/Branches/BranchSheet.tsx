@@ -18,6 +18,8 @@ const schema = z.object({
   timezone: z.string().optional(),
   price_list_id: z.number().optional().nullable(),
   is_default: z.boolean().default(false),
+  format: z.enum(['premiere', 'pickup_point']).default('premiere'),
+  parent_id: z.coerce.number().optional().nullable(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -32,6 +34,8 @@ interface BranchSheetProps {
     is_default?: boolean
     timezone?: string
     price_list_id?: number | null
+    format?: 'premiere' | 'pickup_point'
+    parent_id?: number | null
   } | null
 }
 
@@ -44,16 +48,24 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
     enabled: open
   })
 
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then(r => r.data),
+    enabled: open,
+  })
+  const allBranches: any[] = (branchesData as any)?.data ?? []
+
   const {
     register,
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { code: '', name: '',
-      type: 'outlet', timezone: 'Asia/Jakarta', is_default: false },
+      type: 'outlet', timezone: 'Asia/Jakarta', is_default: false, format: 'premiere', parent_id: null },
   })
 
   useEffect(() => {
@@ -65,13 +77,17 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
         timezone: editData.timezone ?? 'Asia/Jakarta',
         price_list_id: editData.price_list_id ?? null,
         is_default: editData.is_default ?? false,
+        format: editData.format ?? 'premiere',
+        parent_id: editData.parent_id ?? null,
       })
     } else {
       reset({ code: '', name: '',
         type: 'outlet',
         timezone: 'Asia/Jakarta',
         price_list_id: null,
-        is_default: false })
+        is_default: false,
+        format: 'premiere',
+        parent_id: null })
     }
   }, [editData, open, reset])
 
@@ -281,6 +297,47 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
               {errors.type && <div style={errorStyle}>{errors.type.message}</div>}
               <div style={hintStyle}>Warehouse can only hold WIP, Production can manufacture, Outlet sells to customers</div>
             </div>
+
+            {/* Format */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={labelStyle}>Format</label>
+              <select
+                {...register('format')}
+                style={errors.format ? inputErrorStyle : inputStyle}
+              >
+                <option value="premiere">Premiere</option>
+                <option value="pickup_point">Pickup Point</option>
+              </select>
+              <div style={hintStyle}>Pickup points inherit account settings from their parent outlet</div>
+            </div>
+
+            {/* Parent Branch (only for pickup_point) */}
+            {watch('format') === 'pickup_point' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Parent Branch
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
+                <Controller
+                  control={control}
+                  name="parent_id"
+                  render={({ field }) => (
+                    <select
+                      value={field.value || ''}
+                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                      style={errors.parent_id ? inputErrorStyle : inputStyle}
+                    >
+                      <option value="">Select parent outlet...</option>
+                      {allBranches.filter((b: any) => b.format !== 'pickup_point').map((b: any) => (
+                        <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
+                      ))}
+                    </select>
+                  )}
+                />
+                {errors.parent_id && <div style={errorStyle}>{errors.parent_id.message}</div>}
+                <div style={hintStyle}>Must be a premiere (non-pickup-point) branch in the same company</div>
+              </div>
+            )}
 
             {/* Price List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

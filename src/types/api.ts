@@ -53,6 +53,34 @@ export interface CompanyRequest {
 export type BranchRequest = components["schemas"]["CreateBranchRequest"]
 export type UpdateBranchRequest = components["schemas"]["UpdateBranchRequest"]
 
+// Product Category Account Settings
+export interface ProductCategoryAccountSettingRequest {
+  product_category_id: number
+  chart_of_account_id: number
+  description?: string
+}
+
+export interface ProductCategoryAccountSettingUpdateRequest {
+  product_category_id?: number
+  chart_of_account_id?: number
+  description?: string
+}
+
+// Branch Account Settings
+export interface BranchAccountSettingRequest {
+  branch_id: number
+  account_setting_key_id: number
+  chart_of_account_id: number
+  description?: string
+}
+
+export interface BranchAccountSettingUpdateRequest {
+  branch_id?: number
+  account_setting_key_id?: number
+  chart_of_account_id?: number
+  description?: string
+}
+
 // Roles
 export interface RoleRequest {
   name: string

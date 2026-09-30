@@ -169,6 +169,8 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Bank Accounts', href: '/accounting/bank-accounts', permission: 'bank_account.read' },
           { label: 'Cash Transactions', href: '/accounting/cash-transactions', permission: 'cash_transaction.read' },
           { label: 'Account Settings', href: '/accounting/account-settings', permission: 'account-setting.menu' },
+          { label: 'Branch Account Settings', href: '/accounting/branch-account-settings', permission: 'branch-account-setting.menu' },
+          { label: 'Product Category Account Settings', href: '/accounting/product-category-account-settings', permission: 'product-category-account-setting.menu' },
           { label: 'Account Categories', href: '/accounting/account-categories', permission: 'account-category.menu' },
           { label: 'Account Types', href: '/accounting/account-types', permission: 'account-type.menu' },
           { label: 'Journals', href: '/accounting/journals', permission: 'journal.menu' },
