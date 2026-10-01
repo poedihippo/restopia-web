@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { branchAccountSettingsService } from '@/services/branch-account-settings.service'
-import { accountSettingsService } from '@/services/account-settings.service'
 import { branchesService } from '@/services/branches.service'
 import { useAuth } from '@/hooks/useAuth'
 import BranchAccountSettingSheet from './BranchAccountSettingSheet'
@@ -41,23 +40,6 @@ export default function BranchAccountSettingsView() {
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
 
-  const { data: accountSettingsData } = useQuery({
-    queryKey: ['account-settings'],
-    queryFn: () => accountSettingsService.list({ per_page: 100, include: 'account_setting_key' } as any).then(r => r.data),
-  })
-
-  const accountKeyMap = React.useMemo(() => {
-    const settings: any[] = (accountSettingsData as any)?.data ?? []
-    const map = new Map<number, { id: number; key: string; label: string }>()
-    for (const s of settings) {
-      const entity = s.account_setting_key_entity
-      if (entity && !map.has(entity.id)) {
-        map.set(entity.id, { id: entity.id, key: entity.key, label: entity.label })
-      }
-    }
-    return map
-  }, [accountSettingsData])
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ['branch-account-settings', page, perPage, debouncedSearch, branchFilter],
     queryFn: () =>
@@ -66,7 +48,7 @@ export default function BranchAccountSettingsView() {
           page,
           per_page: perPage,
           sort: '-created_at',
-          include: 'branch,chart_of_account',
+          include: 'branch,chart_of_account,account_setting_key',
           'filter[search]': debouncedSearch || undefined,
           'filter[branch_id]': branchFilter || undefined,
         } as any)
@@ -85,8 +67,6 @@ export default function BranchAccountSettingsView() {
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete account setting'),
   })
-
-  const getKeyLabel = (keyId: number) => accountKeyMap.get(keyId)
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
   const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
@@ -163,7 +143,7 @@ export default function BranchAccountSettingsView() {
               </td></tr>
             ) : (
               items.map((item: any, idx: number) => {
-                const keyInfo = getKeyLabel(item.account_setting_key_id)
+                const keyInfo = item.account_setting_key_entity
                 return (
                   <tr key={item.id} style={{ transition: 'background 120ms' }} onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
                     <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>{(page - 1) * perPage + idx + 1}</td>
@@ -175,8 +155,8 @@ export default function BranchAccountSettingsView() {
                     </td>
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{keyInfo?.label || `Key #${item.account_setting_key_id}`}</span>
-                        <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>{keyInfo?.key || ''}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{keyInfo?.label || item.account_setting_key || `Key #${item.account_setting_key_id}`}</span>
+                        <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>{keyInfo?.key || item.account_setting_key || ''}</span>
                       </div>
                     </td>
                     <td style={tdStyle}>

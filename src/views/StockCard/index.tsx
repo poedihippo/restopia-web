@@ -90,15 +90,13 @@ export default function StockCardView() {
   ]
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stock-card', productId, branchId, directionFilter],
-    enabled: productId > 0,
+    queryKey: ['stock-card', productId, branchId, directionFilter, debouncedDropdownSearch],
     queryFn: () =>
       stockMovementsService
         .list({
-          'filter[search]': debouncedDropdownSearch || undefined,
           per_page: 500,
           sort: 'created_at',
-          'filter[product_id]': productId,
+          'filter[product_id]': productId > 0 ? productId : undefined,
           'filter[branch_id]': branchId || undefined,
           'filter[direction]': directionFilter || undefined,
           include:
@@ -249,14 +247,12 @@ export default function StockCardView() {
         }}
       >
         <div style={{ gridColumn: 'span 2' }}>
-          <label style={labelStyle}>
-            Produk <span style={{ color: 'var(--destructive)' }}>*</span>
-          </label>
+          <label style={labelStyle}>Produk (Opsional)</label>
           <SearchableSelect
             value={productId}
-            onChange={(val) => setProductId(Number(val))}
+            onChange={(val) => setProductId(Number(val) || 0)}
             options={productOptions}
-            placeholder="Pilih produk..."
+            placeholder="Semua Produk"
             searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
             loading={productsLoading}
             onSearchChange={setProductSearch}
@@ -372,28 +368,13 @@ export default function StockCardView() {
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        {productId === 0 ? (
-          <div
-            style={{
-              padding: 64,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <LayoutList size={32} style={{ color: 'var(--foreground-subtle)' }} />
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-              Pilih produk untuk melihat kartu stok
-            </span>
-          </div>
-        ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
                   {[
                     'Tanggal',
+                    'Produk',
                     'Dokumen',
                     'Tipe',
                     'Dimensi',
@@ -411,7 +392,7 @@ export default function StockCardView() {
               <tbody>
                 {isLoading && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '48px 16px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                         {[60, 40, 80, 50, 70].map((w, i) => (
                           <div
@@ -432,7 +413,7 @@ export default function StockCardView() {
 
                 {isError && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                       Gagal memuat kartu stok
                     </td>
                   </tr>
@@ -440,7 +421,7 @@ export default function StockCardView() {
 
                 {!isLoading && !isError && rows.length === 0 && (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <div
                         style={{
                           padding: 48,
@@ -470,6 +451,15 @@ export default function StockCardView() {
                           <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                             {formatDate(item.created_at)}
                           </span>
+                        </td>
+                        <td style={tdStyle}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                              {item.product_inventory?.product_uom_batch?.product_uom?.product?.name
+                                ?? item.product_inventory?.product_uom?.product?.name
+                                ?? '—'}
+                            </span>
+                          </div>
                         </td>
                         <td style={tdStyle}>
                           <MovementDocumentLink item={item} />
@@ -542,7 +532,6 @@ export default function StockCardView() {
               </tbody>
             </table>
           </div>
-        )}
       </div>
 
       <style>{`
