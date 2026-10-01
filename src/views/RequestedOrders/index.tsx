@@ -14,7 +14,6 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Eye,
   Truck,
   Package,
   Building2,
@@ -29,6 +28,7 @@ interface RequestedPO {
   id: number
   code: string
   date: string
+  fulfillment_date?: string
   total_price: number
   subtotal_price?: number
   additional_charge_price?: number
@@ -37,8 +37,9 @@ interface RequestedPO {
   status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final'
   description?: string
   created_at?: string
-  branch?: { id: number; name: string }
-  supplier_branch?: { id: number; name: string }
+  created_by?: { id: number; name: string }
+  branch?: { id: number; name: string; code?: string }
+  supplier_branch?: { id: number; name: string; code?: string }
   additional_charges?: Array<{
     id: number
     name: string
@@ -131,7 +132,7 @@ export default function RequestedOrdersView() {
           page,
           per_page: perPage,
           include:
-            'branch,supplier_branch,purchase_order_details,purchase_order_details.product_uom,additional_charges',
+            'branch,supplier_branch,purchase_order_details,purchase_order_details.product_uom,additional_charges,created_by',
           sort: '-created_at',
           'filter[supplier_branch_id]': myBranchId || undefined,
           'filter[type]': 'branch',
@@ -472,28 +473,6 @@ export default function RequestedOrdersView() {
                     onClick={(e) => e.stopPropagation()}
                     style={{ display: 'flex', gap: 6 }}
                   >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(`/purchase/internal-orders/${item.id}/detail`)
-                      }
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '5px 10px',
-                        background: 'none',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: 'var(--foreground-muted)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Eye size={12} />
-                      View
-                    </button>
                     {(item.status === 'final' || item.status === 'rejected') && (
                       <button
                         type="button"
@@ -582,10 +561,49 @@ export default function RequestedOrdersView() {
                   <div
                     style={{
                       borderTop: '1px solid var(--border)',
-                      padding: '12px 20px 16px',
+                      padding: '16px 20px 20px',
                       background: 'var(--background)',
                     }}
                   >
+                    {/* Info grid */}
+                    <span style={{ ...sectionLabelStyle, marginBottom: 8 }}>
+                      Order Information
+                    </span>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                        gap: 10,
+                        marginBottom: 16,
+                      }}
+                    >
+                      {[
+                        { label: 'Source Branch', value: item.supplier_branch ? `${item.supplier_branch.code ?? ''} ${item.supplier_branch.name}` : '—' },
+                        { label: 'Destination Branch', value: item.branch ? `${item.branch.code ?? ''} ${item.branch.name}` : '—' },
+                        { label: 'Order Date', value: item.date ?? '—' },
+                        { label: 'Fulfillment Date', value: item.fulfillment_date ?? '—' },
+                        { label: 'Created By', value: item.created_by?.name ?? '—' },
+                        { label: 'Status', value: item.status },
+                      ].map((f) => (
+                        <div
+                          key={f.label}
+                          style={{
+                            padding: '8px 12px',
+                            background: 'var(--surface)',
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid var(--border)',
+                          }}
+                        >
+                          <div style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>
+                            {f.label}
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                            {f.value}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
                     <span style={{ ...sectionLabelStyle, marginBottom: 8 }}>
                       Requested Items
                     </span>
@@ -598,108 +616,112 @@ export default function RequestedOrdersView() {
                           gap: 6,
                         }}
                       >
-                        {(item.purchase_order_details ?? []).map((d, idx) => (
-                          <div
-                            key={d.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 10,
-                              padding: '7px 12px',
-                              background: 'var(--surface)',
-                              borderRadius: 'var(--radius-md)',
-                              border: '1px solid var(--border)',
-                            }}
-                          >
-                            <span
+                        {(item.purchase_order_details ?? []).map((d, idx) => {
+                          const unitPrice = d.price ?? d.product_uom?.franchise_price ?? 0
+                          const lineSubtotal = ((d.qty ?? 0) * unitPrice) - (d.discount_amount ?? 0)
+                          return (
+                            <div
+                              key={d.id}
                               style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 99,
-                                background: 'var(--accent-light-bg)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 10,
-                                fontWeight: 700,
-                                color: 'var(--accent)',
-                                flexShrink: 0,
-                              }}
-                            >
-                              {idx + 1}
-                            </span>
-                            <span
-                              style={{
-                                flex: 1,
-                                fontSize: 13,
-                                fontWeight: 500,
-                                color: 'var(--foreground)',
-                              }}
-                            >
-                              {getProductUomName(d.product_uom, d.product_uom?.product?.name) || '—'}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                fontFamily: 'monospace',
-                                color: 'var(--foreground-muted)',
-                                padding: '1px 6px',
-                                background: 'var(--background)',
-                                borderRadius: 'var(--radius-sm)',
+                                gap: 10,
+                                padding: '8px 12px',
+                                background: 'var(--surface)',
+                                borderRadius: 'var(--radius-md)',
                                 border: '1px solid var(--border)',
                               }}
                             >
-                              {d.product_uom?.uom?.name ?? ''}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: 'var(--foreground)',
-                                minWidth: 40,
-                                textAlign: 'right',
-                              }}
-                            >
-                              {(d.qty ?? 0).toLocaleString('id-ID')}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 11,
-                                color: 'var(--foreground-muted)',
-                                minWidth: 50,
-                                textAlign: 'right',
-                              }}
-                            >
-                              ×
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: 'var(--accent)',
-                                minWidth: 90,
-                                textAlign: 'right',
-                              }}
-                            >
-                              {canSeeFranchisePrice
-                                ? `Rp ${(d.product_uom?.franchise_price ?? 0).toLocaleString('id-ID')}`
-                                : '***'}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: 13,
-                                fontWeight: 700,
-                                color: 'var(--foreground)',
-                                minWidth: 100,
-                                textAlign: 'right',
-                              }}
-                            >
-                              {canSeeFranchisePrice
-                                ? `Rp ${(((d.qty ?? 0) * (d.product_uom?.franchise_price ?? 0)) - (d.discount_amount ?? 0)).toLocaleString('id-ID')}`
-                                : '***'}
-                            </span>
-                          </div>
-                        ))}
+                              <span
+                                style={{
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: 99,
+                                  background: 'var(--accent-light-bg)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: 'var(--accent)',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {idx + 1}
+                              </span>
+                              <span
+                                style={{
+                                  flex: 1,
+                                  fontSize: 13,
+                                  fontWeight: 500,
+                                  color: 'var(--foreground)',
+                                }}
+                              >
+                                {getProductUomName(d.product_uom, d.product_uom?.product?.name) || '—'}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                  color: 'var(--foreground-muted)',
+                                  padding: '1px 6px',
+                                  background: 'var(--background)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--border)',
+                                }}
+                              >
+                                {d.product_uom?.uom?.name ?? ''}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: 'var(--foreground)',
+                                  minWidth: 30,
+                                  textAlign: 'right',
+                                }}
+                              >
+                                {(d.qty ?? 0).toLocaleString('id-ID')}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: 'var(--foreground-muted)',
+                                  minWidth: 20,
+                                  textAlign: 'center',
+                                }}
+                              >
+                                ×
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: 'var(--accent)',
+                                  minWidth: 80,
+                                  textAlign: 'right',
+                                }}
+                              >
+                                {canSeeFranchisePrice
+                                  ? `Rp ${unitPrice.toLocaleString('id-ID')}`
+                                  : '***'}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  fontWeight: 700,
+                                  color: 'var(--foreground)',
+                                  minWidth: 90,
+                                  textAlign: 'right',
+                                }}
+                              >
+                                {canSeeFranchisePrice
+                                  ? `Rp ${lineSubtotal.toLocaleString('id-ID')}`
+                                  : '***'}
+                              </span>
+                            </div>
+                          )
+                        })}
                       </div>
                     ) : (
                       <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>
