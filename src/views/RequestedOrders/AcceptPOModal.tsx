@@ -86,7 +86,7 @@ export default function AcceptPOModal({
 
   const handlePriceChange = (index: number, value: string) => {
     const newDetails = [...details]
-    newDetails[index].price = value === '' ? 0 : Number(value)
+    newDetails[index].price = value === '' ? 0 : parseFloat(value) || 0
     setDetails(newDetails)
   }
 
@@ -259,7 +259,7 @@ export default function AcceptPOModal({
                         {/* Qty */}
                         <td style={{ padding: '12px 10px', textAlign: 'center', verticalAlign: 'top' }}>
                           <input
-                            type="number" min="0"
+                            type="number" step="any" min="0"
                             value={detail.qty.toString()}
                             onChange={(e) => handleQtyChange(i, e.target.value)}
                             className={inputCls}
@@ -270,10 +270,10 @@ export default function AcceptPOModal({
                         {/* Price */}
                         <td style={{ padding: '12px 10px', verticalAlign: 'top' }}>
                           <input
-                            type="text" inputMode="numeric"
-                            value={showPrice ? String(detail.price ?? '') : '***'}
+                            type="number" step="any" min="0"
+                            value={showPrice ? (detail.price ?? '') : ''}
                             disabled={!showPrice || !canEditPrice}
-                            onChange={(e) => handlePriceChange(i, e.target.value.replace(/[^\d]/g, ''))}
+                            onChange={(e) => handlePriceChange(i, e.target.value)}
                             className={inputCls}
                             style={!showPrice || !canEditPrice ? inputDisabled : inputBase}
                           />
@@ -295,7 +295,7 @@ export default function AcceptPOModal({
                               <option value="nominal">Rp</option>
                             </select>
                             <input
-                              type="number" min="0"
+                              type="number" step="any" min="0"
                               value={detail.discount_value ?? ''}
                               onChange={(e) => handleDiscountValueChange(i, e.target.value)}
                               disabled={!canEditPrice || !detail.discount_type}
@@ -377,7 +377,7 @@ export default function AcceptPOModal({
                             <input type="text" value={charge.name} onChange={(e) => handleChargeChange(i, 'name', e.target.value)} placeholder="e.g. Shipping" className={inputCls} style={inputBase} />
                           </td>
                           <td style={{ padding: '8px 10px' }}>
-                            <input type="number" min="0" value={charge.amount} onChange={(e) => handleChargeChange(i, 'amount', e.target.value)} placeholder="0" className={inputCls} style={{ ...inputBase, textAlign: 'right' }} />
+                            <input type="number" step="any" min="0" value={charge.amount} onChange={(e) => handleChargeChange(i, 'amount', e.target.value)} placeholder="0" className={inputCls} style={{ ...inputBase, textAlign: 'right' }} />
                           </td>
                           <td style={{ padding: '8px 10px' }}>
                             <input type="text" value={charge.description || ''} onChange={(e) => handleChargeChange(i, 'description', e.target.value)} placeholder="Optional" className={inputCls} style={inputBase} />

@@ -36,7 +36,7 @@ import { SalesOrderType } from '@/constants/global'
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
-  return Number(n).toLocaleString('id-ID')
+  return Number(n).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
 const detailSchema = z.object({
@@ -1007,7 +1007,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <input
                   type="number"
-                  min="0.001"
+                  min="0"
                   step="any"
                   {...register(`details.${index}.qty`, { valueAsNumber: true })}
                   style={{
@@ -1024,15 +1024,20 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formatNumber(watch(`details.${index}.price`), getCanReadPrice())}
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={(() => {
+                        const v = watch(`details.${index}.price`)
+                        if (!getCanReadPrice()) return ''
+                        return v ?? ''
+                      })()}
                       disabled={watch(`details.${index}.is_price_locked`) !== false || !getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice)}
                       onChange={(e) => {
-                        const raw = e.target.value.replace(/[^\d]/g, '')
+                        const val = e.target.value
                         setValue(
                           `details.${index}.price`,
-                          raw === '' ? 0 : parseInt(raw, 10) || 0,
+                          val === '' ? 0 : parseFloat(val) || 0,
                         )
                       }}
                       style={{
@@ -1205,6 +1210,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--foreground-muted)' }}>Rp</span>
                         <input
                           type="number"
+                          step="any"
                           min="0"
                           {...register(`additional_charges.${index}.amount`, { valueAsNumber: true })}
                           placeholder="Amount *"

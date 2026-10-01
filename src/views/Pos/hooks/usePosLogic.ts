@@ -415,7 +415,7 @@ export function usePosLogic() {
         per_page: 50,
         'filter[product_type]': 'final',
         'filter[status]': 'active',
-        'filter[stage]': 'FINISHED',
+        'filter[stage]': 'finished',
         include:
           'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
       }
