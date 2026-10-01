@@ -30,15 +30,26 @@ interface RequestedPO {
   code: string
   date: string
   total_price: number
+  subtotal_price?: number
+  additional_charge_price?: number
+  tax_amount?: number
+  discount_amount?: number
   status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final'
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
   supplier_branch?: { id: number; name: string }
+  additional_charges?: Array<{
+    id: number
+    name: string
+    amount: number
+    description?: string
+  }>
   purchase_order_details?: Array<{
     id: number
     qty: number
     price: number
+    discount_amount?: number
     product_uom?: {
       id: number
       code?: string
@@ -120,7 +131,7 @@ export default function RequestedOrdersView() {
           page,
           per_page: perPage,
           include:
-            'branch,supplier_branch,purchase_order_details,purchase_order_details.product_uom',
+            'branch,supplier_branch,purchase_order_details,purchase_order_details.product_uom,additional_charges',
           sort: '-created_at',
           'filter[supplier_branch_id]': myBranchId || undefined,
           'filter[type]': 'branch',
@@ -645,9 +656,21 @@ export default function RequestedOrdersView() {
                                 fontSize: 13,
                                 fontWeight: 600,
                                 color: 'var(--foreground)',
+                                minWidth: 40,
+                                textAlign: 'right',
                               }}
                             >
                               {(d.qty ?? 0).toLocaleString('id-ID')}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--foreground-muted)',
+                                minWidth: 50,
+                                textAlign: 'right',
+                              }}
+                            >
+                              ×
                             </span>
                             <span
                               style={{
@@ -662,6 +685,19 @@ export default function RequestedOrdersView() {
                                 ? `Rp ${(d.product_uom?.franchise_price ?? 0).toLocaleString('id-ID')}`
                                 : '***'}
                             </span>
+                            <span
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: 'var(--foreground)',
+                                minWidth: 100,
+                                textAlign: 'right',
+                              }}
+                            >
+                              {canSeeFranchisePrice
+                                ? `Rp ${(((d.qty ?? 0) * (d.product_uom?.franchise_price ?? 0)) - (d.discount_amount ?? 0)).toLocaleString('id-ID')}`
+                                : '***'}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -671,38 +707,83 @@ export default function RequestedOrdersView() {
                       </span>
                     )}
 
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'flex-end',
-                        alignItems: 'center',
-                        gap: 8,
-                        marginTop: 10,
-                        padding: '8px 12px',
-                      }}
-                    >
-                      <span
+                    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {/* Subtotal */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px' }}>
+                        <span style={{ fontSize: 12, color: 'var(--foreground-muted)', fontWeight: 500 }}>Subtotal</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                          {canSeeFranchisePrice
+                            ? `Rp ${(item.subtotal_price ?? 0).toLocaleString('id-ID')}`
+                            : '***'}
+                        </span>
+                      </div>
+
+                      {/* Additional Charges */}
+                      {(item.additional_charges?.length ?? 0) > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {(item.additional_charges ?? []).map((c: any) => (
+                            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px' }}>
+                              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                                {c.name}{c.description ? ` — ${c.description}` : ''}
+                              </span>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                                {canSeeFranchisePrice ? `Rp ${(c.amount ?? 0).toLocaleString('id-ID')}` : '***'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {(!item.additional_charges?.length && (item.additional_charge_price ?? 0) > 0) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px' }}>
+                          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Additional Charges</span>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                            {canSeeFranchisePrice ? `Rp ${(item.additional_charge_price ?? 0).toLocaleString('id-ID')}` : '***'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Tax */}
+                      {(item.tax_amount ?? 0) > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px' }}>
+                          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Tax (PPN)</span>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
+                            {canSeeFranchisePrice ? `Rp ${(item.tax_amount ?? 0).toLocaleString('id-ID')}` : '***'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Discount */}
+                      {(item.discount_amount ?? 0) > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px' }}>
+                          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Discount</span>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--destructive)' }}>
+                            {canSeeFranchisePrice ? `- Rp ${(item.discount_amount ?? 0).toLocaleString('id-ID')}` : '***'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Total */}
+                      <div
                         style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: 'var(--foreground-muted)',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.6px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginTop: 4,
+                          padding: '10px 12px',
+                          background: 'var(--surface)',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--border)',
                         }}
                       >
-                        Franchise Total
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 15,
-                          fontWeight: 700,
-                          color: 'var(--accent)',
-                        }}
-                      >
-                        {canSeeFranchisePrice
-                          ? `Rp ${(item.total_price ?? 0).toLocaleString('id-ID')}`
-                          : '***'}
-                      </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--foreground)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                          Total
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
+                          {canSeeFranchisePrice
+                            ? `Rp ${(item.total_price ?? 0).toLocaleString('id-ID')}`
+                            : '***'}
+                        </span>
+                      </div>
                     </div>
 
                     {item.description && (
