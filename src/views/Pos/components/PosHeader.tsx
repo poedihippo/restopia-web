@@ -1,6 +1,6 @@
 import React from 'react'
 import PrinterStatusBar from '@/components/pos/PrinterStatusBar'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { shiftsService } from '@/services/shifts.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -23,6 +23,13 @@ export default function PosHeader({
   setShowPreorders,
 }: PosHeaderProps) {
   const qc = useQueryClient()
+
+  const { data: shiftData } = useQuery({
+    queryKey: ['shifts-current'],
+    queryFn: () => shiftsService.current().then(r => r.data),
+    retry: false,
+  })
+  const hasActiveShift = !!shiftData?.data
 
   const closeShiftMutation = useMutation({
     mutationFn: () => shiftsService.close(),
@@ -168,7 +175,7 @@ export default function PosHeader({
               closeShiftMutation.mutate()
             }
           }}
-          disabled={closeShiftMutation.isPending}
+          disabled={closeShiftMutation.isPending || !hasActiveShift}
           style={{
             height: 36,
             padding: '0 14px',
@@ -178,12 +185,12 @@ export default function PosHeader({
             color: 'var(--destructive)',
             fontSize: 13,
             fontWeight: 500,
-            cursor: 'pointer',
+            cursor: closeShiftMutation.isPending || !hasActiveShift ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 6,
             flexShrink: 0,
-            opacity: closeShiftMutation.isPending ? 0.7 : 1,
+            opacity: closeShiftMutation.isPending || !hasActiveShift ? 0.5 : 1,
           }}
         >
           {closeShiftMutation.isPending ? 'Closing...' : '🔒 Close Shift'}

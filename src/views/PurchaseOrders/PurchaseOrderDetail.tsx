@@ -130,9 +130,9 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const order = (data as any)?.data as PurchaseOrderFull | undefined
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action, details, total_price, tax_id }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number }) =>
+    mutationFn: ({ id, action, details, total_price, tax_id, additional_charges }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number, additional_charges?: { name: string; amount: number; description?: string }[] }) =>
       action === 'accept'
-        ? purchaseOrdersService.accept(id, { details, total_price, tax_id })
+        ? purchaseOrdersService.accept(id, { details, total_price, tax_id, additional_charges })
         : purchaseOrdersService.reject(id),
     onSuccess: (_res, vars) => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
@@ -1049,8 +1049,16 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         isSubmitting={actionMutation.isPending}
         onConfirm={(payload) => {
           if (order) {
-            const total_price = payload.details.reduce((sum, d) => sum + d.qty * d.price, 0)
-            actionMutation.mutate({ id: order.id, action: 'accept', details: payload.details, total_price, tax_id: payload.tax_id })
+            const calcLineSubtotal = (d: any) => {
+              const gross = d.qty * d.price
+              if (!d.discount_type || !d.discount_value) return gross
+              if (d.discount_type === 'percent') return gross - (gross * d.discount_value / 100)
+              return gross - d.discount_value
+            }
+            const subtotal = payload.details.reduce((sum, d) => sum + calcLineSubtotal(d), 0)
+            const chargesTotal = (payload.additional_charges ?? []).reduce((sum, c) => sum + (c.amount || 0), 0)
+            const total_price = subtotal + chargesTotal
+            actionMutation.mutate({ id: order.id, action: 'accept', details: payload.details, total_price, tax_id: payload.tax_id, additional_charges: payload.additional_charges })
           }
         }}
       />
