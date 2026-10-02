@@ -52,7 +52,7 @@ export default function SalesOrderDetail() {
       salesOrderService
         .findById(id, {
           include:
-            'branch,customer,created_by,purchase_order,credit_by,sales_order_details',
+            'branch,customer,created_by,purchase_order,credit_by,sales_order_details,sales_channel',
         })
         .then((r) => r.data),
   });
@@ -66,31 +66,36 @@ export default function SalesOrderDetail() {
 
   const queryClient = useQueryClient()
 
-  const { data: paymentsData } = useQuery({
-    queryKey: ['sales-order-payments', id],
+  const { data: allocationsData } = useQuery({
+    queryKey: ['sales-order-payment-allocations', id],
     enabled: idReady,
     queryFn: () =>
       paymentsService
-        .list({
+        .listAllocations({
           per_page: 50,
-          include: 'payment_method,allocations',
+          include: 'payment',
           'filter[sales_order_id]': id,
         } as any)
         .then((r) => r.data),
   });
-  const payments: any[] = (paymentsData as any)?.data ?? []
+  const allocations: any[] = (allocationsData as any)?.data ?? []
+  const payments: any[] = useMemo(
+    () =>
+      allocations.map((a: any) => ({
+        id: a.payment?.id ?? a.payment_id,
+        allocation_id: a.id,
+        amount: a.amount,
+        description: a.payment?.payment_number ?? '',
+        created_at: a.payment?.created_at ?? a.payment?.date,
+        date: a.payment?.date,
+        payment_method: a.payment?.payment_method,
+        is_reversed: a.payment?.is_reversed,
+      })),
+    [allocations],
+  )
   const totalPaid = useMemo(
-    () => payments.reduce((s: number, p: any) => {
-      let allocated = 0;
-      if (p.allocations && p.allocations.length > 0) {
-        const alloc = p.allocations.find((a: any) => Number(a.sales_order_id) === Number(id));
-        if (alloc) allocated = Number(alloc.amount ?? 0);
-      } else {
-        allocated = Number(p.amount ?? 0);
-      }
-      return s + allocated;
-    }, 0),
-    [payments, id],
+    () => allocations.reduce((s: number, a: any) => s + Number(a.amount ?? 0), 0),
+    [allocations],
   )
   const remaining = Number(order?.total_price ?? 0) - totalPaid
   const isFullyPaid = remaining <= 0 && Number(order?.total_price ?? 0) > 0
@@ -133,7 +138,7 @@ export default function SalesOrderDetail() {
         }],
       } as any),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales-order-payments', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-order-payment-allocations', id] })
       queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
       toast.success('Payment recorded')
       setPaymentMethodId(0)
@@ -146,7 +151,7 @@ export default function SalesOrderDetail() {
   const deletePaymentMutation = useMutation({
     mutationFn: (paymentId: number) => paymentsService.delete(paymentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales-order-payments', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-order-payment-allocations', id] })
       queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
       toast.success('Payment deleted')
     },

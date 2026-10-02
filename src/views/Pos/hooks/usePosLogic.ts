@@ -339,15 +339,30 @@ export function usePosLogic() {
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
 
-  // Sales channels query
+  // Sales channels query — filtered by selected sales order type
   const { data: salesChannelsData } = useQuery({
-    queryKey: ['pos-sales-channels'],
+    queryKey: ['pos-sales-channels', orderType],
     queryFn: () =>
-      salesChannelsService.list({ per_page: 100, sort: 'name' } as any).then((r) => r.data),
+      salesChannelsService.list({
+        per_page: 100,
+        sort: 'name',
+        'filter[sales_order_type]': orderType,
+      } as any).then((r) => r.data),
   })
-  const salesChannels: any[] = (salesChannelsData as any)?.data ?? []
+  const salesChannels: any[] = useMemo(() => {
+    const raw: any[] = (salesChannelsData as any)?.data ?? []
+    return raw.filter((c: any) => !c.sales_order_type || c.sales_order_type === orderType)
+  }, [salesChannelsData, orderType])
 
-  // Auto-default to "Walk-in" sales channel when channels first load
+  // Reset sales channel when it is no longer valid for the selected order type
+  useEffect(() => {
+    if (salesChannelId != null && salesChannels.length > 0) {
+      const stillValid = salesChannels.some((c: any) => Number(c.id) === Number(salesChannelId))
+      if (!stillValid) setSalesChannelId(null)
+    }
+  }, [salesChannels, salesChannelId])
+
+  // Auto-default to "Walk-in" sales channel when channels first load (type-matched list)
   useEffect(() => {
     if (salesChannelId === null && salesChannels.length > 0) {
       const walkIn = salesChannels.find((c: any) => {

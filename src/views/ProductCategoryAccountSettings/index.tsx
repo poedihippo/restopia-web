@@ -12,7 +12,8 @@ import { Plus, Search, Pencil, Trash2, BookOpen, X } from 'lucide-react'
 
 export default function ProductCategoryAccountSettingsView() {
   const qc = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
+  const myBranchId = (user as any)?.branch_id ?? (user as any)?.branch?.id
   const canCreate = hasPermission('product-category-account-setting.create')
   const canEdit = hasPermission('product-category-account-setting.update')
   const canDelete = hasPermission('product-category-account-setting.delete')
@@ -33,7 +34,7 @@ export default function ProductCategoryAccountSettingsView() {
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-category-account-settings', page, perPage, debouncedSearch],
+    queryKey: ['product-category-account-settings', page, perPage, debouncedSearch, myBranchId],
     queryFn: () =>
       productCategoryAccountSettingsService
         .list({
@@ -42,6 +43,7 @@ export default function ProductCategoryAccountSettingsView() {
           sort: '-created_at',
           include: 'product_category,chart_of_account',
           'filter[search]': debouncedSearch || undefined,
+          'filter[branch_id]': myBranchId || undefined,
         } as any)
         .then((r) => r.data),
   })

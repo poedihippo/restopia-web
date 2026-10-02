@@ -6,6 +6,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { useAuth } from '@/hooks/useAuth'
 import { salesOrdersService } from '@/services/sales-orders.service'
+import { paymentsService } from '@/services/payments.service'
 import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
@@ -48,6 +49,20 @@ export default function SalesReport() {
   })
   const orders: any[] = (data as any)?.data ?? []
 
+  const { data: allocationsData } = useQuery({
+    queryKey: ['report-sales-allocations', dateFrom, dateTo, branchFilter],
+    queryFn: () =>
+      paymentsService
+        .listAllocations({
+          per_page: 1000,
+          include: 'payment',
+          'filter[is_reversed]': 'false',
+        } as any)
+        .then((r) => r.data),
+    enabled,
+  })
+  const allocations: any[] = (allocationsData as any)?.data ?? []
+
   const exportMutation = useMutation({
     mutationFn: () =>
       reportsService.exportOutletTransactions({
@@ -89,7 +104,9 @@ export default function SalesReport() {
     let totalCreditKaryawan = 0
     let totalVoucher = 0
 
+    const orderMap = new Map<number, any>()
     orders.forEach((order: any) => {
+      orderMap.set(Number(order.id), order)
       grossSales += order.subtotal_price ?? 0
       totalDiscount += order.discount_price ?? 0
 
@@ -113,35 +130,37 @@ export default function SalesReport() {
         catMap[catName].totalQty += qty
         catMap[catName].totalAmount += amount
       })
+    })
 
-      // Payment breakdown — categorize by payment method name
-      ;(order.payments ?? []).forEach((p: any) => {
-        const method = (p.payment_method?.name ?? '').toLowerCase()
-        const amt = p.amount ?? 0
-        if (method.includes('cash')) {
-          totalCash += amt
-        } else if (method.includes('debit') || method.includes('bca')) {
-          totalDebit += amt
-        } else if (
-          method.includes('visa') ||
-          method.includes('master') ||
-          method.includes('card')
-        ) {
-          totalCard += amt
-        } else if (method.includes('transfer')) {
-          totalTransfer += amt
-        } else if (method.includes('credit')) {
-          if (order.credit_by_id) {
-            totalCreditKaryawan += amt
-          } else {
-            totalCreditCustomer += amt
-          }
-        } else if (method.includes('voucher')) {
-          totalVoucher += amt
+    // Payment breakdown from allocations allocated to these sales orders
+    allocations.forEach((a: any) => {
+      const order = orderMap.get(Number(a.sales_order_id))
+      if (!order) return
+      const method = (a.payment?.payment_method?.name ?? '').toLowerCase()
+      const amt = Number(a.amount ?? 0)
+      if (method.includes('cash')) {
+        totalCash += amt
+      } else if (method.includes('debit') || method.includes('bca')) {
+        totalDebit += amt
+      } else if (
+        method.includes('visa') ||
+        method.includes('master') ||
+        method.includes('card')
+      ) {
+        totalCard += amt
+      } else if (method.includes('transfer')) {
+        totalTransfer += amt
+      } else if (method.includes('credit')) {
+        if (order.credit_by_id) {
+          totalCreditKaryawan += amt
         } else {
-          totalCash += amt
+          totalCreditCustomer += amt
         }
-      })
+      } else if (method.includes('voucher')) {
+        totalVoucher += amt
+      } else {
+        totalCash += amt
+      }
     })
 
     const netSales = grossSales - totalDiscount
@@ -168,7 +187,7 @@ export default function SalesReport() {
       totalBanking,
       grandTotal: grossSales,
     }
-  }, [orders])
+  }, [orders, allocations])
 
   // ── Shared styles ─────────────────────────────────────────────────────────
   const inputStyle: React.CSSProperties = {

@@ -10,6 +10,7 @@ import { operationRulesService } from '@/services/operation-rules.service'
 import { branchesService } from '@/services/branches.service'
 import { X, Loader2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import CronPicker from '@/components/CronPicker'
 import { useAuth } from '@/hooks/useAuth'
 import { toastMutationApiError } from '@/utils/apiError';
 
@@ -205,21 +206,33 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Auto Open Cron</label>
-              <input
-                {...register('auto_open_cron')}
-                placeholder="e.g. 0 10 10 * * *"
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              <Controller
+                name="auto_open_cron"
+                control={control}
+                render={({ field }) => (
+                  <CronPicker
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    disabled={isPending}
+                    error={errors.auto_open_cron?.message as string | undefined}
+                  />
+                )}
               />
-              {errors.auto_open_cron && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.auto_open_cron.message as string}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Auto Close Cron</label>
-              <input
-                {...register('auto_close_cron')}
-                placeholder="e.g. 1 10 10 * * *"
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+              <Controller
+                name="auto_close_cron"
+                control={control}
+                render={({ field }) => (
+                  <CronPicker
+                    value={field.value ?? ''}
+                    onChange={field.onChange}
+                    disabled={isPending}
+                    error={errors.auto_close_cron?.message as string | undefined}
+                  />
+                )}
               />
-              {errors.auto_close_cron && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.auto_close_cron.message as string}</span>}
             </div>
           </div>
           

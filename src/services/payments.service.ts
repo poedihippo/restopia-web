@@ -3,6 +3,8 @@ import api from '@/hooks/useApi'
 export const paymentsService = {
   list: (params?: any) =>
     api.get('/payments', { params }),
+  listAllocations: (params?: any) =>
+    api.get('/payments/allocations', { params }),
   findById: (id: number, params?: any) =>
     api.get(`/payments/${id}`, { params }),
   create: (data: any, idempotencyKey: string = crypto.randomUUID()) =>
