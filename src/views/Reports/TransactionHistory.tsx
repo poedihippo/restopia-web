@@ -1,6 +1,6 @@
 'use client'
 import { formatCurrency } from '@/utils/price';
-import { formatDateShort } from '@/utils/date';
+import { formatDateShort, parseApiDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
@@ -119,7 +119,7 @@ export default function TransactionHistoryReport() {
         .list({
           page,
           per_page: perPage,
-          include: 'branch,customer,credit_by,created_by',
+          include: 'branch,customer,credit_by,created_by,sales_order_details',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,
           'filter[date_lte]': dateTo,
@@ -446,134 +446,168 @@ export default function TransactionHistoryReport() {
         >
           <thead>
             <tr>
-              <th style={thStyle}>No</th>
+              <th style={{ ...thStyle, width: 36 }}>No</th>
               <th style={thStyle}>Outlet</th>
               <th style={thStyle}>Tanggal</th>
               <th style={thStyle}>Waktu</th>
               <th style={thStyle}>No Trx</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Bruto</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Disc Rp</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Disc</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Netto</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>Total Bayar</th>
-              <th style={{ ...thStyle, textAlign: 'center' }}>Settlement</th>
-              <th style={thStyle}>Credit By</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Bayar</th>
               <th style={thStyle}>Customer</th>
               <th style={{ ...thStyle, textAlign: 'center' }}>Type</th>
               <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
               <th style={thStyle}>Kasir</th>
+              <th style={{ ...thStyle, width: 90 }}>Item Code</th>
+              <th style={thStyle}>Produk</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Harga</th>
+              <th style={{ ...thStyle, textAlign: 'right', width: 48 }}>Qty</th>
             </tr>
           </thead>
           <tbody>
             {!enabled && (
               <tr>
-                <td colSpan={15} style={{ ...tdStyle, textAlign: 'center', padding: 32 }}>
+                <td colSpan={17} style={{ ...tdStyle, textAlign: 'center', padding: 32 }}>
                   Set filters and click Generate to load report.
                 </td>
               </tr>
             )}
             {enabled && isLoading && (
               <tr>
-                <td colSpan={15} style={{ ...tdStyle, textAlign: 'center', padding: 32 }}>
+                <td colSpan={17} style={{ ...tdStyle, textAlign: 'center', padding: 32 }}>
                   Loading...
                 </td>
               </tr>
             )}
             {enabled && !isLoading && orders.length === 0 && (
               <tr>
-                <td colSpan={15} style={{ ...tdStyle, textAlign: 'center', padding: 32 }}>
+                <td colSpan={17} style={{ ...tdStyle, textAlign: 'center', padding: 32 }}>
                   No transactions for the selected period.
                 </td>
               </tr>
             )}
             {orders.map((order: any, idx: number) => {
-              const settle = SETTLEMENT_META[order.settlement_status] ?? SETTLEMENT_META.pending
               const status = STATUS_META[order.status] ?? STATUS_META.draft
-              const dt = order.created_at ? new Date(order.created_at) : null
-              return (
-                <tr key={order.id}>
-                  <td style={tdStyle}>{(page - 1) * 100 + idx + 1}</td>
-                  <td style={tdStyle}>{order.branch?.name ?? '—'}</td>
-                  <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                    {order.date
-                      ? formatDateShort(order.date)
-                      : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                    {dt ? dt.toLocaleTimeString('id-ID') : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 10 }}>
-                    {order.code}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {fmtRp(order.subtotal_price)}
-                  </td>
-                  <td
-                    style={{
-                      ...tdStyle,
-                      textAlign: 'right',
-                      color: 'var(--destructive)',
-                    }}
+              const dt = parseApiDate(order.created_at)
+              const details: any[] = order.sales_order_details ?? []
+              const rowCount = Math.max(details.length, 1)
+              const orderNo = (page - 1) * perPage + idx + 1
+
+              return Array.from({ length: rowCount }).map((_, rowIdx) => {
+                const d = details[rowIdx]
+                const pis = d?.product_inventory_snapshot
+                const bs = d?.bundle_snapshot
+                const prod = pis?.product_uom_batch?.product_uom?.product
+                const itemName =
+                  prod?.name ??
+                  bs?.name ??
+                  pis?.name ??
+                  (d?.bundle_id
+                    ? `Bundle #${d.bundle_id}`
+                    : d
+                      ? `Item #${d.product_inventory_id ?? '-'}`
+                      : '')
+                const itemCode = prod?.code ?? bs?.code ?? pis?.code ?? ''
+                const qty = Number(d?.qty ?? 0)
+                const price = Number(d?.price ?? 0)
+                const isFirst = rowIdx === 0
+                const cellTop: React.CSSProperties = { ...tdStyle, verticalAlign: 'top' }
+                const cellRight: React.CSSProperties = {
+                  ...tdStyle,
+                  textAlign: 'right',
+                  verticalAlign: 'top',
+                }
+
+                return (
+                  <tr
+                    key={`${order.id}-${rowIdx}`}
+                    style={rowIdx > 0 ? { background: 'var(--background)' } : undefined}
                   >
-                    {Number(order.discount_price ?? 0) > 0
-                      ? '- ' + fmtRp(order.discount_price)
-                      : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
-                    {fmtRp(order.total_price)}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {fmtRp(order.total_payment)}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>
-                    <span
+                    <td style={cellTop}>{isFirst ? orderNo : ''}</td>
+                    <td style={cellTop}>{isFirst ? (order.branch?.name ?? '—') : ''}</td>
+                    <td style={{ ...cellTop, whiteSpace: 'nowrap' }}>
+                      {isFirst ? (order.date ? formatDateShort(order.date) : '—') : ''}
+                    </td>
+                    <td style={{ ...cellTop, whiteSpace: 'nowrap' }}>
+                      {isFirst ? (dt ? dt.toLocaleTimeString('id-ID') : '—') : ''}
+                    </td>
+                    <td style={{ ...cellTop, fontFamily: 'monospace', fontSize: 10 }}>
+                      {isFirst ? order.code : ''}
+                    </td>
+                    <td style={cellRight}>{isFirst ? fmtRp(order.subtotal_price) : ''}</td>
+                    <td
                       style={{
-                        padding: '2px 8px',
-                        borderRadius: 99,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        background: settle.bg,
-                        color: settle.color,
+                        ...cellRight,
+                        color: 'var(--destructive)',
                       }}
                     >
-                      {settle.label}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>{order.credit_by?.name ?? '—'}</td>
-                  <td style={tdStyle}>
-                    {order.customer?.name ?? order.customer_name ?? '—'}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: 99,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        background:
-                          order.type === 'online' ? 'var(--info-bg)' : 'var(--accent-light-bg)',
-                        color: order.type === 'online' ? 'var(--info)' : 'var(--accent)',
-                      }}
-                    >
-                      {order.type ?? '—'}
-                    </span>
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'center' }}>
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: 99,
-                        fontSize: 10,
-                        fontWeight: 600,
-                        background: status.bg,
-                        color: status.color,
-                      }}
-                    >
-                      {status.label}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>{order.created_by?.name ?? '—'}</td>
-                </tr>
-              )
+                      {isFirst
+                        ? Number(order.discount_price ?? 0) > 0
+                          ? '- ' + fmtRp(order.discount_price)
+                          : '—'
+                        : ''}
+                    </td>
+                    <td style={{ ...cellRight, fontWeight: 600 }}>
+                      {isFirst ? fmtRp(order.total_price) : ''}
+                    </td>
+                    <td style={cellRight}>{isFirst ? fmtRp(order.total_payment) : ''}</td>
+                    <td style={cellTop}>
+                      {isFirst
+                        ? order.customer?.name ?? order.customer_name ?? '—'
+                        : ''}
+                    </td>
+                    <td style={{ ...cellTop, textAlign: 'center' }}>
+                      {isFirst ? (
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: 99,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            background:
+                              order.type === 'online'
+                                ? 'var(--info-bg)'
+                                : 'var(--accent-light-bg)',
+                            color: order.type === 'online' ? 'var(--info)' : 'var(--accent)',
+                          }}
+                        >
+                          {order.type ?? '—'}
+                        </span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td style={{ ...cellTop, textAlign: 'center' }}>
+                      {isFirst ? (
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            borderRadius: 99,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            background: status.bg,
+                            color: status.color,
+                          }}
+                        >
+                          {status.label}
+                        </span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td style={cellTop}>
+                      {isFirst ? (order.created_by?.name ?? '—') : ''}
+                    </td>
+                    <td style={{ ...cellTop, fontFamily: 'monospace', fontSize: 10 }}>
+                      {d ? itemCode || '—' : ''}
+                    </td>
+                    <td style={cellTop}>{d ? itemName : ''}</td>
+                    <td style={cellRight}>{d ? fmtRp(price) : ''}</td>
+                    <td style={cellRight}>{d ? qty : ''}</td>
+                  </tr>
+                )
+              })
             })}
           </tbody>
           {orders.length > 0 && (
@@ -593,7 +627,7 @@ export default function TransactionHistoryReport() {
                     color: 'var(--destructive)',
                   }}
                 >
-                  - {fmtRp(totals.disc)}
+                  {Number(totals.disc) > 0 ? '- ' + fmtRp(totals.disc) : fmtRp(0)}
                 </td>
                 <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>
                   {fmtRp(totals.netto)}
@@ -601,7 +635,7 @@ export default function TransactionHistoryReport() {
                 <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>
                   {fmtRp(totals.payment)}
                 </td>
-                <td colSpan={6} style={tdStyle} />
+                <td colSpan={8} style={tdStyle} />
               </tr>
             </tfoot>
           )}

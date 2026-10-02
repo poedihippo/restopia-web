@@ -1,6 +1,6 @@
 'use client'
 import { formatCurrency } from '@/utils/price';
-import { formatDateShort } from '@/utils/date';
+import { formatDateShort, parseApiDate } from '@/utils/date';
 
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
@@ -523,11 +523,10 @@ export default function SalesByInvoiceReport() {
                       : '—'}
                   </td>
                   <td style={{ ...tdBase, whiteSpace: 'nowrap' }}>
-                    {order.created_at || order.date
-                      ? new Date(
-                          order.created_at ?? order.date,
-                        ).toLocaleTimeString('id-ID')
-                      : '—'}
+                    {(() => {
+                      const dt = parseApiDate(order.created_at ?? order.date)
+                      return dt ? dt.toLocaleTimeString('id-ID') : '—'
+                    })()}
                   </td>
                   <td
                     style={{

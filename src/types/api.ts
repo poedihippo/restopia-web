@@ -468,6 +468,12 @@ export interface SalesOrderDetail {
   status: 'pending' | 'process' | 'completed'
   description?: string
 }
+export interface SalesOrderPaymentSplit {
+  payment_method_id: number
+  amount: number
+  description?: string
+}
+
 export interface SalesOrderRequest {
   code?: string
   type: 'offline' | 'online' | 'franchise'
@@ -485,6 +491,10 @@ export interface SalesOrderRequest {
   credit_by_id?: number | null
   description?: string
   details: SalesOrderDetail[]
+  /** Create only — tenders taken at order creation (partial / full payment) */
+  payments?: SalesOrderPaymentSplit[]
+  /** Create only — claim validated by backend against sum(payments) */
+  payment_status?: 'pending' | 'partial' | 'paid'
 }
 
 export interface SalesOrderSettlementItem {

@@ -15,6 +15,8 @@ import { branchesService } from '@/services/branches.service'
 import { usersService } from '@/services/users.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { taxesService } from '@/services/taxes.service'
+import { paymentMethodsService } from '@/services/payment-methods.service'
+import { salesOrdersService } from '@/services/sales-orders.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
@@ -95,6 +97,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const [creditById, setCreditById] = useState<number | undefined>(
     editingOrder?.credit_by_id ?? editingOrder?.credit_by?.id ?? undefined,
   )
+
+  // ── Payment on create (partial / full down payment) ───────────────────────
+  // Backend: POST /v1/sales-orders accepts optional payments[] + payment_status.
+  // Not allowed on PATCH. Order must be status=final before money can be attached.
+  const [paymentMode, setPaymentMode] = useState<'none' | 'partial' | 'full'>('none')
+  const [paymentMethodId, setPaymentMethodId] = useState<number>(0)
+  const [paymentAmount, setPaymentAmount] = useState<number>(0)
+  const [paymentDescription, setPaymentDescription] = useState<string>('')
 
   // ── Additional Charges state ───────────────────────────────────────────────
   const [taxId, setTaxId] = useState<number | undefined>(editingOrder?.tax_id ?? undefined)
@@ -224,6 +234,16 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     queryFn: () => salesChannelsService.list({ per_page: 100, sort: 'name' } as any).then((r) => r.data),
   })
   const salesChannels = (salesChannelsData as any)?.data ?? []
+
+  const { data: paymentMethodsData } = useQuery({
+    queryKey: ['so-payment-methods'],
+    enabled: !isEdit && status === 'final',
+    queryFn: () =>
+      paymentMethodsService
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'all,sales_orders' } as any)
+        .then((r) => r.data),
+  })
+  const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
 
   const { data: productData } = useQuery({
     queryKey: ['so-products', productSearchDebounced],
@@ -453,8 +473,56 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const removeItem = (idx: number) => setItems((prev) => prev.filter((_, i) => i !== idx))
 
   // ── Mutation ──────────────────────────────────────────────────────────────
+  const buildPaymentsPayload = (): { payments?: any[]; payment_status?: string } => {
+    if (isEdit) return {}
+    if (status !== 'final' || paymentMode === 'none') {
+      return { payments: [] }
+    }
+    const amount =
+      paymentMode === 'full' ? total : paymentAmount
+    const payments = [
+      {
+        payment_method_id: paymentMethodId,
+        amount,
+        description: paymentDescription || undefined,
+      },
+    ]
+    // Derive claim from user choice so the server assertion rarely fires.
+    // zero-total cart with no tender derives as paid server-side — omit status.
+    if (total <= 0) {
+      return { payments: [] }
+    }
+    return {
+      payments,
+      payment_status: paymentMode === 'full' ? 'paid' : 'partial',
+    }
+  }
+
+  const validatePaymentBeforeSubmit = (): string | null => {
+    if (isEdit || status !== 'final' || paymentMode === 'none') return null
+    if (total <= 0) {
+      return 'Order total is 0 — leave payment as Nothing yet'
+    }
+    if (!paymentMethodId) {
+      return 'Select a payment method'
+    }
+    if (paymentMode === 'partial') {
+      if (!(paymentAmount > 0)) return 'Down payment amount must be greater than 0'
+      if (paymentAmount >= total) {
+        return 'Down payment must be less than the order total (use Paid in full if paying everything)'
+      }
+    }
+    if (paymentMode === 'full') {
+      // Backend computes total from details+tax+charges; we send amount === local total.
+      // If server total differs, it returns 422 with the tendered/total message.
+      if (!(total > 0)) return 'Paid in full requires a non-zero order total'
+    }
+    return null
+  }
+
   const { mutate, isPending } = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
+      const paymentPayload = buildPaymentsPayload()
       const payload = {
         code,
         type,
@@ -487,15 +555,35 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           status: i.status,
           description: i.description || undefined,
         })),
+        // payments[] / payment_status only on create — never on PATCH
+        ...paymentPayload,
       }
       const headers = { 'Idempotency-Key': generateKey() }
-      return isEdit
-        ? api.patch(`/sales-orders/${editingOrder.id}`, payload, { headers })
-        : api.post('/sales-orders', payload, { headers })
+      if (isEdit) {
+        return api.patch(`/sales-orders/${editingOrder.id}`, payload, { headers })
+      }
+      const res = await api.post('/sales-orders', payload, { headers })
+      const createdId = res?.data?.data?.id
+      // Create response does not include payment result — re-fetch before UI claims paid/partial
+      if (createdId) {
+        try {
+          await salesOrdersService.findById(createdId, {
+            include: 'payments,payment_method',
+          })
+        } catch {
+          // non-fatal — detail page will load fresh data
+        }
+      }
+      return res
     },
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['sales-orders'] })
-      toast.success(isEdit ? 'Order updated' : 'Order created')
+      qc.invalidateQueries({ queryKey: ['sales-order-detail'] })
+      if (!isEdit && paymentMode !== 'none' && status === 'final') {
+        toast.success('Order created with payment recorded')
+      } else {
+        toast.success(isEdit ? 'Order updated' : 'Order created')
+      }
       const id = res?.data?.data?.id ?? editingOrder?.id
       router.push(id ? `/sales/sales-orders/${id}/detail` : '/sales/sales-orders')
     },
@@ -723,7 +811,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                   marginTop: 4,
                 }}
               >
-                ⚠ To apply credit, also record a payment using the &apos;Credit&apos; payment method after saving.
+                ⚠ Credit uses the Credit payment method. Record it via Payment section
+                (Partial / Paid in full) on create, or collect on the detail page after saving.
               </span>
             </div>
           )}
@@ -775,6 +864,177 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           />
         </div>
       </div>
+
+      {/* ── Section 1b: Payment (create + final only) ── */}
+      {!isEdit && (
+        <div style={sectionStyle}>
+          <h2
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 16,
+              fontWeight: 700,
+              marginBottom: 8,
+              color: 'var(--foreground)',
+            }}
+          >
+            Payment
+          </h2>
+          <p style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 16 }}>
+            Optional down payment at creation. Set Status to <strong>Final</strong> to unlock.
+            Remaining balance can be collected later on the order detail page.
+          </p>
+
+          {status !== 'final' ? (
+            <div
+              style={{
+                padding: '12px 14px',
+                border: '1px dashed var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--background)',
+                fontSize: 13,
+                color: 'var(--foreground-muted)',
+              }}
+            >
+              Payment is disabled while status is <strong>pending</strong>. An order must be
+              final before it can hold money.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                {([
+                  { key: 'none', label: 'Nothing yet', hint: 'No payment collected' },
+                  { key: 'partial', label: 'Down payment', hint: 'Partial (DP)' },
+                  { key: 'full', label: 'Paid in full', hint: 'Amount = order total' },
+                ] as const).map((opt) => {
+                  const active = paymentMode === opt.key
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setPaymentMode(opt.key)
+                        if (opt.key === 'full') setPaymentAmount(total)
+                        if (opt.key === 'partial' && paymentAmount >= total) setPaymentAmount(0)
+                      }}
+                      style={{
+                        flex: '1 1 160px',
+                        padding: '12px 14px',
+                        textAlign: 'left',
+                        border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: active ? 'var(--accent-light-bg)' : 'var(--surface)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: active ? 'var(--accent)' : 'var(--foreground)',
+                        }}
+                      >
+                        {opt.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                        {opt.hint}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {paymentMode !== 'none' && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 14,
+                    alignItems: 'start',
+                  }}
+                >
+                  <div>
+                    <label style={labelStyle}>
+                      Payment Method
+                      <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                    </label>
+                    <select
+                      value={paymentMethodId}
+                      onChange={(e) => setPaymentMethodId(Number(e.target.value))}
+                      style={fieldStyle}
+                    >
+                      <option value={0}>Select method...</option>
+                      {paymentMethods.map((pm: any) => (
+                        <option key={pm.id} value={pm.id}>
+                          {pm.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>
+                      Amount (Rp)
+                      <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                    </label>
+                    {paymentMode === 'full' ? (
+                      <div
+                        style={{
+                          ...fieldStyle,
+                          display: 'flex',
+                          alignItems: 'center',
+                          background: 'var(--background)',
+                          cursor: 'not-allowed',
+                        }}
+                      >
+                        <PriceDisplay amount={total} />
+                      </div>
+                    ) : (
+                      <LocalizedNumberInput
+                        value={paymentAmount}
+                        onChange={(v) => setPaymentAmount(Math.max(0, v))}
+                        decimals={2}
+                        style={{ height: 38, fontSize: 14 }}
+                      />
+                    )}
+                    <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4 }}>
+                      Order total: <PriceDisplay amount={total} />
+                      {paymentMode === 'partial' && total > 0 && (
+                        <> · Remaining: <PriceDisplay amount={Math.max(0, total - paymentAmount)} /></>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Description (optional)</label>
+                    <input
+                      value={paymentDescription}
+                      onChange={(e) => setPaymentDescription(e.target.value)}
+                      placeholder="e.g. Down payment"
+                      style={fieldStyle}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {paymentMode !== 'none' && total > 0 && (
+                <div
+                  style={{
+                    marginTop: 14,
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--info-bg)',
+                    color: 'var(--info)',
+                    fontSize: 12,
+                  }}
+                >
+                  {paymentMode === 'partial'
+                    ? `Will record payment_status "partial" — tendered ${formatNumber(paymentAmount, true)} of total ${formatNumber(total, true)}.`
+                    : `Will record payment_status "paid" — tendered amount must equal the server-derived total.`}
+                  {' '}Settlement status stays independent (partial money can still be settlement pending).
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Section 2: Customer ── */}
       <div style={sectionStyle}>
@@ -1506,6 +1766,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 if (missingStockItems.length > 0) {
                   const names = missingStockItems.map(i => i.name).join(', ')
                   toast.error(`Produk ${names} belum ada stocknya`)
+                  return
+                }
+                const paymentErr = validatePaymentBeforeSubmit()
+                if (paymentErr) {
+                  toast.error(paymentErr)
                   return
                 }
                 mutate()
