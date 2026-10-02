@@ -14,6 +14,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import { getProductUomName } from '@/utils/productUomName'
 import { X, Loader2 } from 'lucide-react'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
@@ -512,12 +513,18 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
                   {watchDiscountType === 'percent' ? 'Discount (%)' : 'Discount Amount (Rp)'}
                   <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
                 </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  {...register('discount_value', { valueAsNumber: true })}
-                  style={inputStyle}
+                <Controller
+                  name="discount_value"
+                  control={control}
+                  render={({ field }) => (
+                    <LocalizedNumberInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      decimals={2}
+                      error={!!errors.discount_value}
+                      style={inputStyle}
+                    />
+                  )}
                 />
                 <span style={hintStyle}>
                   {watchDiscountType === 'percent'
@@ -528,12 +535,18 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <label style={labelStyle}>Total Quota</label>
-                <input
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  {...register('quota', { valueAsNumber: true })}
-                  style={inputStyle}
+                <Controller
+                  name="quota"
+                  control={control}
+                  render={({ field }) => (
+                    <LocalizedNumberInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      decimals={0}
+                      placeholder="0"
+                      style={inputStyle}
+                    />
+                  )}
                 />
                 <span style={hintStyle}>Leave 0 for unlimited usage</span>
               </div>
@@ -543,24 +556,36 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <label style={labelStyle}>Min. Purchase (Rp)</label>
-                <input
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  {...register('min_subtotal_price', { valueAsNumber: true })}
-                  style={inputStyle}
+                <Controller
+                  name="min_subtotal_price"
+                  control={control}
+                  render={({ field }) => (
+                    <LocalizedNumberInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      decimals={2}
+                      placeholder="0"
+                      style={inputStyle}
+                    />
+                  )}
                 />
                 <span style={hintStyle}>Minimum order value to apply voucher</span>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <label style={labelStyle}>Max. Discount (Rp)</label>
-                <input
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  {...register('max_discount_price', { valueAsNumber: true })}
-                  style={inputStyle}
+                <Controller
+                  name="max_discount_price"
+                  control={control}
+                  render={({ field }) => (
+                    <LocalizedNumberInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      decimals={2}
+                      placeholder="0"
+                      style={inputStyle}
+                    />
+                  )}
                 />
                 <span style={hintStyle}>Cap on discount amount (0 = no cap)</span>
               </div>

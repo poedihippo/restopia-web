@@ -14,6 +14,7 @@ import { parseApiError, toastMutationApiError } from '@/utils/apiError'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { describeSuggestionReason } from '@/utils/productUomName'
 import { X, Loader2, Plus, Trash2, Repeat, Sparkles } from 'lucide-react'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 
 const conversionSchema = z.object({
   id: z.coerce.number().min(0),
@@ -1114,12 +1115,17 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                     ] as const).map((p) => (
                       <div key={p.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>{p.label}</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          {...register(`uoms.${i}.${p.name}` as any)}
-                          style={inputBase(false)}
+                        <Controller
+                          name={`uoms.${i}.${p.name}` as any}
+                          control={control}
+                          render={({ field }) => (
+                            <LocalizedNumberInput
+                              value={field.value}
+                              onChange={field.onChange}
+                              decimals={2}
+                              style={inputBase(false)}
+                            />
+                          )}
                         />
                       </div>
                     ))}

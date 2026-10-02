@@ -4,6 +4,7 @@ import type { PosCartItem, PosCartBundle } from '@/types/api'
 import useGetVoucherList from '@/hooks/voucher/useGetVoucherList'
 import SearchableSelect from '@/components/SearchableSelect'
 import { formatCurrency } from '@/utils/price';
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { getProductUomName } from '@/utils/productUomName'
 
 // Some styling constants for the sidebar
@@ -347,23 +348,22 @@ export default function PosCartSidebar({
                   >
                     −
                   </button>
-                  <input
-                    type="number"
-                    min="0.001"
-                    step="any"
+                  <LocalizedNumberInput
                     value={item.qty}
-                    onChange={(e) => {
-                      const val = Math.max(0.001, Number(e.target.value))
+                    onChange={(val) => {
+                      const next = Math.max(0.001, val)
                       setCart((prev: any) =>
                         prev.map((c: any) =>
                           c.product_inventory_id === item.product_inventory_id
-                            ? { ...c, qty: val }
+                            ? { ...c, qty: next }
                             : c
                         )
                       )
                     }}
+                    decimals={2}
+                    padDecimals={false}
                     style={{
-                      width: 48,
+                      width: 56,
                       height: 28,
                       border: '1px solid var(--border)',
                       borderRadius: 'var(--radius-sm)',
@@ -469,21 +469,20 @@ export default function PosCartSidebar({
                 >
                   −
                 </button>
-                <input
-                  type="number"
-                  min="0.001"
-                  step="any"
+                <LocalizedNumberInput
                   value={item.qty}
-                  onChange={(e) => {
-                    const val = Math.max(0.001, Number(e.target.value))
+                  onChange={(val) => {
+                    const next = Math.max(0.001, val)
                     setBundleCart((prev: any) =>
                       prev.map((c: any) =>
-                        c.bundle_id === item.bundle_id ? { ...c, qty: val } : c
+                        c.bundle_id === item.bundle_id ? { ...c, qty: next } : c
                       )
                     )
                   }}
+                  decimals={2}
+                  padDecimals={false}
                   style={{
-                    width: 48,
+                    width: 56,
                     height: 28,
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-sm)',

@@ -12,6 +12,8 @@ import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
 import SalesOrdersDetail from './Detail/SalesOrdersDetail';
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
+import { formatNumberId } from '@/utils/numberFormat'
 
 const sectionStyle: CSSProperties = {
   background: 'var(--surface)',
@@ -633,12 +635,11 @@ export default function SalesOrderDetail() {
                 >
                   Amount (Rp)
                 </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={paymentAmount || ''}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                  placeholder={`Rp ${(order?.total_price ?? 0).toLocaleString('id-ID')}`}
+                <LocalizedNumberInput
+                  value={paymentAmount}
+                  onChange={setPaymentAmount}
+                  decimals={2}
+                  placeholder={`Rp ${formatNumberId(order?.total_price ?? 0, 2)}`}
                   style={{
                     width: '100%',
                     padding: '8px 10px',

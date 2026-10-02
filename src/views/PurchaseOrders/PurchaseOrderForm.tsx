@@ -16,6 +16,7 @@ import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { taxesService } from '@/services/taxes.service'
 import { useAuth } from '@/hooks/useAuth'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import {
   Plus,
@@ -1005,17 +1006,22 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
               {/* Qty */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                  style={{
-                    ...lineInputStyle,
-                    ...(hasFinalDelivery ? { background: 'var(--surface)', cursor: 'not-allowed' } : {})
-                  }}
-                  disabled={hasFinalDelivery}
-                  onWheel={(e) => (e.target as HTMLElement).blur()}
+                <Controller
+                  name={`details.${index}.qty`}
+                  control={control}
+                  render={({ field }) => (
+                    <LocalizedNumberInput
+                      value={field.value}
+                      onChange={field.onChange}
+                      decimals={2}
+                      padDecimals={false}
+                      disabled={hasFinalDelivery}
+                      style={{
+                        ...lineInputStyle,
+                        ...(hasFinalDelivery ? { background: 'var(--surface)', cursor: 'not-allowed' } : {})
+                      }}
+                    />
+                  )}
                 />
               </div>
 
@@ -1023,23 +1029,16 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               {watchType !== 'branch' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
+                    <LocalizedNumberInput
                       value={(() => {
-                        const v = watch(`details.${index}.price`)
-                        if (!getCanReadPrice()) return ''
-                        return v ?? ''
+                        if (!getCanReadPrice()) return 0
+                        return watch(`details.${index}.price`) ?? 0
                       })()}
-                      disabled={watch(`details.${index}.is_price_locked`) !== false || !getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice)}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        setValue(
-                          `details.${index}.price`,
-                          val === '' ? 0 : parseFloat(val) || 0,
-                        )
+                      onChange={(val) => {
+                        setValue(`details.${index}.price`, Math.max(0, val))
                       }}
+                      decimals={2}
+                      disabled={watch(`details.${index}.is_price_locked`) !== false || !getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice)}
                       style={{
                         ...lineInputStyle,
                         flex: 1,

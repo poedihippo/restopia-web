@@ -6,6 +6,8 @@ import PosPreordersModal from './PosPreordersModal'
 import PosHistoryModal from './PosHistoryModal'
 import { formatCurrency } from '@/utils/price';
 import SearchableSelect from '@/components/SearchableSelect'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
+import { parseNumberId } from '@/utils/numberFormat'
 
 interface PosModalsProps {
   showPayment: boolean
@@ -612,19 +614,11 @@ export default function PosModals({
                   >
                     Cash Tendered
                   </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
+                  <LocalizedNumberInput
+                    value={parseNumberId(cashTendered)}
+                    onChange={(val) => setCashTendered(String(Math.round(val)))}
+                    decimals={0}
                     placeholder="Enter amount..."
-                    value={
-                      cashTendered
-                        ? `${formatCurrency(Number(cashTendered.replace(/\D/g, '')))}`
-                        : ''
-                    }
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/\D/g, '')
-                      setCashTendered(raw)
-                    }}
                     style={{
                       width: '100%',
                       height: 44,

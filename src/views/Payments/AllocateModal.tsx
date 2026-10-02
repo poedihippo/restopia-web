@@ -6,6 +6,8 @@ import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
 import { X, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/utils/price'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
+import { parseNumberId } from '@/utils/numberFormat'
 
 interface AllocateModalProps {
   payment: any
@@ -16,14 +18,14 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
   const qc = useQueryClient()
   const [orderType, setOrderType] = useState<'so' | 'po' | 'invoice'>('so')
   const [orderId, setOrderId] = useState('')
-  const [amount, setAmount] = useState(payment.amount.toString())
+  const [amount, setAmount] = useState(() => parseNumberId(payment.amount))
 
   const allocateMutation = useMutation({
     mutationFn: () => {
       const payload = {
         allocations: [
           {
-            amount: parseFloat(amount),
+            amount: Number(amount) || 0,
             sales_order_id: orderType === 'so' ? parseInt(orderId) : undefined,
             purchase_order_id: orderType === 'po' ? parseInt(orderId) : undefined,
             invoice_id: orderType === 'invoice' ? parseInt(orderId) : undefined,
@@ -85,10 +87,10 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Amount to Allocate</label>
-            <input
-              type="number"
+            <LocalizedNumberInput
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={setAmount}
+              decimals={2}
               style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', fontSize: 14, boxSizing: 'border-box' }}
             />
           </div>

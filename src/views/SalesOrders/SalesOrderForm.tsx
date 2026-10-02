@@ -19,7 +19,9 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { getProductUomName } from '@/utils/productUomName'
+import { formatNumberId, parseNumberId, sanitizeNumberInput } from '@/utils/numberFormat'
 
 const generateKey = () =>
   Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -27,7 +29,7 @@ const generateKey = () =>
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
-  return Number(n).toLocaleString('id-ID')
+  return formatNumberId(n, 2)
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1252,19 +1254,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     {item.code}
                   </td>
                   <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-                    <input
-                      type="number"
-                      min="0.001"
-                      step="any"
+                    <LocalizedNumberInput
                       value={item.qty}
-                      onChange={(e) =>
-                        updateItem(idx, 'qty', Math.max(0.001, Number(e.target.value)))
-                      }
+                      onChange={(val) => updateItem(idx, 'qty', Math.max(0.001, val))}
+                      decimals={2}
+                      padDecimals={false}
                       style={{
-                        width: 64,
+                        width: 72,
                         height: 32,
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)',
                         padding: '0 8px',
                         fontSize: 13,
                         textAlign: 'center',
@@ -1272,20 +1269,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     />
                   </td>
                   <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={formatNumber(item.price, getCanReadPrice())}
+                    <LocalizedNumberInput
+                      value={item.price}
+                      onChange={(val) => updateItem(idx, 'price', Math.max(0, val))}
+                      decimals={2}
                       disabled={!getCanReadPrice()}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/[^\d]/g, '')
-                        updateItem(idx, 'price', raw === '' ? 0 : parseInt(raw, 10) || 0)
-                      }}
                       style={{
                         width: 110,
                         height: 32,
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)',
                         padding: '0 8px',
                         fontSize: 13,
                         background: !getCanReadPrice() ? 'var(--surface)' : undefined,
@@ -1364,15 +1355,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               placeholder="Charge Name *"
               style={fieldStyle}
             />
-            <input
-              type="number"
-              min="0"
+            <LocalizedNumberInput
               value={charge.amount}
-              onChange={(e) => {
+              onChange={(val) => {
                 const newCharges = [...additionalCharges]
-                newCharges[idx].amount = Number(e.target.value) || 0
+                newCharges[idx].amount = Math.max(0, val)
                 setAdditionalCharges(newCharges)
               }}
+              decimals={2}
               placeholder="Amount *"
               style={fieldStyle}
             />
