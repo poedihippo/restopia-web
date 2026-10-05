@@ -119,7 +119,7 @@ export default function TransactionHistoryReport() {
         .list({
           page,
           per_page: perPage,
-          include: 'branch,customer,credit_by,created_by,sales_order_details',
+          include: 'branch,customer,credit_by,created_by,sales_order_details,sales_channel',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,
           'filter[date_lte]': dateTo,
@@ -456,6 +456,7 @@ export default function TransactionHistoryReport() {
               <th style={{ ...thStyle, textAlign: 'right' }}>Netto</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Bayar</th>
               <th style={thStyle}>Customer</th>
+              <th style={thStyle}>Sales Channel</th>
               <th style={{ ...thStyle, textAlign: 'center' }}>Type</th>
               <th style={{ ...thStyle, textAlign: 'center' }}>Status</th>
               <th style={thStyle}>Kasir</th>
@@ -555,6 +556,11 @@ export default function TransactionHistoryReport() {
                     <td style={cellTop}>
                       {isFirst
                         ? order.customer?.name ?? order.customer_name ?? '—'
+                        : ''}
+                    </td>
+                     <td style={cellTop}>
+                      {isFirst
+                        ? order.sales_channel?.name ?? order.sales_channel.name ?? '—'
                         : ''}
                     </td>
                     <td style={{ ...cellTop, textAlign: 'center' }}>

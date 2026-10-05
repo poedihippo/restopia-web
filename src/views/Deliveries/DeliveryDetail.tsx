@@ -862,10 +862,10 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
             </tr>
             <tr>
               <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-                <strong>Dari (From):</strong> {delivery.branch?.name ?? '-'}
+                <strong>Dari:</strong> {delivery.branch?.name ?? '-'}
               </td>
               <td style={{ verticalAlign: 'top', padding: '1mm 0' }}>
-                <strong>Kepada (To):</strong> {delivery.target_branch?.name ?? '-'}
+                <strong>Kepada:</strong> {delivery.target_branch?.name ?? '-'}
               </td>
             </tr>
             {delivery.purchase_order?.code && (
@@ -932,7 +932,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           style={{
             width: '100%',
             fontSize: '10pt',
-            marginTop: '16mm',
+            marginTop: '28mm',
             marginBottom: 0,
             borderCollapse: 'collapse',
             pageBreakInside: 'avoid',
@@ -944,8 +944,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               {['Pengirim', 'Penerima', 'Sopir / Driver'].map((label) => (
                 <td key={label} style={{ width: '33%', textAlign: 'center', verticalAlign: 'top', padding: '0 4mm' }}>
                   <div>{label}</div>
-                  <div style={{ height: '22mm' }} />
-                  <div>( ____________ )</div>
+                  <div style={{ height: '45mm' }} />
+                  <div style={{ marginTop: '8mm' }}>( ____________ )</div>
                   <div style={{ fontSize: '8pt', marginTop: '1mm' }}>Nama Jelas</div>
                 </td>
               ))}
