@@ -122,6 +122,9 @@ export function usePosLogic() {
   const [creditByUserId, setCreditByUserId] = useState<number | null>(null)
   const [isSplitPayment, setIsSplitPayment] = useState(false)
   const [splitPayments, setSplitPayments] = useState<Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>>([])
+  // DP / partial payment: 'full' = pay entire total now, 'partial' = down payment
+  const [paymentMode, setPaymentMode] = useState<'full' | 'partial'>('full')
+  const [partialAmount, setPartialAmount] = useState<string>('')
   const [historySearch, setHistorySearch] = useState('')
   const [historySearchDebounced, setHistorySearchDebounced] = useState('')
   const [historyDateFrom, setHistoryDateFrom] = useState('')
@@ -515,7 +518,8 @@ export function usePosLogic() {
   const selectedMethod = paymentMethods.find((pm) => pm.id === paymentMethodId)
   const isCashMethod = selectedMethod?.name?.toLowerCase().includes('cash') ?? false;
   const isCreditMethod = selectedMethod?.name?.toLowerCase().includes('credit') ?? false;
-  const change = isCashMethod ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - total) : 0;
+  const dueAmount = paymentMode === 'partial' ? (Number(partialAmount.replace(/\D/g, '')) || 0) : total
+  const change = isCashMethod ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - dueAmount) : 0;
 
   const { data: creditUsersData } = useQuery({
     queryKey: ['pos-credit-users'],
@@ -560,6 +564,8 @@ export function usePosLogic() {
     setShowPayment(false)
     setPaymentMethodId(null)
     setCashTendered('')
+    setPaymentMode('full')
+    setPartialAmount('')
     setShowReceipt(false)
     setEditingOrderId(null)
     setEditingOrderCode(null)
@@ -802,9 +808,12 @@ export function usePosLogic() {
           toApiOrder(payload, { keepNull: ['customer_id'] }) as any,
         )
       }
-      // Payment amount always equals the sale total; cashTendered is only
-      // used for change calculation in the UI, not sent as the payment amount.
-      const paidAmount = payload.total_price
+      // Payment amount: full = sale total; partial (DP) = user-entered amount.
+      // cashTendered is only used for change calculation in the UI.
+      const paidAmount = paymentMode === 'partial'
+        ? Number(partialAmount.replace(/\D/g, '')) || 0
+        : payload.total_price
+      const paymentStatus = paymentMode === 'partial' ? 'partial' : 'paid'
       let checkoutPayments: {
         payment_method_id: number
         amount: number
@@ -830,6 +839,7 @@ export function usePosLogic() {
         fulfillment_date: payload.fulfillment_date,
         status: payload.status,
         settlement_status: payload.settlement_status,
+        payment_status: paymentStatus,
         customer_id: payload.customer_id ?? undefined,
         customer_name: payload.customer_name,
         customer_phone: payload.customer_phone,
@@ -846,7 +856,9 @@ export function usePosLogic() {
       // Only create payments separately for edited (held) orders.
       if (editingOrderId) {
         const salesOrderId = editingOrderId
-        const paidAmount = variables.total_price
+        const paidAmount = paymentMode === 'partial'
+          ? Number(partialAmount.replace(/\D/g, '')) || 0
+          : variables.total_price
 
         const dateStr = new Date().toISOString().split('T')[0]
         let paymentsPayload: any[] = []
@@ -966,6 +978,8 @@ export function usePosLogic() {
     cashTendered, setCashTendered,
     isSplitPayment, setIsSplitPayment,
     splitPayments, setSplitPayments,
+    paymentMode, setPaymentMode,
+    partialAmount, setPartialAmount,
     orderNote, setOrderNote,
     transactionDate, setTransactionDate,
     fulfillmentDate, setFulfillmentDate,

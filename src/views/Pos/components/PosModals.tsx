@@ -31,6 +31,10 @@ interface PosModalsProps {
   setIsSplitPayment?: (val: boolean) => void
   splitPayments?: Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>
   setSplitPayments?: (val: Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>) => void
+  paymentMode?: 'full' | 'partial'
+  setPaymentMode?: (val: 'full' | 'partial') => void
+  partialAmount?: string
+  setPartialAmount?: (val: string) => void
   paymentMethods: any[]
   selectedMethod: any
   quickAmounts: number[]
@@ -100,6 +104,10 @@ export default function PosModals({
   setIsSplitPayment,
   splitPayments = [],
   setSplitPayments,
+  paymentMode = 'full',
+  setPaymentMode,
+  partialAmount = '',
+  setPartialAmount,
   paymentMethods,
   selectedMethod,
   quickAmounts,
@@ -161,9 +169,10 @@ export default function PosModals({
     }
   }, [remainingSplitBalance, splitAmount])
 
-  const canConfirm = isSplitPayment 
-    ? remainingSplitBalance === 0 
-    : (paymentMethodId !== null && (!isCreditMethod || creditByUserId !== null))
+  const canConfirm = isSplitPayment
+    ? remainingSplitBalance === 0
+    : (paymentMethodId !== null && (!isCreditMethod || creditByUserId !== null) &&
+       (paymentMode !== 'partial' || (Number(partialAmount.replace(/\D/g, '')) > 0 && Number(partialAmount.replace(/\D/g, '')) < total)))
 
   const handleAddSplit = () => {
     if (!splitMethodId) return toast.error('Select payment method')
@@ -264,10 +273,87 @@ export default function PosModals({
                 alignItems: 'center',
               }}
             >
-              <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>Total Due</span>
+              <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
+                {paymentMode === 'partial' ? 'Total Due (Full)' : 'Total Due'}
+              </span>
               <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
                 {formatCurrency(total)}
               </span>
+            </div>
+            {paymentMode === 'partial' && Number(partialAmount.replace(/\D/g, '')) > 0 && (
+              <div
+                style={{
+                  background: 'var(--warning-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '10px 16px',
+                  marginBottom: 20,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span style={{ fontSize: 13, color: 'var(--warning)' }}>DP Amount</span>
+                <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--warning)' }}>
+                  {formatCurrency(Number(partialAmount.replace(/\D/g, '')))}
+                </span>
+              </div>
+            )}
+
+            {/* Payment Mode: Full vs Partial (DP) */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+                Payment Mode
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode?.('full')}
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    border: `1px solid ${paymentMode === 'full' ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    background: paymentMode === 'full' ? 'var(--accent-light-bg)' : 'var(--background)',
+                    color: paymentMode === 'full' ? 'var(--accent)' : 'var(--foreground)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Full Payment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode?.('partial')}
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    border: `1px solid ${paymentMode === 'partial' ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    background: paymentMode === 'partial' ? 'var(--accent-light-bg)' : 'var(--background)',
+                    color: paymentMode === 'partial' ? 'var(--accent)' : 'var(--foreground)',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Down Payment (DP)
+                </button>
+              </div>
+              {paymentMode === 'partial' && (
+                <div style={{ marginTop: 10 }}>
+                  <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>
+                    DP Amount (must be less than {formatCurrency(total)})
+                  </label>
+                  <LocalizedNumberInput
+                    value={partialAmount}
+                    onChange={(val) => setPartialAmount?.(String(val ?? ''))}
+                    decimals={2}
+                    padDecimals={false}
+                    placeholder="0"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Sales Channel (Required) */}
@@ -711,11 +797,31 @@ export default function PosModals({
                     toast.error('Please select a credit user')
                     return
                   }
+                  if (paymentMode === 'partial') {
+                    const dpAmt = Number(partialAmount.replace(/\D/g, ''))
+                    if (dpAmt <= 0) {
+                      toast.error('Enter a valid DP amount')
+                      return
+                    }
+                    if (dpAmt >= total) {
+                      toast.error('DP amount must be less than total')
+                      return
+                    }
+                  }
                   if (
                     isCashMethod &&
+                    paymentMode !== 'partial' &&
                     Number(cashTendered.replace(/\D/g, '')) < total
                   ) {
                     toast.error('Cash tendered is less than total')
+                    return
+                  }
+                  if (
+                    isCashMethod &&
+                    paymentMode === 'partial' &&
+                    Number(cashTendered.replace(/\D/g, '')) < Number(partialAmount.replace(/\D/g, ''))
+                  ) {
+                    toast.error('Cash tendered is less than DP amount')
                     return
                   }
                 }
@@ -736,7 +842,7 @@ export default function PosModals({
                 opacity: (isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)) ? 0.7 : 1,
               }}
             >
-              {isPending ? 'Processing...' : (!salesChannelId ? 'Select Sales Channel' : 'Confirm Payment')}
+              {isPending ? 'Processing...' : (!salesChannelId ? 'Select Sales Channel' : (paymentMode === 'partial' ? 'Confirm DP' : 'Confirm Payment'))}
             </button>
           </div>
         </div>

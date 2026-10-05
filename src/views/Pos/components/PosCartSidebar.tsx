@@ -547,6 +547,63 @@ export default function PosCartSidebar({
         </div>
       </div>
 
+      {/* Customer — always visible */}
+      <div
+        style={{
+          padding: '10px 16px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>Customer Name</span>
+        <input
+          type="text"
+          value={guestName}
+          onChange={(e) => {
+            setGuestName(e.target.value)
+            if (e.target.value) {
+              setSelectedCustomerId(null)
+              setCustomerSearch('')
+            }
+          }}
+          placeholder="Guest name (optional)..."
+          style={{
+            width: '100%',
+            padding: '8px 10px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--background)',
+            outline: 'none',
+            fontFamily: 'var(--font-sans)',
+            boxSizing: 'border-box',
+          }}
+        />
+        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>Customer Phone</span>
+        <input
+          type="text"
+          value={guestPhone}
+          onChange={(e) => setGuestPhone(e.target.value)}
+          placeholder="Phone (optional)..."
+          style={{
+            width: '100%',
+            padding: '8px 10px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--background)',
+            outline: 'none',
+            fontFamily: 'var(--font-sans)',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+
       <button
         type="button"
         onClick={() => setOrderDetailsOpen((v) => !v)}
