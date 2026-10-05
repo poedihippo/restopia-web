@@ -262,34 +262,33 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // actually have stock at the supplying branch, with the REAL per-branch
   // quantity (not the global batch stock). Per-branch stock lives in
   // product_inventory, so we source the picker from there.
+  //
+  // Instead of loading EVERY inventory row for the branch (page-loop with
+  // per_page=100), use filter[product_uom_ids] (OpenAPI: plural) to fetch
+  // only inventories for the product_uom_ids currently on form lines.
+  const lineProductUomIds = useMemo(() => {
+    const ids = new Set<number>()
+    for (const d of watchDetails ?? []) {
+      const id = d?.product_uom_id
+      if (typeof id === 'number' && id > 0) ids.add(id)
+    }
+    return Array.from(ids)
+  }, [watchDetails])
+
   const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
-    queryKey: ['source-branch-inventory', sourceBranchId, watchSourceOwnerRef, watchSourceStage],
-    enabled: !!sourceBranchId,
-    queryFn: async () => {
-      let allRows: any[] = []
-      let page = 1
-      let totalPages = 1
-      do {
-        const res = await productInventoriesService
-          .list({
-            page,
-            per_page: 100,
-            'filter[branch_id]': sourceBranchId,
-            'filter[owner_ref]': watchSourceOwnerRef || undefined,
-            'filter[stage]': watchSourceStage || undefined,
-            include: 'product_uom_batch,product_uom_batch.product_uom',
-          } as any)
-          .then((r) => r.data)
-        const items = (res as any)?.data ?? []
-        allRows = allRows.concat(items)
-        totalPages =
-          (res as any)?.meta?.last_page ??
-          (res as any)?.meta?.total_pages ??
-          1
-        page += 1
-      } while (page <= totalPages)
-      return { data: allRows }
-    },
+    queryKey: ['source-branch-inventory', sourceBranchId, lineProductUomIds.slice().sort((a, b) => a - b).join(','), watchSourceOwnerRef, watchSourceStage],
+    enabled: !!sourceBranchId && lineProductUomIds.length > 0,
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          per_page: 100,
+          'filter[product_uom_ids]': lineProductUomIds.join(','),
+          'filter[branch_id]': sourceBranchId,
+          'filter[owner_ref]': watchSourceOwnerRef || undefined,
+          'filter[stage]': watchSourceStage || undefined,
+          include: 'product_uom_batch,product_uom_batch.product_uom',
+        } as any)
+        .then((r) => r.data),
   })
   const sourceInventory = (inventoryData as any)?.data ?? []
 
@@ -485,7 +484,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     const collect = (details: any[] | undefined) => {
       if (!Array.isArray(details)) return
       for (const d of details) {
-        const id = d?.product_uom_id ?? d?.product_uom?.id
+      const id = d?.product_uom_id
         if (typeof id === 'number' && id > 0) ids.add(id)
       }
     }

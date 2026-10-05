@@ -158,7 +158,7 @@ export default function AcceptPOModal({
   const taxableSubtotal = details.reduce((sum, d) => sum + (d.is_taxable ? calcLineSubtotal(d) : 0), 0)
   const selectedTax = taxes.find((t: any) => t.id === taxId)
   const taxRate = selectedTax ? selectedTax.rate : 0
-  const taxAmount = taxableSubtotal * taxRate / 100
+  const taxAmount = Math.round(taxableSubtotal * taxRate / 100)
   const additionalChargesTotal = additionalCharges.reduce((sum, c) => sum + (c.amount || 0), 0)
   const totalPrice = subtotal + taxAmount + additionalChargesTotal
 

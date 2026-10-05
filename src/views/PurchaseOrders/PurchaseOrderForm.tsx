@@ -170,7 +170,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const taxableSubtotal = watchDetails.reduce((sum, d) => sum + (d.is_taxable ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
   const nonTaxableSubtotal = watchDetails.reduce((sum, d) => sum + (!d.is_taxable ? Number(d.qty || 0) * Number(d.price || 0) : 0), 0)
   const subtotal = taxableSubtotal + nonTaxableSubtotal
-  const taxAmount = (taxableSubtotal * taxRate) / 100
+  const taxAmount = Math.round((taxableSubtotal * taxRate) / 100)
   const additionalChargesTotal = watchAdditionalCharges.reduce((sum, c) => sum + Number(c.amount || 0), 0)
   const totalPrice = subtotal + taxAmount + additionalChargesTotal
 

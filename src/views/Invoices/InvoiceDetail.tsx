@@ -81,6 +81,9 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 const rp = (n: number | string | null | undefined) =>
   `Rp ${Number(n ?? 0).toLocaleString('id-ID')}`
 
+const rpRounded = (n: number | string | null | undefined) =>
+  `Rp ${Math.round(Number(n ?? 0)).toLocaleString('id-ID')}`
+
 export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -554,7 +557,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 Tax
               </td>
               <td style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
-                {rp(invoice.tax_amount)}
+                {rpRounded(invoice.tax_amount)}
               </td>
             </tr>
             <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
@@ -897,7 +900,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 ) : null}
                 <tr>
                   <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Tax</td>
-                  <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.tax_amount)}</td>
+                  <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rpRounded(invoice.tax_amount)}</td>
                 </tr>
                 <tr>
                   <td style={{ padding: '8px 0', fontSize: '11pt', fontWeight: 700, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>

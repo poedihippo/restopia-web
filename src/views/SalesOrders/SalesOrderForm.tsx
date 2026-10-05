@@ -395,7 +395,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
   const additionalChargesTotal = additionalCharges.reduce((sum, c) => sum + (Number(c.amount) || 0), 0)
   const taxRate = taxes.find((t: any) => t.id === taxId)?.rate ?? 0
-  const taxAmount = (subtotal * taxRate) / 100
+  const taxAmount = Math.round((subtotal * taxRate) / 100)
   const total = Math.max(0, subtotal + taxAmount + additionalChargesTotal - discountPrice)
 
   // ── Line item helpers ─────────────────────────────────────────────────────
