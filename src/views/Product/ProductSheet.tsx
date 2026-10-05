@@ -1157,6 +1157,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                     register={register}
                     errors={errors}
                     targetOptions={targetOptions}
+                    isBaseUnit={!!baseUomId && currentUomId === Number(baseUomId)}
                   />
                 </div>
               )
@@ -1371,9 +1372,10 @@ interface ConversionsSectionProps {
   register: any
   errors: any
   targetOptions: { value: number; label: string }[]
+  isBaseUnit?: boolean
 }
 
-function ConversionsSection({ control, uomIndex, register, errors, targetOptions }: ConversionsSectionProps) {
+function ConversionsSection({ control, uomIndex, register, errors, targetOptions, isBaseUnit }: ConversionsSectionProps) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: `uoms.${uomIndex}.conversions` as any,
@@ -1414,7 +1416,7 @@ function ConversionsSection({ control, uomIndex, register, errors, targetOptions
         <button
           type="button"
           onClick={() => append({ ...emptyConversion })}
-          disabled={targetOptions.length === 0}
+          disabled={isBaseUnit || targetOptions.length === 0}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -1426,15 +1428,21 @@ function ConversionsSection({ control, uomIndex, register, errors, targetOptions
             borderRadius: 'var(--radius-md)',
             fontSize: 11,
             fontWeight: 500,
-            cursor: targetOptions.length === 0 ? 'not-allowed' : 'pointer',
-            opacity: targetOptions.length === 0 ? 0.6 : 1,
+            cursor: isBaseUnit || targetOptions.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: isBaseUnit || targetOptions.length === 0 ? 0.6 : 1,
           }}
         >
           <Plus size={11} /> Add Conversion
         </button>
       </div>
 
-      {targetOptions.length === 0 && fields.length === 0 && (
+      {isBaseUnit && (
+        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+          Base unit cannot have conversions — it is the smallest unit.
+        </span>
+      )}
+
+      {!isBaseUnit && targetOptions.length === 0 && fields.length === 0 && (
         <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
           Add another unit to this product first to define conversions.
         </span>
