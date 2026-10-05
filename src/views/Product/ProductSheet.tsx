@@ -897,7 +897,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 12,
-                    background: 'var(--background)',
+                    background: i % 2 === 0 ? 'var(--surface-raised)' : 'var(--surface)',
                   }}
                 >
                   {/* Card header */}
