@@ -264,8 +264,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // product_inventory, so we source the picker from there.
   //
   // Instead of loading EVERY inventory row for the branch (page-loop with
-  // per_page=100), use filter[product_uom_ids] (OpenAPI: plural) to fetch
-  // only inventories for the product_uom_ids currently on form lines.
+  // per_page=100), use filter[product_ids] (OpenAPI: plural) to fetch
+  // only inventories for the products currently on form lines.
   const lineProductUomIds = useMemo(() => {
     const ids = new Set<number>()
     for (const d of watchDetails ?? []) {
@@ -275,14 +275,36 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     return Array.from(ids)
   }, [watchDetails])
 
+  // Resolve product_uom_ids → product_ids via a lightweight product_uoms fetch
+  const { data: linePuomsData } = useQuery({
+    queryKey: ['line-product-uoms-for-inv', lineProductUomIds.slice().sort((a, b) => a - b).join(',')],
+    enabled: lineProductUomIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[ids]': lineProductUomIds.join(','),
+          per_page: lineProductUomIds.length,
+        } as any)
+        .then((r) => r.data),
+  })
+  const lineProductIds = useMemo(() => {
+    const puoms: any[] = (linePuomsData as any)?.data ?? []
+    const ids = new Set<number>()
+    for (const pu of puoms) {
+      const pid = pu?.product_id ?? pu?.product?.id
+      if (typeof pid === 'number' && pid > 0) ids.add(pid)
+    }
+    return Array.from(ids)
+  }, [linePuomsData])
+
   const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
-    queryKey: ['source-branch-inventory', sourceBranchId, lineProductUomIds.slice().sort((a, b) => a - b).join(','), watchSourceOwnerRef, watchSourceStage],
-    enabled: !!sourceBranchId && lineProductUomIds.length > 0,
+    queryKey: ['source-branch-inventory', sourceBranchId, lineProductIds.slice().sort((a, b) => a - b).join(','), watchSourceOwnerRef, watchSourceStage],
+    enabled: !!sourceBranchId && lineProductIds.length > 0,
     queryFn: () =>
       productInventoriesService
         .list({
-          per_page: 100,
-          'filter[product_uom_ids]': lineProductUomIds.join(','),
+          per_page: 1000,
+          'filter[product_ids]': lineProductIds.join(','),
           'filter[branch_id]': sourceBranchId,
           'filter[owner_ref]': watchSourceOwnerRef || undefined,
           'filter[stage]': watchSourceStage || undefined,
