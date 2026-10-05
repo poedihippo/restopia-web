@@ -346,8 +346,8 @@ export default function PosModals({
                     DP Amount (must be less than {formatCurrency(total)})
                   </label>
                   <LocalizedNumberInput
-                    value={partialAmount}
-                    onChange={(val) => setPartialAmount?.(String(val ?? ''))}
+                    value={partialAmount ? Number(partialAmount) : undefined}
+                    onChange={(val) => setPartialAmount?.(val !== undefined && val !== null ? String(val) : '')}
                     decimals={2}
                     padDecimals={false}
                     placeholder="0"
@@ -451,21 +451,13 @@ export default function PosModals({
                       </div>
                       <div>
                         <label style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Amount</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={splitAmount ? formatCurrency(Number(splitAmount.replace(/\D/g, ''))) : ''}
-                          onChange={(e) => setSplitAmount(e.target.value.replace(/\D/g, ''))}
+                        <LocalizedNumberInput
+                          value={splitAmount ? Number(splitAmount) : undefined}
+                          onChange={(val) => setSplitAmount(val !== undefined && val !== null ? String(val) : '')}
+                          decimals={2}
+                          padDecimals={false}
                           disabled={Boolean(splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit'))}
-                          style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-md)',
-                            background: splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit') ? 'var(--surface)' : 'var(--background)',
-                            opacity: splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit') ? 0.7 : 1,
-                            cursor: splitMethodId && paymentMethods.find(pm => pm.id === splitMethodId)?.name?.toLowerCase().includes('credit') ? 'not-allowed' : 'text'
-                          }}
+                          placeholder="0"
                         />
                       </div>
                     </div>
@@ -671,7 +663,7 @@ export default function PosModals({
               </div>
             )}
 
-            {!isCashMethod && !isCreditMethod && paymentMethodId && (
+            {/* {!isCashMethod && !isCreditMethod && paymentMethodId && (
               <div
                 style={{
                   background: 'var(--info-bg)',
@@ -684,7 +676,7 @@ export default function PosModals({
               >
                 Confirm receipt of {formatCurrency(total)} via {selectedMethod?.name}.
               </div>
-            )}
+            )} */}
 
             {/* Cash tendered section */}
             {isCashMethod && (

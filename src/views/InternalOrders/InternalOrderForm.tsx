@@ -256,6 +256,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
+  const isDelivered = mode === 'edit' && initialData?.status === 'delivered'
 
   // ── Shared styles ───────────────────────────────────────────────────────────
 
@@ -331,6 +332,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
   return (
     <div
+      className="io-form-container"
       style={{
         padding: '32px 32px 64px',
         maxWidth: 1400,
@@ -349,6 +351,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
           gap: 12,
           paddingBottom: 20,
           borderBottom: '1px solid var(--border)',
+          flexWrap: 'wrap',
         }}
       >
         <button
@@ -411,6 +414,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             <span style={sectionLabelStyle}>Order Details</span>
           </div>
           <div
+            className="io-order-details-grid"
             style={{
               padding: 20,
               display: 'grid',
@@ -539,7 +543,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
         </div>
 
         {/* Section 2 — Line Items */}
-        <div style={cardStyle}>
+        <div style={cardStyle} className="io-form-responsive">
           {/* Section header */}
           <div
             style={{
@@ -800,8 +804,23 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
             justifyContent: 'flex-end',
             gap: 10,
             paddingTop: 4,
+            flexWrap: 'wrap',
           }}
         >
+          {isDelivered && (
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--warning)',
+                background: 'var(--warning-bg)',
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                alignSelf: 'center',
+              }}
+            >
+              This order is delivered — editing is disabled.
+            </span>
+          )}
           <button
             type="button"
             onClick={() => router.back()}
@@ -820,7 +839,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
           </button>
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || isDelivered}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -832,8 +851,8 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: 'pointer',
-              opacity: isPending ? 0.7 : 1,
+              cursor: isPending || isDelivered ? 'not-allowed' : 'pointer',
+              opacity: isPending || isDelivered ? 0.5 : 1,
             }}
           >
             {isPending && (
@@ -851,6 +870,14 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        .io-form-responsive { overflow-x: auto; }
+        .io-form-responsive > * { min-width: 720px; }
+        @media (max-width: 900px) {
+          .io-order-details-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 640px) {
+          .io-form-container { padding: 16px 12px 48px !important; }
         }
       `}</style>
     </div>

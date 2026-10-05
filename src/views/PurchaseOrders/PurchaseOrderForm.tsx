@@ -358,6 +358,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   }))
 
   const hasFinalDelivery = initialData?.deliveries?.some((d: any) => d.status === 'final')
+  const isDelivered = mode === 'edit' && initialData?.status === 'delivered'
 
   useEffect(() => {
     if (initialData && mode === 'edit') {
@@ -521,6 +522,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   return (
     <div
+      className="po-form-container"
       style={{
         padding: '32px 32px 64px',
         maxWidth: 1400,
@@ -539,6 +541,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           gap: 12,
           paddingBottom: 20,
           borderBottom: '1px solid var(--border)',
+          flexWrap: 'wrap',
         }}
       >
         <button
@@ -601,6 +604,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             <span style={sectionLabelStyle}>Order Details</span>
           </div>
           <div
+            className="po-order-details-grid"
             style={{
               padding: 20,
               display: 'grid',
@@ -636,6 +640,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             </div>
             {/* Order source toggle — external Supplier or internal Branch */}
             <div
+              className="po-span-2"
               style={{
                 gridColumn: 'span 2',
                 display: 'flex',
@@ -715,7 +720,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             {/* Source Branch (internal) — only when source is "branch"; spans
                 the full row now that the destination "Branch" field is gone. */}
             {watchType === 'branch' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+              <div className="po-span-2" style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
                 <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                   Source Branch
                   <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
@@ -792,7 +797,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
 
             {/* Notes — full width */}
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+            <div className="po-span-2" style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
@@ -805,7 +810,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         </div>
 
         {/* Section 2 — Line Items */}
-        <div style={cardStyle}>
+        <div style={cardStyle} className="po-form-responsive">
           {/* Section header */}
           <div
             style={{
@@ -1321,8 +1326,23 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             justifyContent: 'flex-end',
             gap: 10,
             paddingTop: 4,
+            flexWrap: 'wrap',
           }}
         >
+          {isDelivered && (
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--warning)',
+                background: 'var(--warning-bg)',
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-sm)',
+                alignSelf: 'center',
+              }}
+            >
+              This order is delivered — editing is disabled.
+            </span>
+          )}
           <button
             type="button"
             onClick={() => router.back()}
@@ -1341,7 +1361,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           </button>
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || isDelivered}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -1353,8 +1373,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: 'pointer',
-              opacity: isPending ? 0.7 : 1,
+              cursor: isPending || isDelivered ? 'not-allowed' : 'pointer',
+              opacity: isPending || isDelivered ? 0.5 : 1,
             }}
           >
             {isPending && (
@@ -1372,6 +1392,15 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        .po-form-responsive { overflow-x: auto; }
+        .po-form-responsive > * { min-width: 720px; }
+        @media (max-width: 900px) {
+          .po-order-details-grid { grid-template-columns: 1fr !important; }
+          .po-order-details-grid > .po-span-2 { grid-column: span 1 !important; }
+        }
+        @media (max-width: 640px) {
+          .po-form-container { padding: 16px 12px 48px !important; }
         }
       `}</style>
     </div>

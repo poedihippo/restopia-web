@@ -2967,7 +2967,7 @@ export default function PosView() {
               </div>
             </div>
 
-            {!isCashMethod && paymentMethodId && (
+            {/* {!isCashMethod && paymentMethodId && (
               <div
                 style={{
                   background: 'var(--info-bg)',
@@ -2980,7 +2980,7 @@ export default function PosView() {
               >
                 Confirm receipt of {formatCurrency(total)} via {selectedMethod?.name}.
               </div>
-            )}
+            )} */}
 
             {/* Cash tendered section */}
             {isCashMethod && (
