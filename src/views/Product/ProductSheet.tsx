@@ -247,40 +247,33 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     retry: false,
   })
 
-  const handleSuggestNames = async () => {
-    const res = await suggestionsQuery.refetch()
-    if (res.isError) {
-      const status = (res.error as any)?.response?.status
-      toast.error(
-        status === 404
-          ? 'Fitur saran nama belum tersedia di server (menunggu deploy backend)'
-          : 'Gagal mengambil saran nama'
-      )
-      return
-    }
-    const suggestions = (res.data as any)?.data?.suggestions ?? []
-    if (suggestions.length === 0) {
-      toast.info('Tidak ada saran nama untuk produk ini')
-      return
-    }
+  const handleSuggestNames = () => {
+    const base = watch('name')
     let applied = 0
     let skippedFilled = 0
     watchedUoms.forEach((row: any, idx: number) => {
-      if (!row?.id) return // new/unsaved rows have no product_uom_id to match yet
-      const s = suggestions.find((x: any) => x.product_uom_id === row.id)
-      if (!s || s.reason !== 'conversion' || !s.suggested_name) return
+      const unitCode = String(row?.uom_code ?? '').toLowerCase()
+      if (!unitCode) return
+      const conversion = (row.conversions ?? []).find((c: any) => Number(c.amount) > 0 && Number(c.target_uom_id) > 0)
+      const target = conversion
+        ? watchedUoms.find((u: any) => Number(u?.uom_id) === Number(conversion.target_uom_id))
+        : null
+      const targetCode = String(target?.uom_code ?? '').toLowerCase()
+      const name = conversion && targetCode
+        ? `${base} (1 x ${String(Number(conversion.amount))}${targetCode})`
+        : `${base} (1${unitCode})`
       if (row.name && row.name.trim() !== '') {
         skippedFilled++
         return
       }
-      setValue(`uoms.${idx}.name` as any, s.suggested_name, { shouldValidate: true })
+      setValue(`uoms.${idx}.name` as any, name, { shouldValidate: true })
       applied++
     })
     if (applied > 0) toast.success(`${applied} nama unit terisi otomatis dari saran`)
     if (applied === 0 && skippedFilled === 0) {
-      toast.info('Belum ada saran yang bisa diterapkan otomatis untuk unit-unit ini')
+      toast.info('Tidak ada saran nama untuk produk ini')
     } else if (applied === 0 && skippedFilled > 0) {
-      toast.info(`Semua unit yang ada saran sudah punya nama sendiri (${skippedFilled} dilewati)`)
+      toast.info(`Semua unit sudah punya nama sendiri (${skippedFilled} dilewati)`)
     }
   }
 
