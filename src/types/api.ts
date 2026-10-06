@@ -391,12 +391,16 @@ export interface DeliveryDetail {
 export interface DeliveryRequest {
   code: string
   purchase_order_id?: number
+  sales_order_id?: number
   branch_id: number
   target_branch_id?: number
   date: string
   total_price: number
   status: 'pending' | 'final'
   description?: string
+  source_owner_ref?: string
+  source_stage?: string
+  source_location_ref?: string
   details: DeliveryDetail[]
 }
 
@@ -488,6 +492,8 @@ export interface SalesOrderRequest {
   total_price: number
   status: 'pending' | 'final'
   settlement_status?: 'pending' | 'credit' | 'settled' | 'cancelled'
+  /** null/omitted = non-credit; 'user' = staff credit (credit_by_id required); 'customer' = customer credit */
+  credit_type?: 'user' | 'customer' | null
   credit_by_id?: number | null
   description?: string
   details: SalesOrderDetail[]

@@ -120,6 +120,8 @@ export function usePosLogic() {
   const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null)
   const [cashTendered, setCashTendered] = useState<string>('')
   const [creditByUserId, setCreditByUserId] = useState<number | null>(null)
+  // credit_type: 'user' = staff credit (credit_by_id), 'customer' = customer credit
+  const [creditType, setCreditType] = useState<'user' | 'customer'>('user')
   const [isSplitPayment, setIsSplitPayment] = useState(false)
   const [splitPayments, setSplitPayments] = useState<Array<{ paymentMethodId: number, amount: number, cashTendered?: string, creditByUserId?: number | null }>>([])
   // DP / partial payment: 'full' = pay entire total now, 'partial' = down payment
@@ -301,6 +303,9 @@ export function usePosLogic() {
     setOrderNote(order.description ?? '')
     setEditingOrderId(order.id)
     setEditingOrderCode(order.code)
+    // Restore credit fields when re-opening a held order
+    setCreditByUserId(order.credit_by_id ?? null)
+    setCreditType(order.credit_type === 'customer' ? 'customer' : 'user')
     setShowPreorders(false)
     toast.success('Pending order loaded to cart')
   }
@@ -684,19 +689,20 @@ export function usePosLogic() {
     const splitCreditUser = isSplitPayment
       ? splitPayments.find((sp) => sp.creditByUserId)?.creditByUserId
       : null
-    const creditById = isSplitPayment
-      ? splitCreditUser || undefined
-      : isCreditMethod
-        ? creditByUserId
-        : undefined
-    const settlementStatus = isSplitPayment
-      ? splitCreditUser
-        ? 'credit'
-        : 'pending'
-      : isCreditMethod
-        ? 'credit'
-        : 'pending'
-    return { creditById, settlementStatus }
+    // Split with a credit user ⇒ always staff credit
+    if (isSplitPayment) {
+      if (splitCreditUser) {
+        return { creditType: 'user' as const, creditById: splitCreditUser, settlementStatus: 'credit' as const }
+      }
+      return { creditType: null, creditById: null, settlementStatus: 'pending' as const }
+    }
+    if (isCreditMethod) {
+      if (creditType === 'customer') {
+        return { creditType: 'customer' as const, creditById: null, settlementStatus: 'credit' as const }
+      }
+      return { creditType: 'user' as const, creditById: creditByUserId, settlementStatus: 'credit' as const }
+    }
+    return { creditType: null, creditById: null, settlementStatus: 'pending' as const }
   }
 
   const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
@@ -751,7 +757,7 @@ export function usePosLogic() {
       if (editingOrderId) {
         return salesOrdersService.update(
           editingOrderId,
-          toApiOrder(payload, { keepNull: ['customer_id'] }) as any,
+          toApiOrder(payload, { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] }) as any,
         )
       }
       const body = toApiOrder(payload)
@@ -779,19 +785,33 @@ export function usePosLogic() {
       return
     }
 
-    const { creditById, settlementStatus } = getSettlement()
+    const { creditById, settlementStatus, creditType: resolvedCreditType } = getSettlement()
+
+    if (resolvedCreditType === 'user' && !creditById) {
+      toast.error('Select a credit user')
+      return
+    }
+    if (resolvedCreditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)) {
+      toast.error('Select a customer for customer credit')
+      return
+    }
+
+    // credit_type=user ⇒ customer_id must be null
+    const payloadCustomerId =
+      resolvedCreditType === 'user' ? null : (selectedCustomerId ?? null)
 
     const payload = {
       type: orderType,
-      customer_id: selectedCustomerId ?? null,
-      customer_name: selectedCustomerId ? undefined : guestName || undefined,
-      customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
+      customer_id: payloadCustomerId,
+      customer_name: payloadCustomerId ? undefined : guestName || undefined,
+      customer_phone: payloadCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: fulfillmentDate.slice(0, 10),
       sales_channel_id: salesChannelId,
       voucher_id: appliedVoucher?.voucher_id ?? undefined,
       status: 'pending',
       settlement_status: settlementStatus,
+      credit_type: resolvedCreditType,
       credit_by_id: creditById,
       description: orderNote || undefined,
       details: buildDetails('pending', !!editingOrderId),
@@ -805,7 +825,7 @@ export function usePosLogic() {
       if (editingOrderId) {
         return salesOrdersService.update(
           editingOrderId,
-          toApiOrder(payload, { keepNull: ['customer_id'] }) as any,
+          toApiOrder(payload, { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] }) as any,
         )
       }
       // Payment amount: full = sale total; partial (DP) = user-entered amount.
@@ -839,6 +859,7 @@ export function usePosLogic() {
         fulfillment_date: payload.fulfillment_date,
         status: payload.status,
         settlement_status: payload.settlement_status,
+        credit_type: payload.credit_type ?? null,
         payment_status: paymentStatus,
         customer_id: payload.customer_id ?? undefined,
         customer_name: payload.customer_name,
@@ -922,15 +943,30 @@ export function usePosLogic() {
       return
     }
 
-    const { creditById, settlementStatus } = getSettlement()
+    const { creditById, settlementStatus, creditType: resolvedCreditType } = getSettlement()
+
+    // credit_type guards (API): user ⇒ credit_by_id required + customer_id null;
+    // customer ⇒ customer_id required; non-credit ⇒ credit_by_id null.
+    if (resolvedCreditType === 'user' && !creditById) {
+      toast.error('Please select a credit user')
+      return
+    }
+    if (resolvedCreditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)) {
+      toast.error('Please select a customer for customer credit')
+      return
+    }
+
+    // credit_type=user ⇒ customer_id must be null
+    const payloadCustomerId =
+      resolvedCreditType === 'user' ? null : (selectedCustomerId ?? null)
 
     // subtotal_price / discount_price / total_price stay local (used for the
     // payment amount) and are stripped before anything is sent to the API.
     const payload = {
       type: orderType,
-      customer_id: selectedCustomerId ?? null,
-      customer_name: selectedCustomerId ? undefined : guestName || undefined,
-      customer_phone: selectedCustomerId ? undefined : guestPhone || undefined,
+      customer_id: payloadCustomerId,
+      customer_name: payloadCustomerId ? undefined : guestName || undefined,
+      customer_phone: payloadCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: fulfillmentDate.slice(0, 10),
       sales_channel_id: salesChannelId,
@@ -940,6 +976,7 @@ export function usePosLogic() {
       total_price: total,
       status: 'final',
       settlement_status: settlementStatus,
+      credit_type: resolvedCreditType,
       credit_by_id: creditById,
       description: orderNote || undefined,
       details: buildDetails('completed', !!editingOrderId),
@@ -1000,6 +1037,7 @@ export function usePosLogic() {
     subtotal, total, change, quickAmounts,
     selectedMethod, isCashMethod, isCreditMethod,
     creditByUserId, setCreditByUserId, creditUsers,
+    creditType, setCreditType,
     isPending, isHoldPending,
 
     resetCart,

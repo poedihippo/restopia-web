@@ -45,6 +45,9 @@ interface PosModalsProps {
   creditByUserId: number | null
   setCreditByUserId: (val: number | null) => void
   creditUsers: any[]
+  creditType?: 'user' | 'customer'
+  setCreditType?: (val: 'user' | 'customer') => void
+  selectedCustomerId?: number | null
   receiptData: any
   resetCart: () => void
   printReceipt: ReceiptData | null
@@ -117,6 +120,9 @@ export default function PosModals({
   creditByUserId,
   setCreditByUserId,
   creditUsers,
+  creditType = 'user',
+  setCreditType,
+  selectedCustomerId = null,
   isPending,
   receiptData,
   resetCart,
@@ -171,7 +177,11 @@ export default function PosModals({
 
   const canConfirm = isSplitPayment
     ? remainingSplitBalance === 0
-    : (paymentMethodId !== null && (!isCreditMethod || creditByUserId !== null) &&
+    : (paymentMethodId !== null &&
+       (!isCreditMethod ||
+         (creditType === 'customer'
+           ? !!(selectedCustomerId && selectedCustomerId > 0)
+           : creditByUserId !== null)) &&
        (paymentMode !== 'partial' || (Number(partialAmount.replace(/\D/g, '')) > 0 && Number(partialAmount.replace(/\D/g, '')) < total)))
 
   const handleAddSplit = () => {
@@ -630,36 +640,109 @@ export default function PosModals({
                     marginBottom: 8,
                   }}
                 >
-                  Credit User <span style={{ color: 'var(--destructive)' }}>*</span>
+                  Credit Type <span style={{ color: 'var(--destructive)' }}>*</span>
                 </label>
-                <SearchableSelect
-                  value={creditByUserId ?? 0}
-                  onChange={(v) => setCreditByUserId(v > 0 ? v : null)}
-                  options={[
-                    { value: 0, label: 'Select user...' },
-                    ...creditUsers.map((u: any) => ({
-                      value: u.id as number,
-                      label: (u.name as string) ?? '',
-                      sublabel: u.credit
-                        ? 'Credit: Rp ' +
-                        Number(u.credit ?? 0).toLocaleString('id-ID')
-                        : 'No credit set',
-                    })),
-                  ]}
-                  placeholder="Search user..."
-                  searchPlaceholder="Search users..."
-                  onSearchChange={setDropdownSearch}
-/>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--warning)',
-                    display: 'block',
-                    marginTop: 6,
-                  }}
-                >
-                  ⚠ Select the user whose credit will be used for this transaction.
-                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setCreditType?.('user')}
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid',
+                      borderColor: creditType === 'user' ? 'var(--accent)' : 'var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: creditType === 'user' ? 'var(--accent-light-bg)' : 'var(--surface)',
+                      color: creditType === 'user' ? 'var(--accent)' : 'var(--foreground)',
+                      fontWeight: 600,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    Staff Credit
+                    <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                      Uses users.credit
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreditType?.('customer')}
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid',
+                      borderColor: creditType === 'customer' ? 'var(--accent)' : 'var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      background: creditType === 'customer' ? 'var(--accent-light-bg)' : 'var(--surface)',
+                      color: creditType === 'customer' ? 'var(--accent)' : 'var(--foreground)',
+                      fontWeight: 600,
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    Customer Credit
+                    <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                      No user balance
+                    </div>
+                  </button>
+                </div>
+                {creditType === 'user' && (
+                  <>
+                    <label
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--foreground-muted)',
+                        display: 'block',
+                        marginBottom: 8,
+                      }}
+                    >
+                      Credit User <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <SearchableSelect
+                      value={creditByUserId ?? 0}
+                      onChange={(v) => setCreditByUserId(v > 0 ? v : null)}
+                      options={[
+                        { value: 0, label: 'Select user...' },
+                        ...creditUsers.map((u: any) => ({
+                          value: u.id as number,
+                          label: (u.name as string) ?? '',
+                          sublabel: u.credit
+                            ? 'Credit: Rp ' +
+                            Number(u.credit ?? 0).toLocaleString('id-ID')
+                            : 'No credit set',
+                        })),
+                      ]}
+                      placeholder="Search user..."
+                      searchPlaceholder="Search users..."
+                      onSearchChange={setDropdownSearch}
+                    />
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--warning)',
+                        display: 'block',
+                        marginTop: 6,
+                      }}
+                    >
+                      ⚠ Select the user whose credit will be used for this transaction.
+                    </span>
+                  </>
+                )}
+                {creditType === 'customer' && (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      background: selectedCustomerId ? 'var(--success-bg)' : 'var(--warning-bg)',
+                      color: selectedCustomerId ? 'var(--success)' : 'var(--warning)',
+                      fontSize: 12,
+                    }}
+                  >
+                    {selectedCustomerId
+                      ? 'Customer credit will be applied to the selected customer. No user balance is used.'
+                      : 'Select a customer in the cart sidebar before confirming customer credit.'}
+                  </div>
+                )}
               </div>
             )}
 
@@ -785,8 +868,12 @@ export default function PosModals({
                     toast.error('Select a payment method')
                     return
                   }
-                  if (isCreditMethod && !creditByUserId) {
+                  if (isCreditMethod && creditType === 'user' && !creditByUserId) {
                     toast.error('Please select a credit user')
+                    return
+                  }
+                  if (isCreditMethod && creditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)) {
+                    toast.error('Please select a customer for customer credit')
                     return
                   }
                   if (paymentMode === 'partial') {
@@ -820,21 +907,31 @@ export default function PosModals({
                 setShowPayment(false)
                 handleConfirmPayment()
               }}
-              disabled={isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)}
+              disabled={isPending || !salesChannelId || !canConfirm}
               style={{
                 width: '100%',
                 padding: '14px 24px',
-                background: (isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)) ? 'var(--foreground-subtle)' : 'var(--accent)',
+                background: (isPending || !salesChannelId || !canConfirm) ? 'var(--foreground-subtle)' : 'var(--accent)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 16,
                 fontWeight: 700,
-                cursor: (isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)) ? 'not-allowed' : 'pointer',
-                opacity: (isPending || !salesChannelId || (isSplitPayment && remainingSplitBalance > 0)) ? 0.7 : 1,
+                cursor: (isPending || !salesChannelId || !canConfirm) ? 'not-allowed' : 'pointer',
+                opacity: (isPending || !salesChannelId || !canConfirm) ? 0.7 : 1,
               }}
             >
-              {isPending ? 'Processing...' : (!salesChannelId ? 'Select Sales Channel' : (paymentMode === 'partial' ? 'Confirm DP' : 'Confirm Payment'))}
+              {isPending
+                ? 'Processing...'
+                : !salesChannelId
+                  ? 'Select Sales Channel'
+                  : isCreditMethod && creditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)
+                    ? 'Select Customer First'
+                    : isCreditMethod && creditType === 'user' && !creditByUserId
+                      ? 'Select Credit User First'
+                      : paymentMode === 'partial'
+                        ? 'Confirm DP'
+                        : 'Confirm Payment'}
             </button>
           </div>
         </div>

@@ -22,7 +22,7 @@ import {
   ChevronUp,
 } from 'lucide-react'
 
-interface BundleDetail {
+interface BundleItem {
   id: number
   product_uom_id: number
   qty: number
@@ -34,6 +34,15 @@ interface BundleDetail {
   }
 }
 
+interface BundleDetail {
+  id: number
+  sort_order?: number
+  items?: BundleItem[]
+  product_uom_id?: number
+  qty?: number
+  product_uom?: BundleItem['product_uom']
+}
+
 interface Bundle {
   id: number
   code: string
@@ -43,6 +52,17 @@ interface Bundle {
   description?: string
   created_at?: string
   bundle_details?: BundleDetail[]
+}
+
+function flattenBundleItems(details?: BundleDetail[]): BundleItem[] {
+  if (!details?.length) return []
+  return details.flatMap((d) => {
+    if (d.items?.length) return d.items
+    if (d.product_uom_id != null) {
+      return [{ id: d.id, product_uom_id: d.product_uom_id, qty: d.qty ?? 0, product_uom: d.product_uom }]
+    }
+    return []
+  })
 }
 
 const STATUS_META: Record<
@@ -288,7 +308,7 @@ export default function BundlesView() {
           items.map((item) => {
             const isExpanded = expandedId === item.id
             const statusMeta = STATUS_META[item.status] ?? STATUS_META.inactive
-            const details = item.bundle_details ?? []
+            const details = flattenBundleItems(item.bundle_details)
             return (
               <div
                 key={item.id}

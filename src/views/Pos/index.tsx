@@ -154,6 +154,9 @@ export default function PosView() {
         creditByUserId={logic.creditByUserId}
         setCreditByUserId={logic.setCreditByUserId}
         creditUsers={logic.creditUsers}
+        creditType={logic.creditType}
+        setCreditType={logic.setCreditType}
+        selectedCustomerId={logic.selectedCustomerId}
         isPending={logic.isPending}
         receiptData={null} // Replace with actual state
         resetCart={logic.resetCart}

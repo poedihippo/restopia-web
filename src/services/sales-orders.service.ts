@@ -24,10 +24,11 @@ export const salesOrdersService = {
     fulfillment_date: string
     status: string
     settlement_status: string
+    credit_type?: 'user' | 'customer' | null
     customer_id?: number | null
     customer_name?: string
     customer_phone?: string
-    credit_by_id?: number
+    credit_by_id?: number | null
     voucher_id?: number
     description?: string
     details: {
@@ -66,6 +67,8 @@ export const salesOrdersService = {
     'filter[type]'?: string
     'filter[settlement_status]'?: string
     'filter[payment_status]'?: string
+    'filter[credit_type]'?: string
+    'filter[is_credit]'?: string
   }) =>
     api.get('/sales-orders/exports/excel/all', {
       params,

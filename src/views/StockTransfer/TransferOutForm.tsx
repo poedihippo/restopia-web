@@ -9,6 +9,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { branchesService } from '@/services/branches.service'
+import { companiesService } from '@/services/companies.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { getProductUomName } from '@/utils/productUomName'
@@ -16,8 +17,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import api from '@/hooks/useApi'
 import { Plus, Trash2, Loader2, X } from 'lucide-react'
 import { PriceDisplay } from '@/components/PriceDisplay'
+
+const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Select a product'),
@@ -31,6 +35,9 @@ const schema = z.object({
   target_branch_id: z.coerce.number().min(1, 'Select target branch'),
   date: z.string().min(1, 'Date required'),
   description: z.string().optional(),
+  source_owner_ref: z.string().min(1, 'Owner sumber wajib diisi'),
+  source_stage: z.string().min(1, 'Stage sumber wajib diisi'),
+  source_location_ref: z.string().optional(),
   details: z.array(detailSchema).min(1, 'Add at least one item'),
 })
 
@@ -63,6 +70,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       target_branch_id: 0,
       date: today,
       description: '',
+      source_owner_ref: 'GENERAL',
+      source_stage: 'GENERAL',
+      source_location_ref: 'GENERAL',
       details: [
         { product_uom_id: 0, product_uom_batch_id: undefined, qty: 1, price: 0, description: '' },
       ],
@@ -104,6 +114,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   }, [focusNewRowIndex, fields.length])
 
   const watchDetails = watch('details')
+  const watchSourceOwnerRef = watch('source_owner_ref')
+  const watchSourceStage = watch('source_stage')
+  const watchSourceLocationRef = watch('source_location_ref')
   const totalPrice = watchDetails.reduce(
     (s, d) => s + Number(d.qty ?? 0) * Number(d.price ?? 0),
     0,
@@ -115,6 +128,23 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100, include: 'company' } as any).then((r) => r.data),
   })
   const branches = (branchesData as any)?.data ?? []
+
+  const { data: companiesData, isLoading: companiesLoading } = useQuery({
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+  })
+  const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+  const companyOptions = [
+    GENERAL_OWNER_OPTION,
+    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
+  ]
+
+  const { data: stagesData, isLoading: stagesLoading } = useQuery({
+    queryKey: ['stages-all'],
+    queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
+  })
+  const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
+  const stageOptions = stages.map((s: any) => ({ value: s.code, label: s.name }))
 
   const activeProductTypes = useActiveBranchProductTypes()
 
@@ -134,11 +164,19 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   const allProductUoms = (productUomsData as any)?.data ?? []
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
 
-  // Available stock at the SOURCE branch (current active branch). Single
-  // branch-wide fetch keeps this to one query and matches the fetch-all
-  // pattern used elsewhere.
+  // Available stock at the SOURCE branch for the selected owner/stage/location.
+  // filter[stage]/filter[owner_ref]/filter[location_ref] are supported by
+  // GET /v1/product-inventories — without them the picker shows every stage
+  // and qty is wrong when the user switches source dimension.
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['transfer-out-source-inventory', sourceBranchId],
+    queryKey: [
+      'transfer-out-source-inventory',
+      sourceBranchId,
+      debouncedDropdownSearch,
+      watchSourceOwnerRef,
+      watchSourceStage,
+      watchSourceLocationRef,
+    ],
     enabled: !!sourceBranchId,
     queryFn: () =>
       productInventoriesService
@@ -147,6 +185,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
           per_page: 1000,
           'filter[branch_id]': sourceBranchId,
           'filter[status]': 'active',
+          'filter[owner_ref]': watchSourceOwnerRef || undefined,
+          'filter[stage]': watchSourceStage || undefined,
+          'filter[location_ref]': watchSourceLocationRef || undefined,
           include: 'branch,product_uom_batch',
         } as any)
         .then((r) => r.data),
@@ -191,9 +232,13 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   const formatBatchLabel = (inv: any) => {
     const code = inv?.product_uom_batch?.code ?? `Batch #${inv?.product_uom_batch?.id}`
     const exp = inv?.product_uom_batch?.expiry_date ?? inv?.expiry_date
-    return exp
+    const stage = inv?.stage ?? inv?.product_uom_batch?.stage
+    const owner = inv?.owner_ref ?? inv?.product_uom_batch?.owner_ref
+    const dim = [owner, stage].filter(Boolean).join(' / ')
+    const base = exp
       ? `${code} — Exp: ${String(exp).split('T')[0]}`
       : `${code} — No expiry`
+    return dim ? `${base} · ${dim}` : base
   }
 
   const branchOptions = branches
@@ -220,6 +265,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
         total_price: totalPrice,
         status: 'final',
         description: values.description || undefined,
+        source_owner_ref: values.source_owner_ref || 'GENERAL',
+        source_stage: values.source_stage || 'GENERAL',
+        source_location_ref: values.source_location_ref || 'GENERAL',
         details: values.details
           .filter((d) => Number(d.product_uom_id) > 0)
           .map((d) => {
@@ -384,6 +432,49 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
 />
             )}
           />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>
+              Source Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <Controller
+              name="source_owner_ref"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ?? 'GENERAL'}
+                  onChange={field.onChange}
+                  options={companyOptions}
+                  placeholder="Pilih owner..."
+                  searchPlaceholder="Cari perusahaan..."
+                  loading={companiesLoading}
+                  error={errors.source_owner_ref?.message as string | undefined}
+                />
+              )}
+            />
+          </div>
+          <div>
+            <label style={labelStyle}>
+              Source Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <Controller
+              name="source_stage"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ?? 'GENERAL'}
+                  onChange={field.onChange}
+                  options={stageOptions}
+                  placeholder="Pilih stage..."
+                  searchPlaceholder="Cari stage..."
+                  loading={stagesLoading}
+                  error={errors.source_stage?.message as string | undefined}
+                />
+              )}
+            />
+          </div>
         </div>
 
         <div>

@@ -62,6 +62,9 @@ export default function SalesOrdersView() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<
     '' | 'pending' | 'partial' | 'paid'
   >('')
+  const [creditTypeFilter, setCreditTypeFilter] = useState<
+    '' | 'user' | 'customer'
+  >('')
   const [typeFilter, setTypeFilter] = useState('')
   const [dateGte, setDateGte] = useState('')
   const [dateLte, setDateLte] = useState('')
@@ -159,11 +162,11 @@ export default function SalesOrdersView() {
   const hasAnyFilter = useMemo(() => {
     return Boolean(
       search || statusFilter || settlementFilter || paymentStatusFilter ||
-      typeFilter || dateGte || dateLte || activeAdvancedCount > 0,
+      creditTypeFilter || typeFilter || dateGte || dateLte || activeAdvancedCount > 0,
     )
   }, [
     search, statusFilter, settlementFilter, paymentStatusFilter,
-    typeFilter, dateGte, dateLte, activeAdvancedCount,
+    creditTypeFilter, typeFilter, dateGte, dateLte, activeAdvancedCount,
   ])
 
   const clearAllFilters = () => {
@@ -171,6 +174,7 @@ export default function SalesOrdersView() {
     setStatusFilter('')
     setSettlementFilter('')
     setPaymentStatusFilter('')
+    setCreditTypeFilter('')
     setTypeFilter('')
     setDateGte('')
     setDateLte('')
@@ -200,6 +204,7 @@ export default function SalesOrdersView() {
         'filter[type]': typeFilter || undefined,
         'filter[settlement_status]': settlementFilter || undefined,
         'filter[payment_status]': paymentStatusFilter || undefined,
+        'filter[credit_type]': creditTypeFilter || undefined,
       })
 
       const blob = new Blob([response.data], {
@@ -229,6 +234,7 @@ export default function SalesOrdersView() {
       statusFilter,
       settlementFilter,
       paymentStatusFilter,
+      creditTypeFilter,
       typeFilter,
       dateGte,
       dateLte,
@@ -257,6 +263,7 @@ export default function SalesOrdersView() {
           'filter[status]': statusFilter || undefined,
           'filter[settlement_status]': settlementFilter || undefined,
           'filter[payment_status]': paymentStatusFilter || undefined,
+          'filter[credit_type]': creditTypeFilter || undefined,
           'filter[type]': typeFilter || undefined,
           'filter[date_gte]': dateGte || undefined,
           'filter[date_lte]': dateLte || undefined,
@@ -467,6 +474,21 @@ export default function SalesOrdersView() {
             <option value="pending">Unpaid</option>
             <option value="partial">Partial</option>
             <option value="paid">Paid</option>
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Credit Type</span>
+          <select
+            value={creditTypeFilter}
+            onChange={(e) => {
+              setCreditTypeFilter(e.target.value as any)
+              setPage(1)
+            }}
+            style={controlStyle}
+          >
+            <option value="">All Credit Types</option>
+            <option value="user">Staff (user)</option>
+            <option value="customer">Customer</option>
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -980,19 +1002,48 @@ export default function SalesOrdersView() {
                         SETTLEMENT_META[
                           item.settlement_status as keyof typeof SETTLEMENT_META
                         ] ?? SETTLEMENT_META.pending
+                      const creditTypeLabel =
+                        item.credit_type === 'user'
+                          ? 'Staff'
+                          : item.credit_type === 'customer'
+                            ? 'Customer'
+                            : null
                       return (
                         <span
                           style={{
                             display: 'inline-flex',
-                            padding: '3px 10px',
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: settlementMeta.bg,
-                            color: settlementMeta.color,
+                            alignItems: 'center',
+                            gap: 6,
                           }}
                         >
-                          {settlementMeta.label}
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              padding: '3px 10px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: settlementMeta.bg,
+                              color: settlementMeta.color,
+                            }}
+                          >
+                            {settlementMeta.label}
+                          </span>
+                          {creditTypeLabel && item.settlement_status === 'credit' && (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                padding: '2px 8px',
+                                borderRadius: 99,
+                                fontSize: 10,
+                                fontWeight: 600,
+                                background: 'var(--info-bg)',
+                                color: 'var(--info)',
+                              }}
+                            >
+                              {creditTypeLabel}
+                            </span>
+                          )}
                         </span>
                       )
                     })() : '***'}

@@ -325,6 +325,55 @@ export default function SalesOrderDetail() {
               </span>
             </div>
           )}
+          {order?.settlement_status === 'credit' && order?.credit_type === 'customer' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 99,
+                  background: 'var(--info-bg)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <User size={14} color="var(--info)" />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--foreground-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.6,
+                  }}
+                >
+                  Credit Type
+                </span>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  Customer Credit
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--foreground-muted)',
+                  }}
+                >
+                  {order.customer?.name ?? `Customer #${order.customer_id ?? '—'}`}
+                  {' · no user balance tracked'}
+                </span>
+              </div>
+            </div>
+          )}
           {order?.credit_by_id && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div
@@ -553,7 +602,7 @@ export default function SalesOrderDetail() {
           </div>
         </div>
 
-        {order?.settlement_status === 'credit' && order?.credit_by_id && (
+        {order?.settlement_status === 'credit' && order?.credit_type === 'user' && order?.credit_by_id && (
           <div
             style={{
               background: 'var(--warning-bg)',
@@ -569,7 +618,27 @@ export default function SalesOrderDetail() {
             }}
           >
             <span>
-              ⚠ This order uses credit for {order.credit_by?.name ?? 'a user'}. To deduct from their credit balance, record a payment using the &apos;Credit&apos; method.
+              ⚠ This order uses staff credit for {order.credit_by?.name ?? 'a user'}. To deduct from their credit balance, record a payment using the &apos;Credit&apos; method.
+            </span>
+          </div>
+        )}
+        {order?.settlement_status === 'credit' && order?.credit_type === 'customer' && (
+          <div
+            style={{
+              background: 'var(--info-bg)',
+              border: '1px solid var(--info)',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 14px',
+              marginBottom: 12,
+              fontSize: 12,
+              color: 'var(--info)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <span>
+              Customer credit — no user balance is tracked for this order.
             </span>
           </div>
         )}

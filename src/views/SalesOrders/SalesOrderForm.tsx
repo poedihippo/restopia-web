@@ -94,6 +94,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   )
 
   // ── Credit (settlement_status === 'credit') ────────────────────────────────
+  // credit_type: 'user' = staff credit (credit_by_id), 'customer' = customer credit
+  const [creditType, setCreditType] = useState<'user' | 'customer'>(
+    editingOrder?.credit_type === 'customer' ? 'customer' : 'user',
+  )
   const [creditById, setCreditById] = useState<number | undefined>(
     editingOrder?.credit_by_id ?? editingOrder?.credit_by?.id ?? undefined,
   )
@@ -528,15 +532,23 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         type,
         date,
         fulfillment_date: fulfillmentDate,
-        customer_id: customerId ?? null,
+        // credit_type=user ⇒ customer_id must be null; credit_type=customer ⇒ credit_by_id null
+        customer_id:
+          settlementStatus === 'credit' && creditType === 'user'
+            ? null
+            : customerId ?? null,
         customer_name: customerId ? undefined : customerName || undefined,
         customer_phone: customerId ? undefined : customerPhone || undefined,
         voucher_id: voucherId,
         purchase_order_id: purchaseOrderId || undefined,
         buyer_branch_id: buyerBranchId || undefined,
         sales_channel_id: salesChannelId || undefined,
+        credit_type:
+          settlementStatus === 'credit' ? creditType : null,
         credit_by_id:
-          settlementStatus === 'credit' ? creditById || undefined : undefined,
+          settlementStatus === 'credit' && creditType === 'user'
+            ? creditById || undefined
+            : null,
         subtotal_price: subtotal,
         discount_price: discountPrice,
         total_price: total,
@@ -773,9 +785,28 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                   gap: 2,
                 }}
               >
-                Credit User
+                Credit Type
                 <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
               </label>
+              <select
+                value={creditType}
+                onChange={(e) => {
+                  const v = e.target.value as 'user' | 'customer'
+                  setCreditType(v)
+                  if (v === 'user') {
+                    // staff credit — customer_id must be null
+                    setCustomerId(null)
+                    setCustomerSearch('')
+                  } else {
+                    // customer credit — credit_by_id must be null
+                    setCreditById(undefined)
+                  }
+                }}
+                style={fieldStyle}
+              >
+                <option value="user">Staff Credit (user)</option>
+                <option value="customer">Customer Credit</option>
+              </select>
               <span
                 style={{
                   fontSize: 11,
@@ -783,37 +814,67 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                   marginBottom: 2,
                 }}
               >
-                Select the user whose credit will be used
+                {creditType === 'user'
+                  ? 'Staff credit — uses users.credit balance. Customer must be empty.'
+                  : 'Customer credit — no user balance tracked. Customer is required.'}
               </span>
-              <SearchableSelect
-                value={creditById ?? 0}
-                onChange={(v) => setCreditById(v > 0 ? v : undefined)}
-                options={[
-                  { value: 0, label: 'Select user...' },
-                  ...creditUsers.map((u: any) => ({
-                    value: u.id as number,
-                    label: (u.name as string) ?? '',
-                    sublabel: u.credit
-                      ? 'Credit: Rp ' +
-                      Number(u.credit ?? 0).toLocaleString('id-ID')
-                      : 'No credit set',
-                  })),
-                ]}
-                placeholder="Search user..."
-                searchPlaceholder="Search users..."
-                onSearchChange={setDropdownSearch}
-              />
-              <span
-                style={{
-                  fontSize: 11,
-                  color: 'var(--warning)',
-                  display: 'block',
-                  marginTop: 4,
-                }}
-              >
-                ⚠ Credit uses the Credit payment method. Record it via Payment section
-                (Partial / Paid in full) on create, or collect on the detail page after saving.
-              </span>
+              {creditType === 'user' && (
+                <>
+                  <label
+                    style={{
+                      ...labelStyle,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      marginTop: 6,
+                    }}
+                  >
+                    Credit User
+                    <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                  </label>
+                  <SearchableSelect
+                    value={creditById ?? 0}
+                    onChange={(v) => setCreditById(v > 0 ? v : undefined)}
+                    options={[
+                      { value: 0, label: 'Select user...' },
+                      ...creditUsers.map((u: any) => ({
+                        value: u.id as number,
+                        label: (u.name as string) ?? '',
+                        sublabel: u.credit
+                          ? 'Credit: Rp ' +
+                          Number(u.credit ?? 0).toLocaleString('id-ID')
+                          : 'No credit set',
+                      })),
+                    ]}
+                    placeholder="Search user..."
+                    searchPlaceholder="Search users..."
+                    onSearchChange={setDropdownSearch}
+                  />
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--warning)',
+                      display: 'block',
+                      marginTop: 4,
+                    }}
+                  >
+                    ⚠ Credit uses the Credit payment method. Record it via Payment section
+                    (Partial / Paid in full) on create, or collect on the detail page after saving.
+                  </span>
+                </>
+              )}
+              {creditType === 'customer' && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--warning)',
+                    display: 'block',
+                    marginTop: 4,
+                  }}
+                >
+                  ⚠ Select a customer in the Customer section below. No user credit balance is used.
+                </span>
+              )}
             </div>
           )}
           <div>
@@ -1767,6 +1828,16 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                   const names = missingStockItems.map(i => i.name).join(', ')
                   toast.error(`Produk ${names} belum ada stocknya`)
                   return
+                }
+                if (settlementStatus === 'credit') {
+                  if (creditType === 'user' && !(creditById && creditById > 0)) {
+                    toast.error('Credit user wajib dipilih untuk staff credit')
+                    return
+                  }
+                  if (creditType === 'customer' && !(customerId && customerId > 0)) {
+                    toast.error('Customer wajib dipilih untuk customer credit')
+                    return
+                  }
                 }
                 const paymentErr = validatePaymentBeforeSubmit()
                 if (paymentErr) {
