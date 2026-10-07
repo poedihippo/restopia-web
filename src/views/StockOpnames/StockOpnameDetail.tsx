@@ -662,36 +662,36 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   else completeHint = 'Semua sudah dihitung. Klik Selesai untuk menutup.'
 
   return (
-    <div className="stock-opname-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div className="stock-opname-sheet" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <style>{`
         @media print {
           body { background: #fff !important; color: #000 !important; }
           .print-hidden { display: none !important; }
-          .stock-opname-sheet { gap: 10px !important; }
-          .product-group-card { break-inside: avoid; border: 1px solid #ccc !important; margin-bottom: 10px !important; }
-          th, td { padding: 6px 10px !important; font-size: 11px !important; }
+          .stock-opname-sheet { gap: 6px !important; }
+          .product-group-card { break-inside: avoid; border: 1px solid #ccc !important; margin-bottom: 6px !important; }
+          th, td { padding: 3px 6px !important; font-size: 10px !important; }
         }
         .so-count-input::-webkit-outer-spin-button,
         .so-count-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .so-count-input { -moz-appearance: textfield; }
-        .so-count-input:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(0,0,0,0.06); }
-        .so-btn:focus-visible, .so-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .so-count-input:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 2px rgba(0,0,0,0.05); }
+        .so-btn:focus-visible, .so-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
       `}</style>
 
-      {/* Header: judul + tombol sekunder */}
+      {/* Header: judul + tombol */}
       <div
         className="print-hidden"
         style={{
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 16,
+          gap: 10,
           flexWrap: 'wrap',
-          paddingBottom: 14,
+          paddingBottom: 6,
           borderBottom: '1px solid var(--border)',
         }}
       >
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             className="so-btn"
             onClick={() => {
@@ -700,12 +700,12 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
             }}
             title="Kembali ke daftar"
             style={{
-              width: 36,
-              height: 36,
+              width: 28,
+              height: 28,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--border)',
               background: 'var(--surface)',
               color: 'var(--foreground)',
@@ -713,18 +713,18 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
               flexShrink: 0,
             }}
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={15} />
           </button>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
                 Stock Opname {item.code}
               </h1>
               <span
                 style={{
-                  padding: '3px 10px',
+                  padding: '1px 7px',
                   borderRadius: 'var(--radius-full)',
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: 600,
                   color: statusMeta.color,
                   backgroundColor: statusMeta.bg,
@@ -734,32 +734,32 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                 {statusMeta.label}
               </span>
             </div>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--foreground-muted)' }}>
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--foreground-muted)' }}>
               {formatDate(item.date)} · {item.branch?.name || '—'}
               {item.created_by?.name ? ` · ${item.created_by.name}` : ''}
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button
             className="so-btn"
             onClick={() => window.print()}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
+              gap: 4,
+              padding: '5px 10px',
               background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 12,
               fontWeight: 500,
               color: 'var(--foreground)',
               cursor: 'pointer',
             }}
           >
-            <Printer size={15} /> Cetak
+            <Printer size={13} /> Cetak
           </button>
           {!isReadOnly && (
             <button
@@ -769,18 +769,18 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: '8px 12px',
+                gap: 4,
+                padding: '5px 8px',
                 background: 'transparent',
                 border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 12,
                 fontWeight: 500,
                 color: 'var(--destructive)',
                 cursor: 'pointer',
               }}
             >
-              <XCircle size={15} /> Batalkan Opname
+              <XCircle size={13} /> Batalkan
             </button>
           )}
         </div>
@@ -790,11 +790,11 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         <div
           className="print-hidden"
           style={{
-            padding: '12px 16px',
-            borderRadius: 'var(--radius-md)',
+            padding: '6px 10px',
+            borderRadius: 'var(--radius-sm)',
             background: status === 'completed' ? 'var(--success-bg)' : 'var(--destructive-bg)',
             color: status === 'completed' ? 'var(--success)' : 'var(--destructive)',
-            fontSize: 13,
+            fontSize: 12,
             fontWeight: 500,
           }}
         >
@@ -804,108 +804,72 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         </div>
       )}
 
-      {/* Panduan 3 langkah */}
+      {/* Panduan 1 baris */}
       {!isReadOnly && (
         <div
           className="print-hidden"
           style={{
-            display: 'flex',
-            gap: 10,
-            flexWrap: 'wrap',
-            alignItems: 'stretch',
+            padding: '5px 10px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: 12,
+            color: 'var(--foreground-muted)',
+            lineHeight: 1.4,
           }}
         >
-          {[
-            { n: 1, title: 'Lihat stok sistem', desc: 'Jumlah yang tercatat di komputer.' },
-            { n: 2, title: 'Hitung barang di rak', desc: 'Ketik jumlah aslinya di kolom “Hitungan Anda”.' },
-            { n: 3, title: 'Klik Simpan', desc: 'Boleh disimpan berkali-kali, lanjutkan kapan saja.' },
-          ].map((s) => (
-            <div
-              key={s.n}
-              style={{
-                flex: '1 1 220px',
-                display: 'flex',
-                gap: 10,
-                alignItems: 'flex-start',
-                padding: '10px 14px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
-              }}
-            >
-              <span
-                style={{
-                  flexShrink: 0,
-                  width: 24,
-                  height: 24,
-                  borderRadius: '50%',
-                  background: 'var(--accent)',
-                  color: '#fff',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {s.n}
-              </span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>{s.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 1 }}>{s.desc}</div>
-              </div>
-            </div>
-          ))}
+          <strong style={{ color: 'var(--foreground)', fontWeight: 600 }}>Cara hitung:</strong>{' '}
+          Lihat stok sistem → ketik jumlah asli di kolom hitungan → klik Simpan (boleh berkali-kali).
         </div>
       )}
 
-      {/* Progres + tanggal + catatan */}
+      {/* Progres + tanggal + catatan (1 baris rapat) */}
       <div
         className="print-hidden"
         style={{
           background: 'var(--surface)',
           border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 18,
+          borderRadius: 'var(--radius-md)',
+          padding: '8px 10px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 14,
+          gap: 6,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 15, color: 'var(--foreground)' }}>
-            <strong style={{ fontSize: 20, color: isAllCounted ? 'var(--success)' : 'var(--accent)' }}>{countedLines}</strong>
-            <span style={{ color: 'var(--foreground-muted)' }}> dari {totalLines} barang sudah dihitung</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 13 }}>
-            <span style={{ color: 'var(--foreground-muted)' }}>
-              Ada selisih:{' '}
-              <strong style={{ color: varianceLines > 0 ? 'var(--warning)' : 'var(--foreground)' }}>{varianceLines}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, color: 'var(--foreground)' }}>
+            <strong style={{ fontSize: 15, color: isAllCounted ? 'var(--success)' : 'var(--accent)' }}>{countedLines}</strong>
+            <span style={{ color: 'var(--foreground-muted)' }}> dari {totalLines} barang dihitung</span>
+            <span style={{ color: 'var(--foreground-muted)', marginLeft: 12 }}>
+              Selisih: <strong style={{ color: varianceLines > 0 ? 'var(--warning)' : 'var(--foreground)' }}>{varianceLines}</strong>
             </span>
-            {!isReadOnly && remainingLines > 0 && (
-              <button
-                className="so-btn"
-                onClick={jumpToFirstPending}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 12px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--accent)',
-                  color: 'var(--accent)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                <ArrowDown size={14} /> Ke barang yang belum dihitung
-              </button>
-            )}
+            <span style={{ color: 'var(--foreground-muted)', marginLeft: 12, fontWeight: 600 }}>
+              {progressPercent}%
+            </span>
           </div>
+          {!isReadOnly && remainingLines > 0 && (
+            <button
+              className="so-btn"
+              onClick={jumpToFirstPending}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 8px',
+                background: 'var(--surface)',
+                border: '1px solid var(--accent)',
+                color: 'var(--accent)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowDown size={12} /> Ke yang belum dihitung
+            </button>
+          )}
         </div>
-        <div style={{ height: 10, background: 'var(--border)', borderRadius: 5, overflow: 'hidden' }}>
+        <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
           <div
             style={{
               height: '100%',
@@ -917,9 +881,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         </div>
 
         {!isReadOnly && (
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <label style={labelStyle}>Tanggal</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ width: 140 }}>
               <input
                 type="date"
                 value={headerDate}
@@ -927,20 +890,19 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                   setHeaderDate(e.target.value)
                   setDirty(true)
                 }}
-                style={inputStyle}
+                style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }}
               />
             </div>
-            <div style={{ flex: 2, minWidth: 200 }}>
-              <label style={labelStyle}>Catatan (boleh dikosongkan)</label>
+            <div style={{ flex: 1, minWidth: 180 }}>
               <input
                 type="text"
-                placeholder="Tulis catatan untuk stock opname ini..."
+                placeholder="Catatan (opsional)..."
                 value={headerDescription}
                 onChange={(e) => {
                   setHeaderDescription(e.target.value)
                   setDirty(true)
                 }}
-                style={inputStyle}
+                style={{ ...inputStyle, padding: '4px 8px', fontSize: 12 }}
               />
             </div>
           </div>
@@ -950,34 +912,34 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
       {/* Cari + filter */}
       <div
         className="print-hidden"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}
       >
-        <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 340 }}>
-          <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)' }} />
+        <div style={{ position: 'relative', flex: 1, minWidth: 180, maxWidth: 280 }}>
+          <Search size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)' }} />
           <input
             type="text"
-            placeholder="Cari nama produk atau kode batch..."
+            placeholder="Cari produk / batch..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ ...inputStyle, padding: '9px 32px 9px 36px', background: 'var(--surface)' }}
+            style={{ ...inputStyle, padding: '5px 26px 5px 28px', fontSize: 12, background: 'var(--surface)' }}
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
               title="Hapus pencarian"
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--foreground-muted)', cursor: 'pointer', padding: 2 }}
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--foreground-muted)', cursor: 'pointer', padding: 2 }}
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {(
             [
               { id: 'all', label: `Semua (${totalLines})` },
-              { id: 'pending', label: `Belum dihitung (${remainingLines})` },
-              { id: 'counted', label: `Sudah dihitung (${countedLines})` },
-              { id: 'variance', label: `Ada selisih (${varianceLines})` },
+              { id: 'pending', label: `Belum (${remainingLines})` },
+              { id: 'counted', label: `Sudah (${countedLines})` },
+              { id: 'variance', label: `Selisih (${varianceLines})` },
             ] as const
           ).map((tab) => (
             <button
@@ -985,9 +947,9 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
               className="so-btn"
               onClick={() => setFilterMode(tab.id)}
               style={{
-                padding: '7px 13px',
+                padding: '4px 8px',
                 borderRadius: 'var(--radius-full)',
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: 500,
                 cursor: 'pointer',
                 border: filterMode === tab.id ? '1px solid var(--accent)' : '1px solid var(--border)',
@@ -1002,17 +964,17 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
       </div>
 
       {/* Daftar produk */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {filteredGroups.length === 0 ? (
           <div
             style={{
               background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 48,
+              borderRadius: 'var(--radius-md)',
+              padding: 28,
               textAlign: 'center',
               color: 'var(--foreground-muted)',
-              fontSize: 14,
+              fontSize: 13,
             }}
           >
             {totalLines === 0
@@ -1035,36 +997,36 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                 style={{
                   background: 'var(--surface)',
                   border: `1px solid ${groupComplete ? 'var(--success)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-lg)',
+                  borderRadius: 'var(--radius-md)',
                   overflow: 'hidden',
                 }}
               >
-                {/* Judul produk */}
+                {/* Judul produk — compact 1 baris */}
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 12,
-                    padding: '12px 18px',
+                    gap: 8,
+                    padding: '4px 8px',
                     background: groupComplete ? 'var(--success-bg)' : 'var(--background)',
                     borderBottom: '1px solid var(--border)',
                     flexWrap: 'wrap',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
                     {groupComplete ? (
-                      <CheckCircle2 size={18} style={{ color: 'var(--success)' }} />
+                      <CheckCircle2 size={13} style={{ color: 'var(--success)', flexShrink: 0 }} />
                     ) : (
-                      <Circle size={18} style={{ color: 'var(--foreground-muted)' }} />
+                      <Circle size={13} style={{ color: 'var(--foreground-muted)', flexShrink: 0 }} />
                     )}
-                    <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>{group.productName}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{group.productName}</span>
                     {group.productCode && (
                       <span
                         style={{
-                          fontSize: 11,
+                          fontSize: 10,
                           fontFamily: 'monospace',
-                          padding: '2px 6px',
+                          padding: '0 4px',
                           background: 'var(--surface)',
                           border: '1px solid var(--border)',
                           borderRadius: 'var(--radius-sm)',
@@ -1074,9 +1036,23 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                         {group.productCode}
                       </span>
                     )}
+                    {uomLabel && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          padding: '0 5px',
+                          background: 'var(--accent-light-bg, rgba(44,24,16,0.08))',
+                          color: 'var(--accent)',
+                          borderRadius: 'var(--radius-full)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {uomLabel}
+                      </span>
+                    )}
                     {group.displayLines.length > 1 && (
-                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                        {groupCounted}/{group.displayLines.length} batch dihitung
+                      <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                        {groupCounted}/{group.displayLines.length}
                       </span>
                     )}
                   </div>
@@ -1085,37 +1061,38 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                       type="button"
                       className="so-btn"
                       onClick={() => setModalAddBatchGroup(group)}
-                      title="Tambahkan batch lain dari produk ini yang belum ada di lembar hitung"
+                      title="Tambahkan batch lain dari produk ini"
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: 5,
-                        padding: '6px 11px',
+                        gap: 3,
+                        padding: '3px 7px',
                         background: 'var(--surface)',
                         border: '1px dashed var(--accent)',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: 12,
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 11,
                         fontWeight: 600,
                         color: 'var(--accent)',
                         cursor: 'pointer',
+                        flexShrink: 0,
                       }}
                     >
-                      <Plus size={14} /> Tambah Batch
+                      <Plus size={12} /> Batch
                     </button>
                   )}
                 </div>
 
-                {/* Tabel baris hitung */}
+                {/* Tabel baris hitung — dense */}
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        <th style={{ ...thStyle, width: 44, textAlign: 'center' }}></th>
-                        <th style={thStyle}>Kode Batch</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Stok Sistem</th>
-                        <th style={{ ...thStyle, minWidth: 260 }}>Hitungan Anda</th>
-                        <th style={{ ...thStyle, textAlign: 'right' }}>Selisih</th>
-                        {!isReadOnly && <th style={{ ...thStyle, width: 40 }}></th>}
+                        <th style={{ ...thStyle, width: 28, textAlign: 'center', padding: '3px 4px' }}></th>
+                        <th style={{ ...thStyle, padding: '3px 6px' }}>Kode Batch</th>
+                        <th style={{ ...thStyle, textAlign: 'right', padding: '3px 6px' }}>Stok Sistem</th>
+                        <th style={{ ...thStyle, minWidth: 220, padding: '3px 6px' }}>Hitungan Anda</th>
+                        <th style={{ ...thStyle, textAlign: 'right', padding: '3px 6px' }}>Selisih</th>
+                        {!isReadOnly && <th style={{ ...thStyle, width: 28, padding: '3px 4px' }}></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1131,21 +1108,20 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                         const uomOptions = getDetailUomOptions(detail, group)
                         const noteVisible = !!state.description || !!openNotes[lineKey]
 
-                        // Selisih dalam kata-kata biasa
                         let varianceText = '—'
                         let varianceColor = 'var(--foreground-muted)'
                         let varianceBg = 'transparent'
                         if (variance !== null) {
                           if (variance > 0) {
-                            varianceText = `Lebih ${variance}`
+                            varianceText = `+${variance}`
                             varianceColor = 'var(--success)'
                             varianceBg = 'var(--success-bg)'
                           } else if (variance < 0) {
-                            varianceText = `Kurang ${Math.abs(variance)}`
+                            varianceText = `${variance}`
                             varianceColor = 'var(--destructive)'
                             varianceBg = 'var(--destructive-bg)'
                           } else {
-                            varianceText = 'Sesuai'
+                            varianceText = '0'
                             varianceColor = 'var(--success)'
                           }
                         }
@@ -1159,26 +1135,26 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                               background: isNew ? 'rgba(44,24,16,0.04)' : counted ? 'transparent' : 'var(--warning-bg)',
                             }}
                           >
-                            <td style={{ ...tdStyle, textAlign: 'center', width: 44 }}>
+                            <td style={{ ...tdStyle, textAlign: 'center', width: 28, padding: '3px 4px' }}>
                               {counted ? (
-                                <CheckCircle2 size={18} style={{ color: 'var(--success)' }} aria-label="Sudah dihitung" />
+                                <CheckCircle2 size={13} style={{ color: 'var(--success)' }} aria-label="Sudah dihitung" />
                               ) : (
-                                <Circle size={18} style={{ color: 'var(--foreground-muted)' }} aria-label="Belum dihitung" />
+                                <Circle size={13} style={{ color: 'var(--foreground-muted)' }} aria-label="Belum dihitung" />
                               )}
                             </td>
-                            <td style={tdStyle}>
-                              <div style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 600 }}>
+                            <td style={{ ...tdStyle, padding: '3px 6px' }}>
+                              <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, lineHeight: 1.3 }}>
                                 {batchCode}
                                 {isNew && (
                                   <span
                                     style={{
-                                      marginLeft: 6,
-                                      fontSize: 10,
+                                      marginLeft: 4,
+                                      fontSize: 9,
                                       fontWeight: 700,
                                       color: 'var(--accent)',
                                       background: 'var(--accent-light-bg, rgba(44,24,16,0.08))',
-                                      padding: '2px 6px',
-                                      borderRadius: 3,
+                                      padding: '0 4px',
+                                      borderRadius: 2,
                                     }}
                                   >
                                     BARU
@@ -1186,35 +1162,34 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                 )}
                               </div>
                               {expiry && (
-                                <div style={{ fontSize: 11, color: isExpired ? 'var(--destructive)' : 'var(--foreground-muted)', marginTop: 2 }}>
-                                  {isExpired ? 'Kedaluwarsa: ' : 'Kedaluwarsa: '}
-                                  {formatDate(expiry)}
+                                <div style={{ fontSize: 10, color: isExpired ? 'var(--destructive)' : 'var(--foreground-muted)', lineHeight: 1.2 }}>
+                                  Exp: {formatDate(expiry)}
                                 </div>
                               )}
                             </td>
-                            <td style={{ ...tdStyle, textAlign: 'right' }}>
-                              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)' }}>{detail.system_qty}</div>
-                              {uomLabel && <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{uomLabel}</div>}
+                            <td style={{ ...tdStyle, textAlign: 'right', padding: '3px 6px' }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.2 }}>{detail.system_qty}</div>
+                              {uomLabel && <div style={{ fontSize: 10, color: 'var(--foreground-muted)', lineHeight: 1.2 }}>{uomLabel}</div>}
                             </td>
-                            <td style={tdStyle}>
+                            <td style={{ ...tdStyle, padding: '3px 6px' }}>
                               {isReadOnly ? (
-                                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                                <div style={{ fontSize: 13, fontWeight: 600 }}>
                                   {state.isMultiUom && state.count_items.length > 0
                                     ? state.count_items.map((ci) => `${ci.counted_qty} ${allKnownUomsMap.get(Number(ci.uom_id))?.code || uomLabel}`).join(' + ')
                                     : counted
                                     ? `${state.counted_qty}${uomLabel ? ` ${uomLabel}` : ''}`
                                     : '—'}
                                   {state.description && (
-                                    <div style={{ fontSize: 11, color: 'var(--foreground-muted)', fontStyle: 'italic', marginTop: 3 }}>
+                                    <div style={{ fontSize: 10, color: 'var(--foreground-muted)', fontStyle: 'italic' }}>
                                       {state.description}
                                     </div>
                                   )}
                                 </div>
                               ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                   {!state.isMultiUom ? (
                                     <>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                                         <input
                                           type="number"
                                           inputMode="decimal"
@@ -1228,38 +1203,38 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                           onKeyDown={handleCountKeyDown}
                                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                                           style={{
-                                            width: 130,
-                                            padding: '9px 10px',
+                                            width: 100,
+                                            padding: '4px 6px',
                                             background: 'var(--background)',
-                                            border: `2px solid ${counted ? 'var(--success)' : 'var(--border)'}`,
-                                            borderRadius: 'var(--radius-md)',
-                                            fontSize: 16,
+                                            border: `1px solid ${counted ? 'var(--success)' : 'var(--border)'}`,
+                                            borderRadius: 'var(--radius-sm)',
+                                            fontSize: 13,
                                             fontWeight: 700,
                                             color: 'var(--foreground)',
                                             outline: 'none',
                                           }}
                                         />
-                                        {uomLabel && <span style={{ fontSize: 12, color: 'var(--foreground-muted)', fontWeight: 500 }}>{uomLabel}</span>}
+                                        {uomLabel && <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontWeight: 500 }}>{uomLabel}</span>}
                                         <button
                                           type="button"
                                           className="so-btn"
                                           onClick={() => updateLineSingleQty(lineKey, String(detail.system_qty))}
                                           style={miniBtnStyle}
-                                          title="Isi hitungan dengan angka yang sama seperti stok sistem"
+                                          title="Isi hitungan sama dengan stok sistem"
                                         >
-                                          Sama dengan sistem
+                                          Sama
                                         </button>
                                         <button
                                           type="button"
                                           className="so-btn"
                                           onClick={() => updateLineSingleQty(lineKey, '0')}
                                           style={miniBtnStyle}
-                                          title="Barang ini tidak ada / kosong"
+                                          title="Barang tidak ada / kosong"
                                         >
-                                          Kosong (0)
+                                          0
                                         </button>
                                       </div>
-                                      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                         {!noteVisible && (
                                           <button
                                             type="button"
@@ -1267,7 +1242,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                             onClick={() => setOpenNotes((p) => ({ ...p, [lineKey]: true }))}
                                             style={linkBtnStyle}
                                           >
-                                            <MessageSquarePlus size={12} /> Tambah catatan
+                                            <MessageSquarePlus size={10} /> Catatan
                                           </button>
                                         )}
                                         <button
@@ -1275,29 +1250,27 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                           className="so-link"
                                           onClick={() => toggleMultiUom(lineKey, detail, group)}
                                           style={linkBtnStyle}
-                                          title="Pakai jika menghitung dengan satuan berbeda, misalnya 2 dus + 5 pcs"
+                                          title="Hitung dengan satuan berbeda (dus + pcs)"
                                         >
-                                          <Plus size={12} /> Hitung dengan satuan lain (mis. dus + pcs)
+                                          <Plus size={10} /> Satuan lain
                                         </button>
                                       </div>
                                     </>
                                   ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
-                                          Hitung dengan beberapa satuan
-                                        </span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>Beberapa satuan</span>
                                         <button
                                           type="button"
                                           className="so-link"
                                           onClick={() => toggleMultiUom(lineKey, detail, group)}
                                           style={{ ...linkBtnStyle, color: 'var(--foreground-muted)', textDecoration: 'underline' }}
                                         >
-                                          Kembali ke satu satuan
+                                          Satuan tunggal
                                         </button>
                                       </div>
                                       {state.count_items.map((ci, ciIdx) => (
-                                        <div key={ciIdx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <div key={ciIdx} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                           <input
                                             type="number"
                                             inputMode="decimal"
@@ -1308,12 +1281,12 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                             onChange={(e) => updateCountItem(lineKey, ciIdx, 'counted_qty', e.target.value)}
                                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                                             style={{
-                                              width: 90,
-                                              padding: '8px 10px',
+                                              width: 70,
+                                              padding: '3px 6px',
                                               background: 'var(--background)',
                                               border: '1px solid var(--border)',
                                               borderRadius: 'var(--radius-sm)',
-                                              fontSize: 14,
+                                              fontSize: 12,
                                               fontWeight: 600,
                                               color: 'var(--foreground)',
                                               outline: 'none',
@@ -1323,12 +1296,12 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                             value={ci.uom_id}
                                             onChange={(e) => updateCountItem(lineKey, ciIdx, 'uom_id', e.target.value)}
                                             style={{
-                                              width: 120,
-                                              padding: '8px 8px',
+                                              width: 100,
+                                              padding: '3px 4px',
                                               background: 'var(--background)',
                                               border: '1px solid var(--border)',
                                               borderRadius: 'var(--radius-sm)',
-                                              fontSize: 13,
+                                              fontSize: 11,
                                               color: 'var(--foreground)',
                                               outline: 'none',
                                             }}
@@ -1344,9 +1317,9 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                             className="so-btn"
                                             onClick={() => removeCountItem(lineKey, ciIdx)}
                                             title="Hapus baris satuan ini"
-                                            style={{ background: 'transparent', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: 6 }}
+                                            style={{ background: 'transparent', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: 3 }}
                                           >
-                                            <Trash2 size={14} />
+                                            <Trash2 size={12} />
                                           </button>
                                         </div>
                                       ))}
@@ -1356,7 +1329,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                         onClick={() => addCountItem(lineKey, group)}
                                         style={{ ...linkBtnStyle, fontWeight: 600 }}
                                       >
-                                        <Plus size={12} /> Tambah satuan lain
+                                        <Plus size={10} /> Tambah satuan
                                       </button>
                                     </div>
                                   )}
@@ -1385,10 +1358,10 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                               <span
                                 style={{
                                   display: 'inline-block',
-                                  fontSize: 13,
+                                  fontSize: 12,
                                   fontWeight: 700,
                                   color: varianceColor,
-                                  padding: '4px 9px',
+                                  padding: '1px 6px',
                                   borderRadius: 'var(--radius-sm)',
                                   background: varianceBg,
                                   whiteSpace: 'nowrap',
@@ -1398,16 +1371,16 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                               </span>
                             </td>
                             {!isReadOnly && (
-                              <td style={{ ...tdStyle, textAlign: 'center' }}>
+                              <td style={{ ...tdStyle, textAlign: 'center', width: 28, padding: '3px 4px' }}>
                                 {isNew && (
                                   <button
                                     type="button"
                                     className="so-btn"
                                     onClick={() => handleRemoveExtra(group.product_uom_id, lineKey)}
-                                    style={{ background: 'transparent', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: 4 }}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: 2 }}
                                     title="Hapus batch yang baru ditambahkan ini"
                                   >
-                                    <Trash2 size={15} />
+                                    <Trash2 size={13} />
                                   </button>
                                 )}
                               </td>
@@ -1424,7 +1397,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         )}
       </div>
 
-      {/* Bar aksi utama — selalu terlihat di bawah layar */}
+      {/* Bar aksi utama — sticky di bawah */}
       {!isReadOnly && (
         <div
           className="print-hidden"
@@ -1435,22 +1408,22 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 12,
+            gap: 8,
             flexWrap: 'wrap',
-            padding: '12px 18px',
+            padding: '6px 10px',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 -2px 8px rgba(0,0,0,0.06)',
           }}
         >
-          <div style={{ minWidth: 200 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: dirty ? 'var(--warning)' : 'var(--foreground)' }}>
-              {dirty ? 'Ada perubahan yang belum disimpan' : 'Semua perubahan sudah tersimpan'}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2 }}>{completeHint}</div>
+          <div style={{ minWidth: 160, fontSize: 12 }}>
+            <span style={{ fontWeight: 600, color: dirty ? 'var(--warning)' : 'var(--foreground)' }}>
+              {dirty ? 'Belum disimpan' : 'Tersimpan'}
+            </span>
+            <span style={{ color: 'var(--foreground-muted)', marginLeft: 8 }}>{completeHint}</span>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button
               className="so-btn"
               onClick={handleSaveProgress}
@@ -1458,18 +1431,18 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 7,
-                padding: '11px 22px',
+                gap: 5,
+                padding: '6px 14px',
                 background: dirty ? 'var(--accent)' : 'var(--surface)',
                 border: `1px solid ${dirty ? 'var(--accent)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 13,
                 fontWeight: 700,
                 color: dirty ? '#fff' : 'var(--foreground-muted)',
                 cursor: dirty && !isBusy ? 'pointer' : 'not-allowed',
               }}
             >
-              {updateMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
               Simpan
             </button>
             <button
@@ -1479,19 +1452,19 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 7,
-                padding: '11px 22px',
+                gap: 5,
+                padding: '6px 14px',
                 background: isAllCounted && !dirty ? 'var(--success)' : 'var(--surface)',
                 border: `1px solid ${isAllCounted && !dirty ? 'var(--success)' : 'var(--border)'}`,
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 13,
                 fontWeight: 700,
                 color: isAllCounted && !dirty ? '#fff' : 'var(--foreground-muted)',
                 cursor: isAllCounted && !dirty && !isBusy ? 'pointer' : 'not-allowed',
                 opacity: isAllCounted && !dirty ? 1 : 0.6,
               }}
             >
-              {completeMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+              {completeMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
               Selesai
             </button>
           </div>
@@ -1706,27 +1679,27 @@ function AddBatchModal({
 
 const labelStyle: React.CSSProperties = {
   display: 'block',
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 600,
   color: 'var(--foreground-muted)',
-  marginBottom: 4,
+  marginBottom: 2,
 }
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '9px 12px',
+  padding: '5px 8px',
   background: 'var(--background)',
   border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
-  fontSize: 13,
+  borderRadius: 'var(--radius-sm)',
+  fontSize: 12,
   color: 'var(--foreground)',
   outline: 'none',
 }
 
 const thStyle: React.CSSProperties = {
-  padding: '10px 14px',
+  padding: '4px 8px',
   textAlign: 'left',
-  fontSize: 12,
+  fontSize: 11,
   fontWeight: 600,
   color: 'var(--foreground-muted)',
   whiteSpace: 'nowrap',
@@ -1734,15 +1707,15 @@ const thStyle: React.CSSProperties = {
 }
 
 const tdStyle: React.CSSProperties = {
-  padding: '14px',
-  fontSize: 13,
+  padding: '4px 8px',
+  fontSize: 12,
   color: 'var(--foreground)',
-  verticalAlign: 'top',
+  verticalAlign: 'middle',
 }
 
 const miniBtnStyle: React.CSSProperties = {
-  padding: '6px 10px',
-  fontSize: 12,
+  padding: '3px 7px',
+  fontSize: 11,
   fontWeight: 500,
   borderRadius: 'var(--radius-sm)',
   border: '1px solid var(--border)',
@@ -1755,11 +1728,11 @@ const miniBtnStyle: React.CSSProperties = {
 const linkBtnStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
-  gap: 4,
+  gap: 3,
   background: 'transparent',
   border: 'none',
   color: 'var(--accent)',
-  fontSize: 12,
+  fontSize: 11,
   cursor: 'pointer',
   padding: 0,
   width: 'fit-content',
