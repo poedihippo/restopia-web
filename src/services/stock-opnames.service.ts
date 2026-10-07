@@ -1,44 +1,52 @@
 import api from '@/hooks/useApi'
 import type { ApiResponse, PaginatedData, ListParams } from '@/types/api'
 
+export type StockOpnameStatus = 'draft' | 'counting' | 'completed' | 'cancelled'
+export type StockOpnameProductType = 'raw' | 'wip' | 'final' | 'supply'
+
 export interface CreateStockOpnameRequest {
   date: string
   description?: string
   product_category_id?: number
-  product_type?: string
-  details?: Array<{ product_inventory_id: number; description?: string }> // optional legacy compatibility
+  product_type?: StockOpnameProductType | string
 }
 
-export interface UpdateStockOpnameCountItem {
+export interface StockOpnameCountItemRequest {
+  uom_id: number
+  counted_qty: number
+}
+
+export interface UpdateStockOpnameCountItemRequest {
   id?: number
   uom_id: number
-  counted_qty: number | string
+  counted_qty: number
 }
 
-export interface UpdateStockOpnameCountLine {
-  product_inventory_id: number
+export interface UpdateStockOpnameDetailLineRequest {
+  product_inventory_id?: number
+  product_uom_id?: number
   counted_qty?: number
   description?: string
-  count_items?: UpdateStockOpnameCountItem[]
+  count_items?: StockOpnameCountItemRequest[]
 }
 
-export interface UpdateStockOpnameProductGroup {
+export interface UpdateStockOpnameProductRequest {
   product_uom_id: number
-  count_lines: UpdateStockOpnameCountLine[]
+  count_lines: UpdateStockOpnameDetailLineRequest[]
 }
 
-// Backward compatibility for legacy flat details
 export interface UpdateStockOpnameDetailItemRequest {
-  product_inventory_id: number
+  product_inventory_id?: number
+  product_uom_id?: number
   counted_qty?: number
-  count_items?: UpdateStockOpnameCountItem[]
   description?: string
+  count_items?: UpdateStockOpnameCountItemRequest[]
 }
 
 export interface UpdateStockOpnameRequest {
   date?: string
   description?: string
-  products?: UpdateStockOpnameProductGroup[]
+  products?: UpdateStockOpnameProductRequest[]
   details?: UpdateStockOpnameDetailItemRequest[]
 }
 
@@ -62,6 +70,7 @@ export interface StockOpnameProductUom {
   id: number
   product_id: number
   uom_id: number
+  name?: string
   code?: string
   product?: StockOpnameProduct
   uom?: StockOpnameUom
@@ -72,6 +81,8 @@ export interface StockOpnameBatch {
   id?: number
   batch_code?: string
   expiry_date?: string
+  product_uom?: StockOpnameProductUom
+  product_uom_id?: number
   [key: string]: any
 }
 
@@ -82,6 +93,7 @@ export interface StockOpnameProductInventory {
   product_uom_batch_id?: number
   stock?: number
   qty?: number
+  display_qty?: number
   status?: string
   owner_ref?: string
   stage?: string
@@ -95,7 +107,7 @@ export interface StockOpnameCountItem {
   id: number
   stock_opname_detail_id?: number
   uom_id: number
-  counted_qty: number | string
+  counted_qty: number
   uom?: StockOpnameUom
 }
 
@@ -109,6 +121,7 @@ export interface StockOpnameDetailItem {
   description?: string | null
   product_inventory?: StockOpnameProductInventory
   count_items?: StockOpnameCountItem[]
+  isNewBatch?: boolean
   [key: string]: any
 }
 
@@ -125,7 +138,7 @@ export interface StockOpnameResponse {
   branch_id: number
   code: string
   date: string
-  status: 'draft' | 'counting' | 'completed' | 'cancelled'
+  status: StockOpnameStatus
   description?: string | null
   created_by_id?: number
   updated_by_id?: number
@@ -146,20 +159,20 @@ export const stockOpnamesService = {
   findById: (id: number, params?: { include?: string }) =>
     api.get<ApiResponse<StockOpnameResponse>>(`/stock-opnames/${id}`, {
       params: {
-        include: 'products,branch,created_by',
+        include: 'products,stock_opname_details,branch,created_by',
         ...params,
       },
     }),
 
   create: (data: CreateStockOpnameRequest) =>
-    api.post<ApiResponse<StockOpnameResponse>>('/stock-opnames', data),
+    api.post<ApiResponse<StockOpnameResponse | { message: string }>>('/stock-opnames', data),
 
   update: (id: number, data: UpdateStockOpnameRequest) =>
-    api.patch<ApiResponse<StockOpnameResponse>>(`/stock-opnames/${id}`, data),
+    api.patch<ApiResponse<{ message: string }>>(`/stock-opnames/${id}`, data),
 
   cancel: (id: number) =>
-    api.post<ApiResponse<StockOpnameResponse>>(`/stock-opnames/${id}/cancel`),
+    api.post<ApiResponse<{ message: string }>>(`/stock-opnames/${id}/cancel`),
 
   complete: (id: number) =>
-    api.post<ApiResponse<StockOpnameResponse>>(`/stock-opnames/${id}/complete`),
+    api.post<ApiResponse<{ message: string }>>(`/stock-opnames/${id}/complete`),
 }

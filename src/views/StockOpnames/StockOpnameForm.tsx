@@ -3,19 +3,15 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { stockOpnamesService, StockOpnameResponse } from '@/services/stock-opnames.service'
+import { stockOpnamesService } from '@/services/stock-opnames.service'
 import { useAuth } from '@/hooks/useAuth'
 import { toastMutationApiError } from '@/utils/apiError'
-import StockOpnameDetail from '@/views/StockOpnames/StockOpnameDetail'
 import {
   ChevronLeft,
   Loader2,
   Sparkles,
-  Calendar,
   Building,
-  FileText,
   Boxes,
-  ShieldCheck,
 } from 'lucide-react'
 
 export default function StockOpnameForm() {
@@ -33,27 +29,21 @@ export default function StockOpnameForm() {
     mutationFn: (payload: { date: string; description?: string; product_category_id?: number; product_type?: string }) =>
       stockOpnamesService.create(payload),
     onSuccess: (res) => {
-      const newOpname: StockOpnameResponse = (res.data as any)?.data ?? res.data
+      const body = res.data as any
+      // API may return { data: { id, code, ... } } or only { message }
+      const newOpname = body?.data ?? body
+      const newId = newOpname?.id
 
-      // Pre-seed query cache so subsequent queries don't need a network refetch
-      queryClient.setQueryData(['stock-opnames', String(newOpname.id)], { data: newOpname })
-      queryClient.setQueryData(['stock-opnames', Number(newOpname.id)], { data: newOpname })
       queryClient.invalidateQueries({ queryKey: ['stock-opnames'] })
 
-      // POST response typically only returns header data (no products yet).
-      // The detail page will fetch full data with include=products,product_uoms.
-      const productCount =
-        newOpname.products?.length ??
-        (newOpname as any).product_uoms?.length ??
-        0
-      toast.success(
-        `Stock Opname ${newOpname.code || ''} created. Product groups will be loaded from the detail page.`
-      )
+      if (newId) {
+        toast.success(`Stock Opname ${newOpname.code || ''} created.`)
+        router.push(`/products/product-inventory/stock-opname/${newId}`)
+        return
+      }
 
-      // Navigate to the detail page — it will re-fetch with includes
-      router.push(
-        `/products/product-inventory/stock-opname/${newOpname.id}`,
-      )
+      toast.success('Stock Opname created. Open the latest document from the list to start counting.')
+      router.push('/products/product-inventory/stock-opname')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to create Stock Opname'),
   })

@@ -10,7 +10,7 @@ import {
   StockOpnameProductGroup,
   StockOpnameDetailItem,
   UpdateStockOpnameRequest,
-  UpdateStockOpnameCountLine,
+  UpdateStockOpnameDetailLineRequest,
 } from '@/services/stock-opnames.service'
 import { uomsService } from '@/services/uoms.service'
 import { productUomsService } from '@/services/product-uoms.service'
@@ -87,7 +87,9 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const { data, isLoading } = useQuery({
     queryKey: ['stock-opnames', resolvedId],
     queryFn: () =>
-      stockOpnamesService.findById(Number(resolvedId), { include: 'products,product_uoms' }).then((r) => r.data),
+      stockOpnamesService
+        .findById(Number(resolvedId), { include: 'products,stock_opname_details,branch,created_by' })
+        .then((r) => r.data),
     enabled: !!resolvedId,
     initialData: initialData
       ? {
@@ -352,10 +354,9 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const updateMutation = useMutation({
     mutationFn: (payload: UpdateStockOpnameRequest) =>
       stockOpnamesService.update(Number(resolvedId), payload),
-    onSuccess: (res) => {
+    onSuccess: () => {
       toast.success('Stock Opname progress saved')
       setExtraBatches({})
-      queryClient.setQueryData(['stock-opnames', resolvedId], res)
       queryClient.invalidateQueries({ queryKey: ['stock-opnames'] })
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to save progress'),
@@ -363,9 +364,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
 
   const completeMutation = useMutation({
     mutationFn: () => stockOpnamesService.complete(Number(resolvedId)),
-    onSuccess: (res) => {
+    onSuccess: () => {
       toast.success('Stock Opname marked as completed!')
-      queryClient.setQueryData(['stock-opnames', resolvedId], res)
       queryClient.invalidateQueries({ queryKey: ['stock-opnames'] })
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to complete'),
@@ -373,9 +373,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
 
   const cancelMutation = useMutation({
     mutationFn: () => stockOpnamesService.cancel(Number(resolvedId)),
-    onSuccess: (res) => {
+    onSuccess: () => {
       toast.success('Stock Opname cancelled')
-      queryClient.setQueryData(['stock-opnames', resolvedId], res)
       queryClient.invalidateQueries({ queryKey: ['stock-opnames'] })
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to cancel'),
@@ -391,10 +390,11 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         ...(extraBatches[g.product_uom_id] || []),
       ]
 
-      const count_lines: UpdateStockOpnameCountLine[] = allLines.map((d) => {
+      const count_lines = allLines.map((d) => {
         const state = lineCounts[d.product_inventory_id]
-        const line: UpdateStockOpnameCountLine = {
+        const line: UpdateStockOpnameDetailLineRequest = {
           product_inventory_id: Number(d.product_inventory_id),
+          product_uom_id: Number(g.product_uom_id),
         }
 
         if (state?.description) {
@@ -407,7 +407,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
             .map((ci) => ({
               ...(ci.id ? { id: ci.id } : {}),
               uom_id: Number(ci.uom_id),
-              counted_qty: String(ci.counted_qty),
+              counted_qty: Number(ci.counted_qty),
             }))
           if (validItems.length > 0) {
             line.count_items = validItems
@@ -1929,9 +1929,10 @@ function AddBatchModal({
       productInventoriesService
         .list({
           per_page: 200,
-          include: 'product_uom_batch,product_uom,product_uom.product,product_uom.uom',
+          include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
           'filter[branch_id]': branchId ? String(branchId) : undefined,
-          'filter[product_uom_id]': String(group.product_uom_id),
+          'filter[product_uom_ids]': String(group.product_uom_id),
+          'filter[status]': 'active',
         } as any)
         .then((r) => (r.data as any)?.data ?? []),
     enabled: !!group.product_uom_id,
@@ -2056,12 +2057,14 @@ function AddBatchModal({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {availableList.map((inv) => {
-                const batchCode = inv.product_uom_batch?.batch_code || `INV-${inv.id}`
-                const expiry = inv.product_uom_batch?.expiry_date
-                  ? formatDate(inv.product_uom_batch.expiry_date)
+                const batchObj = inv.product_uom_batch
+                const batchCode = batchObj?.batch_code || `INV-${inv.id}`
+                const expiry = batchObj?.expiry_date
+                  ? formatDate(batchObj.expiry_date)
                   : 'No expiry'
                 const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
-                const uom = inv.display_uom_code || inv.product_uom?.uom?.name || 'Unit'
+                const pu = batchObj?.product_uom || inv.product_uom
+                const uom = inv.display_uom_code || pu?.uom?.name || pu?.uom?.code || 'Unit'
 
                 return (
                   <div

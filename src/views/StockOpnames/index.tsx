@@ -9,10 +9,7 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
   Search,
-  ChevronLeft,
-  ChevronRight,
   Eye,
-  Filter,
 } from 'lucide-react'
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -48,6 +45,9 @@ export default function StockOpnamesView() {
   const [perPage, setPerPage] = useState<number>(20)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -57,8 +57,12 @@ export default function StockOpnamesView() {
     return () => clearTimeout(t)
   }, [search])
 
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter, dateFrom, dateTo])
+
   const { data, isLoading } = useQuery({
-    queryKey: ['stock-opnames', page, perPage, debouncedSearch],
+    queryKey: ['stock-opnames', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo],
     queryFn: () =>
       stockOpnamesService
         .list({
@@ -67,6 +71,9 @@ export default function StockOpnamesView() {
           include: 'branch,created_by',
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
+          'filter[status]': statusFilter || undefined,
+          'filter[date_gte]': dateFrom || undefined,
+          'filter[date_lte]': dateTo || undefined,
         })
         .then((r) => r.data),
     enabled: canRead,
@@ -143,9 +150,10 @@ export default function StockOpnamesView() {
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
+          flexWrap: 'wrap',
         }}
       >
-        <div style={{ position: 'relative', flex: 1, maxWidth: 400 }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 400 }}>
           <Search
             size={16}
             style={{
@@ -173,6 +181,58 @@ export default function StockOpnamesView() {
             }}
           />
         </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{
+            padding: '8px 12px',
+            background: 'var(--background)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            outline: 'none',
+            minWidth: 140,
+          }}
+        >
+          <option value="">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="counting">Counting</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          title="Date from"
+          style={{
+            padding: '8px 12px',
+            background: 'var(--background)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            outline: 'none',
+          }}
+        />
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          title="Date to"
+          style={{
+            padding: '8px 12px',
+            background: 'var(--background)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            outline: 'none',
+          }}
+        />
       </div>
 
       {/* Table */}
@@ -306,16 +366,3 @@ const tdStyle: React.CSSProperties = {
   color: 'var(--foreground)',
   verticalAlign: 'middle',
 }
-
-const paginationBtnStyle = (disabled: boolean): React.CSSProperties => ({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: 6,
-  borderRadius: 'var(--radius-sm)',
-  border: '1px solid var(--border)',
-  background: disabled ? 'var(--background)' : 'var(--surface)',
-  color: disabled ? 'var(--foreground-muted)' : 'var(--foreground)',
-  cursor: disabled ? 'not-allowed' : 'pointer',
-  opacity: disabled ? 0.5 : 1,
-})
