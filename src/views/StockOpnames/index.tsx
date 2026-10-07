@@ -1,6 +1,6 @@
 'use client'
 import { formatDate } from '@/utils/date'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { stockOpnamesService } from '@/services/stock-opnames.service'
@@ -79,8 +79,17 @@ export default function StockOpnamesView() {
     enabled: canRead,
   })
 
-  const items = (data as any)?.data ?? []
-  const meta = (data as any)?.meta
+  // Unwrap list body: { data: [], meta } or { success, data: { data: [], meta } }
+  const listBody = useMemo(() => {
+    const body = (data as any)?.data ?? (data as any)
+    if (Array.isArray(body)) return { items: body, meta: (data as any)?.meta }
+    if (body && Array.isArray(body.data)) return { items: body.data, meta: body.meta ?? (data as any)?.meta }
+    if (body?.data && Array.isArray(body.data.data)) return { items: body.data.data, meta: body.data.meta }
+    return { items: [], meta: undefined }
+  }, [data])
+
+  const items = listBody.items
+  const meta = listBody.meta
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

@@ -159,7 +159,7 @@ export const stockOpnamesService = {
   findById: (id: number, params?: { include?: string }) =>
     api.get<ApiResponse<StockOpnameResponse>>(`/stock-opnames/${id}`, {
       params: {
-        include: 'products,stock_opname_details,branch,created_by',
+        include: 'products,stock_opname_details,branch,created_by,updated_by',
         ...params,
       },
     }),
