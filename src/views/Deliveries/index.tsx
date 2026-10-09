@@ -114,6 +114,7 @@ export default function DeliveriesView() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['deliveries', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo],
+    staleTime: 0,
     queryFn: () =>
       deliveriesService
         .list({
@@ -445,6 +446,16 @@ export default function DeliveriesView() {
                       (e.currentTarget.style.background = 'transparent')
                     }
                   >
+                    <td
+                      style={{
+                        ...tdStyle,
+                        textAlign: 'center',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
                     <td style={tdStyle}>
                       <span
                         style={{

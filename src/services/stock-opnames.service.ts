@@ -114,7 +114,10 @@ export interface StockOpnameCountItem {
 export interface StockOpnameDetailItem {
   id: number
   stock_opname_id?: number
-  product_inventory_id: number
+  /** Nullable: null = zero-stock placeholder line (product UOM with no inventory rows). */
+  product_inventory_id: number | null
+  /** Product UOM identifier — used to update placeholder lines that have no inventory. */
+  product_uom_id?: number
   system_qty: number
   counted_qty: number | null
   variance: number | null

@@ -5,6 +5,13 @@ import { toast } from 'sonner'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 
+const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
+  credit: { label: 'Credit', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  settled: { label: 'Settled', color: 'var(--success)', bg: 'var(--success-bg)' },
+  cancelled: { label: 'Cancelled', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
+}
+
 interface PosHistoryModalProps {
   showHistory: boolean
   setShowHistory: (val: boolean) => void
@@ -184,15 +191,31 @@ export default function PosHistoryModal({
                 <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--foreground)' }}>
                   {order.code}
                 </span>
-                <span
-                  style={{
-                    fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-xl)',
-                    background: order.status === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)',
-                    color: order.status === 'final' ? 'var(--success)' : 'var(--warning)', textTransform: 'capitalize',
-                  }}
-                >
-                  {order.status}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {(() => {
+                    const settlementMeta =
+                      SETTLEMENT_META[order.settlement_status as string] ?? SETTLEMENT_META.pending
+                    return (
+                      <span
+                        style={{
+                          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-xl)',
+                          background: settlementMeta.bg, color: settlementMeta.color,
+                        }}
+                      >
+                        {settlementMeta.label}
+                      </span>
+                    )
+                  })()}
+                  <span
+                    style={{
+                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 'var(--radius-xl)',
+                      background: order.status === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)',
+                      color: order.status === 'final' ? 'var(--success)' : 'var(--warning)', textTransform: 'capitalize',
+                    }}
+                  >
+                    {order.status}
+                  </span>
+                </div>
               </div>
 
               {/* Customer + date row */}
@@ -221,8 +244,11 @@ export default function PosHistoryModal({
                 </span>
               </div>
 
-              {/* Return button — only for final orders without deliveries/invoices */}
-              {order.status === 'final' && !order.has_delivery && !order.has_invoice && (
+              {/* Return button — only for final orders without deliveries/invoices, not already cancelled */}
+              {order.status === 'final' &&
+                order.settlement_status !== 'cancelled' &&
+                !order.has_delivery &&
+                !order.has_invoice && (
                 <button
                   type="button"
                   onClick={() => {
