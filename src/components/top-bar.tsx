@@ -60,7 +60,7 @@ export default function TopBar() {
     queryKey: ['branches-all'],
     queryFn: () =>
       branchesService
-        .list({ per_page: 100, sort: 'name', include: 'company' } as any)
+        .list({ per_page: 1000, sort: 'name', include: 'company' } as any)
         .then((r) => r.data),
     enabled: isSuperadmin,
   });

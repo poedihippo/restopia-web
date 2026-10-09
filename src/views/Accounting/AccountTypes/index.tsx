@@ -12,6 +12,8 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import SearchableSelect from '@/components/SearchableSelect'
+import { Controller } from 'react-hook-form'
 import {
   Plus, Search, Pencil, Trash2,
   X, Loader2, Layers, Download,
@@ -67,7 +69,10 @@ export default function AccountTypesView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<AccountType | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
 
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
@@ -77,8 +82,8 @@ export default function AccountTypesView() {
   })
 
   const { data: categoriesData } = useQuery({
-    queryKey: ['account-categories-all'],
-    queryFn: () => accountCategoriesService.list({ per_page: 1000, sort: 'code' } as any).then(r => r.data),
+    queryKey: ['account-categories-all', debouncedDropdownSearch],
+    queryFn: () => accountCategoriesService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedDropdownSearch || undefined } as any).then(r => r.data),
   })
 
   const items: AccountType[] = (data as any)?.data ?? []
@@ -91,7 +96,7 @@ export default function AccountTypesView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { account_category_id: 0, code: '', name: '' },
   })
@@ -232,10 +237,21 @@ export default function AccountTypesView() {
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account Category <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <select {...register('account_category_id')} style={errors.account_category_id ? inputError : inputStyle}>
-                  <option value={0}>-- Select Category --</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.code} – {c.name}</option>)}
-                </select>
+                <Controller
+                  control={control}
+                  name="account_category_id"
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ? Number(field.value) : 0}
+                      onChange={(val) => field.onChange(Number(val) || 0)}
+                      options={categories.map((c) => ({ value: c.id, label: `${c.code} – ${c.name}` }))}
+                      placeholder="-- Select Category --"
+                      searchPlaceholder="Search category..."
+                      error={errors.account_category_id?.message}
+                      onSearchChange={setDropdownSearch}
+                    />
+                  )}
+                />
                 {errors.account_category_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.account_category_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

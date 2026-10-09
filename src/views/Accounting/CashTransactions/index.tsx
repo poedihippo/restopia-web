@@ -117,6 +117,12 @@ export default function CashTransactionsView() {
   const [endDate, setEndDate] = useState<string>('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
+  const [bankDropdownSearch, setBankDropdownSearch] = useState('')
+  const [debouncedBankDropdownSearch, setDebouncedBankDropdownSearch] = useState('')
+  const [coaDropdownSearch, setCoaDropdownSearch] = useState('')
+  const [debouncedCoaDropdownSearch, setDebouncedCoaDropdownSearch] = useState('')
+  const [deptDropdownSearch, setDeptDropdownSearch] = useState('')
+  const [debouncedDeptDropdownSearch, setDebouncedDeptDropdownSearch] = useState('')
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [viewItem, setViewItem] = useState<CashTransaction | null>(null)
@@ -128,6 +134,21 @@ export default function CashTransactionsView() {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
     return () => clearTimeout(t)
   }, [search])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedBankDropdownSearch(bankDropdownSearch), 400)
+    return () => clearTimeout(t)
+  }, [bankDropdownSearch])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCoaDropdownSearch(coaDropdownSearch), 400)
+    return () => clearTimeout(t)
+  }, [coaDropdownSearch])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedDeptDropdownSearch(deptDropdownSearch), 400)
+    return () => clearTimeout(t)
+  }, [deptDropdownSearch])
 
   useEffect(() => {
     setPage(1)
@@ -167,10 +188,10 @@ export default function CashTransactionsView() {
 
   // Fetch Bank Accounts for selectors
   const { data: bankAccountsData } = useQuery({
-    queryKey: ['bank-accounts-all-active'],
+    queryKey: ['bank-accounts-all-active', debouncedBankDropdownSearch],
     queryFn: () =>
       bankAccountsService
-        .list({ per_page: 200, 'filter[is_active]': 1 } as any)
+        .list({ per_page: 1000, 'filter[is_active]': 1, 'filter[search]': debouncedBankDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
   const bankAccounts: BankAccount[] = (bankAccountsData as any)?.data ?? []
@@ -181,10 +202,10 @@ export default function CashTransactionsView() {
 
   // Fetch Chart of Accounts for offsetting selection
   const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-for-cash'],
+    queryKey: ['chart-of-accounts-for-cash', debouncedCoaDropdownSearch],
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 500, sort: 'account_code' } as any)
+        .list({ per_page: 1000, sort: 'account_code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
   const coaList: any[] = (coaData as any)?.data ?? []
@@ -195,10 +216,10 @@ export default function CashTransactionsView() {
 
   // Fetch Departments for optional assignment
   const { data: departmentsData } = useQuery({
-    queryKey: ['departments-for-cash'],
+    queryKey: ['departments-for-cash', debouncedDeptDropdownSearch],
     queryFn: () =>
       departmentsService
-        .list({ per_page: 100, 'filter[is_active]': 1 } as any)
+        .list({ per_page: 1000, 'filter[is_active]': 1, 'filter[search]': debouncedDeptDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
   const departments: Department[] = (departmentsData as any)?.data ?? []
@@ -1011,6 +1032,8 @@ export default function CashTransactionsView() {
                         onChange={(val) => field.onChange(val ? Number(val) : undefined)}
                         options={bankAccountOptions}
                         placeholder="Select Bank Account"
+                        searchPlaceholder="Search bank account..."
+                        onSearchChange={setBankDropdownSearch}
                       />
                     )}
                   />
@@ -1037,6 +1060,8 @@ export default function CashTransactionsView() {
                             (opt) => opt.value !== selectedBankAccountId
                           )}
                           placeholder="Select Destination Bank Account"
+                          searchPlaceholder="Search bank account..."
+                          onSearchChange={setBankDropdownSearch}
                         />
                       )}
                     />
@@ -1064,6 +1089,8 @@ export default function CashTransactionsView() {
                           onChange={(val) => field.onChange(val ? Number(val) : null)}
                           options={coaOptions}
                           placeholder="Select Offsetting Chart of Account"
+                          searchPlaceholder="Search COA..."
+                          onSearchChange={setCoaDropdownSearch}
                         />
                       )}
                     />
@@ -1085,6 +1112,8 @@ export default function CashTransactionsView() {
                         onChange={(val) => field.onChange(val ? Number(val) : null)}
                         options={departmentOptions}
                         placeholder="Assign to Department (Optional)"
+                        searchPlaceholder="Search department..."
+                        onSearchChange={setDeptDropdownSearch}
                       />
                     )}
                   />

@@ -15,7 +15,7 @@ export default function AccountSettingsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['account-settings'],
-    queryFn: () => accountSettingsService.list({ per_page: 100, include: 'chart_of_account,account_setting_key' } as any).then(r => r.data),
+    queryFn: () => accountSettingsService.list({ per_page: 1000, include: 'chart_of_account,account_setting_key' } as any).then(r => r.data),
   })
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({

@@ -91,7 +91,7 @@ export default function PaymentMethodsView() {
     queryFn: () =>
       paymentMethodService
         .list({
-          per_page: 100,
+          per_page: 1000,
           sort: "id",
           include: "bank_account,chart_of_account",
           "filter[search]": debouncedSearch || undefined,

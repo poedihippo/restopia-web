@@ -145,7 +145,7 @@ export default function ProductUomBatchesView() {
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
     queryFn: () =>
-      api.get('/product-categories', { params: { per_page: perPage } }).then((r) => r.data),
+      api.get('/product-categories', { params: { per_page: 1000 } }).then((r) => r.data),
   })
   const categories = (categoriesData as any)?.data ?? []
 

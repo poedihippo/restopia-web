@@ -101,11 +101,11 @@ export default function ChartOfAccountsView() {
 
   const { data: categoriesData } = useQuery({
     queryKey: ['account-categories-all', debouncedDropdownSearch],
-    queryFn: () => accountCategoriesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: perPage, sort: 'code' }).then((r) => r.data),
+    queryFn: () => accountCategoriesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 1000, sort: 'code' }).then((r) => r.data),
   })
   const { data: typesData } = useQuery({
     queryKey: ['account-types-all', debouncedDropdownSearch],
-    queryFn: () => accountTypesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: perPage, sort: 'code'  }).then((r) => r.data),
+    queryFn: () => accountTypesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 1000, sort: 'code'  }).then((r) => r.data),
   })
 
   const items: CoA[] = (data as any)?.data ?? []
@@ -197,14 +197,32 @@ export default function ChartOfAccountsView() {
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account code or name..."
             style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
         </div>
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none' }}>
-          <option value="">All Types</option>
-          {allTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        <select value={filterParent} onChange={(e) => setFilterParent(e.target.value)} style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none' }}>
-          <option value="">All Parents</option>
-          {items.filter(i => i.is_header).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </select>
+        <div style={{ minWidth: 200 }}>
+          <SearchableSelect
+            value={filterType !== '' ? Number(filterType) : ''}
+            onChange={(val) => setFilterType(val !== '' && val != null ? String(val) : '')}
+            options={[
+              { value: '', label: 'All Types' },
+              ...allTypes.map(t => ({ value: t.id, label: t.name })),
+            ]}
+            placeholder="All Types"
+            searchPlaceholder="Search type..."
+            onSearchChange={setDropdownSearch}
+          />
+        </div>
+        <div style={{ minWidth: 200 }}>
+          <SearchableSelect
+            value={filterParent !== '' ? Number(filterParent) : ''}
+            onChange={(val) => setFilterParent(val !== '' && val != null ? String(val) : '')}
+            options={[
+              { value: '', label: 'All Parents' },
+              ...items.filter(i => i.is_header).map(a => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+            ]}
+            placeholder="All Parents"
+            searchPlaceholder="Search parent..."
+            onSearchChange={setDropdownSearch}
+          />
+        </div>
       </div>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>

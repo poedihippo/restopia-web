@@ -86,6 +86,8 @@ export default function BankAccountsView() {
   const [coaFilter, setCoaFilter] = useState<string>('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
+  const [coaDropdownSearch, setCoaDropdownSearch] = useState('')
+  const [debouncedCoaDropdownSearch, setDebouncedCoaDropdownSearch] = useState('')
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editItem, setEditItem] = useState<BankAccount | null>(null)
@@ -96,6 +98,11 @@ export default function BankAccountsView() {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
     return () => clearTimeout(t)
   }, [search])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCoaDropdownSearch(coaDropdownSearch), 400)
+    return () => clearTimeout(t)
+  }, [coaDropdownSearch])
 
   useEffect(() => {
     setPage(1)
@@ -124,10 +131,10 @@ export default function BankAccountsView() {
 
   // Fetch Chart of Accounts for dropdown
   const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-select'],
+    queryKey: ['chart-of-accounts-select', debouncedCoaDropdownSearch],
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 500, sort: 'account_code' } as any)
+        .list({ per_page: 1000, sort: 'account_code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
   const coaList: any[] = (coaData as any)?.data ?? []
@@ -470,18 +477,22 @@ export default function BankAccountsView() {
         </select>
 
         {/* Chart of Account Filter */}
-        <select
-          value={coaFilter}
-          onChange={(e) => setCoaFilter(e.target.value)}
-          style={{ ...inputStyle, width: 'auto', minWidth: 200, cursor: 'pointer' }}
-        >
-          <option value="">All Chart of Accounts</option>
-          {coaList.map((item: any) => (
-            <option key={item.id} value={item.id}>
-              {item.account_code ?? item.code} — {item.account_name ?? item.name}
-            </option>
-          ))}
-        </select>
+        <div style={{ minWidth: 220 }}>
+          <SearchableSelect
+            value={coaFilter !== '' ? Number(coaFilter) : ''}
+            onChange={(val) => setCoaFilter(val !== '' && val != null ? String(val) : '')}
+            options={[
+              { value: '', label: 'All Chart of Accounts' },
+              ...coaList.map((item: any) => ({
+                value: item.id,
+                label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
+              })),
+            ]}
+            placeholder="All Chart of Accounts"
+            searchPlaceholder="Search COA..."
+            onSearchChange={setCoaDropdownSearch}
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -984,6 +995,8 @@ export default function BankAccountsView() {
                         onChange={(val) => field.onChange(val ? Number(val) : undefined)}
                         options={coaOptions}
                         placeholder="Select Chart of Account (Cash / Bank account)"
+                        searchPlaceholder="Search COA..."
+                        onSearchChange={setCoaDropdownSearch}
                       />
                     )}
                   />

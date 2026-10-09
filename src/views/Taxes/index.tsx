@@ -42,7 +42,7 @@ export default function TaxesView() {
     queryFn: () =>
       taxesService
         .list({
-          per_page: 50,
+          per_page: 1000,
           sort: 'id',
           'filter[search]': debouncedSearch || undefined,
         } as any)

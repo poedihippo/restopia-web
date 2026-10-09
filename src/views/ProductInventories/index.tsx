@@ -210,7 +210,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     queryKey: ['product-categories-all'],
     queryFn: () =>
       productCategoriesService
-        .list({ per_page: perPage })
+        .list({ per_page: 1000 })
         .then((r) => r.data),
   })
   const categories = (categoriesData as any)?.data ?? []
@@ -272,7 +272,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     queryKey: ['product-uoms-all', activeProductTypes],
     queryFn: () =>
       productUomsService
-        .list({ per_page: perPage, include: 'product,uom', 'filter[product_types]': activeProductTypes } as any)
+        .list({ per_page: 1000, include: 'product,uom', 'filter[product_types]': activeProductTypes } as any)
         .then((r) => r.data),
   })
   const productUomsAll = (puData as any)?.data ?? []

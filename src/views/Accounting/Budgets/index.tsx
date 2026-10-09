@@ -15,6 +15,8 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import SearchableSelect from '@/components/SearchableSelect'
+import { Controller } from 'react-hook-form'
 import {
   Plus, Pencil, Trash2,
   X, Loader2, PiggyBank, Download,
@@ -65,6 +67,13 @@ export default function BudgetsView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Budget | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [periodSearch, setPeriodSearch] = useState('')
+  const [debouncedPeriodSearch, setDebouncedPeriodSearch] = useState('')
+  const [coaSearch, setCoaSearch] = useState('')
+  const [debouncedCoaSearch, setDebouncedCoaSearch] = useState('')
+
+  useEffect(() => { const t = setTimeout(() => setDebouncedPeriodSearch(periodSearch), 400); return () => clearTimeout(t) }, [periodSearch])
+  useEffect(() => { const t = setTimeout(() => setDebouncedCoaSearch(coaSearch), 400); return () => clearTimeout(t) }, [coaSearch])
 
   const { data, isLoading } = useQuery({
     queryKey: ['budgets', page, perPage],
@@ -72,13 +81,13 @@ export default function BudgetsView() {
   })
 
   const { data: periodsData } = useQuery({
-    queryKey: ['periods-all'],
-    queryFn: () => periodsService.list({ per_page: perPage, sort: '-id' }).then((r) => r.data),
+    queryKey: ['periods-all', debouncedPeriodSearch],
+    queryFn: () => periodsService.list({ per_page: 1000, sort: '-id', 'filter[search]': debouncedPeriodSearch || undefined }).then((r) => r.data),
   })
 
   const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-all'],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code' }).then((r) => r.data),
+    queryKey: ['chart-of-accounts-all', debouncedCoaSearch],
+    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaSearch || undefined }).then((r) => r.data),
   })
 
   const items: Budget[] = (data as any)?.data ?? []
@@ -92,7 +101,7 @@ export default function BudgetsView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { chart_of_account_id: 0, period_id: 0, amount: 0 },
   })
@@ -227,18 +236,40 @@ export default function BudgetsView() {
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Account <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <select {...register('chart_of_account_id')} style={errors.chart_of_account_id ? inputError : inputStyle}>
-                  <option value={0}>-- Select Account --</option>
-                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} – {a.name}</option>)}
-                </select>
+                <Controller
+                  control={control}
+                  name="chart_of_account_id"
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ? Number(field.value) : 0}
+                      onChange={(val) => field.onChange(Number(val) || 0)}
+                      options={accounts.map((a) => ({ value: a.id, label: `${a.code} – ${a.name}` }))}
+                      placeholder="-- Select Account --"
+                      searchPlaceholder="Search account..."
+                      error={errors.chart_of_account_id?.message}
+                      onSearchChange={setCoaSearch}
+                    />
+                  )}
+                />
                 {errors.chart_of_account_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.chart_of_account_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Periode <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <select {...register('period_id')} style={errors.period_id ? inputError : inputStyle}>
-                  <option value={0}>-- Select Period --</option>
-                  {periods.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                <Controller
+                  control={control}
+                  name="period_id"
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ? Number(field.value) : 0}
+                      onChange={(val) => field.onChange(Number(val) || 0)}
+                      options={periods.map((p) => ({ value: p.id, label: p.name }))}
+                      placeholder="-- Select Period --"
+                      searchPlaceholder="Search period..."
+                      error={errors.period_id?.message}
+                      onSearchChange={setPeriodSearch}
+                    />
+                  )}
+                />
                 {errors.period_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.period_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

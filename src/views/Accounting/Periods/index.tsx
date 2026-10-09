@@ -13,6 +13,8 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import SearchableSelect from '@/components/SearchableSelect'
+import { Controller } from 'react-hook-form'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, Calendar, CheckCircle2, Lock, Download,
@@ -69,7 +71,10 @@ export default function PeriodsView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Period | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [dropdownSearch, setDropdownSearch] = useState('')
+  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
 
+  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
@@ -79,8 +84,8 @@ export default function PeriodsView() {
   })
 
   const { data: fiscalData } = useQuery({
-    queryKey: ['fiscal-years-all'],
-    queryFn: () => fiscalYearsService.list({ per_page: perPage, sort: '-id' }).then((r) => r.data),
+    queryKey: ['fiscal-years-all', debouncedDropdownSearch],
+    queryFn: () => fiscalYearsService.list({ per_page: 1000, sort: '-id', 'filter[search]': debouncedDropdownSearch || undefined }).then((r) => r.data),
   })
 
   const items: Period[] = (data as any)?.data ?? []
@@ -93,7 +98,7 @@ export default function PeriodsView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true, is_closed: false },
   })
@@ -245,10 +250,21 @@ export default function PeriodsView() {
             <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Fiscal Years <span style={{ color: 'var(--destructive)' }}>*</span></label>
-                <select {...register('fiscal_year_id')} style={errors.fiscal_year_id ? inputError : inputStyle}>
-                  <option value={0}>-- Select Fiscal Year --</option>
-                  {fiscalYears.map((fy) => <option key={fy.id} value={fy.id}>{fy.name}</option>)}
-                </select>
+                <Controller
+                  control={control}
+                  name="fiscal_year_id"
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ? Number(field.value) : 0}
+                      onChange={(val) => field.onChange(Number(val) || 0)}
+                      options={fiscalYears.map((fy) => ({ value: fy.id, label: fy.name }))}
+                      placeholder="-- Select Fiscal Year --"
+                      searchPlaceholder="Search fiscal year..."
+                      error={errors.fiscal_year_id?.message}
+                      onSearchChange={setDropdownSearch}
+                    />
+                  )}
+                />
                 {errors.fiscal_year_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.fiscal_year_id.message}</span>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

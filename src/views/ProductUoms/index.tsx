@@ -107,7 +107,7 @@ export default function ProductUomsView() {
       api
         .get('/products', {
           params: {
-            per_page: perPage,
+            per_page: 100,
             'filter[search]': productSearchDebounced,
             'filter[product_types]': activeProductTypes,
             sort: 'name',
@@ -121,7 +121,7 @@ export default function ProductUomsView() {
     queryKey: ['product-categories-all'],
     queryFn: () =>
       productCategoriesService
-        .list({ per_page: perPage })
+        .list({ per_page: 1000 })
         .then((r) => r.data),
   })
   const categories = (categoriesData as any)?.data ?? []
@@ -133,7 +133,7 @@ export default function ProductUomsView() {
       api
         .get('/products', {
           params: {
-            per_page: perPage,
+            per_page: 1000,
             'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
             'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
           },

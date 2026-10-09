@@ -39,7 +39,7 @@ export default function SalesChannelsView() {
     queryFn: () =>
       salesChannelsService
         .list({
-          per_page: 50,
+          per_page: 1000,
           sort: 'id',
           'filter[search]': debouncedSearch || undefined,
         } as any)

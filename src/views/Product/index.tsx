@@ -108,7 +108,7 @@ export default function ProductView() {
     queryKey: ['product-categories-all'],
     queryFn: () =>
       productCategoriesService
-        .list({ per_page: perPage })
+        .list({ per_page: 1000 })
         .then((r) => r.data),
   })
   const categories = (categoriesData as any)?.data ?? []
