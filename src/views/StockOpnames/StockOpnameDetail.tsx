@@ -18,6 +18,8 @@ import { productConversionsService } from '@/services/product-conversions.servic
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { getProductUomName } from '@/utils/productUomName'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
+import { convertUp, convertDown, type ConversionEntry } from '@/utils/unitDisplay'
 import {
   ChevronLeft,
   CheckCircle2,
@@ -184,16 +186,26 @@ function isCountedState(s?: LineCountState): boolean {
   return s.counted_qty !== null && s.counted_qty !== undefined
 }
 
-function hasVarianceState(detail: StockOpnameDetailItem, state?: LineCountState): boolean {
+function hasVarianceState(
+  detail: StockOpnameDetailItem,
+  state?: LineCountState,
+  countedBase?: number | null,
+): boolean {
   if (!isCountedState(state)) return false
   if (state!.isMultiUom) return (detail.variance ?? 0) !== 0
-  return Number(state!.counted_qty) !== Number(detail.system_qty)
+  const counted = countedBase ?? Number(state!.counted_qty)
+  return counted !== Number(detail.system_qty)
 }
 
-function getVariance(detail: StockOpnameDetailItem, state?: LineCountState): number | null {
+function getVariance(
+  detail: StockOpnameDetailItem,
+  state?: LineCountState,
+  countedBase?: number | null,
+): number | null {
   if (!isCountedState(state)) return null
   if (state!.isMultiUom) return detail.variance ?? 0
-  return Number(state!.counted_qty) - Number(detail.system_qty)
+  const counted = countedBase ?? Number(state!.counted_qty)
+  return counted - Number(detail.system_qty)
 }
 
 interface StockOpnameDetailProps {
@@ -205,6 +217,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const router = useRouter()
   const resolvedId = idProp ? String(idProp) : router.query.id ? String(router.query.id) : ''
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const userBranchType = ((user as any)?.branch?.type as string) ?? ''
 
   const { data, isLoading } = useQuery({
     queryKey: ['stock-opnames', resolvedId],
@@ -286,33 +300,6 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     return buildProductGroups(item)
   }, [item])
 
-  useEffect(() => {
-    if (!item) return
-    // Jangan timpa angka yang sedang diketik user dengan data dari server
-    if (dirtyRef.current) return
-    const initialCounts: Record<string, LineCountState> = {}
-
-    const processDetail = (d: StockOpnameDetailItem) => {
-      const hasCountItems = Array.isArray(d.count_items) && d.count_items.length > 0
-      const hasCountedQty = d.counted_qty !== null && d.counted_qty !== undefined
-      initialCounts[getLineKey(d)] = {
-        counted_qty: hasCountedQty ? Number(d.counted_qty) : null,
-        isMultiUom: hasCountItems,
-        count_items: hasCountItems
-          ? d.count_items!.map((ci) => ({ id: ci.id, uom_id: Number(ci.uom_id), counted_qty: ci.counted_qty ?? '' }))
-          : [],
-        description: d.description || '',
-      }
-    }
-
-    // Use same normalized groups as the UI so state keys always match rendered rows
-    buildProductGroups(item).forEach((g) => {
-      g.stock_opname_details?.forEach(processDetail)
-    })
-
-    setLineCounts(initialCounts)
-  }, [item])
-
   // All known UoMs for multi-UoM options
   const allKnownUomsMap = useMemo(() => {
     const map = new Map<number, { id: number; name: string; code: string }>()
@@ -389,14 +376,137 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     return map
   }, [groupsWithLines, allKnownUomsMap, rawConversions, rawProductUoms])
 
+  // ── Konversi tampilan per branch type ─────────────────────────────────
+  // Backend menerima counted_qty dalam BASE unit (mis. 1700 GR), tapi user
+  // melihat/mengisi hitungan dalam satuan product-UOM yang branch_type-nya
+  // cocok dengan branch.type dari auth/me (mis. 1,7 KG).
+  const convByProductId = useMemo(() => {
+    const map = new Map<number, ConversionEntry[]>()
+    rawConversions.forEach((c: any) => {
+      const entry: ConversionEntry = {
+        uom_code: c.uom_code ?? c.uom?.code ?? '',
+        uom_name: c.uom_name ?? c.uom?.name ?? '',
+        target_uom_code: c.target_uom_code ?? c.target_uom?.code ?? '',
+        target_uom_name: c.target_uom_name ?? c.target_uom?.name ?? '',
+        amount: Number(c.amount ?? 0),
+      }
+      if (!entry.uom_code || !entry.target_uom_code || !(entry.amount > 0)) return
+      const key = Number(c.product_id)
+      if (!key) return
+      const arr = map.get(key) ?? []
+      arr.push(entry)
+      map.set(key, arr)
+    })
+    return map
+  }, [rawConversions])
+
+  const branchDisplayByProductId = useMemo(() => {
+    const map = new Map<number, { baseUomCode: string; branchUomCode: string; conversions: ConversionEntry[] }>()
+    if (!userBranchType) return map
+    rawProductUoms.forEach((pu: any) => {
+      const pid = Number(pu.product_id)
+      if (!pid || map.has(pid)) return
+      const baseUomCode = pu.product?.base_uom?.code ?? ''
+      const branchPu = rawProductUoms.find(
+        (p: any) =>
+          Number(p.product_id) === pid &&
+          p.branch_type &&
+          String(p.branch_type).toLowerCase() === userBranchType.toLowerCase(),
+      )
+      const branchUomCode = branchPu?.uom?.code ?? ''
+      const conversions = convByProductId.get(pid) ?? []
+      if (!baseUomCode || !branchUomCode || baseUomCode === branchUomCode || conversions.length === 0) return
+      map.set(pid, { baseUomCode, branchUomCode, conversions })
+    })
+    return map
+  }, [rawProductUoms, convByProductId, userBranchType])
+
+  const getLineDisplay = (detail: StockOpnameDetailItem, group: StockOpnameProductGroup) => {
+    const productId = Number(
+      group.product_uom?.product_id ||
+        group.product_uom?.product?.id ||
+        detail.product_inventory?.product_uom?.product_id ||
+        detail.product_inventory?.product_uom_batch?.product_uom?.product_id ||
+        0,
+    )
+    return productId ? branchDisplayByProductId.get(productId) ?? null : null
+  }
+
+  type LineDisplayInfo = NonNullable<ReturnType<typeof getLineDisplay>>
+
+  const lineDisplayByKey = useMemo(() => {
+    const map: Record<string, LineDisplayInfo | null> = {}
+    groupsWithLines.forEach((g) => {
+      ;(g.allLines || []).forEach((d) => {
+        map[getLineKey(d)] = getLineDisplay(d, g)
+      })
+    })
+    return map
+  }, [groupsWithLines, branchDisplayByProductId])
+
+  /** counted_qty dalam state (satuan display) → base unit untuk backend/variance. */
+  const countedBaseOf = (detail: StockOpnameDetailItem): number | null => {
+    const state = lineCounts[getLineKey(detail)]
+    if (!state || state.isMultiUom) return null
+    if (state.counted_qty === null || state.counted_qty === undefined) return null
+    const disp = lineDisplayByKey[getLineKey(detail)]
+    if (!disp) return Number(state.counted_qty)
+    return (
+      convertDown(Number(state.counted_qty), disp.branchUomCode, disp.baseUomCode, disp.conversions) ??
+      Number(state.counted_qty)
+    )
+  }
+
+  const fmtQty = (n: number) => {
+    const rounded = Math.round(n * 10000) / 10000
+    return rounded.toLocaleString('id-ID', { maximumFractionDigits: 4 })
+  }
+
+  // Seed hitungan dari server — counted_qty backend dalam base unit, state
+  // disimpan dalam satuan display. Re-seed saat data konversi selesai load
+  // (dijaga dirtyRef agar input user yang sedang diketik tidak ditimpa).
+  useEffect(() => {
+    if (!item) return
+    // Jangan timpa angka yang sedang diketik user dengan data dari server
+    if (dirtyRef.current) return
+    const initialCounts: Record<string, LineCountState> = {}
+
+    const processDetail = (d: StockOpnameDetailItem, g: StockOpnameProductGroup) => {
+      const hasCountItems = Array.isArray(d.count_items) && d.count_items.length > 0
+      const hasCountedQty = d.counted_qty !== null && d.counted_qty !== undefined
+      let counted = hasCountedQty ? Number(d.counted_qty) : null
+      if (counted !== null && !hasCountItems) {
+        const disp = getLineDisplay(d, g)
+        if (disp) {
+          counted = convertUp(counted, disp.baseUomCode, disp.branchUomCode, disp.conversions) ?? counted
+        }
+      }
+      initialCounts[getLineKey(d)] = {
+        counted_qty: counted,
+        isMultiUom: hasCountItems,
+        count_items: hasCountItems
+          ? d.count_items!.map((ci) => ({ id: ci.id, uom_id: Number(ci.uom_id), counted_qty: ci.counted_qty ?? '' }))
+          : [],
+        description: d.description || '',
+      }
+    }
+
+    // Use same normalized groups as the UI so state keys always match rendered rows
+    buildProductGroups(item).forEach((g) => {
+      g.stock_opname_details?.forEach((d) => processDetail(d, g))
+    })
+
+    setLineCounts(initialCounts)
+  }, [item, lineDisplayByKey])
+
   const totalLines = allLines.length
   const countedLines = useMemo(
     () => allLines.filter(({ detail }) => isCountedState(lineCounts[getLineKey(detail)])).length,
     [allLines, lineCounts],
   )
   const varianceLines = useMemo(
-    () => allLines.filter(({ detail }) => hasVarianceState(detail, lineCounts[getLineKey(detail)])).length,
-    [allLines, lineCounts],
+    () => allLines.filter(({ detail }) => hasVarianceState(detail, lineCounts[getLineKey(detail)], countedBaseOf(detail))).length,
+    [allLines, lineCounts, lineDisplayByKey],
   )
   const remainingLines = totalLines - countedLines
   const progressPercent = totalLines > 0 ? Math.round((countedLines / totalLines) * 100) : 0
@@ -414,7 +524,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         const displayLines = g.allLines.filter((detail) => {
           const state = lineCounts[getLineKey(detail)]
           const counted = isCountedState(state)
-          const variance = hasVarianceState(detail, state)
+          const variance = hasVarianceState(detail, state, countedBaseOf(detail))
           if (filterMode === 'pending' && counted) return false
           if (filterMode === 'counted' && !counted) return false
           if (filterMode === 'variance' && !variance) return false
@@ -490,10 +600,12 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                 }))
               if (validItems.length > 0) line.count_items = validItems
               if (state.counted_qty !== null && state.counted_qty !== undefined) {
-                line.counted_qty = Number(state.counted_qty)
+                // State disimpan dalam satuan display → kirim base unit ke backend
+                line.counted_qty = countedBaseOf(d) ?? Number(state.counted_qty)
               }
             } else if (state && state.counted_qty !== null && state.counted_qty !== undefined) {
-              line.counted_qty = Number(state.counted_qty)
+              // State disimpan dalam satuan display → kirim base unit ke backend
+              line.counted_qty = countedBaseOf(d) ?? Number(state.counted_qty)
             }
             return line
           })
@@ -621,9 +733,13 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
       emptyLines.forEach(({ detail }) => {
         const key = getLineKey(detail)
         const current = next[key] || emptyState()
+        const disp = lineDisplayByKey[key]
+        const systemShown = disp
+          ? convertUp(Number(detail.system_qty) || 0, disp.baseUomCode, disp.branchUomCode, disp.conversions)
+          : null
         next[key] = {
           ...current,
-          counted_qty: mode === 'system' ? Number(detail.system_qty) || 0 : 0,
+          counted_qty: mode === 'system' ? (systemShown ?? (Number(detail.system_qty) || 0)) : 0,
           isMultiUom: false,
           count_items: [],
         }
@@ -643,7 +759,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
       id: -Date.now(),
       product_inventory_id: inv.id,
       product_uom_id: puId,
-      system_qty: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
+      system_qty: inv.base_stock ?? inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
       counted_qty: null,
       variance: null,
       description: '',
@@ -1192,13 +1308,25 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                         const lineKey = getLineKey(detail)
                         const state = lineCounts[lineKey] || emptyState()
                         const counted = isCountedState(state)
-                        const variance = getVariance(detail, state)
                         const isNew = detail.id != null && detail.id < 0
                         const batchCode = detail.product_inventory?.product_uom_batch?.batch_code || '—'
                         const expiry = detail.product_inventory?.product_uom_batch?.expiry_date
                         const isExpired = expiry && new Date(expiry).getTime() < Date.now()
                         const uomOptions = uomOptionsByKey[lineKey] ?? []
                         const noteVisible = !!state.description || !!openNotes[lineKey]
+
+                        // Konversi tampilan branch type: stok sistem (base) →
+                        // satuan branch; hitungan user dikonversi balik saat save.
+                        const disp = lineDisplayByKey[lineKey] ?? null
+                        const systemShown = disp
+                          ? convertUp(Number(detail.system_qty) || 0, disp.baseUomCode, disp.branchUomCode, disp.conversions)
+                          : null
+                        const lineUomLabel = systemShown !== null && disp ? disp.branchUomCode : uomLabel
+                        const varianceBase = getVariance(detail, state, countedBaseOf(detail))
+                        const variance =
+                          varianceBase !== null && disp
+                            ? convertUp(varianceBase, disp.baseUomCode, disp.branchUomCode, disp.conversions) ?? varianceBase
+                            : varianceBase
 
                         let varianceText = '—'
                         let varianceColor = 'var(--foreground-muted)'
@@ -1260,8 +1388,10 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                               )}
                             </td>
                             <td style={{ ...tdStyle, textAlign: 'right', padding: '3px 6px' }}>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.2 }}>{detail.system_qty}</div>
-                              {uomLabel && <div style={{ fontSize: 10, color: 'var(--foreground-muted)', lineHeight: 1.2 }}>{uomLabel}</div>}
+                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.2 }}>
+                                {systemShown !== null ? fmtQty(systemShown) : detail.system_qty}
+                              </div>
+                              {lineUomLabel && <div style={{ fontSize: 10, color: 'var(--foreground-muted)', lineHeight: 1.2 }}>{lineUomLabel}</div>}
                             </td>
                             <td style={{ ...tdStyle, padding: '3px 6px' }}>
                               {isReadOnly ? (
@@ -1269,7 +1399,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                   {state.isMultiUom && state.count_items.length > 0
                                     ? state.count_items.map((ci) => `${ci.counted_qty} ${allKnownUomsMap.get(Number(ci.uom_id))?.code || uomLabel}`).join(' + ')
                                     : counted
-                                    ? `${state.counted_qty}${uomLabel ? ` ${uomLabel}` : ''}`
+                                    ? `${state.counted_qty}${lineUomLabel ? ` ${lineUomLabel}` : ''}`
                                     : '—'}
                                   {state.description && (
                                     <div style={{ fontSize: 10, color: 'var(--foreground-muted)', fontStyle: 'italic' }}>
@@ -1306,11 +1436,16 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                                             outline: 'none',
                                           }}
                                         />
-                                        {uomLabel && <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontWeight: 500 }}>{uomLabel}</span>}
+                                        {lineUomLabel && <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontWeight: 500 }}>{lineUomLabel}</span>}
                                         <button
                                           type="button"
                                           className="so-btn"
-                                          onClick={() => updateLineSingleQty(lineKey, String(detail.system_qty))}
+                                          onClick={() =>
+                                            updateLineSingleQty(
+                                              lineKey,
+                                              String(systemShown !== null ? Math.round(systemShown * 10000) / 10000 : detail.system_qty),
+                                            )
+                                          }
                                           style={miniBtnStyle}
                                           title="Isi hitungan sama dengan stok sistem"
                                         >

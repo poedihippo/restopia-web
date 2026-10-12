@@ -204,9 +204,17 @@ export default function StockMovementView() {
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
-  const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() =>
-    loadStoredMode((user as any)?.branch?.type),
-  )
+  // Branch type menentukan toggle satuan otomatis:
+  // - production → smallest (konsumsi bahan presisi seperti "2,5 GR")
+  // - warehouse  → largest (penyimpanan seperti "1 PACK")
+  // - outlet / lainnya → ikut preferensi tersimpan / default
+  const branchType = ((user as any)?.branch?.type as string | undefined) ?? ''
+  const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() => {
+    const t = branchType.toLowerCase()
+    if (t === 'production') return 'smallest'
+    if (t === 'warehouse') return 'largest'
+    return loadStoredMode(branchType)
+  })
 
   useEffect(() => {
     const timer = setTimeout(() => {

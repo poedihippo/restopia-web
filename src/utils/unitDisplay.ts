@@ -105,6 +105,35 @@ export function convertUp(
 }
 
 /**
+ * Convert a qty DOWN from a source unit to the base unit (inverse of convertUp).
+ * Walks conversion steps (uom_code → target_uom_code) multiplying by amount.
+ *
+ * Example: 1,7 KG with chain KG(1000)→GR → 1700 GR.
+ * Returns null if the source unit cannot reach the base unit.
+ */
+export function convertDown(
+  qty: number,
+  fromUomCode: string,
+  baseUomCode: string,
+  conversions?: ConversionEntry[] | null,
+): number | null {
+  if (fromUomCode === baseUomCode) return qty
+  if (!conversions || conversions.length === 0) return null
+
+  let value = qty
+  let current = fromUomCode
+  let safety = MAX_CHAIN_DEPTH
+
+  while (current !== baseUomCode && safety-- > 0) {
+    const step = conversions.find((c) => c.uom_code === current)
+    if (!step) return null
+    value = value * step.amount
+    current = step.target_uom_code
+  }
+  return current === baseUomCode ? value : null
+}
+
+/**
  * Format a quantity for display according to the chosen mode.
  *
  * The API response provides:

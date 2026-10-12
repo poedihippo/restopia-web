@@ -31,6 +31,7 @@ import {
   UserCheck,
   BarChart3,
   Calculator,
+  Layers,
 } from 'lucide-react';
 
 export type NavChild = {
@@ -95,6 +96,17 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Unfinish', href: '/products/product-inventory?type=wip', permission: 'product-inventory.menu' },
           { label: 'Finish Good', href: '/products/product-inventory?type=final', permission: 'product-inventory.menu' },
           { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: 'product-inventory.menu' },
+        ],
+      },
+    ],
+  },
+  {
+    title: 'INVENTORY',
+    items: [
+      {
+        label: 'Stock Operations',
+        icon: Layers,
+        children: [
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.menu' },
           { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },

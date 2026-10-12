@@ -377,13 +377,21 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           return stock > 0
         }
 
-        // Fallback: match by product_id via map when scalar UOM IDs differ
-        // (stock lives on the base-uom batch, not the line's own uom)
+        // Fallback: match by product_id when scalar UOM IDs differ
+        // (stock lives on the base-uom batch, not the line's own uom).
+        // Resolve the batch row's product_id from its own nested product_uom
+        // first (the API nests it), only then via the puomToProduct map.
         if (lineProductId != null) {
+          const batchPu =
+            inv.product_uom_batch?.product_uom ??
+            null
           const batchPuomId =
             inv.product_uom_batch?.product_uom_id ??
-            inv.product_uom_batch?.product_uom?.id
-          const invProductId = batchPuomId ? puomToProduct.get(batchPuomId) : undefined
+            batchPu?.id
+          const invProductId =
+            batchPu?.product_id ??
+            batchPu?.product?.id ??
+            (batchPuomId ? puomToProduct.get(batchPuomId) : undefined)
           if (invProductId === lineProductId) {
             const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
             return stock > 0
@@ -567,6 +575,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // Authoritative lookup: product_uom_id -> product_id, built from the
   // productUoms list which is already loaded with include 'product,uom'.
   // This avoids relying on fragile 3-level nested includes on inventory rows.
+  //
+  // Also enrich from source-branch inventory rows: the batch's product_uom
+  // (e.g. the base-uom SKU like "xxx-GR") may not be in the product-uoms
+  // dropdown page at all (pagination / active search replacing the list),
+  // which made the product_id fallback miss real batches → "No stock".
+  // Each inventory row carries product_uom_batch.product_uom(.product_id).
   const puomToProduct = useMemo(() => {
     const map = new Map<number, number>()
     for (const pu of productUoms) {
@@ -574,8 +588,16 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         map.set(pu.id, pu.product_id ?? pu.product.id)
       }
     }
+    for (const inv of sourceInventory) {
+      const pub = (inv as any)?.product_uom_batch
+      const puId = pub?.product_uom_id ?? pub?.product_uom?.id
+      const pid = pub?.product_uom?.product_id ?? pub?.product_uom?.product?.id
+      if (puId && pid && !map.has(Number(puId))) {
+        map.set(Number(puId), Number(pid))
+      }
+    }
     return map
-  }, [productUoms])
+  }, [productUoms, sourceInventory])
 
   useEffect(() => {
     if (!poDetail?.purchase_order_details?.length) return
