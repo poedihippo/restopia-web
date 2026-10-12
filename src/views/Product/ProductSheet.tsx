@@ -27,6 +27,7 @@ const BRANCH_TYPE_OPTIONS = [
   { value: 'warehouse', label: 'Warehouse' },
   { value: 'production', label: 'Production' },
   { value: 'outlet', label: 'Outlet' },
+  { value: 'others', label: 'Others' },
 ]
 
 const uomSchema = z.object({

@@ -420,6 +420,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
               <option value="warehouse">Warehouse</option>
               <option value="production">Production</option>
               <option value="outlet">Outlet</option>
+              <option value="others">Others</option>
             </select>
             {errors.branch_type?.message && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>

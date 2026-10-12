@@ -14,7 +14,7 @@ import { toastMutationApiError } from '@/utils/apiError';
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['warehouse', 'production', 'outlet']).default('outlet'),
+  type: z.enum(['warehouse', 'production', 'outlet', 'others']).default('outlet'),
   timezone: z.string().optional(),
   price_list_id: z.number().optional().nullable(),
   is_default: z.boolean().default(false),
@@ -30,7 +30,7 @@ interface BranchSheetProps {
     id: number
     code: string
     name: string
-    type?: 'warehouse' | 'production' | 'outlet'
+    type?: 'warehouse' | 'production' | 'outlet' | 'others'
     is_default?: boolean
     timezone?: string
     price_list_id?: number | null
@@ -293,6 +293,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
                 <option value="outlet">Outlet</option>
                 <option value="warehouse">Warehouse</option>
                 <option value="production">Production</option>
+                <option value="others">Others</option>
               </select>
               {errors.type && <div style={errorStyle}>{errors.type.message}</div>}
               <div style={hintStyle}>Warehouse can only hold WIP, Production can manufacture, Outlet sells to customers</div>

@@ -709,6 +709,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                   <option value="production">Production</option>
                   <option value="outlet">Outlet</option>
                   <option value="warehouse">Warehouse</option>
+                  <option value="others">Others</option>
                 </select>
               )}
             />
