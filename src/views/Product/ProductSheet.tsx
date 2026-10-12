@@ -12,6 +12,7 @@ import { uomsService } from '@/services/uoms.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { parseApiError, toastMutationApiError } from '@/utils/apiError'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
+import { useAuth } from '@/hooks/useAuth'
 import { describeSuggestionReason } from '@/utils/productUomName'
 import { X, Loader2, Plus, Trash2, Repeat, Sparkles } from 'lucide-react'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
@@ -22,9 +23,16 @@ const conversionSchema = z.object({
   amount: z.coerce.number().positive('Amount must be greater than 0'),
 })
 
+const BRANCH_TYPE_OPTIONS = [
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'production', label: 'Production' },
+  { value: 'outlet', label: 'Outlet' },
+]
+
 const uomSchema = z.object({
   id: z.coerce.number().min(0),
   uom_id: z.coerce.number().min(1, 'Unit is required'),
+  branch_type: z.string().min(1, 'Branch type is required'),
   code: z.string().min(1, 'Code is required'),
   name: z.string().max(255, 'Max 255 characters').optional(),
   base_price: z.coerce.number().min(0),
@@ -95,6 +103,7 @@ type FormValues = z.infer<typeof schema>
 const emptyUom = {
   id: 0,
   uom_id: 0,
+  branch_type: '',
   code: '',
   name: '',
   base_price: 0,
@@ -185,6 +194,8 @@ interface ProductSheetProps {
 export default function ProductSheet({ open, onClose, editData }: ProductSheetProps) {
   const queryClient = useQueryClient()
   const activeProductTypes = useActiveBranchProductTypes()
+  const { user } = useAuth()
+  const userBranchType = ((user as any)?.branch?.type as string | undefined) ?? ''
 
   // Conversion-factor change confirmation state
   const [showFactorChangeConfirm, setShowFactorChangeConfirm] = useState(false)
@@ -337,6 +348,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       uoms: (detail.product_uoms ?? []).map((pu: any) => ({
         id: pu.id ?? 0,
         uom_id: pu.uom_id ?? 0,
+        branch_type: pu.branch_type ?? '',
         code: pu.code ?? '',
         name: pu.name ?? '',
         base_price: pu.base_price ?? 0,
@@ -371,6 +383,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     const uoms = values.uoms.map((u) => ({
       ...(u.id > 0 ? { id: u.id } : {}),
       uom_id: u.uom_id,
+      branch_type: u.branch_type,
       code: u.code.trim(),
       // Always send an explicit string (never omit): the backend treats an
       // absent `name` as "unchanged" on PATCH, so an explicit "" is the only
@@ -830,7 +843,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 )}
                 <button
                   type="button"
-                  onClick={() => appendUom({ ...emptyUom, conversions: [] })}
+                  onClick={() => appendUom({ ...emptyUom, branch_type: userBranchType, conversions: [] })}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -999,6 +1012,51 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                       />
                       {errorMsg(uomErr?.code?.message)}
                     </div>
+                  </div>
+
+                  {/* Branch Type (radio) */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {fieldLabel('Branch Type', true)}
+                    <Controller
+                      name={`uoms.${i}.branch_type` as any}
+                      control={control}
+                      render={({ field }) => (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {BRANCH_TYPE_OPTIONS.map((opt) => {
+                            const selected = field.value === opt.value
+                            return (
+                              <label
+                                key={opt.value}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '6px 12px',
+                                  borderRadius: 'var(--radius-md)',
+                                  border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                                  background: selected ? 'var(--accent-light-bg)' : 'var(--surface)',
+                                  color: selected ? 'var(--accent)' : 'var(--foreground-muted)',
+                                  fontSize: 12,
+                                  fontWeight: 500,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <input
+                                  type="radio"
+                                  name={field.name}
+                                  value={opt.value}
+                                  checked={selected}
+                                  onChange={() => field.onChange(opt.value)}
+                                  style={{ margin: 0, accentColor: 'var(--accent)' }}
+                                />
+                                {opt.label}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      )}
+                    />
+                    {errorMsg(uomErr?.branch_type?.message)}
                   </div>
 
                   {/* Display name (product_uoms.name) */}
