@@ -10,7 +10,7 @@ export interface IBranch {
   company_id?: number;
   code?: string;
   name?: string;
-  type?: 'warehouse' | 'production' | 'outlet' | 'others';
+  type?: 'warehouse' | 'production' | 'outlet' | 'other';
   is_default?: boolean;
   created_at?: Date;
   updated_at?: Date;

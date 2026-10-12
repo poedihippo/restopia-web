@@ -22,6 +22,7 @@ import api from '@/hooks/useApi'
 import {
   loadStoredMode,
   persistMode,
+  convertUp,
   type ConversionEntry,
   type UnitDisplayMode,
 } from '@/utils/unitDisplay'
@@ -152,12 +153,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  // Dedicated key: product inventory has its own mode default ('branch' —
+  // stock shown in the product-UOM matching the user's branch.type).
+  const PRODUCT_INVENTORY_QTY_MODE_KEY = 'product_inventory_qty_mode'
+  const userBranchType = ((user as any)?.branch?.type as string | undefined) ?? ''
   const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() =>
-    loadStoredMode((user as any)?.branch?.type),
+    loadStoredMode(userBranchType, 'branch', PRODUCT_INVENTORY_QTY_MODE_KEY),
   )
 
   useEffect(() => {
-    persistMode(unitMode)
+    persistMode(unitMode, PRODUCT_INVENTORY_QTY_MODE_KEY)
   }, [unitMode])
 
   useEffect(() => {
@@ -278,6 +283,24 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const productUomsAll = (puData as any)?.data ?? []
   const getProductUom = (id: number) =>
     productUomsAll.find((pu: any) => pu.id === id)
+
+  // Branch-type display: for each product, pick ONE product-UOM whose
+  // branch_type matches the logged-in user's branch.type (from auth/me).
+  // Stock (base_stock in base unit) is converted into that UOM, e.g.
+  // 50.000 GR → 50 KG when the user's branch type is "production" and
+  // the KG product-UOM has branch_type=production.
+  const branchUomByProductId = new Map<number, { uomCode: string; conversions?: ConversionEntry[] }>()
+  if (userBranchType) {
+    for (const pu of productUomsAll) {
+      if (!pu?.branch_type || !pu?.product_id) continue
+      if (String(pu.branch_type).toLowerCase() !== userBranchType.toLowerCase()) continue
+      if (branchUomByProductId.has(Number(pu.product_id))) continue
+      branchUomByProductId.set(Number(pu.product_id), {
+        uomCode: pu.uom?.code ?? '',
+        conversions: pu.product?.conversions,
+      })
+    }
+  }
 
   const filteredItems = items.filter((i) => {
     const currentStock = Number(i.stock ?? i.qty ?? 0)
@@ -506,6 +529,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           {([
             { key: 'smallest', label: 'Smallest', hint: 'base_qty + base_uom (e.g. 4.200 GR)' },
             { key: 'largest', label: 'Largest', hint: 'convert to largest UOM (e.g. 1 PACK)' },
+            { key: 'branch', label: 'Branch Type', hint: 'convert ke UOM sesuai branch type kamu (e.g. 50 KG)' },
           ] as { key: UnitDisplayMode; label: string; hint: string }[]).map((opt) => {
             const active = unitMode === opt.key
             return (
@@ -758,10 +782,14 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 const baseUomCode = item.base_uom_code ??
                   item.product_uom_batch?.product_uom?.uom?.code ??
                   item.product_uom?.uom?.code ?? ''
+                const puFallback = getProductUom(item.product_uom_id)
 
                 // For "largest" mode: walk the conversion chain from base → top,
                 // dividing by each amount. The resulting value is in the
                 // largest UOM. Fall back to base if chain is incomplete.
+                // For "branch" mode: convert base → the product-UOM whose
+                // branch_type matches the user's branch.type. Fall back to
+                // base if the product has no matching UOM / conversion.
                 let stockQty = baseQty
                 let stockUnit = baseUomCode
                 if (unitMode === 'largest' && conversions && conversions.length > 0) {
@@ -771,6 +799,19 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     if (next < 1) break
                     stockQty = next
                     stockUnit = step.uom_code
+                  }
+                } else if (unitMode === 'branch' && userBranchType) {
+                  const productId =
+                    item.product_uom_batch?.product_uom?.product?.id ??
+                    item.product_uom?.product?.id ??
+                    puFallback?.product?.id
+                  const target = productId ? branchUomByProductId.get(Number(productId)) : undefined
+                  if (target?.uomCode) {
+                    const converted = convertUp(baseQty, baseUomCode, target.uomCode, conversions ?? target.conversions)
+                    if (converted !== null) {
+                      stockQty = converted
+                      stockUnit = target.uomCode
+                    }
                   }
                 }
                 const stockDisplay =
@@ -782,7 +823,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                   item.min_qty !== undefined &&
                   item.min_qty !== null &&
                   baseQty <= (item.min_qty ?? 0)
-                const puFallback = getProductUom(item.product_uom_id)
 
                 return (
                   <tr
@@ -1245,6 +1285,18 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                         unit = step.uom_code
                       }
                       return `${val.toLocaleString('id-ID')} ${unit}`
+                    }
+                    if (unitMode === 'branch' && userBranchType) {
+                      const productId =
+                        selectedItem.product_uom_batch?.product_uom?.product?.id ??
+                        selectedItem.product_uom?.product?.id
+                      const target = productId ? branchUomByProductId.get(Number(productId)) : undefined
+                      if (target?.uomCode) {
+                        const converted = convertUp(bQty, bUom, target.uomCode, conversions ?? target.conversions)
+                        if (converted !== null) {
+                          return `${converted.toLocaleString('id-ID')} ${target.uomCode}`
+                        }
+                      }
                     }
                     return `${bQty.toLocaleString('id-ID')} ${bUom}`
                   })() },

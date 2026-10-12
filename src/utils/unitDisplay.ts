@@ -1,4 +1,4 @@
-export type UnitDisplayMode = 'smallest' | 'largest'
+export type UnitDisplayMode = 'smallest' | 'largest' | 'branch'
 
 export interface ConversionEntry {
   uom_code: string
@@ -26,22 +26,30 @@ export function getDefaultMode(branchType?: string | null): UnitDisplayMode {
 
 /**
  * Load persisted preference; falls back to branch default when missing/invalid.
+ * - defaultMode: override the branch-type heuristic when nothing is stored
+ *   (e.g. 'branch' for product inventory — show stock in the product-UOM
+ *   matching the user's branch.type).
+ * - storageKey: isolate preferences per view (default shared key).
  */
-export function loadStoredMode(branchType?: string | null): UnitDisplayMode {
-  if (typeof window === 'undefined') return getDefaultMode(branchType)
+export function loadStoredMode(
+  branchType?: string | null,
+  defaultMode?: UnitDisplayMode,
+  storageKey: string = STORAGE_KEY,
+): UnitDisplayMode {
+  if (typeof window === 'undefined') return defaultMode ?? getDefaultMode(branchType)
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (raw === 'smallest' || raw === 'largest') return raw
+    const raw = window.localStorage.getItem(storageKey)
+    if (raw === 'smallest' || raw === 'largest' || raw === 'branch') return raw
   } catch {
     // localStorage may be unavailable (private mode, SSR edge)
   }
-  return getDefaultMode(branchType)
+  return defaultMode ?? getDefaultMode(branchType)
 }
 
-export function persistMode(mode: UnitDisplayMode): void {
+export function persistMode(mode: UnitDisplayMode, storageKey: string = STORAGE_KEY): void {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(STORAGE_KEY, mode)
+    window.localStorage.setItem(storageKey, mode)
   } catch {
     // ignore
   }

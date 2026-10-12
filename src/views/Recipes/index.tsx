@@ -242,7 +242,7 @@ export default function RecipesView() {
               { value: 'production', label: 'Production' },
               { value: 'outlet', label: 'Outlet' },
               { value: 'warehouse', label: 'Warehouse' },
-              { value: 'others', label: 'Others' },
+              { value: 'other', label: 'Other' },
             ]}
             placeholder="Filter by Type"
           />

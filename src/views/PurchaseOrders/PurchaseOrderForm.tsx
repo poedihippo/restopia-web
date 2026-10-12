@@ -83,7 +83,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
   useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
-  const [showAllUoms, setShowAllUoms] = useState(false)
   const { mode, initialData, orderId } = props
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -193,9 +192,11 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   // Query utama: hanya aktif + default — single call, no loop.
   // Filter branch_type dari auth/me (user.branch.type) agar SKU sesuai tipe branch.
-  const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
+  // Pengecualian: branch type "outlet" tidak perlu difilter — tampilkan semua product-UOM.
+  const branchTypeRaw = ((user as any)?.branch?.type as string | undefined) || ''
+  const activeBranchType = branchTypeRaw && branchTypeRaw !== 'outlet' ? branchTypeRaw : undefined
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes, activeBranchType, debouncedDropdownSearch, showAllUoms],
+    queryKey: ['product-uoms-all', activeProductTypes, activeBranchType, debouncedDropdownSearch],
     queryFn: () =>
       productUomsService
         .list({
@@ -204,7 +205,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
           'filter[branch_type]': activeBranchType,
-          'filter[is_default]': showAllUoms ? undefined : true,
           'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
@@ -294,16 +294,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       }
     }
   }
-
-  // In edit mode, if an existing detail uses a non-default UOM that is not
-  // returned by the default filter, automatically show all UOMs so the
-  // selected item remains visible and selectable.
-  useEffect(() => {
-    if (mode !== 'edit' || !initialData?.details || !allProductUoms.length) return
-    const availableIds = new Set(allProductUoms.map((pu: any) => pu.id))
-    const hasMissing = initialData.details.some((d: any) => d.product_uom_id && !availableIds.has(d.product_uom_id))
-    if (hasMissing) setShowAllUoms(true)
-  }, [mode, initialData, allProductUoms])
 
   // Last-purchase-price history for the selected supplier. Reads existing POs;
   // no backend change. Newest entry per product_uom_id (POs sorted -date).
@@ -835,25 +825,6 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               LINE ITEMS
             </h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 12,
-                  color: 'var(--foreground-muted)',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={showAllUoms}
-                  onChange={(e) => setShowAllUoms(e.target.checked)}
-                  style={{ width: 14, height: 14, cursor: 'pointer' }}
-                />
-                Show all UOMs
-              </label>
               <button
                 type="button"
                 onClick={() => setShowRecipeModal(true)}
