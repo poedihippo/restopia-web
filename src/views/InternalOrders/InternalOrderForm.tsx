@@ -109,8 +109,10 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   })
   const branches = (branchesData as any)?.data ?? []
 
+  // Filter branch_type dari auth/me (user.branch.type) agar SKU sesuai tipe branch.
+  const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', debouncedDropdownSearch, showAllUoms],
+    queryKey: ['product-uoms-all', activeBranchType, debouncedDropdownSearch, showAllUoms],
     queryFn: () =>
       productUomsService
         .list({
@@ -118,6 +120,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
           per_page: 1000,
           include: 'product,uom',
           'filter[product_types]': 'wip,raw,supply',
+          'filter[branch_type]': activeBranchType,
           'filter[is_default]': showAllUoms ? undefined : true,
           'filter[is_active]': true,
         } as any)

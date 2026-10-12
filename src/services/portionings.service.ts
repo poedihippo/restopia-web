@@ -1,11 +1,22 @@
 import api from '@/hooks/useApi'
-import type { ApiResponse, PortioningRequest } from '@/types/api'
+import type { ApiResponse, PaginatedData, ListParams, PortioningRequest } from '@/types/api'
 
-// Create + preview only: the list/detail GET endpoints are not live yet.
 export const portioningsService = {
+  list: (params?: ListParams) =>
+    api.get<ApiResponse<PaginatedData<unknown>>>('/portionings', { params }),
+
+  findById: (id: number, params?: { include?: string }) =>
+    api.get<ApiResponse<unknown>>(`/portionings/${id}`, { params }),
+
   create: (data: PortioningRequest) =>
     api.post<ApiResponse<unknown>>('/portionings', data),
 
   preview: (data: PortioningRequest) =>
     api.post<ApiResponse<unknown>>('/portionings/preview', data),
+
+  update: (id: number, data: Partial<PortioningRequest>) =>
+    api.patch<ApiResponse<unknown>>(`/portionings/${id}`, data),
+
+  delete: (id: number) =>
+    api.delete<ApiResponse<unknown>>(`/portionings/${id}`),
 }

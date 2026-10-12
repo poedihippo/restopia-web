@@ -121,7 +121,7 @@ export default function ProductView() {
           page,
           per_page: perPage,
           sort: sortParam,
-          include: 'product_category',
+          include: 'product_category,base_uom',
           'filter[search]': debouncedSearch || undefined,
           'filter[types]': typeFilter === '' ? undefined : String(typeFilter),
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
@@ -906,10 +906,10 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                                {uomInfo?.name ?? `UOM #${pu.uom_id}`}
+                                {pu.name ?? uomInfo?.name ?? `UOM #${pu.uom_id}`}
                               </span>
-                              {uomInfo?.code && (
-                                <span style={codePill}>{uomInfo.code}</span>
+                              {(pu.uom_code ?? uomInfo?.code) && (
+                                <span style={codePill}>{pu.uom_code ?? uomInfo?.code}</span>
                               )}
                               {pu.is_default && (
                                 <span style={{
@@ -1008,13 +1008,13 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                                       }}
                                     >
                                       <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>
-                                        1 {uomInfo?.code ?? '?'}
+                                        1 {pu.uom_code ?? uomInfo?.code ?? '?'}
                                       </span>
                                       <span>=</span>
                                       <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
                                         {c.amount?.toLocaleString('id-ID') ?? '?'}
                                       </span>
-                                      <span>{targetUom?.code ?? `UOM #${c.target_uom_id}`}</span>
+                                      <span>{c.target_uom_code ?? targetUom?.code ?? `UOM #${c.target_uom_id}`}</span>
                                     </div>
                                   )
                                 })}

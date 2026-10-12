@@ -69,6 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Production', href: '/production', permission: 'production.menu' },
           { label: 'Conversion', href: '/production/conversion', permission: 'production.menu' },
+          { label: 'Portioning', href: '/production/portioning', permission: 'production.menu' },
           { label: 'Recipes', href: '/production/recipes', permission: 'recipe.menu' },
         ],
       },

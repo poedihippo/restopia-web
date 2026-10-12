@@ -25,6 +25,7 @@ const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
 const schema = z.object({
   product_id: z.coerce.number().min(1, 'Product is required'),
   uom_id: z.coerce.number().min(1, 'UOM is required'),
+  branch_type: z.string().min(1, 'Branch type is required'),
   code: z.string().min(1, 'Code is required'),
   name: z.string().max(255, 'Max 255 characters').optional(),
   base_price: z.coerce.number().min(0).optional(),
@@ -43,6 +44,7 @@ interface ProductUomSheetProps {
     id: number
     product_id: number
     uom_id: number
+    branch_type?: string | null
     code?: string
     name?: string | null
     base_price?: number
@@ -80,6 +82,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     defaultValues: {
       product_id: editData?.product_id ?? 0,
       uom_id: editData?.uom_id ?? 0,
+      branch_type: (editData?.branch_type as any) ?? '',
       code: '',
       name: '',
       base_price: 0,
@@ -188,6 +191,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       reset({
         product_id: editData.product_id ?? 0,
         uom_id: editData.uom_id ?? 0,
+        branch_type: (editData.branch_type as any) ?? '',
         code: editData.code ?? '',
         name: editData.name ?? '',
         base_price: editData.base_price ?? 0,
@@ -201,6 +205,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       reset({
         product_id: 0,
         uom_id: 0,
+        branch_type: '',
         code: '',
         name: '',
         base_price: 0,
@@ -221,6 +226,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
       reset({
         product_id: 0,
         uom_id: 0,
+        branch_type: '',
         code: '',
         name: '',
         base_price: 0,
@@ -401,6 +407,25 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
 />
               )}
             />
+          </div>
+
+          {/* Branch Type */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
+              Branch Type
+              <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            </label>
+            <select {...register('branch_type')} style={inputStyle}>
+              <option value="">Select branch type...</option>
+              <option value="warehouse">Warehouse</option>
+              <option value="production">Production</option>
+              <option value="outlet">Outlet</option>
+            </select>
+            {errors.branch_type?.message && (
+              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                {errors.branch_type.message as string}
+              </span>
+            )}
           </div>
 
           {/* Code */}

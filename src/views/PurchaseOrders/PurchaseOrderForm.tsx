@@ -192,8 +192,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const branches = (branchesData as any)?.data ?? []
 
   // Query utama: hanya aktif + default — single call, no loop.
+  // Filter branch_type dari auth/me (user.branch.type) agar SKU sesuai tipe branch.
+  const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes, debouncedDropdownSearch, showAllUoms],
+    queryKey: ['product-uoms-all', activeProductTypes, activeBranchType, debouncedDropdownSearch, showAllUoms],
     queryFn: () =>
       productUomsService
         .list({
@@ -201,6 +203,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           per_page: 1000,
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
+          'filter[branch_type]': activeBranchType,
           'filter[is_default]': showAllUoms ? undefined : true,
           'filter[is_active]': true,
         } as any)

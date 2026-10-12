@@ -161,6 +161,7 @@ export interface ProductConversionRequest {
 export interface ProductUomRequest {
   product_id: number
   uom_id: number
+  branch_type: string
   code?: string
   name?: string
   base_price: number
@@ -332,7 +333,7 @@ export interface ProductionRequest {
   details: ProductionDetail[]
 }
 
-// Portionings (create + preview only — no list/detail endpoints yet)
+// Portionings
 export interface PortioningDetail {
   product_uom_id: number
   qty: number
@@ -356,6 +357,89 @@ export interface PortioningRequest {
   output_stage: string
   output_location_ref: string
   details: PortioningDetail[]
+}
+
+// Portioning responses (list/detail)
+export interface PortioningDetailMaterialRow {
+  id: number
+  product_inventory_id: number
+  product_uom_id: number
+  qty_per_unit: number
+  role: 'base' | 'packaging'
+  owner_ref?: string | null
+  stage?: string | null
+  location_ref?: string | null
+  product_inventory?: {
+    id: number
+    stage?: string
+    owner_ref?: string
+    location_ref?: string
+    stock?: number
+  }
+}
+export interface PortioningReservationRow {
+  id: number
+  reserved_base_qty: number
+  applied_base_qty: number
+  released_base_qty: number
+  outstanding_base_qty: number
+  settled_exact_qty: number
+  product_inventory_id: number
+  portioning_detail_material_id: number
+}
+export interface PortioningSellableRow {
+  id: number
+  batch_code?: string
+  qty: number
+  remaining_qty: number
+  status: 'active' | 'closed' | 'cancelled'
+  expiry_date?: string
+}
+export interface PortioningDetailRow {
+  id: number
+  product_uom_id: number
+  qty: number
+  base_product_inventory_id: number
+  batch_code?: string
+  expiry_date?: string
+  status: 'pending' | 'final'
+  description?: string
+  owner_ref?: string | null
+  stage?: string | null
+  location_ref?: string | null
+  fraction_base?: number
+  fraction_source?: string
+  recipe_id?: number
+  product_uom?: {
+    id: number
+    name?: string
+    code?: string
+    product?: { id: number; name?: string; code?: string }
+  }
+  product_inventory?: { id: number; stage?: string; owner_ref?: string; location_ref?: string; stock?: number }
+  materials?: PortioningDetailMaterialRow[]
+  reservations?: PortioningReservationRow[]
+  sellable?: PortioningSellableRow
+}
+export interface Portioning {
+  id: number
+  code: string
+  date: string
+  status: 'pending' | 'final'
+  description?: string
+  branch_id: number
+  branch?: { id: number; name?: string; code?: string }
+  source_owner_ref?: string
+  source_stage?: string
+  source_location_ref?: string
+  output_owner_ref?: string
+  output_stage?: string
+  output_location_ref?: string
+  created_by_id?: number
+  created_by?: { id: number; name?: string }
+  created_at?: string
+  updated_at?: string
+  details?: PortioningDetailRow[]
 }
 
 // Suppliers
