@@ -332,6 +332,32 @@ export interface ProductionRequest {
   details: ProductionDetail[]
 }
 
+// Portionings (create + preview only — no list/detail endpoints yet)
+export interface PortioningDetail {
+  product_uom_id: number
+  qty: number
+  base_product_inventory_id: number
+  batch_code?: string
+  expiry_date?: string
+  status: 'pending' | 'final'
+  owner_ref?: string | null
+  stage?: string | null
+  location_ref?: string | null
+  materials?: ProductionMaterial[]
+}
+export interface PortioningRequest {
+  date: string
+  status: 'pending' | 'final'
+  description?: string
+  source_owner_ref: string
+  source_stage: string
+  source_location_ref: string
+  output_owner_ref: string
+  output_stage: string
+  output_location_ref: string
+  details: PortioningDetail[]
+}
+
 // Suppliers
 export interface SupplierRequest {
   code: string
