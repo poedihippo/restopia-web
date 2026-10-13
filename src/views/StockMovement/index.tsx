@@ -1,8 +1,9 @@
 'use client'
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, parseApiDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
@@ -191,6 +192,7 @@ export function MovementDocumentLink({ item }: { item: StockMovement }) {
 }
 
 export default function StockMovementView() {
+  const router = useRouter()
   const { hasPermission, user } = useAuth()
   const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
@@ -202,6 +204,8 @@ export default function StockMovementView() {
   const [productId, setProductId] = useState<number>(0)
   const [productSearch, setProductSearch] = useState('')
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   // Branch type menentukan toggle satuan otomatis:
@@ -215,6 +219,14 @@ export default function StockMovementView() {
     if (t === 'warehouse') return 'largest'
     return loadStoredMode(branchType)
   })
+
+  useEffect(() => {
+    if (!router.isReady) return
+    const qp = router.query
+    if (qp.product_id) setProductId(Number(qp.product_id) || 0)
+    if (qp.start_date) setStartDate(String(qp.start_date))
+    if (qp.end_date) setEndDate(String(qp.end_date))
+  }, [router.isReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -232,7 +244,7 @@ export default function StockMovementView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter, productId])
+  }, [debouncedSearch, directionFilter, productId, startDate, endDate])
 
   useEffect(() => {
     persistMode(unitMode)
@@ -279,6 +291,17 @@ export default function StockMovementView() {
   const items: StockMovement[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
+  // Client-side date filter — backend /v1/stock-movements doesn't support
+  // filter[start_date]/filter[end_date], so we narrow the already-fetched page.
+  const filteredItems = items.filter((item) => {
+    if (!startDate && !endDate) return true
+    const d = parseApiDate(item.created_at)
+    if (!d) return true
+    if (startDate && d < new Date(startDate + 'T00:00:00')) return false
+    if (endDate && d > new Date(endDate + 'T23:59:59')) return false
+    return true
+  })
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Page header */}
@@ -310,7 +333,9 @@ export default function StockMovementView() {
               margin: '4px 0 0 0',
             }}
           >
-            Riwayat semua pergerakan stok
+            {startDate || endDate
+              ? `Filter tanggal: ${startDate || '...'} s/d ${endDate || '...'}`
+              : 'Riwayat semua pergerakan stok'}
           </p>
         </div>
 
@@ -388,6 +413,40 @@ export default function StockMovementView() {
           <option value="in">Stock In</option>
           <option value="out">Stock Out</option>
         </select>
+
+        {/* Date filters (client-side) */}
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          title="Dari tanggal"
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface-raised)',
+            outline: 'none',
+            fontFamily: 'var(--font-sans)',
+          }}
+        />
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          title="Sampai tanggal"
+          style={{
+            padding: '8px 12px',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            color: 'var(--foreground)',
+            background: 'var(--surface-raised)',
+            outline: 'none',
+            fontFamily: 'var(--font-sans)',
+          }}
+        />
 
         {/* Unit display mode toggle */}
         <div
@@ -536,7 +595,7 @@ export default function StockMovementView() {
               </tr>
             )}
 
-            {!isLoading && !isError && items.length === 0 && (
+            {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
                 <td colSpan={8}>
                   <div
@@ -558,7 +617,7 @@ export default function StockMovementView() {
             )}
 
             {!isLoading &&
-              items.map((item: any) => {
+              filteredItems.map((item: any) => {
                 const typeMeta =
                   TYPE_META[item.direction as keyof typeof TYPE_META] ??
                   TYPE_META['in']

@@ -22,4 +22,7 @@ export const productUomsService = {
       '/product-uoms/name-suggestions',
       { params: { product_id: productId } },
     ),
+
+  cardStock: (params?: ListParams) =>
+    api.get<ApiResponse<PaginatedData<unknown>>>('/product-uoms/card-stock', { params }),
 }
