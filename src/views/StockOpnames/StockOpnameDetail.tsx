@@ -454,7 +454,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     rawProductUoms.forEach((pu: any) => {
       const pid = Number(pu.product_id)
       if (!pid || map.has(pid)) return
-      if (!pu.branch_type || String(pu.branch_type).toLowerCase() !== userBranchType.toLowerCase()) return
+      if (!pu.branch_types || !Array.isArray(pu.branch_types)) return
+      if (!pu.branch_types.some((bt: string) => String(bt).toLowerCase() === userBranchType.toLowerCase())) return
       const branchUomCode = pu.uom?.code ?? ''
       if (!branchUomCode) return
       const nested: any[] = Array.isArray(pu.product?.conversions) ? pu.product.conversions : []

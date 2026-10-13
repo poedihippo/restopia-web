@@ -33,7 +33,7 @@ const BRANCH_TYPE_OPTIONS = [
 const uomSchema = z.object({
   id: z.coerce.number().min(0),
   uom_id: z.coerce.number().min(1, 'Unit is required'),
-  branch_type: z.string().min(1, 'Branch type is required'),
+  branch_types: z.array(z.string()).min(1, 'Branch type is required'),
   code: z.string().min(1, 'Code is required'),
   name: z.string().max(255, 'Max 255 characters').optional(),
   base_price: z.coerce.number().min(0),
@@ -104,7 +104,7 @@ type FormValues = z.infer<typeof schema>
 const emptyUom = {
   id: 0,
   uom_id: 0,
-  branch_type: '',
+  branch_types: [] as string[],
   code: '',
   name: '',
   base_price: 0,
@@ -349,7 +349,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       uoms: (detail.product_uoms ?? []).map((pu: any) => ({
         id: pu.id ?? 0,
         uom_id: pu.uom_id ?? 0,
-        branch_type: pu.branch_type ?? '',
+        branch_types: pu.branch_types ?? [],
         code: pu.code ?? '',
         name: pu.name ?? '',
         base_price: pu.base_price ?? 0,
@@ -384,7 +384,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     const uoms = values.uoms.map((u) => ({
       ...(u.id > 0 ? { id: u.id } : {}),
       uom_id: u.uom_id,
-      branch_type: u.branch_type,
+      branch_types: u.branch_types,
       code: u.code.trim(),
       // Always send an explicit string (never omit): the backend treats an
       // absent `name` as "unchanged" on PATCH, so an explicit "" is the only
@@ -844,7 +844,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 )}
                 <button
                   type="button"
-                  onClick={() => appendUom({ ...emptyUom, branch_type: userBranchType, conversions: [] })}
+                  onClick={() => appendUom({ ...emptyUom, branch_types: userBranchType ? [userBranchType] : [], conversions: [] })}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1015,16 +1015,16 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                     </div>
                   </div>
 
-                  {/* Branch Type (radio) */}
+                  {/* Branch Types (checkboxes) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {fieldLabel('Branch Type', true)}
+                    {fieldLabel('Branch Types', true)}
                     <Controller
-                      name={`uoms.${i}.branch_type` as any}
+                      name={`uoms.${i}.branch_types` as any}
                       control={control}
                       render={({ field }) => (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {BRANCH_TYPE_OPTIONS.map((opt) => {
-                            const selected = field.value === opt.value
+                            const selected = (field.value ?? []).includes(opt.value)
                             return (
                               <label
                                 key={opt.value}
@@ -1043,11 +1043,14 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                                 }}
                               >
                                 <input
-                                  type="radio"
-                                  name={field.name}
-                                  value={opt.value}
+                                  type="checkbox"
                                   checked={selected}
-                                  onChange={() => field.onChange(opt.value)}
+                                  onChange={() => {
+                                    const next = selected
+                                      ? (field.value ?? []).filter((v: string) => v !== opt.value)
+                                      : [...(field.value ?? []), opt.value]
+                                    field.onChange(next)
+                                  }}
                                   style={{ margin: 0, accentColor: 'var(--accent)' }}
                                 />
                                 {opt.label}
@@ -1057,7 +1060,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                         </div>
                       )}
                     />
-                    {errorMsg(uomErr?.branch_type?.message)}
+                    {errorMsg(uomErr?.branch_types?.message)}
                   </div>
 
                   {/* Display name (product_uoms.name) */}

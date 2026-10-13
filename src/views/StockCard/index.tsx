@@ -297,10 +297,10 @@ export default function StockCardView() {
         }}
       >
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
-                {['Produk', 'UOM', 'Stok', 'Masuk', 'Keluar', ''].map((label, i) => (
+                {['#', 'Produk', 'UOM', 'Stok', 'Masuk', 'Keluar', ''].map((label, i) => (
                   <th key={i} style={thStyle}>
                     {label}
                   </th>
@@ -310,7 +310,7 @@ export default function StockCardView() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                       {[60, 40, 80, 50, 70].map((w, i) => (
                         <div
@@ -331,7 +331,7 @@ export default function StockCardView() {
 
               {isError && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                     Gagal memuat kartu stok
                   </td>
                 </tr>
@@ -339,7 +339,7 @@ export default function StockCardView() {
 
               {!isLoading && !isError && items.length === 0 && (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <div
                       style={{
                         padding: 48,
@@ -360,7 +360,7 @@ export default function StockCardView() {
 
               {!isLoading &&
                 !isError &&
-                items.map((item) => {
+                items.map((item, idx) => {
                   const inTotal = item.card_stock?.in?.total ?? 0
                   const outTotal = item.card_stock?.out?.total ?? 0
                   return (
@@ -369,6 +369,9 @@ export default function StockCardView() {
                       onClick={() => goToMovements(item)}
                       style={{ cursor: 'pointer' }}
                     >
+                      <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 12 }}>
+                        {(page - 1) * perPage + idx + 1}
+                      </td>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>

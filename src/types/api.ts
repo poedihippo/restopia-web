@@ -161,7 +161,7 @@ export interface ProductConversionRequest {
 export interface ProductUomRequest {
   product_id: number
   uom_id: number
-  branch_type: string
+  branch_types: string[]
   code?: string
   name?: string
   base_price: number

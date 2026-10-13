@@ -29,7 +29,7 @@ interface ProductUom {
   id: number
   code?: string
   name?: string | null
-  branch_type?: string | null
+  branch_types?: string[]
   base_price?: number
   online_price?: number
   franchise_price?: number
