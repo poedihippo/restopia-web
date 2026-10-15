@@ -292,6 +292,7 @@ export interface StockMovementRequest {
 export interface RecipeMaterialItem {
   product_uom_id: number
   qty: number
+  deduction_type: string
 }
 export interface RecipeRequest {
   product_uom_id: number

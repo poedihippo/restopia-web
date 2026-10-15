@@ -20,6 +20,7 @@ import { getProductUomName } from '@/utils/productUomName'
 const materialSchema = z.object({
   product_uom_id: z.coerce.number().min(1, 'Material required'),
   qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
+  deduction_type: z.string().min(1).default('deduct_on_production'),
 })
 
 const schema = z.object({
@@ -53,6 +54,7 @@ interface RecipeSheetProps {
       id: number
       product_uom_id: number
       qty: number
+      deduction_type?: string
       product_uom?: {
         id: number
         code?: string
@@ -277,6 +279,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
           editData.recipe_materials?.map((m) => ({
             product_uom_id: m.product_uom_id,
             qty: m.qty,
+            deduction_type: m.deduction_type ?? 'deduct_on_production',
           })) ?? [],
       })
       const map: Record<number, any> = {}
@@ -1013,7 +1016,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                       key={pu.id}
                       type="button"
                       onClick={() => {
-                        append({ product_uom_id: pu.id, qty: 1 })
+                        append({ product_uom_id: pu.id, qty: 1, deduction_type: 'deduct_on_production' })
                         setMaterialInfoMap((prev) => ({
                           ...prev,
                           [pu.id]: {
@@ -1097,7 +1100,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                   key={field.id}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '24px 1fr 100px 32px',
+                    gridTemplateColumns: '20px 1fr 78px 104px 30px',
                     gap: 8,
                     alignItems: 'start',
                   }}
@@ -1172,6 +1175,23 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                       </span>
                     )}
                   </div>
+
+                  {/* Deduction type */}
+                  <Controller
+                    name={`materials.${index}.deduction_type`}
+                    control={control}
+                    render={({ field }) => (
+                      <select
+                        value={field.value}
+                        onChange={field.onChange}
+                        title="Kapan stok material ini dipotong"
+                        style={{ ...fieldStyle, padding: '8px 6px', cursor: 'pointer', height: 38 }}
+                      >
+                        <option value="deduct_on_production">Produksi</option>
+                        <option value="deduct_on_sold">Terjual</option>
+                      </select>
+                    )}
+                  />
 
                   {/* Remove */}
                   <button
