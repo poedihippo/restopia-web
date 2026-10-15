@@ -316,7 +316,7 @@ export default function PortioningForm() {
     resolver: zodResolver(schema) as any,
     defaultValues: {
       date: todayLocalISO(),
-      status: 'pending',
+      status: 'final',
       description: '',
       source_owner_ref: 'GENERAL',
       source_stage: 'GENERAL',
@@ -434,8 +434,12 @@ export default function PortioningForm() {
     })
   }
 
+  const applyCutFilter = cutsMap.size > 0
   const inventoryOptions = inventories
-    .filter((inv: any) => cutsMap.has(Number((inv?.product_uom_batch?.product_uom ?? inv?.product_uom)?.id)))
+    .filter(
+      (inv: any) =>
+        !applyCutFilter || cutsMap.has(Number((inv?.product_uom_batch?.product_uom ?? inv?.product_uom)?.id)),
+    )
     .map((inv: any) => {
       const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
       const stockQty = inv.display_qty ?? inv.stock ?? 0
