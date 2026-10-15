@@ -12,12 +12,13 @@ import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import { portioningsService } from '@/services/portionings.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
+import { productCutsService } from '@/services/product-cuts.service'
 import { companiesService } from '@/services/companies.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
-import type { PortioningRequest } from '@/types/api'
+import type { PortioningRequest, ProductCut } from '@/types/api'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 // Location pickers are hidden on this form; the backend always gets GENERAL.
@@ -26,9 +27,9 @@ const LOCATION_GENERAL = 'GENERAL'
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
 const detailSchema = z.object({
-  product_uom_id: z.coerce.number().min(1, 'SKU final wajib dipilih'),
-  qty: z.coerce.number().gt(0, 'Qty harus lebih dari 0'),
-  base_product_inventory_id: z.coerce.number().min(1, 'Base inventory wajib dipilih'),
+  base_product_inventory_id: z.coerce.number().min(1, 'Base cake wajib dipilih'),
+  base_qty: z.coerce.number().gt(0, 'Qty base harus lebih dari 0'),
+  product_uom_id: z.coerce.number().min(1, 'SKU hasil wajib dipilih'),
   batch_code: z.string().optional(),
   expiry_date: z.string().optional(),
 })
@@ -99,6 +100,13 @@ const errorTextStyle: React.CSSProperties = {
   marginTop: 3,
 }
 
+const roStyle: React.CSSProperties = {
+  ...fieldInputStyle,
+  background: 'var(--background)',
+  borderStyle: 'dashed',
+  color: 'var(--foreground-muted)',
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /** Local calendar date (not UTC) so early-morning WIB entries don't default to yesterday. */
@@ -109,9 +117,9 @@ function todayLocalISO(): string {
 }
 
 const emptyDetail = (): DetailValues => ({
-  product_uom_id: 0,
-  qty: 1,
   base_product_inventory_id: 0,
+  base_qty: 1,
+  product_uom_id: 0,
   batch_code: '',
   expiry_date: '',
 })
@@ -119,9 +127,6 @@ const emptyDetail = (): DetailValues => ({
 /** Signature of the raw form state; `status` is excluded because the save buttons override it. */
 const formSignature = (values: unknown): string =>
   JSON.stringify({ ...(values as object), status: undefined })
-
-const isDeferredFinalUom = (pu: any): boolean =>
-  (pu?.product?.is_deferred ?? pu?.is_deferred) === true && pu?.product?.type === 'final'
 
 const formatNumber = (v: unknown, maxFractionDigits = 3): string => {
   const n = Number(v)
@@ -372,29 +377,6 @@ export default function PortioningForm() {
     }
   }, [stages, setValue])
 
-  // Final-SKU picker: fetch final product-UOMs and keep only deferred ones in memory.
-  const { data: uomsData, isLoading: uomsLoading } = useQuery({
-    queryKey: ['portioning-product-uoms-all'],
-    queryFn: () =>
-      api
-        .get('/product-uoms', {
-          params: {
-            per_page: 500,
-            include: 'product,uom',
-            'filter[product_types]': 'final',
-          },
-        })
-        .then((r) => r.data),
-  })
-  const allFinalUoms: any[] = (uomsData as any)?.data ?? []
-  const deferredUoms = allFinalUoms.filter(isDeferredFinalUom)
-  const uomOptions = deferredUoms.map((pu: any) => ({
-    value: Number(pu.id),
-    label: [getProductUomName(pu), pu.uom?.code].filter(Boolean).join(' · '),
-    sublabel: pu.code ? `SKU: ${pu.code}` : undefined,
-  }))
-  const uomLabelById = new Map<number, string>(uomOptions.map((o) => [o.value, o.label]))
-
   // Base-cake picker: this branch's inventory rows under the "Konsumsi Dari" dimension.
   const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
     queryKey: ['product-inventories-all', 'portioning', activeBranchId, watchSourceOwnerRef, watchSourceStage],
@@ -412,22 +394,64 @@ export default function PortioningForm() {
         .then((r) => r.data),
   })
   const inventories: any[] = (inventoriesData as any)?.data ?? []
-  const inventoryOptions = inventories.map((inv: any) => {
-    const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
-    const stockQty = inv.display_qty ?? inv.stock ?? 0
-    const expiry = inv?.product_uom_batch?.expiry_date ?? inv?.expiry_date
-    return {
-      value: Number(inv.id),
-      label: [getProductUomName(pu, inv.code), pu?.uom?.code].filter(Boolean).join(' · '),
-      sublabel: [
-        inv.code ? `SKU: ${inv.code}` : '',
-        `Stok: ${formatNumber(stockQty)}${inv.display_uom_code ? ` ${inv.display_uom_code}` : ''}`,
-        expiry ? `Exp: ${String(expiry).slice(0, 10)}` : '',
-      ]
-        .filter(Boolean)
-        .join(' · '),
-    }
+
+  // Cuts: which result SKUs each base product-UOM can be cut into, and at what yield.
+  const { data: cutsData, isLoading: cutsLoading } = useQuery({
+    queryKey: ['product-cuts-all', activeBranchId],
+    enabled: !!activeBranchId,
+    queryFn: () =>
+      productCutsService
+        .list({
+          per_page: 1000,
+          include: 'child_product_uom,child_product_uom.product,child_product_uom.uom',
+          'filter[branch_id]': activeBranchId,
+        } as any)
+        .then((r) => r.data),
   })
+  const cuts: ProductCut[] = (cutsData as any)?.data ?? []
+
+  const cutsMap = new Map<number, { childPuId: number; label: string; yield: number; childStock: number | null }[]>()
+  const childLabelById = new Map<number, string>()
+  for (const c of cuts) {
+    const child = c.child_product_uom
+    const label = [child?.product?.name ?? child?.name ?? `#${c.child_product_uom_id}`, child?.uom?.code]
+      .filter(Boolean)
+      .join(' · ')
+    const arr = cutsMap.get(c.parent_product_uom_id) ?? []
+    arr.push({ childPuId: c.child_product_uom_id, label, yield: Number(c.yield_qty) || 0, childStock: c.child_stock ?? null })
+    cutsMap.set(c.parent_product_uom_id, arr)
+    childLabelById.set(c.child_product_uom_id, label)
+  }
+
+  const invMeta = new Map<number, { puId: number; stock: number; uomCode: string; name: string }>()
+  for (const inv of inventories) {
+    const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
+    invMeta.set(Number(inv.id), {
+      puId: Number(pu?.id) || 0,
+      stock: Number(inv.display_qty ?? inv.stock ?? 0),
+      uomCode: inv.display_uom_code ?? pu?.uom?.code ?? '',
+      name: getProductUomName(pu, inv.code),
+    })
+  }
+
+  const inventoryOptions = inventories
+    .filter((inv: any) => cutsMap.has(Number((inv?.product_uom_batch?.product_uom ?? inv?.product_uom)?.id)))
+    .map((inv: any) => {
+      const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
+      const stockQty = inv.display_qty ?? inv.stock ?? 0
+      const expiry = inv?.product_uom_batch?.expiry_date ?? inv?.expiry_date
+      return {
+        value: Number(inv.id),
+        label: [getProductUomName(pu, inv.code), pu?.uom?.code].filter(Boolean).join(' · '),
+        sublabel: [
+          inv.code ? `SKU: ${inv.code}` : '',
+          `Stok: ${formatNumber(stockQty)}${inv.display_uom_code ? ` ${inv.display_uom_code}` : ''}`,
+          expiry ? `Exp: ${String(expiry).slice(0, 10)}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      }
+    })
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -441,20 +465,33 @@ export default function PortioningForm() {
     output_owner_ref: values.output_owner_ref,
     output_stage: values.output_stage,
     output_location_ref: LOCATION_GENERAL,
-    details: values.details.map((d) => ({
-      product_uom_id: d.product_uom_id,
-      qty: d.qty,
-      base_product_inventory_id: d.base_product_inventory_id,
-      batch_code: d.batch_code || undefined,
-      expiry_date: d.expiry_date || undefined,
-      status,
-      owner_ref: values.output_owner_ref || null,
-      stage: values.output_stage || null,
-      location_ref: LOCATION_GENERAL,
-      // Packaging is auto-resolved by the backend when materials is empty.
-      materials: [],
-    })),
+    details: values.details.map((d) => {
+      const meta = invMeta.get(Number(d.base_product_inventory_id))
+      const kids = meta ? (cutsMap.get(meta.puId) ?? []) : []
+      const kid = kids.find((k) => k.childPuId === Number(d.product_uom_id))
+      const finalQty = kid ? Number(d.base_qty) * kid.yield : 0
+      return {
+        product_uom_id: d.product_uom_id,
+        qty: finalQty,
+        base_product_inventory_id: d.base_product_inventory_id,
+        batch_code: d.batch_code || undefined,
+        expiry_date: d.expiry_date || undefined,
+        status,
+        owner_ref: values.output_owner_ref || null,
+        stage: values.output_stage || null,
+        location_ref: LOCATION_GENERAL,
+        // Packaging is auto-resolved by the backend when materials is empty.
+        materials: [],
+      }
+    }),
   })
+
+  const allRowsHaveCut = (values: FormValues) =>
+    values.details.every((d) => {
+      const meta = invMeta.get(Number(d.base_product_inventory_id))
+      const kids = meta ? (cutsMap.get(meta.puId) ?? []) : []
+      return kids.some((k) => k.childPuId === Number(d.product_uom_id)) && Number(d.base_qty) > 0
+    })
 
   const previewMutation = useMutation({
     mutationFn: ({ body }: { body: PortioningRequest; sig: string; labels: string[] }) =>
@@ -494,15 +531,23 @@ export default function PortioningForm() {
   }
 
   const onPreview = (values: FormValues) => {
+    if (!allRowsHaveCut(values)) {
+      toast.error('Setiap potongan harus punya base, qty base, dan SKU hasil yang valid.')
+      return
+    }
     previewMutation.mutate({
       body: buildPayload(values, values.status),
       sig: formSignature(getValues()),
-      labels: values.details.map((d) => uomLabelById.get(d.product_uom_id) ?? `#${d.product_uom_id}`),
+      labels: values.details.map((d) => childLabelById.get(Number(d.product_uom_id)) ?? `#${d.product_uom_id}`),
     })
   }
 
   const saveAs = (status: 'pending' | 'final') =>
     handleSubmit((values) => {
+      if (!allRowsHaveCut(values)) {
+        toast.error('Setiap potongan harus punya base, qty base, dan SKU hasil yang valid.')
+        return
+      }
       setValue('status', status)
       createMutation.mutate(buildPayload(values, status))
     }, onInvalid)()
@@ -510,7 +555,6 @@ export default function PortioningForm() {
   const shortfallBlocksFinal = hasAnyShortfall(preview?.result)
   const previewStale = !!preview && preview.sig !== formSignature(watchedValues)
   const isPending = createMutation.isPending
-  const noDeferredUoms = !uomsLoading && allFinalUoms.length > 0 && deferredUoms.length === 0
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -806,24 +850,18 @@ export default function PortioningForm() {
           </div>
 
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {noDeferredUoms && (
-              <div
-                style={{
-                  padding: '6px 10px',
-                  fontSize: 12,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--warning)',
-                  background: 'var(--warning-bg)',
-                  color: 'var(--warning)',
-                }}
-              >
-                Tidak ada product-UOM final dengan is_deferred = true pada response /product-uoms.
-              </div>
-            )}
-
             {detailFields.map((field, index) => {
               const rowErrors = errors.details?.[index]
-              const selectedInvId = Number(watchedValues.details?.[index]?.base_product_inventory_id ?? 0)
+              const d = watchedValues.details?.[index]
+              const invId = Number(d?.base_product_inventory_id ?? 0)
+              const meta = invMeta.get(invId)
+              const baseQty = Number(d?.base_qty ?? 0)
+              const childPuId = Number(d?.product_uom_id ?? 0)
+              const kids = meta ? (cutsMap.get(meta.puId) ?? []) : []
+              const kid = kids.find((k) => k.childPuId === childPuId)
+              const resultOptions = kids.map((k) => ({ value: k.childPuId, label: `${k.label} — 1 jadi ${k.yield}` }))
+              const resultQty = kid ? baseQty * kid.yield : 0
+              const over = !!meta && baseQty > meta.stock
               return (
                 <div
                   key={field.id}
@@ -862,70 +900,132 @@ export default function PortioningForm() {
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-                    <div>
-                      <label style={labelStyle}>
-                        SKU Final <span style={{ color: 'var(--destructive)' }}>*</span>
-                      </label>
-                      <Controller
-                        name={`details.${index}.product_uom_id`}
-                        control={control}
-                        render={({ field: f }) => (
-                          <SearchableSelect
-                            value={f.value ?? 0}
-                            onChange={f.onChange}
-                            options={uomOptions}
-                            placeholder="Pilih SKU final..."
-                            searchPlaceholder="Cari SKU..."
-                            loading={uomsLoading}
-                            error={rowErrors?.product_uom_id?.message as string | undefined}
-                          />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {/* FROM — base cake */}
+                    <div
+                      style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--surface)',
+                        padding: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                      }}
+                    >
+                      <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>From · base</span>
+                      <div>
+                        <label style={labelStyle}>
+                          Base cake <span style={{ color: 'var(--destructive)' }}>*</span>
+                        </label>
+                        <Controller
+                          name={`details.${index}.base_product_inventory_id`}
+                          control={control}
+                          render={({ field: f }) => (
+                            <SearchableSelect
+                              value={f.value ?? 0}
+                              onChange={(v) => {
+                                f.onChange(v)
+                                setValue(`details.${index}.product_uom_id`, 0)
+                                setValue(`details.${index}.base_qty`, 1)
+                              }}
+                              options={inventoryOptions}
+                              placeholder="Pilih base cake..."
+                              searchPlaceholder="Cari inventory..."
+                              loading={inventoriesLoading || cutsLoading}
+                              error={rowErrors?.base_product_inventory_id?.message as string | undefined}
+                            />
+                          )}
+                        />
+                        {invId > 0 && !inventoryOptions.some((o) => o.value === invId) && (
+                          <span style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3, display: 'block' }}>
+                            Inventory ini tidak ada di dimensi &quot;Konsumsi Dari&quot; saat ini.
+                          </span>
                         )}
-                      />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Stok</label>
+                        <div style={roStyle}>{meta ? `${formatNumber(meta.stock)} ${meta.uomCode}` : '—'}</div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>
+                          Qty base <span style={{ color: 'var(--destructive)' }}>*</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          {...register(`details.${index}.base_qty`)}
+                          style={{
+                            ...fieldInputStyle,
+                            border: `1px solid ${rowErrors?.base_qty ? 'var(--destructive)' : 'var(--border)'}`,
+                          }}
+                        />
+                        {rowErrors?.base_qty && <span style={errorTextStyle}>{rowErrors.base_qty.message}</span>}
+                      </div>
                     </div>
-                    <div>
-                      <label style={labelStyle}>
-                        Qty <span style={{ color: 'var(--destructive)' }}>*</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        {...register(`details.${index}.qty`)}
-                        style={{
-                          ...fieldInputStyle,
-                          border: `1px solid ${rowErrors?.qty ? 'var(--destructive)' : 'var(--border)'}`,
-                        }}
-                      />
-                      {rowErrors?.qty && <span style={errorTextStyle}>{rowErrors.qty.message}</span>}
+
+                    {/* TO — result SKU */}
+                    <div
+                      style={{
+                        border: '1px solid var(--accent-light)',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--surface)',
+                        padding: 12,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                      }}
+                    >
+                      <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>To · hasil</span>
+                      <div>
+                        <label style={labelStyle}>
+                          SKU hasil <span style={{ color: 'var(--destructive)' }}>*</span>
+                        </label>
+                        <Controller
+                          name={`details.${index}.product_uom_id`}
+                          control={control}
+                          render={({ field: f }) => (
+                            <SearchableSelect
+                              value={f.value ?? 0}
+                              onChange={f.onChange}
+                              options={resultOptions}
+                              placeholder={meta ? 'Choose...' : 'Pilih base dulu'}
+                              searchPlaceholder="Cari SKU..."
+                              loading={cutsLoading}
+                              error={rowErrors?.product_uom_id?.message as string | undefined}
+                            />
+                          )}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Stok</label>
+                        <div style={roStyle}>
+                          {kid && kid.childStock != null
+                            ? `${formatNumber(kid.childStock)} ${meta?.uomCode ?? ''}`
+                            : '—'}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Qty hasil</label>
+                        <div style={{ ...roStyle, fontWeight: 700, color: 'var(--foreground)' }}>
+                          {kid ? formatNumber(resultQty) : '—'}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <label style={labelStyle}>
-                      Base Inventory <span style={{ color: 'var(--destructive)' }}>*</span>
-                    </label>
-                    <Controller
-                      name={`details.${index}.base_product_inventory_id`}
-                      control={control}
-                      render={({ field: f }) => (
-                        <SearchableSelect
-                          value={f.value ?? 0}
-                          onChange={f.onChange}
-                          options={inventoryOptions}
-                          placeholder="Pilih inventory base (kue 20x40)..."
-                          searchPlaceholder="Cari inventory..."
-                          loading={inventoriesLoading}
-                          error={rowErrors?.base_product_inventory_id?.message as string | undefined}
-                        />
-                      )}
-                    />
-                    {selectedInvId > 0 && !inventoryOptions.some((o) => o.value === selectedInvId) && (
-                      <span style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3, display: 'block' }}>
-                        Inventory ini tidak ada di dimensi &quot;Konsumsi Dari&quot; saat ini.
+                  {kid && (
+                    <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      1 {meta?.name} = {kid.yield} {kid.label}
+                      {' · '}
+                      <span style={{ color: over ? 'var(--destructive)' : 'var(--foreground-muted)' }}>
+                        {over
+                          ? `qty melebihi stok base (${meta?.stock})`
+                          : `sisa base ${(meta?.stock ?? 0) - baseQty} ${meta?.uomCode ?? ''}`}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
