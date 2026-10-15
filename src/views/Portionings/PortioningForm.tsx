@@ -26,9 +26,9 @@ const LOCATION_GENERAL = 'GENERAL'
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
 const detailSchema = z.object({
-  product_uom_id: z.coerce.number().min(1, 'SKU hasil wajib dipilih'),
-  qty: z.coerce.number().gt(0, 'Qty harus lebih dari 0'),
   base_product_inventory_id: z.coerce.number().min(1, 'Base cake wajib dipilih'),
+  base_qty: z.coerce.number().gt(0, 'Qty base harus lebih dari 0'),
+  product_uom_id: z.coerce.number().min(1, 'SKU hasil wajib dipilih'),
   batch_code: z.string().optional(),
   expiry_date: z.string().optional(),
 })
@@ -116,9 +116,9 @@ function todayLocalISO(): string {
 }
 
 const emptyDetail = (): DetailValues => ({
-  product_uom_id: 0,
-  qty: 1,
   base_product_inventory_id: 0,
+  base_qty: 1,
+  product_uom_id: 0,
   batch_code: '',
   expiry_date: '',
 })
@@ -339,6 +339,44 @@ export default function PortioningForm() {
   const watchSourceStage = watch('source_stage')
   const watchedValues = watch()
 
+  // Cut ratio cache: fraction_base (base consumed per 1 hasil) per base-inventory × result-SKU,
+  // probed through the existing /portionings/preview endpoint.
+  const [ratios, setRatios] = useState<Record<string, number>>({})
+  const ratioKey = (invId: number, puId: number) => `${invId}:${puId}`
+  const probeRatio = (invId: number, puId: number) => {
+    if (!invId || !puId || ratios[ratioKey(invId, puId)] != null) return
+    const v = getValues()
+    portioningsService
+      .preview({
+        date: v.date,
+        status: 'pending',
+        source_owner_ref: v.source_owner_ref,
+        source_stage: v.source_stage,
+        source_location_ref: LOCATION_GENERAL,
+        output_owner_ref: v.output_owner_ref,
+        output_stage: v.output_stage,
+        output_location_ref: LOCATION_GENERAL,
+        details: [
+          {
+            product_uom_id: puId,
+            qty: 1,
+            base_product_inventory_id: invId,
+            status: 'pending',
+            owner_ref: v.output_owner_ref || null,
+            stage: v.output_stage || null,
+            location_ref: LOCATION_GENERAL,
+            materials: [],
+          },
+        ],
+      } as any)
+      .then((r) => r.data)
+      .then((resp) => {
+        const n = Number(normalizePreview(resp).details[0]?.fractionBase)
+        if (Number.isFinite(n) && n > 0) setRatios((p) => ({ ...p, [ratioKey(invId, puId)]: n }))
+      })
+      .catch(() => {})
+  }
+
   // ── Queries ────────────────────────────────────────────────────────────────
 
   const [companySearch, setCompanySearch] = useState('')
@@ -446,6 +484,28 @@ export default function PortioningForm() {
     )
   }
 
+  // To-side stock: this branch's final-product inventories, summed per product-UOM.
+  const { data: finalInvData } = useQuery({
+    queryKey: ['portioning-final-inventories', activeBranchId],
+    enabled: !!activeBranchId,
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          per_page: 1000,
+          'filter[branch_id]': activeBranchId,
+          'filter[product_type]': 'final',
+          include: 'product_uom_batch,product_uom_batch.product_uom',
+        } as any)
+        .then((r) => r.data),
+  })
+  const finalStockById = new Map<number, number>()
+  for (const inv of (finalInvData as any)?.data ?? []) {
+    const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
+    const id = Number(pu?.id)
+    if (!id) continue
+    finalStockById.set(id, (finalStockById.get(id) ?? 0) + Number(inv.display_qty ?? inv.stock ?? 0))
+  }
+
   // ── Mutations ──────────────────────────────────────────────────────────────
 
   const buildPayload = (values: FormValues, status: 'pending' | 'final'): PortioningRequest => ({
@@ -458,20 +518,31 @@ export default function PortioningForm() {
     output_owner_ref: values.output_owner_ref,
     output_stage: values.output_stage,
     output_location_ref: LOCATION_GENERAL,
-    details: values.details.map((d) => ({
-      product_uom_id: d.product_uom_id,
-      qty: d.qty,
-      base_product_inventory_id: d.base_product_inventory_id,
-      batch_code: d.batch_code || undefined,
-      expiry_date: d.expiry_date || undefined,
-      status,
-      owner_ref: values.output_owner_ref || null,
-      stage: values.output_stage || null,
-      location_ref: LOCATION_GENERAL,
-      // Packaging is auto-resolved by the backend when materials is empty.
-      materials: [],
-    })),
+    details: values.details.map((d) => {
+      const fraction = ratios[ratioKey(Number(d.base_product_inventory_id), Number(d.product_uom_id))]
+      const finalQty = fraction ? Number(d.base_qty) / fraction : 0
+      return {
+        product_uom_id: d.product_uom_id,
+        qty: finalQty,
+        base_product_inventory_id: d.base_product_inventory_id,
+        batch_code: d.batch_code || undefined,
+        expiry_date: d.expiry_date || undefined,
+        status,
+        owner_ref: values.output_owner_ref || null,
+        stage: values.output_stage || null,
+        location_ref: LOCATION_GENERAL,
+        // Packaging is auto-resolved by the backend when materials is empty.
+        materials: [],
+      }
+    }),
   })
+
+  const ratiosReady = (values: FormValues) =>
+    values.details.every(
+      (d) =>
+        Number(d.base_qty) > 0 &&
+        ratios[ratioKey(Number(d.base_product_inventory_id), Number(d.product_uom_id))] != null,
+    )
 
   const previewMutation = useMutation({
     mutationFn: ({ body }: { body: PortioningRequest; sig: string; labels: string[] }) =>
@@ -510,7 +581,13 @@ export default function PortioningForm() {
     toast.error(getFirstErrorMessage(errs) ?? 'Form tidak valid, periksa kembali data.')
   }
 
+  const RATIO_NOT_READY_MSG = 'Rasio potong belum termuat — pilih base & hasil, tunggu sebentar, lalu coba lagi.'
+
   const onPreview = (values: FormValues) => {
+    if (!ratiosReady(values)) {
+      toast.error(RATIO_NOT_READY_MSG)
+      return
+    }
     previewMutation.mutate({
       body: buildPayload(values, values.status),
       sig: formSignature(getValues()),
@@ -520,6 +597,10 @@ export default function PortioningForm() {
 
   const saveAs = (status: 'pending' | 'final') =>
     handleSubmit((values) => {
+      if (!ratiosReady(values)) {
+        toast.error(RATIO_NOT_READY_MSG)
+        return
+      }
       setValue('status', status)
       createMutation.mutate(buildPayload(values, status))
     }, onInvalid)()
@@ -839,8 +920,15 @@ export default function PortioningForm() {
 
             {detailFields.map((field, index) => {
               const rowErrors = errors.details?.[index]
-              const selectedInvId = Number(watchedValues.details?.[index]?.base_product_inventory_id ?? 0)
-              const baseStock = selectedInvId > 0 ? (invStockById.get(selectedInvId) ?? '—') : '—'
+              const d = watchedValues.details?.[index]
+              const invId = Number(d?.base_product_inventory_id ?? 0)
+              const puId = Number(d?.product_uom_id ?? 0)
+              const baseQty = Number(d?.base_qty ?? 0)
+              const baseStock = invId > 0 ? (invStockById.get(invId) ?? '—') : '—'
+              const resultStock = puId > 0 && finalStockById.has(puId) ? `${formatNumber(finalStockById.get(puId))}` : '—'
+              const fraction = ratios[ratioKey(invId, puId)]
+              const resultQty = fraction ? baseQty / fraction : null
+              const yieldN = fraction ? 1 / fraction : null
               return (
                 <div
                   key={field.id}
@@ -889,7 +977,7 @@ export default function PortioningForm() {
                         padding: 12,
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 10,
+                        gap: 8,
                       }}
                     >
                       <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>From · base</span>
@@ -903,7 +991,11 @@ export default function PortioningForm() {
                           render={({ field: f }) => (
                             <SearchableSelect
                               value={f.value ?? 0}
-                              onChange={f.onChange}
+                              onChange={(v) => {
+                                f.onChange(v)
+                                setValue(`details.${index}.product_uom_id`, 0)
+                                setValue(`details.${index}.base_qty`, 1)
+                              }}
                               options={inventoryOptions}
                               placeholder="Pilih base cake..."
                               searchPlaceholder="Cari inventory..."
@@ -912,7 +1004,7 @@ export default function PortioningForm() {
                             />
                           )}
                         />
-                        {selectedInvId > 0 && !inventoryOptions.some((o) => o.value === selectedInvId) && (
+                        {invId > 0 && !inventoryOptions.some((o) => o.value === invId) && (
                           <span style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3, display: 'block' }}>
                             Inventory ini tidak ada di dimensi &quot;Konsumsi Dari&quot; saat ini.
                           </span>
@@ -921,6 +1013,22 @@ export default function PortioningForm() {
                       <div>
                         <label style={labelStyle}>Stok</label>
                         <div style={roStyle}>{baseStock}</div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>
+                          Qty base <span style={{ color: 'var(--destructive)' }}>*</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          {...register(`details.${index}.base_qty`)}
+                          style={{
+                            ...fieldInputStyle,
+                            border: `1px solid ${rowErrors?.base_qty ? 'var(--destructive)' : 'var(--border)'}`,
+                          }}
+                        />
+                        {rowErrors?.base_qty && <span style={errorTextStyle}>{rowErrors.base_qty.message}</span>}
                       </div>
                     </div>
 
@@ -933,7 +1041,7 @@ export default function PortioningForm() {
                         padding: 12,
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 10,
+                        gap: 8,
                       }}
                     >
                       <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>To · hasil</span>
@@ -947,7 +1055,11 @@ export default function PortioningForm() {
                           render={({ field: f }) => (
                             <SearchableSelect
                               value={f.value ?? 0}
-                              onChange={f.onChange}
+                              onChange={(v) => {
+                                f.onChange(v)
+                                const b = Number(getValues(`details.${index}.base_product_inventory_id`))
+                                if (b && v) probeRatio(b, Number(v))
+                              }}
                               options={uomOptions}
                               placeholder="Pilih SKU hasil..."
                               searchPlaceholder="Cari SKU..."
@@ -958,23 +1070,21 @@ export default function PortioningForm() {
                         />
                       </div>
                       <div>
-                        <label style={labelStyle}>
-                          Qty hasil <span style={{ color: 'var(--destructive)' }}>*</span>
-                        </label>
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          {...register(`details.${index}.qty`)}
-                          style={{
-                            ...fieldInputStyle,
-                            border: `1px solid ${rowErrors?.qty ? 'var(--destructive)' : 'var(--border)'}`,
-                          }}
-                        />
-                        {rowErrors?.qty && <span style={errorTextStyle}>{rowErrors.qty.message}</span>}
+                        <label style={labelStyle}>Stok</label>
+                        <div style={roStyle}>{resultStock}</div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Qty hasil</label>
+                        <div style={roStyle}>{resultQty != null ? formatNumber(resultQty) : '—'}</div>
                       </div>
                     </div>
                   </div>
+
+                  {yieldN != null && (
+                    <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      1 base = {formatNumber(yieldN)} hasil
+                    </div>
+                  )}
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     <div>
