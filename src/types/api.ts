@@ -359,21 +359,6 @@ export interface PortioningRequest {
   details: PortioningDetail[]
 }
 
-export interface ProductCut {
-  id: number
-  parent_product_uom_id: number
-  child_product_uom_id: number
-  yield_qty: number
-  child_stock?: number
-  child_product_uom?: {
-    id: number
-    code?: string
-    name?: string
-    product?: { name?: string }
-    uom?: { code?: string }
-  }
-}
-
 // Portioning responses (list/detail)
 export interface PortioningDetailMaterialRow {
   id: number
