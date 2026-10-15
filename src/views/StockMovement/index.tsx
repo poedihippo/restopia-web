@@ -1,8 +1,9 @@
 'use client'
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, parseApiDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
@@ -12,18 +13,14 @@ import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
 import {
-  formatQtyInMode,
   formatSignedMovementQty,
-  loadStoredMode,
-  persistMode,
+  convertUp,
   type ConversionEntry,
   type UnitDisplayMode,
 } from '@/utils/unitDisplay'
 import {
   Plus,
   Search,
-  ChevronLeft,
-  ChevronRight,
   TrendingUp,
   TrendingDown,
   ArrowUpDown,
@@ -145,9 +142,55 @@ export function formatMovementQty(
   return formatSignedMovementQty(baseQty, qty, baseUomCode, item.direction, conversions, mode)
 }
 
+// Return every conversion representation of the qty, ordered from
+// largest unit → smallest (base) unit, e.g. [1 CRT, 6 PACK, 12 KG, 12000 GR].
+export function getAllConversionQty(
+  item: StockMovement,
+): { qty: number; uomCode: string }[] {
+  const qty = item.qty ?? 0
+  const baseQty = item.base_qty ?? qty
+  const baseUomCode = getBaseUomCode(item)
+  const conversions = getConversions(item)
+
+  const results: { qty: number; uomCode: string }[] = []
+
+  if (!conversions || conversions.length === 0) {
+    results.push({ qty: baseQty, uomCode: baseUomCode })
+    return results
+  }
+
+  // Collect every unique uom_code reachable from the chain
+  const seen = new Set<string>([baseUomCode])
+  for (const c of conversions) {
+    if (!seen.has(c.uom_code)) {
+      seen.add(c.uom_code)
+      const converted = convertUp(baseQty, baseUomCode, c.uom_code, conversions)
+      if (converted != null) {
+        results.push({ qty: converted, uomCode: c.uom_code })
+      }
+    }
+    if (!seen.has(c.target_uom_code)) {
+      seen.add(c.target_uom_code)
+      const converted = convertUp(baseQty, baseUomCode, c.target_uom_code, conversions)
+      if (converted != null) {
+        results.push({ qty: converted, uomCode: c.target_uom_code })
+      }
+    }
+  }
+
+  // Selalu sertakan base unit (satuan terkecil) di akhir rantai
+  results.push({ qty: baseQty, uomCode: baseUomCode })
+
+  // Urutkan dari qty terkecil (unit terbesar) → qty terbesar (unit terkecil)
+  results.sort((a, b) => a.qty - b.qty)
+
+  return results
+}
+
 // Shared "Document" cell content: links to the source document's detail page
 // via REFERENCE_ROUTES when resolvable, otherwise a plain (possibly
 // truncated) label built from REFERENCE_LABELS.
+// (Tetap di-export karena mungkin dipakai view lain — tidak diubah.)
 export function MovementDocumentLink({ item }: { item: StockMovement }) {
   const refType = item.reference_type
   const refId = item.reference_id
@@ -190,7 +233,121 @@ export function MovementDocumentLink({ item }: { item: StockMovement }) {
   )
 }
 
+/* ------------------------------------------------------------------ */
+/* Komponen tampilan baru (khusus view ini)                            */
+/* ------------------------------------------------------------------ */
+
+const fmtNum = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 4 })
+
+// Dokumen: label jenis dokumen (kecil) + kode dokumen (link, tidak dipotong).
+function DocumentCell({ item }: { item: StockMovement }) {
+  const refType = item.reference_type
+  const refId = item.reference_id
+  if (!refType) {
+    return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+  }
+  const typeLabel = REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' ')
+  const code = item.reference_code || item.reference?.code
+  const label = code || (refId != null ? `#${refId}` : '—')
+  const buildHref = REFERENCE_ROUTES[refType]
+  const codeStyle: React.CSSProperties = {
+    fontSize: 13,
+    fontWeight: 500,
+    wordBreak: 'break-all',
+    lineHeight: 1.35,
+    textDecoration: 'none',
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{typeLabel}</span>
+      {typeof buildHref === 'function' && refId != null ? (
+        <Link href={buildHref(refId)} title={label} style={{ ...codeStyle, color: 'var(--accent)' }}>
+          {label}
+        </Link>
+      ) : (
+        <span title={label} style={{ ...codeStyle, color: 'var(--foreground)', fontWeight: 400 }}>
+          {label}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Qty: ikon arah + rantai konversi satu baris, mis. +3PACK=0,5CRT=6KG=6000GR
+function QtyCell({ item }: { item: StockMovement }) {
+  const meta = TYPE_META[item.direction as keyof typeof TYPE_META] ?? TYPE_META['in']
+  const Icon = meta.icon
+  const chain = getAllConversionQty(item)
+  const sign = item.direction === 'out' ? '−' : '+'
+  const chainText = chain.map((c) => `${fmtNum(c.qty)}${c.uomCode}`).join('=')
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span
+        title={meta.label}
+        style={{
+          flexShrink: 0,
+          width: 22,
+          height: 22,
+          borderRadius: 6,
+          background: meta.bg,
+          color: meta.color,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon size={12} />
+      </span>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          fontVariantNumeric: 'tabular-nums',
+          color: 'var(--foreground)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {sign}{chainText}
+      </span>
+    </div>
+  )
+}
+
+// Tanggal di baris atas, jam di baris bawah.
+function DateCell({ value }: { value?: string }) {
+  if (!value) return <span>—</span>
+  const formatted = formatDateTime(value)
+  const [datePart, timePart] = String(formatted).split(', ')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{datePart}</span>
+      {timePart && (
+        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{timePart}</span>
+      )}
+    </div>
+  )
+}
+
+const controlBase: React.CSSProperties = {
+  height: 36,
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  fontSize: 13,
+  color: 'var(--foreground)',
+  background: 'var(--surface-raised)',
+  outline: 'none',
+  fontFamily: 'var(--font-sans)',
+  boxSizing: 'border-box',
+}
+
+const DIRECTION_TABS: { value: '' | 'in' | 'out'; label: string }[] = [
+  { value: '', label: 'Semua' },
+  { value: 'in', label: 'Masuk' },
+  { value: 'out', label: 'Keluar' },
+]
+
 export default function StockMovementView() {
+  const router = useRouter()
   const { hasPermission, user } = useAuth()
   const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
@@ -202,19 +359,24 @@ export default function StockMovementView() {
   const [productId, setProductId] = useState<number>(0)
   const [productSearch, setProductSearch] = useState('')
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
-  // Branch type menentukan toggle satuan otomatis:
-  // - production → smallest (konsumsi bahan presisi seperti "2,5 GR")
-  // - warehouse  → largest (penyimpanan seperti "1 PACK")
-  // - outlet / lainnya → ikut preferensi tersimpan / default
+  // Branch type menentukan kolom dimensi (owner/stage/location):
+  // warehouse & production menyembunyikannya.
   const branchType = ((user as any)?.branch?.type as string | undefined) ?? ''
-  const [unitMode, setUnitMode] = useState<UnitDisplayMode>(() => {
-    const t = branchType.toLowerCase()
-    if (t === 'production') return 'smallest'
-    if (t === 'warehouse') return 'largest'
-    return loadStoredMode(branchType)
-  })
+  const hideDimensionCols = branchType.toLowerCase() === 'warehouse' || branchType.toLowerCase() === 'production'
+  // Tanggal, Dokumen, Produk, Cabang, (Inventori), Qty
+  const totalCols = hideDimensionCols ? 5 : 6
+
+  useEffect(() => {
+    if (!router.isReady) return
+    const qp = router.query
+    if (qp.product_id) setProductId(Number(qp.product_id) || 0)
+    if (qp.start_date) setStartDate(String(qp.start_date))
+    if (qp.end_date) setEndDate(String(qp.end_date))
+  }, [router.isReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -232,11 +394,7 @@ export default function StockMovementView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter, productId])
-
-  useEffect(() => {
-    persistMode(unitMode)
-  }, [unitMode])
+  }, [debouncedSearch, directionFilter, productId, startDate, endDate])
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['stock-movements-product-search', productSearchDebounced],
@@ -279,8 +437,28 @@ export default function StockMovementView() {
   const items: StockMovement[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
+  // Client-side date filter — backend /v1/stock-movements doesn't support
+  // filter[start_date]/filter[end_date], so we narrow the already-fetched page.
+  const filteredItems = items.filter((item) => {
+    if (!startDate && !endDate) return true
+    const d = parseApiDate(item.created_at)
+    if (!d) return true
+    if (startDate && d < new Date(startDate + 'T00:00:00')) return false
+    if (endDate && d > new Date(endDate + 'T23:59:59')) return false
+    return true
+  })
+
+  const columns: { label: string; width?: number }[] = [
+    { label: 'Tanggal', width: 130 },
+    { label: 'Dokumen', width: 230 },
+    { label: 'Produk' },
+    { label: 'Cabang', width: 170 },
+    ...(hideDimensionCols ? [] : [{ label: 'Owner / Stage / Lokasi', width: 170 }]),
+    { label: 'Qty', width: 260 },
+  ]
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Page header */}
       <div
         style={{
@@ -303,38 +481,39 @@ export default function StockMovementView() {
           >
             Stock Movements
           </h1>
-          <p
-            style={{
-              fontSize: 13,
-              color: 'var(--foreground-muted)',
-              margin: '4px 0 0 0',
-            }}
-          >
-            Riwayat semua pergerakan stok
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0 0' }}>
+            {startDate || endDate
+              ? `Filter tanggal: ${startDate || '...'} s/d ${endDate || '...'}`
+              : 'Riwayat semua pergerakan stok'}
           </p>
         </div>
 
-        {canCreate && (<button
-          onClick={() => setSheetOpen(true)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}>
-          <Plus size={15} />Record Movement
-                              </button>)}
+        {canCreate && (
+          <button
+            onClick={() => setSheetOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={15} />
+            Record Movement
+          </button>
+        )}
       </div>
+
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 300 }}>
           <Search
             size={14}
             style={{
@@ -349,89 +528,76 @@ export default function StockMovementView() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search movements..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
+            placeholder="Cari pergerakan..."
+            style={{ ...controlBase, width: '100%', padding: '0 10px 0 32px' }}
           />
         </div>
 
-        {/* Direction filter */}
-        <select
-          value={directionFilter}
-          onChange={(e) => {
-            setDirectionFilter(e.target.value as '' | 'in' | 'out')
-            setPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            fontFamily: 'var(--font-sans)',
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">All Directions</option>
-          <option value="in">Stock In</option>
-          <option value="out">Stock Out</option>
-        </select>
-
-        {/* Unit display mode toggle */}
+        {/* Direction filter: segmented control */}
         <div
-          role="group"
-          aria-label="Unit display mode"
+          role="tablist"
           style={{
             display: 'inline-flex',
+            padding: 3,
+            gap: 2,
+            height: 36,
+            boxSizing: 'border-box',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
-            overflow: 'hidden',
-            background: 'var(--surface-raised)',
+            background: 'var(--background)',
           }}
         >
-          {([
-            { key: 'smallest', label: 'Smallest', hint: 'base_qty + base_uom_code (e.g. −2,5 GR)' },
-            { key: 'largest', label: 'Largest', hint: 'convert ke satuan terbesar yang muat (e.g. −1 PACK, −2,5 KG)' },
-          ] as { key: UnitDisplayMode; label: string; hint: string }[]).map((opt) => {
-            const active = unitMode === opt.key
+          {DIRECTION_TABS.map((t) => {
+            const active = directionFilter === t.value
             return (
               <button
-                key={opt.key}
-                type="button"
-                onClick={() => setUnitMode(opt.key)}
-                title={opt.hint}
+                key={t.value || 'all'}
+                role="tab"
+                aria-selected={active}
+                onClick={() => {
+                  setDirectionFilter(t.value)
+                  setPage(1)
+                }}
                 style={{
-                  padding: '8px 12px',
+                  padding: '0 14px',
                   border: 'none',
-                  background: active ? 'var(--accent)' : 'transparent',
-                  color: active ? 'white' : 'var(--foreground-muted)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 500,
                   fontFamily: 'var(--font-sans)',
-                  transition: 'all 0.12s ease',
+                  cursor: 'pointer',
+                  background: active ? 'var(--surface-raised)' : 'transparent',
+                  color: active ? 'var(--foreground)' : 'var(--foreground-muted)',
+                  boxShadow: active ? 'var(--shadow-sm)' : 'none',
                 }}
               >
-                {opt.label}
+                {t.label}
               </button>
             )
           })}
         </div>
 
+        {/* Date range (client-side), satu kelompok */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            title="Dari tanggal"
+            style={{ ...controlBase, padding: '0 10px' }}
+          />
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>s/d</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            title="Sampai tanggal"
+            style={{ ...controlBase, padding: '0 10px' }}
+          />
+        </div>
+
         {/* Product filter */}
-        <div style={{ width: 260 }}>
+        <div style={{ width: 240 }}>
           <SearchableSelect
             value={productId}
             onChange={(val) => setProductId(Number(val))}
@@ -443,6 +609,7 @@ export default function StockMovementView() {
           />
         </div>
       </div>
+
       {/* Table */}
       <div
         style={{
@@ -453,264 +620,182 @@ export default function StockMovementView() {
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr
-              style={{
-                borderBottom: '1px solid var(--border)',
-                background: 'var(--background)',
-              }}
-            >
-              {(
-                [
-                  { label: 'Type', width: 140 },
-                  { label: 'Document', width: 160 },
-                  { label: 'Product', width: undefined },
-                  { label: 'Branch', width: 160 },
-                  { label: 'Qty', width: 100 },
-                  { label: 'Notes', width: 200 },
-                  { label: 'Date', width: 160 },
-                ] as const
-              ).map(({ label, width }, i) => (
-                <th
-                  key={i}
-                  style={{
-                    padding: '10px 16px',
-                    textAlign: 'left',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--foreground-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.6,
-                    width,
-                  }}
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
-                  <div
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
+                {columns.map(({ label, width }, i) => (
+                  <th
+                    key={i}
                     style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 10,
+                      padding: '10px 16px',
+                      textAlign: 'left',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      width,
                     }}
                   >
-                    {[60, 40, 80, 50, 70].map((w, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          height: 16,
-                          borderRadius: 4,
-                          background: 'var(--border)',
-                          width: `${w}%`,
-                          animation: 'pulse 1.5s ease-in-out infinite',
-                        }}
-                      />
-                    ))}
-                  </div>
-                </td>
+                    {label}
+                  </th>
+                ))}
               </tr>
-            )}
+            </thead>
 
-            {isError && (
-              <tr>
-                <td
-                  colSpan={8}
-                  style={{
-                    textAlign: 'center',
-                    padding: 48,
-                    fontSize: 13,
-                    color: 'var(--destructive)',
-                  }}
-                >
-                  Failed to load stock movements
-                </td>
-              </tr>
-            )}
+            <tbody>
+              {isLoading && (
+                <tr>
+                  <td colSpan={totalCols} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                      {[60, 40, 80, 50, 70].map((w, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            height: 16,
+                            borderRadius: 4,
+                            background: 'var(--border)',
+                            width: `${w}%`,
+                            animation: 'pulse 1.5s ease-in-out infinite',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
 
-            {!isLoading && !isError && items.length === 0 && (
-              <tr>
-                <td colSpan={8}>
-                  <div
-                    style={{
-                      padding: 48,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}
+              {isError && (
+                <tr>
+                  <td
+                    colSpan={totalCols}
+                    style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}
                   >
-                    <ArrowUpDown size={32} style={{ color: 'var(--foreground-subtle)' }} />
-                    <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      No stock movements recorded
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            )}
+                    Gagal memuat data stock movements
+                  </td>
+                </tr>
+              )}
 
-            {!isLoading &&
-              items.map((item: any) => {
-                const typeMeta =
-                  TYPE_META[item.direction as keyof typeof TYPE_META] ??
-                  TYPE_META['in']
-                const Icon = typeMeta.icon
-
-                return (
-                  <tr
-                    key={item.id}
-                    onMouseEnter={() => setHoveredRow(item.id)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                    style={{
-                      borderBottom: '1px solid var(--border)',
-                      background:
-                        hoveredRow === item.id ? 'var(--background)' : 'transparent',
-                    }}
-                  >
-                  {/* Type */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          padding: '3px 10px',
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: typeMeta.bg,
-                          color: typeMeta.color,
-                        }}
-                      >
-                        <Icon size={11} />
-                        {typeMeta.label}
+              {!isLoading && !isError && filteredItems.length === 0 && (
+                <tr>
+                  <td colSpan={totalCols}>
+                    <div
+                      style={{
+                        padding: 48,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 10,
+                      }}
+                    >
+                      <ArrowUpDown size={32} style={{ color: 'var(--foreground-subtle)' }} />
+                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                        Belum ada pergerakan stok yang sesuai filter
                       </span>
-                      {item.reference_type && (
-                        <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                          <span style={{ textTransform: 'capitalize' }}>
-                            {item.reference_type.replace(/_/g, ' ')}
-                          </span>
-                          {item.reference?.code && (
-                            <>
-                              {' · '}
-                              <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>
-                                {item.reference.code}
-                              </span>
-                            </>
-                          )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+
+              {!isLoading &&
+                filteredItems.map((item: any) => {
+                  const uomCode =
+                    item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
+                    item.product_inventory?.product_uom?.uom?.code
+                  const productName =
+                    getProductUomName(
+                      item.product_inventory?.product_uom_batch?.product_uom ??
+                        item.product_inventory?.product_uom,
+                      item.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
+                        item.product_inventory?.product_uom?.product?.name,
+                    ) ||
+                    item.product_inventory?.code ||
+                    `INV-${item.product_inventory_id ?? '?'}`
+                  const dims = [
+                    item.product_inventory?.owner_ref,
+                    item.product_inventory?.stage,
+                    item.product_inventory?.location_ref,
+                  ].filter(Boolean)
+
+                  return (
+                    <tr
+                      key={item.id}
+                      onMouseEnter={() => setHoveredRow(item.id)}
+                      onMouseLeave={() => setHoveredRow(null)}
+                      style={{
+                        borderBottom: '1px solid var(--border)',
+                        background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
+                        verticalAlign: 'top',
+                      }}
+                    >
+                      {/* Tanggal */}
+                      <td style={{ padding: '14px 16px' }}>
+                        {canRead ? <DateCell value={item.created_at} /> : '***'}
+                      </td>
+
+                      {/* Dokumen */}
+                      <td style={{ padding: '14px 16px' }}>
+                        <DocumentCell item={item} />
+                      </td>
+
+                      {/* Produk (+ catatan jika ada) */}
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--foreground)' }}>
+                          {productName}
                         </div>
+                        {(item.product_inventory?.code || uomCode) && (
+                          <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                            {[item.product_inventory?.code, uomCode].filter(Boolean).join(' · ')}
+                          </div>
+                        )}
+                        {canRead && item.description && (
+                          <div
+                            title={item.description}
+                            style={{
+                              marginTop: 6,
+                              fontSize: 12,
+                              color: 'var(--foreground-muted)',
+                              fontStyle: 'italic',
+                              maxWidth: 360,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {item.description}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Cabang */}
+                      <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--foreground)' }}>
+                        {canRead ? item.branch?.name ?? item.branch_id ?? '—' : '***'}
+                      </td>
+
+                      {/* Owner / Stage / Lokasi */}
+                      {!hideDimensionCols && (
+                        <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                          {canRead ? (dims.length ? dims.join(' · ') : '—') : '***'}
+                        </td>
                       )}
-                    </div>
-                  </td>
-                  {/* Document */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <MovementDocumentLink item={item} />
-                  </td>
-                  {/* Product */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 500,
-                          fontSize: 14,
-                          color: 'var(--foreground)',
-                        }}
-                      >
-                        {getProductUomName(
-                          item.product_inventory?.product_uom_batch?.product_uom ?? item.product_inventory?.product_uom,
-                          item.product_inventory?.product_uom_batch?.product_uom?.product?.name ??
-                            item.product_inventory?.product_uom?.product?.name,
-                        ) ||
-                          item.product_inventory?.code ||
-                          `INV-${item.product_inventory_id ?? '?'}`}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: 'var(--foreground-muted)',
-                        }}
-                      >
-                        {item.product_inventory?.code ?? ''}
-                        {item.product_inventory?.product_uom_batch?.product_uom?.uom?.code || item.product_inventory?.product_uom?.uom?.code ? (
-                          <>
-                            {item.product_inventory?.code ? ' · ' : ''}
-                            {item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ?? item.product_inventory?.product_uom?.uom?.code}
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  </td>
-                    {/* Branch */}
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        color: 'var(--foreground-muted)',
-                      }}
-                    >
-                      {canRead ? item.branch?.name ?? item.branch_id ?? '—' : "***"}
-                    </td>
-                    {/* Qty */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <span
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: item.direction === 'out'
-                            ? 'var(--destructive)' : 'var(--success)',
-                        }}
-                      >
-                        {formatMovementQty(item, unitMode)}
-                      </span>
-                    </td>
-                    {/* Notes */}
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 12,
-                        color: 'var(--foreground-muted)',
-                        maxWidth: 200,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {canRead ? item.description ?? '—' : "***"}
-                    </td>
-                    {/* Date */}
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 12,
-                        color: 'var(--foreground-muted)',
-                      }}
-                    >
-                      {canRead ? item.created_at
-                        ? formatDateTime(item.created_at)
-                        : '—' : "***"}
-                    </td>
-                  </tr>
-                );
-              })}
-          </tbody>
-        </table>
+
+                      {/* Qty */}
+                      <td style={{ padding: '14px 16px' }}>
+                        <QtyCell item={item} />
+                      </td>
+                    </tr>
+                  )
+                })}
+            </tbody>
+          </table>
+        </div>
       </div>
+
       {/* Pagination */}
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
+
       {/* Sheet */}
-      <StockMovementSheet
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-      />
+      <StockMovementSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
+
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -718,5 +803,5 @@ export default function StockMovementView() {
         }
       `}</style>
     </div>
-  );
+  )
 }

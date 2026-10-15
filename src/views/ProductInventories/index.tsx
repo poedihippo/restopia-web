@@ -285,15 +285,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     productUomsAll.find((pu: any) => pu.id === id)
 
   // Branch-type display: for each product, pick ONE product-UOM whose
-  // branch_type matches the logged-in user's branch.type (from auth/me).
+  // branch_types includes the logged-in user's branch.type (from auth/me).
   // Stock (base_stock in base unit) is converted into that UOM, e.g.
   // 50.000 GR → 50 KG when the user's branch type is "production" and
-  // the KG product-UOM has branch_type=production.
+  // the KG product-UOM has branch_types containing "production".
   const branchUomByProductId = new Map<number, { uomCode: string; conversions?: ConversionEntry[] }>()
   if (userBranchType) {
     for (const pu of productUomsAll) {
-      if (!pu?.branch_type || !pu?.product_id) continue
-      if (String(pu.branch_type).toLowerCase() !== userBranchType.toLowerCase()) continue
+      if (!pu?.branch_types || !pu?.product_id) continue
+      if (!Array.isArray(pu.branch_types)) continue
+      if (!pu.branch_types.some((bt: string) => String(bt).toLowerCase() === userBranchType.toLowerCase())) continue
       if (branchUomByProductId.has(Number(pu.product_id))) continue
       branchUomByProductId.set(Number(pu.product_id), {
         uomCode: pu.uom?.code ?? '',

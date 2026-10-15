@@ -257,7 +257,6 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   })
 
   const rawGlobalUoms: any[] = (uomsData as any) || []
-  const rawProductUoms: any[] = (productUomsData as any) || []
   const rawConversions: any[] = (productConversionsData as any) || []
 
   const [headerDate, setHeaderDate] = useState<string>('')
@@ -299,6 +298,52 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const productGroups: StockOpnameProductGroup[] = useMemo(() => {
     return buildProductGroups(item)
   }, [item])
+
+  // Product ids yang benar-benar ada di opname ini — dipakai untuk fetch
+  // targeted product-UOMs (global query hanya per_page 200 sehingga SKU
+  // branch-type jarang termuat).
+  const opnameProductIds = useMemo(() => {
+    const ids = new Set<number>()
+    productGroups.forEach((g) => {
+      const pid = Number(g.product_uom?.product_id || g.product_uom?.product?.id || 0)
+      if (pid) ids.add(pid)
+    })
+    return Array.from(ids)
+  }, [productGroups])
+
+  // Product-UOMs untuk produk opname dengan branch_type = branch.type user,
+  // include product (nested conversions) untuk konversi tampilan.
+  const { data: branchPuomsData } = useQuery({
+    queryKey: [
+      'product-uoms',
+      'stock-opname-branch-type',
+      userBranchType,
+      opnameProductIds.slice().sort((a, b) => a - b).join(','),
+    ],
+    enabled: !!userBranchType && opnameProductIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({
+          per_page: 1000,
+          include: 'product,uom',
+          'filter[branch_type]': userBranchType,
+          'filter[product_ids]': opnameProductIds.join(','),
+          'filter[is_active]': true,
+        } as any)
+        .then((r) => (r.data as any)?.data || [])
+        .catch(() => []),
+  })
+
+  // Global product-UOMs (untuk opsi multi-satuan) + targeted branch-type rows
+  const rawProductUoms = useMemo(() => {
+    const base: any[] = (productUomsData as any) || []
+    const branchRows: any[] = (branchPuomsData as any) || []
+    const map = new Map<number, any>()
+    for (const pu of [...base, ...branchRows]) {
+      if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
+    }
+    return Array.from(map.values())
+  }, [productUomsData, branchPuomsData])
 
   // All known UoMs for multi-UoM options
   const allKnownUomsMap = useMemo(() => {
@@ -400,23 +445,32 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     return map
   }, [rawConversions])
 
+  // Pilih SATU product-UOM per produk yang branch_type-nya cocok dengan
+  // branch.type user (hasil fetch targeted di atas). Konversi diambil dari
+  // nested product.conversions (ikut include), fallback ke global conversions.
   const branchDisplayByProductId = useMemo(() => {
-    const map = new Map<number, { baseUomCode: string; branchUomCode: string; conversions: ConversionEntry[] }>()
+    const map = new Map<number, { branchUomCode: string; conversions: ConversionEntry[] }>()
     if (!userBranchType) return map
     rawProductUoms.forEach((pu: any) => {
       const pid = Number(pu.product_id)
       if (!pid || map.has(pid)) return
-      const baseUomCode = pu.product?.base_uom?.code ?? ''
-      const branchPu = rawProductUoms.find(
-        (p: any) =>
-          Number(p.product_id) === pid &&
-          p.branch_type &&
-          String(p.branch_type).toLowerCase() === userBranchType.toLowerCase(),
-      )
-      const branchUomCode = branchPu?.uom?.code ?? ''
-      const conversions = convByProductId.get(pid) ?? []
-      if (!baseUomCode || !branchUomCode || baseUomCode === branchUomCode || conversions.length === 0) return
-      map.set(pid, { baseUomCode, branchUomCode, conversions })
+      if (!pu.branch_types || !Array.isArray(pu.branch_types)) return
+      if (!pu.branch_types.some((bt: string) => String(bt).toLowerCase() === userBranchType.toLowerCase())) return
+      const branchUomCode = pu.uom?.code ?? ''
+      if (!branchUomCode) return
+      const nested: any[] = Array.isArray(pu.product?.conversions) ? pu.product.conversions : []
+      const source = nested.length > 0 ? nested : convByProductId.get(pid) ?? []
+      const conversions = source
+        .map((c: any): ConversionEntry => ({
+          uom_code: c.uom_code ?? c.uom?.code ?? '',
+          uom_name: c.uom_name ?? c.uom?.name ?? '',
+          target_uom_code: c.target_uom_code ?? c.target_uom?.code ?? '',
+          target_uom_name: c.target_uom_name ?? c.target_uom?.name ?? '',
+          amount: Number(c.amount ?? 0),
+        }))
+        .filter((c: ConversionEntry) => c.uom_code && c.target_uom_code && c.amount > 0)
+      if (conversions.length === 0) return
+      map.set(pid, { branchUomCode, conversions })
     })
     return map
   }, [rawProductUoms, convByProductId, userBranchType])
@@ -429,7 +483,17 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         detail.product_inventory?.product_uom_batch?.product_uom?.product_id ||
         0,
     )
-    return productId ? branchDisplayByProductId.get(productId) ?? null : null
+    if (!productId) return null
+    const target = branchDisplayByProductId.get(productId)
+    if (!target) return null
+    // system_qty/baris dalam satuan product_uom grup opname (mis. GR) —
+    // itulah unit sumber konversi, bukan base_uom yang mungkin tak di-include.
+    const sourceUomCode =
+      group.product_uom?.uom?.code ??
+      detail.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
+      ''
+    if (!sourceUomCode || sourceUomCode === target.branchUomCode) return null
+    return { sourceUomCode, branchUomCode: target.branchUomCode, conversions: target.conversions }
   }
 
   type LineDisplayInfo = NonNullable<ReturnType<typeof getLineDisplay>>
@@ -452,7 +516,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     const disp = lineDisplayByKey[getLineKey(detail)]
     if (!disp) return Number(state.counted_qty)
     return (
-      convertDown(Number(state.counted_qty), disp.branchUomCode, disp.baseUomCode, disp.conversions) ??
+      convertDown(Number(state.counted_qty), disp.branchUomCode, disp.sourceUomCode, disp.conversions) ??
       Number(state.counted_qty)
     )
   }
@@ -478,7 +542,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
       if (counted !== null && !hasCountItems) {
         const disp = getLineDisplay(d, g)
         if (disp) {
-          counted = convertUp(counted, disp.baseUomCode, disp.branchUomCode, disp.conversions) ?? counted
+          counted = convertUp(counted, disp.sourceUomCode, disp.branchUomCode, disp.conversions) ?? counted
         }
       }
       initialCounts[getLineKey(d)] = {
@@ -735,7 +799,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         const current = next[key] || emptyState()
         const disp = lineDisplayByKey[key]
         const systemShown = disp
-          ? convertUp(Number(detail.system_qty) || 0, disp.baseUomCode, disp.branchUomCode, disp.conversions)
+          ? convertUp(Number(detail.system_qty) || 0, disp.sourceUomCode, disp.branchUomCode, disp.conversions)
           : null
         next[key] = {
           ...current,
@@ -1319,13 +1383,13 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                         // satuan branch; hitungan user dikonversi balik saat save.
                         const disp = lineDisplayByKey[lineKey] ?? null
                         const systemShown = disp
-                          ? convertUp(Number(detail.system_qty) || 0, disp.baseUomCode, disp.branchUomCode, disp.conversions)
+                          ? convertUp(Number(detail.system_qty) || 0, disp.sourceUomCode, disp.branchUomCode, disp.conversions)
                           : null
                         const lineUomLabel = systemShown !== null && disp ? disp.branchUomCode : uomLabel
                         const varianceBase = getVariance(detail, state, countedBaseOf(detail))
                         const variance =
                           varianceBase !== null && disp
-                            ? convertUp(varianceBase, disp.baseUomCode, disp.branchUomCode, disp.conversions) ?? varianceBase
+                            ? convertUp(varianceBase, disp.sourceUomCode, disp.branchUomCode, disp.conversions) ?? varianceBase
                             : varianceBase
 
                         let varianceText = '—'
