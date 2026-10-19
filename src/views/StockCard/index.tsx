@@ -300,7 +300,7 @@ export default function StockCardView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
-                {['#', 'Produk', 'UOM', 'Stok', 'Masuk', 'Keluar', ''].map((label, i) => (
+                {['#', 'Produk', 'UOM', 'Masuk', 'Keluar', 'Stok', ''].map((label, i) => (
                   <th key={i} style={thStyle}>
                     {label}
                   </th>
@@ -397,11 +397,6 @@ export default function StockCardView() {
                         </div>
                       </td>
                       <td style={tdStyle}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
-                          {item.stock != null ? item.stock.toLocaleString('id-ID') : '—'}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>
                           {inTotal.toLocaleString('id-ID')}
                         </span>
@@ -409,6 +404,11 @@ export default function StockCardView() {
                       <td style={tdStyle}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--destructive)' }}>
                           {outTotal.toLocaleString('id-ID')}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
+                          {item.stock != null ? item.stock.toLocaleString('id-ID') : '—'}
                         </span>
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>

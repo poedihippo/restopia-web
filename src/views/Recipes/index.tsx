@@ -12,6 +12,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { getProductUomName } from '@/utils/productUomName'
+import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint, deductionTypeLabel } from '@/utils/deductionType'
 import {
   Plus,
   Pencil,
@@ -38,6 +39,7 @@ interface Recipe {
     id: number
     product_uom_id: number
     qty: number
+    deduction_type?: string
     product_uom?: {
       id: number
       code?: string
@@ -45,6 +47,31 @@ interface Recipe {
       uom?: { name?: string; code: string }
     }
   }>
+}
+
+/** Small pill telling when an ingredient's stock is deducted. */
+function DeductionBadge({ value }: { value?: string }) {
+  const isProduction = value !== 'deduct_on_sold'
+  return (
+    <span
+      title={deductionTypeHint(value)}
+      style={{
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+        padding: '2px 8px',
+        borderRadius: 99,
+        whiteSpace: 'nowrap',
+        border: `1px solid var(--${isProduction ? 'info' : 'accent'})`,
+        background: `var(--${isProduction ? 'info' : 'accent'}-bg)`,
+        color: `var(--${isProduction ? 'info' : 'accent'})`,
+        flexShrink: 0,
+      }}
+    >
+      {deductionTypeLabel(value)}
+    </span>
+  )
 }
 
 export default function RecipesView() {
@@ -448,6 +475,35 @@ export default function RecipesView() {
                     Ingredients
                   </span>
 
+                  {/* Legend: what the two deduction types mean */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '4px 14px',
+                      fontSize: 11,
+                      color: 'var(--foreground-muted)',
+                      marginBottom: 8,
+                    }}
+                  >
+                    {DEDUCTION_TYPE_OPTIONS.map((o) => (
+                      <span key={o.value} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 99,
+                            background:
+                              o.value === 'deduct_on_production' ? 'var(--info)' : 'var(--accent)',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <strong style={{ color: 'var(--foreground)' }}>{o.label}</strong>
+                        {` — ${o.hint.toLowerCase()}`}
+                      </span>
+                    ))}
+                  </div>
+
                   {item.recipe_materials && item.recipe_materials.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {item.recipe_materials.map((mat, idx) => (
@@ -520,6 +576,7 @@ export default function RecipesView() {
                           >
                             {(mat.qty ?? 0).toLocaleString('id-ID')}
                           </span>
+                          <DeductionBadge value={mat.deduction_type} />
                         </div>
                       ))}
                     </div>

@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Plus, Trash2, ArrowLeft, Loader2, Save, Eye } from 'lucide-react'
 import api from '@/hooks/useApi'
@@ -13,7 +13,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { portioningsService } from '@/services/portionings.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
-import { toastMutationApiError } from '@/utils/apiError'
+import { parseApiError, toastMutationApiError } from '@/utils/apiError'
+import { availableStockOf } from '@/utils/inventoryStock'
 import { getProductUomName } from '@/utils/productUomName'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
@@ -127,12 +128,37 @@ const emptyDetail = (): DetailValues => ({
 const formSignature = (values: unknown): string =>
   JSON.stringify({ ...(values as object), status: undefined })
 
-const isDeferredFinalUom = (pu: any): boolean =>
-  (pu?.product?.is_deferred ?? pu?.is_deferred) === true && pu?.product?.type === 'final'
-
-const formatNumber = (v: unknown, maxFractionDigits = 3): string => {
+const formatNumber = (v: unknown, maxFractionDigits = 2): string => {
   const n = Number(v)
   return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: maxFractionDigits }) : '—'
+}
+
+// ── Error wording ────────────────────────────────────────────────────────────
+// The API answers with literal English sentences. Rewrite the ones operators
+// kept asking about into plain Indonesian instead of leaking the raw text.
+const humanizePortioningError = (msg: string): string => {
+  const deferred = msg.match(
+    /product\s+(.+?)\s+is not a deferred final product,?\s+so it cannot be portioned/i,
+  )
+  if (deferred) {
+    return `Produk "${deferred[1].trim()}" tidak bisa dipotong karena bukan produk final ber-flag Deferred — aktifkan Deferred pada produk tersebut terlebih dahulu.`
+  }
+  return msg
+}
+
+/** Deep-rewrites every string inside an axios error payload. */
+const humanizeApiError = (err: any): any => {
+  const data = err?.response?.data
+  if (!data) return err
+  const rewrite = (v: any): any => {
+    if (typeof v === 'string') return humanizePortioningError(v)
+    if (Array.isArray(v)) return v.map(rewrite)
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, rewrite(x)]))
+    }
+    return v
+  }
+  return { ...err, response: { ...err.response, data: rewrite(data) } }
 }
 
 // ── Preview response (field paths are assumptions — confirm against the live API) ──
@@ -308,7 +334,6 @@ export default function PortioningForm() {
   const {
     register,
     handleSubmit,
-    reset,
     control,
     watch,
     setValue,
@@ -417,30 +442,6 @@ export default function PortioningForm() {
     }
   }, [stages, setValue])
 
-  // Final-SKU picker: fetch final product-UOMs and keep only deferred ones in memory.
-  const { data: uomsData, isLoading: uomsLoading } = useQuery({
-    queryKey: ['portioning-product-uoms-all'],
-    queryFn: () =>
-      api
-        .get('/product-uoms', {
-          params: {
-            per_page: 500,
-            include: 'product,uom',
-            'filter[product_types]': 'final',
-          },
-        })
-        .then((r) => r.data),
-  })
-  const allFinalUoms: any[] = (uomsData as any)?.data ?? []
-  const deferredUoms = allFinalUoms.filter(isDeferredFinalUom)
-  const uomOptions = deferredUoms.map((pu: any) => ({
-    value: Number(pu.id),
-    label: [getProductUomName(pu), pu.uom?.code].filter(Boolean).join(' · '),
-    sublabel: pu.code ? `SKU: ${pu.code}` : undefined,
-  }))
-  const uomLabelById = new Map<number, string>(uomOptions.map((o) => [o.value, o.label]))
-  const noDeferredUoms = !uomsLoading && allFinalUoms.length > 0 && deferredUoms.length === 0
-
   // Base-cake picker: this branch's inventory rows under the "Konsumsi Dari" dimension.
   const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
     queryKey: ['product-inventories-all', 'portioning', activeBranchId, watchSourceOwnerRef, watchSourceStage],
@@ -484,7 +485,149 @@ export default function PortioningForm() {
     )
   }
 
-  // To-side stock: this branch's final-product inventories, summed per product-UOM.
+  // Base cake → its product-UOM, used to resolve which result SKUs can be cut
+  // from it (see /recipes?filter[material_product_uom_id]=...). Every documented
+  // path to that id is checked, because a missing include silently empties the
+  // SKU- hasil picker.
+  const invProductUomById = new Map<number, number>()
+  for (const inv of inventories) {
+    const puId = Number(
+      inv?.product_uom_batch?.product_uom?.id ??
+        inv?.product_uom_batch?.product_uom_id ??
+        inv?.product_uom?.id ??
+        inv?.product_uom_id ??
+        0,
+    )
+    if (puId) invProductUomById.set(Number(inv.id), puId)
+  }
+
+  // Deferred final SKUs — the only valid "SKU hasil" for a portioning. The
+  // backend rejects anything else with
+  // "product X is not a deferred final product, so it cannot be portioned".
+  // Read from /product-uoms rather than /product-inventories because a
+  // deferred product can legitimately have no stock row yet, and that must
+  // not hide it from the picker.
+  const { data: deferredUomsData, isLoading: deferredUomsLoading } = useQuery({
+    queryKey: ['portioning-deferred-final-uoms'],
+    staleTime: 60 * 1000,
+    queryFn: () =>
+      api
+        .get('/product-uoms', {
+          params: { per_page: 500, include: 'product', 'filter[product_types]': 'final' },
+        })
+        .then((r) => r.data),
+  })
+  const deferredPuIds = new Set<number>(
+    ((deferredUomsData as any)?.data ?? [])
+      .filter((pu: any) => pu?.product?.is_deferred === true)
+      .map((pu: any) => Number(pu.id))
+      .filter((id: number) => id > 0),
+  )
+
+  // Result-SKU options per selected base cake: recipes whose materials contain
+  // that base are exactly the SKUs the backend can portion out of it.
+  // NOTE: /recipes requires the `recipe.read` permission — failures are surfaced
+  // in the row instead of being silently swallowed.
+  const watchedDetails: DetailValues[] = watchedValues.details ?? []
+  const basePuIds = Array.from(
+    new Set(
+      watchedDetails
+        .map((d) => invProductUomById.get(Number(d?.base_product_inventory_id)) ?? 0)
+        .filter((id) => id > 0),
+    ),
+  )
+
+  const cutQueries = useQueries({
+    queries: basePuIds.map((id) => ({
+      queryKey: ['portioning-cut-recipes', id],
+      // Short stale time: re-selecting a base cake must hit the API again
+      // instead of being served from a long-lived cache.
+      staleTime: 30 * 1000,
+      retry: 1,
+      queryFn: () =>
+        api
+          .get('/recipes', {
+            params: {
+              per_page: 200,
+              include: 'product_uom,recipe_materials',
+              'filter[material_product_uom_id]': id,
+            },
+          })
+          .then((r) => r.data),
+    })),
+  })
+
+  const cutOptionsByBase = new Map<number, { value: number; label: string; sublabel?: string }[]>()
+  const cutLoadingByBase = new Map<number, boolean>()
+  const cutErrorByBase = new Map<number, string>()
+  // Set when a base cake has recipes, but none of their results are deferred
+  // final SKUs — worth saying out loud, because that is exactly the case the
+  // backend refuses to portion.
+  const cutAllNonDeferredByBase = new Set<number>()
+  cutQueries.forEach((q, i) => {
+    const basePuId = basePuIds[i]
+    cutLoadingByBase.set(basePuId, q.isLoading)
+    if (q.isError) cutErrorByBase.set(basePuId, parseApiError(q.error))
+    const seen = new Set<number>()
+    const opts: { value: number; label: string; sublabel?: string }[] = []
+    let sawFinalRecipe = false
+    for (const rec of ((q.data as any)?.data ?? []) as any[]) {
+      const pu = rec?.product_uom
+      const puId = Number(pu?.id ?? rec?.product_uom_id ?? 0)
+      if (!puId || seen.has(puId)) continue
+      // Only a final product is a valid cut result.
+      if (pu?.product?.type && pu.product.type !== 'final') continue
+      sawFinalRecipe = true
+      seen.add(puId)
+      // …and only a DEFERRED final one: portioning any other product is
+      // rejected by the backend.
+      if (!deferredPuIds.has(puId)) continue
+      // recipe_materials carries how much of the chosen base one result eats.
+      const materials: any[] = rec?.recipe_materials ?? []
+      const baseMaterial = materials.find((m) => Number(m?.product_uom_id) === basePuId)
+      const recipeQty = Number(rec?.qty ?? 0) || 1
+      const basePerResult = baseMaterial ? Number(baseMaterial.qty) / recipeQty : NaN
+      opts.push({
+        value: puId,
+        label: [getProductUomName(pu), pu?.uom?.code].filter(Boolean).join(' · '),
+        sublabel:
+          [
+            pu?.code ? `SKU: ${pu.code}` : '',
+            Number.isFinite(basePerResult) ? `Base: ${formatNumber(basePerResult)} per hasil` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined,
+      })
+    }
+    if (sawFinalRecipe && opts.length === 0) cutAllNonDeferredByBase.add(basePuId)
+    cutOptionsByBase.set(basePuId, opts)
+  })
+
+  /** Result-SKU options + loading/error state for one row, given its base cake. */
+  const cutOptionsFor = (invId: number) => {
+    const basePuId = invProductUomById.get(Number(invId)) ?? 0
+    if (basePuId <= 0) {
+      // The inventory list may not have loaded yet — don't claim "no stock".
+      return { basePuId, options: [], loading: inventoriesLoading || deferredUomsLoading, error: undefined, allNonDeferred: false }
+    }
+    return {
+      basePuId,
+      options: cutOptionsByBase.get(basePuId) ?? [],
+      loading: (cutLoadingByBase.get(basePuId) ?? false) || deferredUomsLoading,
+      error: cutErrorByBase.get(basePuId),
+      allNonDeferred: cutAllNonDeferredByBase.has(basePuId),
+    }
+  }
+
+  const cutLabelFor = (invId: unknown, puId: unknown) =>
+    cutOptionsFor(Number(invId)).options.find((o) => o.value === Number(puId))?.label ??
+    `SKU #${puId}`
+
+  // To-side stock: this branch's DEFERRED final inventories, summed per
+  // product-UOM. `filter[is_deferred]=true` keeps this aligned with the SKU
+  // hasil picker — the only products that can be portioned at all — and
+  // `availableStockOf` reads sellable_qty for those rows rather than the
+  // produced-but-unsellable `stock`.
   const { data: finalInvData } = useQuery({
     queryKey: ['portioning-final-inventories', activeBranchId],
     enabled: !!activeBranchId,
@@ -494,6 +637,7 @@ export default function PortioningForm() {
           per_page: 1000,
           'filter[branch_id]': activeBranchId,
           'filter[product_type]': 'final',
+          'filter[is_deferred]': true,
           include: 'product_uom_batch,product_uom_batch.product_uom',
         } as any)
         .then((r) => r.data),
@@ -503,7 +647,7 @@ export default function PortioningForm() {
     const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
     const id = Number(pu?.id)
     if (!id) continue
-    finalStockById.set(id, (finalStockById.get(id) ?? 0) + Number(inv.display_qty ?? inv.stock ?? 0))
+    finalStockById.set(id, (finalStockById.get(id) ?? 0) + availableStockOf(inv))
   }
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -550,7 +694,7 @@ export default function PortioningForm() {
     onSuccess: (resp, { sig, labels }) => {
       setPreview({ sig, labels, result: normalizePreview(resp) })
     },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal memuat preview'),
+    onError: (err: any) => toastMutationApiError(humanizeApiError(err), 'Gagal memuat preview'),
   })
 
   const createMutation = useMutation({
@@ -560,11 +704,10 @@ export default function PortioningForm() {
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
       queryClient.invalidateQueries({ queryKey: ['product-inventories-all'] })
       toast.success(body.status === 'final' ? 'Portioning disimpan & direserve' : 'Portioning disimpan sebagai draft')
-      // No list/detail page yet: stay here, keep date + dimensions, clear the cuts.
-      reset({ ...getValues(), description: '', details: [emptyDetail()] })
-      setPreview(null)
+      // Land on the list so the freshly created document is visible right away.
+      router.push('/production/portioning')
     },
-    onError: (err: any) => toastMutationApiError(err, 'Gagal menyimpan portioning'),
+    onError: (err: any) => toastMutationApiError(humanizeApiError(err), 'Gagal menyimpan portioning'),
   })
 
   const getFirstErrorMessage = (errs: any): string | undefined => {
@@ -591,7 +734,7 @@ export default function PortioningForm() {
     previewMutation.mutate({
       body: buildPayload(values, values.status),
       sig: formSignature(getValues()),
-      labels: values.details.map((d) => uomLabelById.get(d.product_uom_id) ?? '#' + d.product_uom_id),
+      labels: values.details.map((d) => cutLabelFor(d.base_product_inventory_id, d.product_uom_id)),
     })
   }
 
@@ -903,21 +1046,6 @@ export default function PortioningForm() {
           </div>
 
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {noDeferredUoms && (
-              <div
-                style={{
-                  padding: '6px 10px',
-                  fontSize: 12,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--warning)',
-                  background: 'var(--warning-bg)',
-                  color: 'var(--warning)',
-                }}
-              >
-                Tidak ada product-UOM final dengan is_deferred = true pada response /product-uoms.
-              </div>
-            )}
-
             {detailFields.map((field, index) => {
               const rowErrors = errors.details?.[index]
               const d = watchedValues.details?.[index]
@@ -929,6 +1057,7 @@ export default function PortioningForm() {
               const fraction = ratios[ratioKey(invId, puId)]
               const resultQty = fraction ? baseQty / fraction : null
               const yieldN = fraction ? 1 / fraction : null
+              const { options: cutOptions, loading: cutLoading, error: cutError, allNonDeferred } = cutOptionsFor(invId)
               return (
                 <div
                   key={field.id}
@@ -1060,14 +1189,36 @@ export default function PortioningForm() {
                                 const b = Number(getValues(`details.${index}.base_product_inventory_id`))
                                 if (b && v) probeRatio(b, Number(v))
                               }}
-                              options={uomOptions}
-                              placeholder="Pilih SKU hasil..."
+                              options={cutOptions}
+                              placeholder={
+                                invId === 0
+                                  ? 'Pilih base cake dulu...'
+                                  : cutLoading
+                                    ? 'Memuat SKU hasil...'
+                                    : 'Pilih SKU hasil...'
+                              }
                               searchPlaceholder="Cari SKU..."
-                              loading={uomsLoading}
+                              loading={cutLoading || inventoriesLoading}
                               error={rowErrors?.product_uom_id?.message as string | undefined}
                             />
                           )}
                         />
+                        {invId > 0 && !cutLoading && cutOptions.length === 0 && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: cutError ? 'var(--destructive)' : 'var(--warning)',
+                              marginTop: 3,
+                              display: 'block',
+                            }}
+                          >
+                            {cutError
+                              ? `Gagal memuat daftar SKU hasil: ${cutError}`
+                              : allNonDeferred
+                                ? 'Base cake ini punya resep, tetapi semua hasilnya belum ber-flag Deferred. Portioning hanya menerima produk final ber-flag Deferred — aktifkan dulu di menu Products.'
+                                : 'Tidak ada stok produk yang dapat dibagi dari base cake ini.'}
+                          </span>
+                        )}
                       </div>
                       <div>
                         <label style={labelStyle}>Stok</label>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState,  useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
-import { productUomBatchesService } from '@/services/product-uom-batches.service'
+import { productInventoriesService } from '@/services/product-inventories.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -90,18 +90,37 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
     },
   })
 
-  const { data: batchesData } = useQuery({
-    queryKey: ['product-uom-batches-all', debouncedDropdownSearch],
+  // Stock lives on product-inventories, not on the batch row. /product-uom-batches
+  // reports a global cross-branch `stock` that doesn't match the active branch,
+  // so availability is read from this branch's inventory rows instead.
+  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
+    queryKey: ['stock-movement-inventories', activeBranchId, debouncedDropdownSearch],
     queryFn: () =>
-      productUomBatchesService
+      productInventoriesService
         .list({
-          'filter[search]': debouncedDropdownSearch || undefined,
           per_page: 1000,
-          include: 'product_uom',
+          include:
+            'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
+          'filter[branch_id]': activeBranchId,
+          'filter[search]': debouncedDropdownSearch || undefined,
         } as any)
         .then((r) => r.data),
   })
-  const batchesItems = (batchesData as any)?.data ?? []
+
+  // One option per batch, with the branch's on-hand stock summed across rows
+  // (a batch can have several inventory rows in different dimensions).
+  const batchesItems: any[] = useMemo(() => {
+    const byBatch = new Map<number, any>()
+    for (const inv of ((inventoriesData as any)?.data ?? []) as any[]) {
+      const batch = inv?.product_uom_batch
+      const batchId = Number(batch?.id ?? inv?.product_uom_batch_id)
+      if (!batchId) continue
+      const entry = byBatch.get(batchId) ?? { ...batch, id: batchId, stock: 0 }
+      entry.stock += Number(inv.display_qty ?? inv.stock ?? 0)
+      byBatch.set(batchId, entry)
+    }
+    return Array.from(byBatch.values())
+  }, [inventoriesData])
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -116,18 +135,18 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   const batchOptions = batchesItems.map((batch: any) => {
     const name =
       getProductUomName(batch.product_uom, batch.product_uom?.product?.name) ||
-      batch.code ||
+      batch.batch_code ||
       `BATCH-${batch.id}`
     const uomCode =
       batch.display_uom_code ??
       batch.product_uom?.uom?.code ??
       batch.product_uom?.uom?.name ??
       ''
-    const displayStock = batch.display_qty ?? batch.stock
-    const expiryDate = batch.expiry_date?.substring(0, 10) ?? 'No expiry';
+    const displayStock = batch.display_qty ?? batch.stock ?? 0
+    const expiryDate = batch.expiry_date ? formatExpiry(batch.expiry_date) : 'No expiry'
     return {
       value: batch.id as number,
-      label: `${name} — ${uomCode} — Stock: ${displayStock}-Exp Date:${expiryDate}`,
+      label: `${name}${uomCode ? ` · ${uomCode}` : ''} · Stok: ${displayStock} · Exp: ${expiryDate}`,
       sublabel: batch.batch_code ?? undefined,
     }
   })
@@ -135,7 +154,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   const selectedBatch = batchesItems.find((batch: any) => batch.id === watchBatchId)
   // qty here is entered in the selected batch's own product_uom (payload
   // sends product_uom_batch_id + qty as-is), so availability must compare
-  // against display_qty — the on-hand quantity in that unit — not base_stock.
+  // against the branch's on-hand quantity in that unit — not base_stock.
   const negativeStock =
     watchDirection === 'out' &&
     selectedBatch &&
@@ -144,8 +163,18 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => stockMovementsService.create(data as any),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stock-movements'] })
-      queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
+      // A stock movement changes inventory everywhere it is displayed, and
+      // each screen keeps its own query key ('stock-movement-inventories' for
+      // this sheet's batch picker, 'product-inventories' / '-all' / '-pos',
+      // 'stock-card', the dimension-transfer pickers, ...). Invalidating by
+      // prefix list would silently miss one whenever a key is renamed — the
+      // stale-stock bug this replaces — so match every query whose key refers
+      // to inventory or stock. React Query only refetches queries that are
+      // currently mounted, so this stays cheap.
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey.some((part) => typeof part === 'string' && /inventor|stock/i.test(part)),
+      })
       toast.success('Stock movement recorded')
       reset()
       onClose()
@@ -471,6 +500,7 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                   options={batchOptions}
                   placeholder="Select batch"
                   searchPlaceholder="Search batch..."
+                  loading={inventoriesLoading}
                   error={errors.product_uom_batch_id?.message}
                   onSearchChange={setDropdownSearch}
 />

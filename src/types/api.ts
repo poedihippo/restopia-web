@@ -639,6 +639,13 @@ export interface PosCartItem {
   code: string
   price: number
   qty: number
+  /**
+   * How much of this row may still be sold, snapshotted when the line was
+   * added. Deferred SKUs cap at sellable_qty, normal SKUs at their available
+   * physical stock. Undefined for lines restored from a held order, where the
+   * server stays the authority.
+   */
+  maxQty?: number
   price_editable?: boolean
   expiry_date?: string | null
   lot_options?: PosCartLotOption[]
@@ -662,6 +669,12 @@ export interface PosCartBundle {
   code: string
   price: number
   qty: number
+  /**
+   * How many bundles may still be sold, snapshotted when the line was added:
+   * the smallest floor of (available stock / qty per bundle) across its
+   * details. Undefined for lines restored from a held order.
+   */
+  maxQty?: number
   bundle_details: { bundle_detail_item_id: number; product_inventory_id: number }[]
 }
 

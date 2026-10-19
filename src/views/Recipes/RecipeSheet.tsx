@@ -14,6 +14,7 @@ import { X, Loader2, Trash2 } from 'lucide-react'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { useAuth } from '@/hooks/useAuth'
 import { getProductUomName } from '@/utils/productUomName'
+import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint } from '@/utils/deductionType'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
@@ -140,6 +141,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     reset,
     setValue,
     control,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -1176,22 +1178,30 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                     )}
                   </div>
 
-                  {/* Deduction type */}
-                  <Controller
-                    name={`materials.${index}.deduction_type`}
-                    control={control}
-                    render={({ field }) => (
-                      <select
-                        value={field.value}
-                        onChange={field.onChange}
-                        title="Kapan stok material ini dipotong"
-                        style={{ ...fieldStyle, padding: '8px 6px', cursor: 'pointer', height: 38 }}
-                      >
-                        <option value="deduct_on_production">Produksi</option>
-                        <option value="deduct_on_sold">Terjual</option>
-                      </select>
-                    )}
-                  />
+                  {/* Deduction type — when this ingredient's stock is taken out */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                    <Controller
+                      name={`materials.${index}.deduction_type`}
+                      control={control}
+                      render={({ field }) => (
+                        <select
+                          value={field.value}
+                          onChange={field.onChange}
+                          title="Kapan stok material ini dipotong"
+                          style={{ ...fieldStyle, padding: '8px 6px', cursor: 'pointer', height: 38 }}
+                        >
+                          {DEDUCTION_TYPE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    />
+                    <span style={{ fontSize: 10, lineHeight: 1.35, color: 'var(--foreground-subtle)' }}>
+                      {deductionTypeHint(watch(`materials.${index}.deduction_type`))}
+                    </span>
+                  </div>
 
                   {/* Remove */}
                   <button

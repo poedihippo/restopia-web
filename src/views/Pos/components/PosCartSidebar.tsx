@@ -6,6 +6,18 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { formatCurrency } from '@/utils/price';
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { getProductUomName } from '@/utils/productUomName'
+import { toast } from 'sonner'
+
+/** How much of a cart line may still be sold; undefined = not capped client-side. */
+const qtyLimitOf = (item: PosCartItem): number | undefined =>
+  typeof item.maxQty === 'number' && item.maxQty > 0 ? item.maxQty : undefined
+
+/** Same, for a bundle line. */
+const bundleQtyLimitOf = (item: PosCartBundle): number | undefined =>
+  typeof item.maxQty === 'number' && item.maxQty > 0 ? item.maxQty : undefined
+
+const formatQty = (v: number): string =>
+  v.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
 // Some styling constants for the sidebar
 const inputStyle: React.CSSProperties = {
@@ -351,7 +363,12 @@ export default function PosCartSidebar({
                   <LocalizedNumberInput
                     value={item.qty}
                     onChange={(val) => {
-                      const next = Math.max(0.001, val)
+                      const max = qtyLimitOf(item)
+                      let next = Math.max(0.001, val)
+                      if (max !== undefined && next > max) {
+                        toast.error(`Stok tidak mencukupi — tersedia ${formatQty(max)}`)
+                        next = max
+                      }
                       setCart((prev: any) =>
                         prev.map((c: any) =>
                           c.product_inventory_id === item.product_inventory_id
@@ -377,7 +394,12 @@ export default function PosCartSidebar({
                   <button
                     type="button"
                     style={qtyBtnStyle}
-                    onClick={() =>
+                    onClick={() => {
+                      const max = qtyLimitOf(item)
+                      if (max !== undefined && item.qty + 1 > max) {
+                        toast.error(`Stok tidak mencukupi — tersedia ${formatQty(max)}`)
+                        return
+                      }
                       setCart((prev: any) =>
                         prev.map((c: any) =>
                           c.product_inventory_id === item.product_inventory_id
@@ -385,7 +407,7 @@ export default function PosCartSidebar({
                             : c
                         )
                       )
-                    }
+                    }}
                   >
                     +
                   </button>
@@ -472,7 +494,12 @@ export default function PosCartSidebar({
                 <LocalizedNumberInput
                   value={item.qty}
                   onChange={(val) => {
-                    const next = Math.max(0.001, val)
+                    let next = Math.max(0.001, val)
+                    const max = bundleQtyLimitOf(item)
+                    if (max !== undefined && next > max) {
+                      toast.error(`Stok tidak mencukupi — maksimal ${formatQty(max)} bundle`)
+                      next = max
+                    }
                     setBundleCart((prev: any) =>
                       prev.map((c: any) =>
                         c.bundle_id === item.bundle_id ? { ...c, qty: next } : c
@@ -496,13 +523,18 @@ export default function PosCartSidebar({
                 <button
                   type="button"
                   style={qtyBtnStyle}
-                  onClick={() =>
+                  onClick={() => {
+                    const max = bundleQtyLimitOf(item)
+                    if (max !== undefined && item.qty + 1 > max) {
+                      toast.error(`Stok tidak mencukupi — maksimal ${formatQty(max)} bundle`)
+                      return
+                    }
                     setBundleCart((prev: any) =>
                       prev.map((c: any) =>
                         c.bundle_id === item.bundle_id ? { ...c, qty: c.qty + 1 } : c
                       )
                     )
-                  }
+                  }}
                 >
                   +
                 </button>

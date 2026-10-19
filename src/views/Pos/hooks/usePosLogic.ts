@@ -16,6 +16,7 @@ import { salesChannelsService } from '@/services/sales-channels.service'
 import { usersService } from '@/services/users.service'
 import api from '@/hooks/useApi'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
+import { availableStockOf } from '@/utils/inventoryStock'
 
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
@@ -35,6 +36,10 @@ const getApiErrorMessage = (err: any, fallback = 'An error occurred'): string =>
 // Inventory rows carry expiry on the batch, not on the row itself.
 const expiryOf = (row: any): string | null =>
   row?.product_uom_batch?.expiry_date ?? row?.expiry_date ?? null
+
+/** Compact quantity for short toasts, e.g. "1,5" / "24". */
+const formatQty = (v: number): string =>
+  v.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
 const parseJson = (v: any) => {
   if (typeof v !== 'string') return v
@@ -429,7 +434,6 @@ export function usePosLogic() {
       productPage,
       searchDebounced,
       sortBy,
-      inStockOnly,
       selectedCategoryId,
     ],
     queryFn: () => {
@@ -445,12 +449,11 @@ export function usePosLogic() {
 
       if (selectedCategoryId) params['filter[product_category_id]'] = selectedCategoryId
       if (searchDebounced) params['filter[search]'] = searchDebounced
-      if (inStockOnly) params['filter[stock_gte]'] = 1
 
-      // The API only sorts inventories by id/branch_id/product_uom_batch_id/stock/
-      // status/created_at/updated_at. Price and name ordering happens client-side
-      // (see groupedItems).
-      if (sortBy === 'stock_desc') params['sort'] = '-stock'
+      // No server-side stock filter or sort: `filter[stock_gte]` / `sort=stock`
+      // both read the raw `stock` column, which is 0 on a deferred SKU's
+      // anchor row even when it still has sellable_qty. Availability differs
+      // per product mode, so both are applied client-side in groupedItems.
 
       return productInventoriesService.list(params as any).then((r) => r.data)
     },
@@ -491,14 +494,15 @@ export function usePosLogic() {
         map.set(key, g)
       }
       g.lots.push(row)
-      // All lots in a group share one product_uom, so summing display_qty
-      // (on-hand in that uom) across them is safe — no cross-unit mixing.
-      g.totalStock += Number(row.display_qty ?? row.stock ?? 0)
+      // All lots in a group share one product_uom, so summing the available
+      // quantity across them is safe — no cross-unit mixing. Deferred SKUs
+      // sell from sellable_qty, normal SKUs from their on-hand stock.
+      g.totalStock += availableStockOf(row)
     }
 
     for (const g of map.values()) {
       g.lots.sort(fefoCompare)
-      const firstStocked = g.lots.find((l: any) => Number(l.display_qty ?? l.stock ?? 0) > 0)
+      const firstStocked = g.lots.find((l: any) => availableStockOf(l) > 0)
       g.defaultLot = firstStocked ?? g.lots[0]
       g.representative = g.defaultLot
     }
@@ -510,9 +514,14 @@ export function usePosLogic() {
       String(uomOf(g)?.code ?? uomOf(g)?.product?.code ?? uomOf(g)?.product?.name ?? '')
     if (sortBy === 'price_asc') groups.sort((a, b) => priceOf(a) - priceOf(b))
     else if (sortBy === 'price_desc') groups.sort((a, b) => priceOf(b) - priceOf(a))
-    else if (sortBy !== 'stock_desc') groups.sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
-    return groups
-  }, [items, sortBy])
+    else if (sortBy === 'stock_desc') groups.sort((a, b) => b.totalStock - a.totalStock)
+    else groups.sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+
+    // "In stock only" is evaluated here rather than server-side: a deferred
+    // SKU's anchor row has stock = 0, so `filter[stock_gte]` would hide SKUs
+    // that still have sellable_qty left.
+    return inStockOnly ? groups.filter((g) => g.totalStock > 0) : groups
+  }, [items, sortBy, inStockOnly])
 
   // ---------------------------------------------------------------------------
   // 4. COMPUTED VALUES
@@ -580,7 +589,11 @@ export function usePosLogic() {
   const addLotToCart = useCallback((lot: any) => {
     if (!lot) return
 
-    if ((lot.display_qty ?? lot.stock ?? 0) <= 0) {
+    // Availability differs by product mode: deferred SKUs sell from
+    // sellable_qty (the anchor row), normal SKUs from their physical stock.
+    const available = availableStockOf(lot)
+
+    if (available <= 0) {
       toast.error('Item is out of stock')
       return
     }
@@ -588,6 +601,11 @@ export function usePosLogic() {
     setCart((prev: any[]) => {
       const existing = prev.find((c) => c.product_inventory_id === lot.id)
       if (existing) {
+        // Never let the cart exceed what may actually be sold.
+        if (existing.qty + 1 > available) {
+          toast.error(`Stok tidak mencukupi — tersisa ${formatQty(available)}`)
+          return prev
+        }
         return prev.map((c) =>
           c.product_inventory_id === lot.id ? { ...c, qty: c.qty + 1 } : c
         )
@@ -605,6 +623,7 @@ export function usePosLogic() {
             return orderType === 'online' ? (uom?.online_price ?? uom?.base_price ?? 0) : (uom?.base_price ?? 0);
           })(),
           qty: 1,
+          maxQty: available,
         },
       ]
     })
@@ -629,10 +648,33 @@ export function usePosLogic() {
           product_name: item.product_uom?.product?.name || item.product?.name || inventory?.product_uom_batch?.product_uom?.product?.name || 'Item',
           bundle_detail_item_id: item.id,
           product_inventory_id: inventory?.id || inventory,
+          _inventory: inventory,
         }
       })
 
+      // A bundle can only be sold as many times as its scarcest ingredient
+      // allows. A detail without a resolved inventory row doesn't cap anything
+      // client-side — the server still validates at checkout.
+      let maxQty: number | undefined
+      for (const d of processedDetails) {
+        const perBundle = Number(d.qty) || 1
+        const available = availableStockOf(d._inventory)
+        if (perBundle <= 0 || available <= 0) continue
+        const fits = Math.floor(available / perBundle)
+        maxQty = maxQty === undefined ? fits : Math.min(maxQty, fits)
+      }
+
       setBundleCart((prev: any[]) => {
+        const existing = prev.find((b: any) => b.bundle_id === bundle.id)
+        if (existing) {
+          if (maxQty !== undefined && existing.qty + 1 > maxQty) {
+            toast.error(`Stok tidak mencukupi — maksimal ${formatQty(maxQty)} bundle`)
+            return prev
+          }
+          return prev.map((b: any) =>
+            b.bundle_id === bundle.id ? { ...b, qty: b.qty + 1 } : b,
+          )
+        }
         return [
           ...prev,
           {
@@ -641,6 +683,7 @@ export function usePosLogic() {
             code: bundle.code,
             price: bundle.price ?? 0,
             qty: 1,
+            maxQty,
             bundle_details: processedDetails,
           },
         ]
