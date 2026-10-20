@@ -475,7 +475,7 @@ export default function PortioningForm() {
   }, [stages, setValue])
 
   // Base-cake picker: this branch's inventory rows under the "Konsumsi Dari" dimension.
-  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
+  const { data: inventoriesData, isLoading: inventoriesLoading, isFetching: inventoriesFetching } = useQuery({
     queryKey: ['product-inventories-all', 'portioning', activeBranchId, watchSourceOwnerRef, watchSourceStage],
     enabled: !!activeBranchId,
     queryFn: () =>
@@ -491,6 +491,25 @@ export default function PortioningForm() {
         .then((r) => r.data),
   })
   const inventories: any[] = (inventoriesData as any)?.data ?? []
+
+  // The picker keeps showing a row that was picked earlier even after "Konsumsi
+  // Dari" moves to another owner/stage, and that stale id would still be sent on
+  // save. Once the list for the new dimension has loaded, drop every selection
+  // that is not in it (and the SKU / qty that depended on it).
+  useEffect(() => {
+    if (inventoriesLoading || inventoriesFetching || !inventoriesData) return
+    const inDimension = new Set(inventories.map((inv: any) => Number(inv.id)))
+    ;(getValues('details') ?? []).forEach((d, i) => {
+      const id = Number(d?.base_product_inventory_id ?? 0)
+      if (id > 0 && !inDimension.has(id)) {
+        setValue(`details.${i}.base_product_inventory_id`, 0)
+        setValue(`details.${i}.product_uom_id`, 0)
+        setValue(`details.${i}.base_qty`, 1)
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoriesData, inventoriesLoading, inventoriesFetching])
+
   const inventoryOptions = inventories.map((inv: any) => {
     const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
     const stockQty = inv.display_qty ?? inv.stock ?? 0
