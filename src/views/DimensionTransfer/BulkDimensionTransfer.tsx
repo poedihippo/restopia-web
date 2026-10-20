@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { dimensionTransfersService } from '@/services/dimension-transfers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
+import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
@@ -92,7 +93,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
       from_owner_ref: 'GENERAL',
       from_stage: 'GENERAL',
       from_location_ref: 'GENERAL',
-      to_owner_ref: '',
+      to_owner_ref: 'GENERAL',
       to_stage: '',
       to_location_ref: 'GENERAL',
       description: '',
@@ -130,6 +131,18 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     ...companies.map((c) => ({ value: String(c.id), label: c.name })),
   ]
 
+  // Outlet branches always hold stock under the GENERAL owner/location, so the
+  // "To" dimension is locked to GENERAL for them.
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const branches: { id: number; type?: string }[] = (branchesData as any)?.data ?? []
+  const activeBranchType =
+    branches.find((b) => b.id === effectiveBranchId)?.type ??
+    (effectiveBranchId === user?.branch?.id ? (user as any)?.branch?.type : undefined)
+  const isOutletBranch = activeBranchType === 'outlet'
+
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
     queryKey: ['stages-all'],
     queryFn: () => api.get('/stages', { params: { per_page: 100 } }).then((r) => r.data),
@@ -165,6 +178,14 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
   const toStage = watch('to_stage')
   const toLocationRef = watch('to_location_ref') || 'GENERAL'
   const watchItems = watch('items')
+
+  // Outlet branch: owner & location tujuan selalu GENERAL (read-only).
+  useEffect(() => {
+    if (isOutletBranch) {
+      setValue('to_owner_ref', 'GENERAL')
+      setValue('to_location_ref', 'GENERAL')
+    }
+  }, [isOutletBranch, setValue])
 
   // Only offer inventory rows that live in the selected source dimension.
   const inventoryRows = useMemo(
@@ -235,7 +256,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
         from_owner_ref: 'GENERAL',
         from_stage: 'GENERAL',
         from_location_ref: 'GENERAL',
-        to_owner_ref: '',
+        to_owner_ref: 'GENERAL',
         to_stage: '',
         to_location_ref: 'GENERAL',
         description: '',
@@ -284,9 +305,11 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
         location_ref: values.from_location_ref || 'GENERAL',
       },
       to: {
-        owner_ref: values.to_owner_ref,
+        // Owner tujuan selalu GENERAL — backend memperlakukan owner_ref sebagai
+        // free text, jadi jangan kirim ID company.
+        owner_ref: 'GENERAL',
         stage: values.to_stage,
-        location_ref: values.to_location_ref || 'GENERAL',
+        location_ref: isOutletBranch ? 'GENERAL' : values.to_location_ref || 'GENERAL',
       },
       description: values.description || undefined,
     })
@@ -425,21 +448,21 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
               <label style={labelStyle}>
                 Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
-              <Controller
-                name="to_owner_ref"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    options={companyOptions}
-                    placeholder="Pilih owner tujuan..."
-                    searchPlaceholder="Cari perusahaan..."
-                    loading={companiesLoading}
-                    error={errors.to_owner_ref?.message as string | undefined}
-                  />
-                )}
+              <input
+                type="text"
+                value="GENERAL"
+                readOnly
+                placeholder="GENERAL"
+                style={{
+                  ...inputStyle,
+                  background: 'var(--muted)',
+                  cursor: 'not-allowed',
+                  color: 'var(--foreground-muted)',
+                }}
               />
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                Owner tujuan selalu GENERAL
+              </span>
             </div>
             <div>
               <label style={labelStyle}>
@@ -466,9 +489,24 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
               <input
                 type="text"
                 placeholder="GENERAL"
+                readOnly={isOutletBranch}
                 {...register('to_location_ref')}
-                style={inputStyle}
+                style={
+                  isOutletBranch
+                    ? {
+                        ...inputStyle,
+                        background: 'var(--muted)',
+                        cursor: 'not-allowed',
+                        color: 'var(--foreground-muted)',
+                      }
+                    : inputStyle
+                }
               />
+              {isOutletBranch && (
+                <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                  Cabang outlet selalu menggunakan lokasi GENERAL
+                </span>
+              )}
             </div>
             {isSameDimension && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
