@@ -85,6 +85,13 @@ export default function DimensionTransferView() {
   const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
   const effectiveBranchId = selectedBranchId || user?.branch?.id
 
+  // Outlet branches always hold stock under the GENERAL owner/location, so the
+  // "To" dimension is locked to GENERAL for them.
+  const activeBranchType =
+    allBranches.find((b: any) => b.id === effectiveBranchId)?.type ??
+    (effectiveBranchId === user?.branch?.id ? (user as any)?.branch?.type : undefined)
+  const isOutletBranch = activeBranchType === 'outlet'
+
   const queryClient = useQueryClient()
 
   const {
@@ -103,7 +110,7 @@ export default function DimensionTransferView() {
       from_owner_ref: 'GENERAL',
       from_stage: 'GENERAL',
       from_location_ref: 'GENERAL',
-      to_owner_ref: '',
+      to_owner_ref: 'GENERAL',
       to_stage: '',
       to_location_ref: 'GENERAL',
       description: '',
@@ -203,6 +210,14 @@ export default function DimensionTransferView() {
   const toLocationRef = watch('to_location_ref') || 'GENERAL'
   const qtyWatched = watch('qty')
 
+  // Outlet branch: owner & location tujuan selalu GENERAL (read-only).
+  useEffect(() => {
+    if (isOutletBranch) {
+      setValue('to_owner_ref', 'GENERAL')
+      setValue('to_location_ref', 'GENERAL')
+    }
+  }, [isOutletBranch, setValue])
+
   const isSameDimension =
     !!fromOwner &&
     !!toOwnerRef &&
@@ -241,7 +256,7 @@ export default function DimensionTransferView() {
         from_owner_ref: 'GENERAL',
         from_stage: 'GENERAL',
         from_location_ref: 'GENERAL',
-        to_owner_ref: '',
+        to_owner_ref: 'GENERAL',
         to_stage: '',
         to_location_ref: 'GENERAL',
         description: '',
@@ -299,9 +314,11 @@ export default function DimensionTransferView() {
         location_ref: values.from_location_ref || 'GENERAL',
       },
       to: {
-        owner_ref: values.to_owner_ref,
+        // Owner tujuan selalu GENERAL — backend memperlakukan owner_ref sebagai
+        // free text, jangan kirim ID company.
+        owner_ref: 'GENERAL',
         stage: values.to_stage,
-        location_ref: values.to_location_ref || 'GENERAL',
+        location_ref: isOutletBranch ? 'GENERAL' : values.to_location_ref || 'GENERAL',
       },
       description: values.description || undefined,
     })
@@ -486,7 +503,7 @@ export default function DimensionTransferView() {
                       setValue('from_owner_ref', row.owner_ref ?? 'GENERAL')
                       setValue('from_stage', row.stage ?? 'GENERAL')
                       setValue('from_location_ref', row.location_ref ?? 'GENERAL')
-                      setValue('to_owner_ref', '')
+                      setValue('to_owner_ref', 'GENERAL')
                       setValue('to_stage', '')
                       setValue('to_location_ref', 'GENERAL')
                     }
@@ -634,21 +651,21 @@ export default function DimensionTransferView() {
                 <label style={labelStyle}>
                   Owner Tujuan (owner_ref) <span style={{ color: 'var(--destructive)' }}>*</span>
                 </label>
-                <Controller
-                  name="to_owner_ref"
-                  control={control}
-                  render={({ field }) => (
-                    <SearchableSelect
-                      value={field.value ?? ''}
-                      onChange={field.onChange}
-                      options={companyOptions}
-                      placeholder="Pilih owner tujuan..."
-                      searchPlaceholder="Cari perusahaan..."
-                      loading={companiesLoading}
-                      error={errors.to_owner_ref?.message as string | undefined}
-                    />
-                  )}
+                <input
+                  type="text"
+                  value="GENERAL"
+                  readOnly
+                  placeholder="GENERAL"
+                  style={{
+                    ...inputStyle,
+                    background: 'var(--muted)',
+                    cursor: 'not-allowed',
+                    color: 'var(--foreground-muted)',
+                  }}
                 />
+                <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                  Owner tujuan selalu GENERAL
+                </span>
               </div>
 
               <div>
@@ -679,9 +696,24 @@ export default function DimensionTransferView() {
                 <input
                   type="text"
                   placeholder="GENERAL"
+                  readOnly={isOutletBranch}
                   {...register('to_location_ref')}
-                  style={inputStyle}
+                  style={
+                    isOutletBranch
+                      ? {
+                          ...inputStyle,
+                          background: 'var(--muted)',
+                          cursor: 'not-allowed',
+                          color: 'var(--foreground-muted)',
+                        }
+                      : inputStyle
+                  }
                 />
+                {isOutletBranch && (
+                  <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                    Cabang outlet selalu menggunakan lokasi GENERAL
+                  </span>
+                )}
               </div>
             </div>
 

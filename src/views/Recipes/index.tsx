@@ -12,7 +12,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { getProductUomName } from '@/utils/productUomName'
-import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint, deductionTypeLabel } from '@/utils/deductionType'
+import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint, deductionTypeLabel, deductionTypeTone } from '@/utils/deductionType'
 import {
   Plus,
   Pencil,
@@ -51,7 +51,7 @@ interface Recipe {
 
 /** Small pill telling when an ingredient's stock is deducted. */
 function DeductionBadge({ value }: { value?: string }) {
-  const isProduction = value !== 'deduct_on_sold'
+  const tone = deductionTypeTone(value)
   return (
     <span
       title={deductionTypeHint(value)}
@@ -63,9 +63,9 @@ function DeductionBadge({ value }: { value?: string }) {
         padding: '2px 8px',
         borderRadius: 99,
         whiteSpace: 'nowrap',
-        border: `1px solid var(--${isProduction ? 'info' : 'accent'})`,
-        background: `var(--${isProduction ? 'info' : 'accent'}-bg)`,
-        color: `var(--${isProduction ? 'info' : 'accent'})`,
+        border: `1px solid var(--${tone})`,
+        background: `var(--${tone}-bg)`,
+        color: `var(--${tone})`,
         flexShrink: 0,
       }}
     >
@@ -475,7 +475,7 @@ export default function RecipesView() {
                     Ingredients
                   </span>
 
-                  {/* Legend: what the two deduction types mean */}
+                  {/* Legend: what the deduction types mean */}
                   <div
                     style={{
                       display: 'flex',
@@ -493,8 +493,7 @@ export default function RecipesView() {
                             width: 8,
                             height: 8,
                             borderRadius: 99,
-                            background:
-                              o.value === 'deduct_on_production' ? 'var(--info)' : 'var(--accent)',
+                            background: `var(--${deductionTypeTone(o.value)})`,
                             flexShrink: 0,
                           }}
                         />

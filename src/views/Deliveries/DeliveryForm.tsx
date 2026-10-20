@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -183,6 +183,20 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const watchDetails = watch('details')
   const watchSourceOwnerRef = watch('source_owner_ref')
   const watchSourceStage = watch('source_stage')
+
+  // Outlet branch (auth/me): its stock always sits in the GENERAL owner, so
+  // the consumption owner is locked to GENERAL and the stage is prefilled
+  // with "finished" (create only — never overwrites a saved delivery).
+  const isOutletBranch = (user as any)?.branch?.type === 'outlet'
+  const didPrefillOutletStage = useRef(false)
+  useEffect(() => {
+    if (!isOutletBranch) return
+    setValue('source_owner_ref', 'GENERAL')
+    if (mode !== 'create' || didPrefillOutletStage.current) return
+    didPrefillOutletStage.current = true
+    setValue('source_stage', 'finished')
+  }, [isOutletBranch, mode, setValue])
+
   const totalPrice = watchDetails.reduce(
     (sum, d) => sum + Number(d.qty ?? 0) * Number(d.price ?? 0),
     0
@@ -1257,22 +1271,41 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               <label style={labelStyle}>
                 Owner <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
-              <Controller
-                name="source_owner_ref"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? 'GENERAL'}
-                    onChange={field.onChange}
-                    options={companyOptions}
-                    placeholder="Pilih owner..."
-                    searchPlaceholder="Cari perusahaan..."
-                    loading={companiesLoading}
-                    error={errors.source_owner_ref?.message as string | undefined}
-                    onSearchChange={setCompanySearch}
+              {isOutletBranch ? (
+                <>
+                  <input
+                    type="text"
+                    value="GENERAL"
+                    readOnly
+                    style={{
+                      ...inputStyle,
+                      background: 'var(--muted)',
+                      cursor: 'not-allowed',
+                      color: 'var(--foreground-muted)',
+                    }}
                   />
-                )}
-              />
+                  <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                    Cabang outlet selalu menggunakan owner GENERAL
+                  </span>
+                </>
+              ) : (
+                <Controller
+                  name="source_owner_ref"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 'GENERAL'}
+                      onChange={field.onChange}
+                      options={companyOptions}
+                      placeholder="Pilih owner..."
+                      searchPlaceholder="Cari perusahaan..."
+                      loading={companiesLoading}
+                      error={errors.source_owner_ref?.message as string | undefined}
+                      onSearchChange={setCompanySearch}
+                    />
+                  )}
+                />
+              )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>
