@@ -370,6 +370,19 @@ OUTPUT:
   (`[permissions] Nav entries hidden …`) when a menu is hidden although the
   user holds a permission on the same resource — treat that warning as a bug.
 
+### Double-click Protection (global, do not re-implement)
+- Installed once in `src/pages/_app.tsx` from `src/lib/clickGuard.ts`.
+  Every `button` / `[role="button"]` / `input[type=submit]` ignores any second
+  click within 350ms (capture-phase listener → React `onClick` never fires),
+  so users cannot double-create, double-run, or double-delete anything.
+- Keep the existing `disabled={isPending}` on mutations — that protects the
+  in-flight window (seconds), the guard only covers the accidental double-tap.
+- Auto-exempt (fast repeats are legitimate): buttons whose text is `+`/`−`/
+  a number, buttons labelled prev/next/increase/…, and buttons containing a
+  chevron icon.
+- Any other control that must accept fast repeats → add `data-fast-click`
+  on the button (or an ancestor). Never fork the guard per view.
+
 ### CSS Variable Reference
 Use these variables for ALL styling — never hardcode colors:
   Backgrounds : --background, --surface, --surface-raised

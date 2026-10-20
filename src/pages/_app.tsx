@@ -1,5 +1,7 @@
 import { queryClient } from "@/hooks/query";
 import { AuthProvider } from "@/hooks/useAuth";
+import { useEffect } from "react";
+import { installClickGuard } from "@/lib/clickGuard";
 import "@/styles/globals.css";
 import "@/styles/pos-print.css";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -15,6 +17,11 @@ const NO_LAYOUT_ROUTES: string[] = [
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
+
+  // Global double-click guard: no button can fire twice within 350ms.
+  // Covers every route, including the layout-less / and /pos pages.
+  useEffect(() => installClickGuard(document), []);
+
   const noLayout =
     NO_LAYOUT_ROUTES.includes(router.pathname) ||
     router.pathname.startsWith('/pos');
