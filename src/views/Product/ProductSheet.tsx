@@ -54,6 +54,7 @@ const schema = z.object({
   type: z.string().min(1, 'Type is required'),
   description: z.string().optional(),
   is_active: z.boolean(),
+  is_deferred: z.boolean(),
   base_uom_id: z.coerce.number().optional().nullable(),
   reorder_point: z.coerce.number().int().min(0).nullable().optional(),
   uoms: z
@@ -187,6 +188,7 @@ interface ProductSheetProps {
     type?: 'raw' | 'wip' | 'final' | 'supply'
     description?: string
     is_active: boolean
+    is_deferred?: boolean
     base_uom_id?: number | null
     reorder_point?: number | null
   } | null
@@ -238,6 +240,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       type: '',
       description: '',
       is_active: true,
+      is_deferred: false,
       base_uom_id: null,
       reorder_point: null,
       uoms: [],
@@ -344,6 +347,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       type: detail.type ?? editData.type ?? '',
       description: detail.description ?? editData.description ?? '',
       is_active: detail.is_active ?? editData.is_active ?? true,
+      is_deferred: detail.is_deferred ?? editData.is_deferred ?? false,
       base_uom_id: detail.base_uom_id ?? null,
       reorder_point: detail.reorder_point ?? null,
       uoms: (detail.product_uoms ?? []).map((pu: any) => ({
@@ -377,6 +381,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       type: values.type,
       description: values.description ?? '',
       is_active: values.is_active,
+      is_deferred: values.is_deferred,
       base_uom_id: values.base_uom_id ?? null,
       reorder_point: values.reorder_point ?? null,
       ...extra,
@@ -789,6 +794,43 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 </div>
               )}
             />
+          </div>
+
+          {/* Is Deferred */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {fieldLabel('Deferred')}
+            <Controller
+              name="is_deferred"
+              control={control}
+              render={({ field }) => (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([true, false] as const).map((val) => (
+                    <button
+                      key={String(val)}
+                      type="button"
+                      onClick={() => field.onChange(val)}
+                      style={{
+                        padding: '6px 16px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        background: field.value === val ? 'var(--info-bg)' : 'var(--background)',
+                        color: field.value === val ? 'var(--info)' : 'var(--foreground-muted)',
+                        border:
+                          field.value === val ? '1px solid var(--info)' : '1px solid var(--border)',
+                      }}
+                    >
+                      {val ? 'Yes' : 'No'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            />
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              Pilih <strong>Yes</strong> untuk produk final yang stoknya dipotong melalui menu
+              Portioning. Produk tanpa flag ini tidak bisa dipotong.
+            </span>
           </div>
 
           {/* Description */}

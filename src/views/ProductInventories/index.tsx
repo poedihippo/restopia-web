@@ -11,6 +11,7 @@ import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
+import { availableStockOf } from '@/utils/inventoryStock'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
@@ -51,6 +52,11 @@ interface ProductInventory {
   base_stock?: number | null
   base_uom_code?: string | null
   min_qty?: number
+  /** Sellable pool size (deferred SKUs); see @/utils/inventoryStock */
+  sellable_qty?: number | null
+  is_deferred?: boolean | null
+  reserved_base_stock?: number | null
+  available_base_stock?: number | null
   code?: string
   expiry_date?: string
   status?: 'active' | 'inactive'
@@ -67,6 +73,7 @@ interface ProductInventory {
       id: number
       name: string
       type?: string
+      is_deferred?: boolean | null
       conversions?: ConversionEntry[]
       product_category?: { id: number; name: string }
     }
@@ -84,6 +91,7 @@ interface ProductInventory {
         id: number
         name: string
         type?: string
+        is_deferred?: boolean | null
         conversions?: ConversionEntry[]
         product_category?: { id: number; name: string }
       }
@@ -684,7 +692,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 { label: 'Location', width: 120 },
                 { label: 'Branch', width: 160 },
                 { label: 'Qty', width: 100 },
-                { label: 'Min Qty', width: 100 },
+                { label: 'Sellable Qty', width: 120 },
                 { label: 'Status', width: 110 },
                 { label: '', width: 110 },
               ].map(({ label, width }, i) => (
@@ -820,10 +828,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     ? `${baseQty.toLocaleString('id-ID')} ${baseUomCode}`
                     : `${stockQty.toLocaleString('id-ID')} ${stockUnit}`
 
-                const isLow =
-                  item.min_qty !== undefined &&
-                  item.min_qty !== null &&
-                  baseQty <= (item.min_qty ?? 0)
+                // Sellable Qty = what can actually be sold right now
+                // (sellable_qty for deferred SKUs, available stock otherwise).
+                const sellableQty = availableStockOf(item)
+                const isLow = sellableQty <= 0
 
                 return (
                   <tr
@@ -950,7 +958,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     </td>
 
                     <>
-                      {/* Min Qty */}
+                      {/* Sellable Qty */}
                       <td
                         style={{
                           padding: '12px 16px',
@@ -958,9 +966,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {canRead ? item.min_qty !== undefined && item.min_qty !== null
-                          ? (item.min_qty ?? 0).toLocaleString('id-ID')
-                          : '—' : "***"}
+                        {canRead ? sellableQty.toLocaleString('id-ID') : "***"}
                       </td>
                       {/* Status */}
                       <td style={{ padding: '12px 16px' }}>

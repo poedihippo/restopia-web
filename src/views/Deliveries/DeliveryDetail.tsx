@@ -913,7 +913,9 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                     {detail.qty.toLocaleString('id-ID')}
                   </td>
                   <td style={{ border: '1px solid #000', padding: '2mm' }} />
-                  <td style={{ border: '1px solid #000', padding: '2mm' }} />
+                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
+                    {(detail as any).description ?? ''}
+                  </td>
                 </tr>
               )
             })}
@@ -927,7 +929,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           </div>
         )}
 
-        {/* Signatures — 3 columns */}
+        {/* Signatures — 2 columns */}
         <table
           style={{
             width: '100%',
@@ -941,8 +943,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
         >
           <tbody>
             <tr>
-              {['Pengirim', 'Penerima', 'Sopir / Driver'].map((label) => (
-                <td key={label} style={{ width: '33%', textAlign: 'center', verticalAlign: 'top', padding: '0 4mm' }}>
+              {['Pengirim', 'Penerima'].map((label) => (
+                <td key={label} style={{ width: '50%', textAlign: 'center', verticalAlign: 'top', padding: '0 4mm' }}>
                   <div>{label}</div>
                   <div style={{ height: '45mm' }} />
                   <div style={{ marginTop: '8mm' }}>( ____________ )</div>

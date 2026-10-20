@@ -292,6 +292,7 @@ export interface StockMovementRequest {
 export interface RecipeMaterialItem {
   product_uom_id: number
   qty: number
+  deduction_type: string
 }
 export interface RecipeRequest {
   product_uom_id: number
@@ -638,6 +639,13 @@ export interface PosCartItem {
   code: string
   price: number
   qty: number
+  /**
+   * How much of this row may still be sold, snapshotted when the line was
+   * added. Deferred SKUs cap at sellable_qty, normal SKUs at their available
+   * physical stock. Undefined for lines restored from a held order, where the
+   * server stays the authority.
+   */
+  maxQty?: number
   price_editable?: boolean
   expiry_date?: string | null
   lot_options?: PosCartLotOption[]
@@ -661,6 +669,12 @@ export interface PosCartBundle {
   code: string
   price: number
   qty: number
+  /**
+   * How many bundles may still be sold, snapshotted when the line was added:
+   * the smallest floor of (available stock / qty per bundle) across its
+   * details. Undefined for lines restored from a held order.
+   */
+  maxQty?: number
   bundle_details: { bundle_detail_item_id: number; product_inventory_id: number }[]
 }
 
@@ -736,4 +750,92 @@ export interface BulkUpsertPriceListItem {
 
 export interface BulkUpsertPriceListItemRequest {
   items: BulkUpsertPriceListItem[]
+}
+
+// Sellable Settlements — turns sales of deferred SKUs into a physical stock deduction (COGS)
+export interface SellableSettlementLine {
+  id: number
+  reservation_id?: number | null
+  product_inventory_id: number
+  product_inventory?: {
+    id: number
+    stock?: number
+    sellable_qty?: number
+    stage?: string
+    location_ref?: string
+    owner_ref?: string
+    product_uom_batch?: {
+      id?: number
+      product_uom?: {
+        id?: number
+        name?: string
+        code?: string
+        product?: { id: number; name?: string; code?: string }
+        uom?: { id?: number; code?: string; name?: string }
+      }
+    }
+    product_uom?: {
+      id?: number
+      name?: string
+      code?: string
+      product?: { id: number; name?: string; code?: string }
+    }
+    [key: string]: any
+  }
+  role: 'base' | 'packaging' | string
+  sold_qty: number
+  exact_base_qty: number
+  applied_base_qty: number
+  unit_cost: number
+  cogs_amount: number
+  [key: string]: any
+}
+
+export interface SellableSettlement {
+  id: number
+  branch_id: number
+  code: string
+  date: string
+  description?: string | null
+  status: 'final' | 'reversed' | string
+  total_cogs: number
+  cogs_journal_id?: number | null
+  created_by_id?: number
+  updated_by_id?: number
+  created_by?: { id: number; name?: string; email?: string; [key: string]: any }
+  updated_by?: { id: number; name?: string; email?: string; [key: string]: any }
+  created_at?: string
+  updated_at?: string
+  lines?: SellableSettlementLine[]
+  [key: string]: any
+}
+
+export interface RunSellableSettlementRequest {
+  /** Settlement date (YYYY-MM-DD) — required */
+  as_of: string
+  description?: string
+  /** Preview only: keeps nothing */
+  dry_run?: boolean
+}
+
+export interface SellableSettlementSkipped {
+  reservation_id?: number
+  product_inventory_id?: number
+  product_id?: number
+  role: 'base' | 'packaging' | string
+  applied_base_qty: number
+  reason: string
+  [key: string]: any
+}
+
+export interface SellableSettlementRunResult {
+  id?: number
+  code?: string
+  as_of: string
+  dry_run: boolean
+  total_cogs: number
+  usage_count: number
+  lines: SellableSettlementLine[]
+  skipped: SellableSettlementSkipped[]
+  [key: string]: any
 }

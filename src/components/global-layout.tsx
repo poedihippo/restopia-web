@@ -7,6 +7,7 @@ import { useShortcut } from '@/hooks/useShortcut';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/hooks/useAuth';
 import PermissionDenied from '@/components/PermissionDenied';
+import { auditNavPermissions } from '@/lib/permissions';
 
 type Props = {
   children: React.ReactNode;
@@ -83,6 +84,21 @@ export default function GlobalLayout({ children }: Props) {
     Boolean(user) &&
     !isSuperadmin &&
     Boolean(requiredPermission && !hasRequiredPermission(requiredPermission));
+
+  // Dev-only guard: warn when a menu/route is hidden even though the user holds
+  // a permission on the same resource (i.e. an action-key mismatch bug).
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production') return;
+    if (!user || isSuperadmin || isCheckingAuth) return;
+    const granted = (user.permissions ?? []).map((p: any) => p.name).filter(Boolean);
+    const findings = auditNavPermissions(NAV_GROUPS, granted);
+    if (findings.length > 0) {
+      console.warn(
+        '[permissions] Nav entries hidden — user HAS a permission on the same resource, check the action key:',
+        findings,
+      );
+    }
+  }, [user, isSuperadmin, isCheckingAuth]);
 
   useShortcut({
     key: 'b',

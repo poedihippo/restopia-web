@@ -647,6 +647,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       setValue('target_branch_id', poDetail.branch_id)
     }
 
+    // Carry the PO's own note across as the delivery note. Without this the
+    // header description stayed empty and the printed Surat Jalan had no
+    // "Catatan" line, even though the operator had already written it on the
+    // PO. Never clobber text the user typed themselves.
+    if (poDetail?.description && !getValues('description')) {
+      setValue('description', poDetail.description)
+    }
+
     toast.info('Line items loaded from Purchase Order')
   }, [poDetail?.id])
 
@@ -674,6 +682,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       })
       replace(newDetails)
       setTimeout(() => setLinkedOrderFormReady(true), 0)
+
+      // Same as the PO path: reuse the SO's note as the delivery note, but
+      // never overwrite something the user already typed.
+      if (soDetail?.description && !getValues('description')) {
+        setValue('description', soDetail.description)
+      }
+
       toast.info('Items loaded from Sales Order')
     }
   }, [soDetail?.id])

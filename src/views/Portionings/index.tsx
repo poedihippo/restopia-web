@@ -6,6 +6,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { portioningsService } from '@/services/portionings.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import type { Portioning } from '@/types/api'
@@ -50,6 +51,46 @@ function StatusBadge({ status }: { status: string }) {
     >
       {sm.label}
     </span>
+  )
+}
+
+/** Numbers on this screen stay readable: at most 2 decimals, Indonesian format. */
+const qty = (v: unknown): string => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: 2 }) : '—'
+}
+
+/** Best-effort human name for a material's inventory row. */
+const materialName = (m: any): string => {
+  const pu = m?.product_inventory?.product_uom_batch?.product_uom ?? m?.product_inventory?.product_uom
+  const name = getProductUomName(pu, pu?.product?.name)
+  if (name) return name
+  if (m?.product_inventory?.code) return String(m.product_inventory.code)
+  return m?.product_inventory_id ? `Inventory #${m.product_inventory_id}` : '—'
+}
+
+function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 12, color: 'var(--foreground)' }}>{value}</span>
+    </div>
+  )
+}
+
+function DetailMaterialList({ title, items }: { title: string; items: any[] }) {
+  if (items.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>{title}</span>
+      {items.map((m, i) => (
+        <span key={m.id ?? i} style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+          • {materialName(m)} — <strong style={{ color: 'var(--foreground)' }}>{qty(m.qty_per_unit)}</strong> per hasil
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -514,84 +555,117 @@ export default function PortioningsView() {
                                 No details
                               </span>
                             )}
-                            {(expandedItem.details ?? []).map((d) => (
-                              <div
-                                key={d.id}
-                                style={{
-                                  border: '1px solid var(--border)',
-                                  borderRadius: 'var(--radius-md)',
-                                  background: 'var(--surface)',
-                                  padding: '10px 14px',
-                                  display: 'flex',
-                                  flexDirection: 'column',
-                                  gap: 6,
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                                    {d.product_uom?.name ?? `Product UOM #${d.product_uom_id}`}
-                                  </span>
-                                  {d.product_uom?.code && (
-                                    <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', fontFamily: 'monospace' }}>
-                                      {d.product_uom.code}
+                            {(expandedItem.details ?? []).map((d) => {
+                              const materials = d.materials ?? []
+                              const reservations = d.reservations ?? []
+                              const sellable = d.sellable
+                              return (
+                                <div
+                                  key={d.id}
+                                  style={{
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius-md)',
+                                    background: 'var(--surface)',
+                                    padding: '10px 14px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 10,
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                                      {d.product_uom?.name ?? `Product UOM #${d.product_uom_id}`}
                                     </span>
+                                    {d.product_uom?.code && (
+                                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', fontFamily: 'monospace' }}>
+                                        {d.product_uom.code}
+                                      </span>
+                                    )}
+                                    <StatusBadge status={d.status} />
+                                  </div>
+
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                                      gap: 10,
+                                    }}
+                                  >
+                                    <DetailField label="Qty hasil" value={qty(d.qty)} />
+                                    <DetailField
+                                      label="Base cake"
+                                      value={
+                                        materials
+                                          .filter((m) => m.role === 'base')
+                                          .map(materialName)
+                                          .join(', ') || '—'
+                                      }
+                                    />
+                                    <DetailField label="Batch" value={d.batch_code || '—'} />
+                                    <DetailField label="Expired" value={d.expiry_date || '—'} />
+                                    <DetailField label="Stage" value={d.stage || '—'} />
+                                    <DetailField label="Owner" value={d.owner_ref || '—'} />
+                                  </div>
+
+                                  {d.description && (
+                                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{d.description}</span>
                                   )}
-                                  <StatusBadge status={d.status} />
-                                  <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                                    Qty: <strong style={{ color: 'var(--foreground)' }}>{d.qty}</strong>
-                                  </span>
-                                  {d.batch_code && (
-                                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                                      Batch: <span style={{ fontFamily: 'monospace' }}>{d.batch_code}</span>
-                                    </span>
+
+                                  <DetailMaterialList
+                                    title="Base cake yang dipotong (per 1 hasil)"
+                                    items={materials.filter((m) => m.role === 'base')}
+                                  />
+                                  <DetailMaterialList
+                                    title="Kemasan yang dipakai (per 1 hasil)"
+                                    items={materials.filter((m) => m.role !== 'base')}
+                                  />
+
+                                  {reservations.length > 0 && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+                                        Reservasi base cake
+                                      </span>
+                                      {reservations.map((r, i) => (
+                                        <span key={r.id ?? i} style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                                          • Dipesan{' '}
+                                          <strong style={{ color: 'var(--foreground)' }}>{qty(r.reserved_base_qty)}</strong>
+                                          {r.applied_base_qty != null && (
+                                            <>
+                                              {' '}· terpakai{' '}
+                                              <strong style={{ color: 'var(--foreground)' }}>{qty(r.applied_base_qty)}</strong>
+                                            </>
+                                          )}
+                                          {r.outstanding_base_qty != null && (
+                                            <>
+                                              {' '}· sisa{' '}
+                                              <strong style={{ color: 'var(--foreground)' }}>{qty(r.outstanding_base_qty)}</strong>
+                                            </>
+                                          )}
+                                        </span>
+                                      ))}
+                                    </div>
                                   )}
-                                  {d.expiry_date && (
-                                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                                      Exp: {d.expiry_date}
-                                    </span>
-                                  )}
-                                  {d.stage && (
-                                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                                      Stage: {d.stage}
-                                    </span>
+
+                                  {sellable && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+                                        Stok jual (sellable)
+                                      </span>
+                                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                                        Dibuat{' '}
+                                        <strong style={{ color: 'var(--foreground)' }}>{qty(sellable.qty)}</strong> · terjual{' '}
+                                        <strong style={{ color: 'var(--foreground)' }}>
+                                          {qty(Number(sellable.qty ?? 0) - Number(sellable.remaining_qty ?? 0))}
+                                        </strong>{' '}
+                                        · sisa{' '}
+                                        <strong style={{ color: 'var(--foreground)' }}>{qty(sellable.remaining_qty)}</strong>
+                                        {sellable.batch_code ? ` · ${sellable.batch_code}` : ''} · {sellable.status}
+                                      </span>
+                                    </div>
                                   )}
                                 </div>
-                                {d.description && (
-                                  <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{d.description}</span>
-                                )}
-                                {d.sellable && (
-                                  <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                                    Sellable:{' '}
-                                    <strong style={{ color: 'var(--foreground)' }}>{d.sellable.qty}</strong> qty · remaining{' '}
-                                    <strong style={{ color: 'var(--foreground)' }}>{d.sellable.remaining_qty}</strong> ·{' '}
-                                    {d.sellable.status}
-                                    {d.sellable.batch_code ? ` · ${d.sellable.batch_code}` : ''}
-                                  </span>
-                                )}
-                                {(d.materials ?? []).length > 0 && (
-                                  <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                                    Materials:{' '}
-                                    {(d.materials ?? [])
-                                      .map(
-                                        (m) =>
-                                          `#${m.product_inventory_id} ${m.role} × ${m.qty_per_unit}`
-                                      )
-                                      .join(', ')}
-                                  </div>
-                                )}
-                                {(d.reservations ?? []).length > 0 && (
-                                  <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                                    Reservations:{' '}
-                                    {(d.reservations ?? [])
-                                      .map(
-                                        (r) =>
-                                          `inv#${r.product_inventory_id} reserved ${r.reserved_base_qty} · outstanding ${r.outstanding_base_qty}`
-                                      )
-                                      .join('; ')}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         )}
                       </td>

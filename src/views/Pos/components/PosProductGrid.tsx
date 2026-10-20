@@ -5,6 +5,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import { formatCurrency } from '@/utils/price';
 import { getProductUomName } from '@/utils/productUomName'
+import { availableStockOf } from '@/utils/inventoryStock'
 
 
 interface PosProductGridProps {
@@ -507,7 +508,7 @@ export default function PosProductGrid({
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {batchPickerGroup.lots.map((lot: any) => {
-                    const lotDisplayQty = lot.display_qty ?? lot.stock ?? 0
+                    const lotDisplayQty = availableStockOf(lot)
                     return (
                     <div
                       key={lot.id}
@@ -835,9 +836,9 @@ function BundleBatchPickerModal({
               const qty = item.qty || detail.qty || 1
               
               const inventories = inventoriesByDetailId[detail.id] || []
-              // Filter only positive stock (display_qty = on-hand in this
-              // row's own uom, matching the qty the cashier will send)
-              const availableInventories = inventories.filter((i: any) => (i.display_qty ?? i.stock ?? i.qty ?? 0) > 0)
+              // Keep only rows with a sellable quantity (deferred SKUs sell
+              // from sellable_qty, normal SKUs from their on-hand stock)
+              const availableInventories = inventories.filter((i: any) => availableStockOf(i) > 0)
               
               const hasChoices = detail.items && detail.items.length > 1
 
@@ -915,7 +916,7 @@ function BundleBatchPickerModal({
                   {availableInventories.map((inv: any) => {
                     const batchCode = inv.product_uom_batch?.batch_code ?? inv.product_uom_batch?.code ?? 'N/A'
                     const exp = inv.product_uom_batch?.expiry_date ? formatDate(inv.product_uom_batch.expiry_date) : 'No Exp Date'
-                    const stock = inv.display_qty ?? inv.stock ?? inv.qty ?? 0
+                    const stock = availableStockOf(inv)
                     const uomCode = inv.display_uom_code ? ` ${inv.display_uom_code}` : ''
                     return (
                       <option key={inv.id} value={inv.id}>

@@ -349,6 +349,40 @@ OUTPUT:
 - ALWAYS add 'use client' to view and sheet files
 - ALWAYS export default from page files in src/pages/
 
+### Permission Rules (menu / route / button gating)
+- ALL permission checks go through `useAuth().hasPermission(key)` or
+  `usePermission()` — both delegate to `src/lib/permissions.ts`.
+- NEVER compare permissions manually
+  (`user.permissions.some(p => p.name === k)`, `new Set(...).has(k)`,
+  `p.name.includes(...)`). Manual compares hide menus for users that DO
+  have access (nav key `product-inventory-raw` vs granted
+  `product-inventory.menu`, `*.menu` vs `*.read`, `price_list.*` vs
+  `price-list.*`).
+- The matcher normalizes `_`/`-` and singular/plural, treats view actions
+  (`menu|read|view|access|list|index|show`) as interchangeable, and lets a
+  dot-less key (`product-inventory-raw`) match its base resource
+  (`product-inventory.menu` / `.read`) — in BOTH directions.
+- Write actions (`create|update|delete|...`) are NEVER broadened — exact only.
+- Nav `permission` accepts a string or string[] (ANY-of). When a menu belongs
+  to a parent module, add explicit fallback keys, e.g.
+  `['stock-opname.menu','stock-opname.read','product-inventory.menu','product-inventory.read']`.
+- Dev builds warn in the console
+  (`[permissions] Nav entries hidden …`) when a menu is hidden although the
+  user holds a permission on the same resource — treat that warning as a bug.
+
+### Double-click Protection (global, do not re-implement)
+- Installed once in `src/pages/_app.tsx` from `src/lib/clickGuard.ts`.
+  Every `button` / `[role="button"]` / `input[type=submit]` ignores any second
+  click within 350ms (capture-phase listener → React `onClick` never fires),
+  so users cannot double-create, double-run, or double-delete anything.
+- Keep the existing `disabled={isPending}` on mutations — that protects the
+  in-flight window (seconds), the guard only covers the accidental double-tap.
+- Auto-exempt (fast repeats are legitimate): buttons whose text is `+`/`−`/
+  a number, buttons labelled prev/next/increase/…, and buttons containing a
+  chevron icon.
+- Any other control that must accept fast repeats → add `data-fast-click`
+  on the button (or an ancestor). Never fork the guard per view.
+
 ### CSS Variable Reference
 Use these variables for ALL styling — never hardcode colors:
   Backgrounds : --background, --surface, --surface-raised
