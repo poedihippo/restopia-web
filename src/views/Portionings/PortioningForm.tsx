@@ -516,6 +516,16 @@ export default function PortioningForm() {
     const expiry = inv?.product_uom_batch?.expiry_date ?? inv?.expiry_date
     // Cutable stock is in the base uom.
     const cutableUnit = inv.base_uom_code ?? inv.display_uom_code ?? pu?.uom?.code
+    // The row's own dimension and the product's type, so what the list shows can be
+    // checked against "Konsumsi Dari" (a WIP cake can legitimately sit in `finished`).
+    const productType: string | undefined = pu?.product?.type
+    const dimension = [
+      inv.stage ? `Stage: ${inv.stage}` : '',
+      inv.owner_ref ? `Owner: ${inv.owner_ref}` : '',
+      productType ? `Tipe: ${productType.toUpperCase()}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
     return {
       value: Number(inv.id),
       label: [getProductUomName(pu, inv.code), pu?.uom?.code].filter(Boolean).join(' · '),
@@ -526,6 +536,7 @@ export default function PortioningForm() {
           : isSellableOnlyRow(inv)
             ? `Sellable: ${formatNumber(inv.sellable_qty ?? 0)} (bukan Cutable Source)`
             : `Stok: ${formatNumber(stockQty)}${inv.display_uom_code ? ` ${inv.display_uom_code}` : ''}`,
+        dimension,
         expiry ? `Exp: ${String(expiry).slice(0, 10)}` : '',
       ]
         .filter(Boolean)
