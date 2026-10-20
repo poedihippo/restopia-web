@@ -349,6 +349,27 @@ OUTPUT:
 - ALWAYS add 'use client' to view and sheet files
 - ALWAYS export default from page files in src/pages/
 
+### Permission Rules (menu / route / button gating)
+- ALL permission checks go through `useAuth().hasPermission(key)` or
+  `usePermission()` — both delegate to `src/lib/permissions.ts`.
+- NEVER compare permissions manually
+  (`user.permissions.some(p => p.name === k)`, `new Set(...).has(k)`,
+  `p.name.includes(...)`). Manual compares hide menus for users that DO
+  have access (nav key `product-inventory-raw` vs granted
+  `product-inventory.menu`, `*.menu` vs `*.read`, `price_list.*` vs
+  `price-list.*`).
+- The matcher normalizes `_`/`-` and singular/plural, treats view actions
+  (`menu|read|view|access|list|index|show`) as interchangeable, and lets a
+  dot-less key (`product-inventory-raw`) match its base resource
+  (`product-inventory.menu` / `.read`) — in BOTH directions.
+- Write actions (`create|update|delete|...`) are NEVER broadened — exact only.
+- Nav `permission` accepts a string or string[] (ANY-of). When a menu belongs
+  to a parent module, add explicit fallback keys, e.g.
+  `['stock-opname.menu','stock-opname.read','product-inventory.menu','product-inventory.read']`.
+- Dev builds warn in the console
+  (`[permissions] Nav entries hidden …`) when a menu is hidden although the
+  user holds a permission on the same resource — treat that warning as a bug.
+
 ### CSS Variable Reference
 Use these variables for ALL styling — never hardcode colors:
   Backgrounds : --background, --surface, --surface-raised

@@ -12,6 +12,7 @@ import { queryClient } from "./query";
 import api from "./useApi";
 import { authService } from "@/services/auth.service";
 import { setPricePermission } from "@/utils/price";
+import { matchesAnyPermission } from "@/lib/permissions";
 
 type AuthContextType = {
   user: IUserMe | null;
@@ -97,7 +98,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser(userData);
             setPricePermission(
               userData.type === "superadmin" || 
-              (userData.permissions?.some((p: any) => p.name === "common.price.read") ?? false)
+              matchesAnyPermission((userData.permissions ?? []).map((p: any) => p.name), "common.price.read")
             );
           } else {
             logout();
@@ -178,7 +179,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(userData);
         setPricePermission(
           userData.type === "superadmin" || 
-          (userData.permissions?.some((p: any) => p.name === "common.price.read") ?? false)
+          matchesAnyPermission((userData.permissions ?? []).map((p: any) => p.name), "common.price.read")
         );
       }
     } catch (error) {
@@ -198,7 +199,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(userData);
         setPricePermission(
           userData.type === "superadmin" || 
-          (userData.permissions?.some((p: any) => p.name === "common.price.read") ?? false)
+          matchesAnyPermission((userData.permissions ?? []).map((p: any) => p.name), "common.price.read")
         );
       }
     } catch (error) {
@@ -213,29 +214,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     (permission: string): boolean => {
       if (!user) return false;
       if (user.type === "superadmin") return true;
-      
-      const parts = permission.split('.');
-      if (parts.length !== 2) {
-        return user.permissions?.some((p: any) => p.name === permission) ?? false;
-      }
-      
-      const resource = parts[0];
-      const action = parts[1];
-      
-      const resourceUnder = resource.replace(/-/g, '_');
-      const resourcePlural = resource.endsWith('y') ? resource.slice(0, -1) + 'ies' : resource.endsWith('s') ? resource : resource + 's';
-      const resourceUnderPlural = resourceUnder.endsWith('y') ? resourceUnder.slice(0, -1) + 'ies' : resourceUnder.endsWith('s') ? resourceUnder : resourceUnder + 's';
-      
-      const actions = [action];
-      const resourceVariants = Array.from(new Set([resource, resourceUnder, resourcePlural, resourceUnderPlural]));
-      const possiblePerms: string[] = [];
-      for (const res of resourceVariants) {
-        for (const act of actions) {
-          possiblePerms.push(`${res}.${act}`);
-        }
-      }
-      
-      return user.permissions?.some((p: any) => possiblePerms.includes(p.name)) ?? false;
+
+      const granted = (user.permissions ?? []).map((p: any) => p.name).filter(Boolean);
+      return matchesAnyPermission(granted, permission);
     },
     [user],
   );
