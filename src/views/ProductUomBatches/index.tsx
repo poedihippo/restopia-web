@@ -11,6 +11,7 @@ import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/usePr
 import api from '@/hooks/useApi'
 import ProductUomBatchSheet from './ProductUomBatchSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import SearchableSelect from '@/components/SearchableSelect'
 import {
   Plus,
   Search,
@@ -104,6 +105,9 @@ export default function ProductUomBatchesView() {
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(20)
   const [productUomFilter, setProductUomFilter] = useState(0)
+  const [puDropdownSearch, setPuDropdownSearch] = useState('')
+  const [debouncedPuDropdownSearch, setDebouncedPuDropdownSearch] =
+    useState('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [typeFilter, setTypeFilter] = useState<string | ''>('')
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -115,6 +119,14 @@ export default function ProductUomBatchesView() {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
     return () => clearTimeout(timer)
   }, [search])
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setDebouncedPuDropdownSearch(puDropdownSearch),
+      400,
+    )
+    return () => clearTimeout(timer)
+  }, [puDropdownSearch])
 
   useEffect(() => {
     setPage(1)
@@ -150,11 +162,19 @@ export default function ProductUomBatchesView() {
   const categories = (categoriesData as any)?.data ?? []
 
   // Product UOMs for the filter dropdown — single call, no loop.
-  const { data: puData } = useQuery({
-    queryKey: ['product-uoms-all', activeProductTypes],
+  // Search is delegated to the server (`filter[search]`) so the picker stays
+  // responsive even with thousands of SKUs; SearchableSelect also narrows the
+  // fetched list client-side while typing.
+  const { data: puData, isLoading: puLoading } = useQuery({
+    queryKey: [
+      'product-uoms-all',
+      activeProductTypes,
+      debouncedPuDropdownSearch,
+    ],
     queryFn: () =>
       productUomsService
         .list({
+          'filter[search]': debouncedPuDropdownSearch || undefined,
           per_page: 1000,
           include: 'product,uom',
           'filter[product_types]': activeProductTypes,
@@ -164,6 +184,17 @@ export default function ProductUomBatchesView() {
   })
   const allProductUoms: any[] = (puData as any)?.data ?? []
   const productUoms = allProductUoms.filter((pu: any) => isProductTypeAllowed(pu.product, activeProductTypes))
+
+  const puFilterOptions = [
+    { value: 0, label: 'All Product UOMs' },
+    ...productUoms.map((pu: any) => ({
+      value: pu.id as number,
+      label: `${pu.product?.name ?? 'Product'} — ${
+        pu.uom?.name ?? pu.uom?.code ?? 'UOM'
+      }`,
+      description: pu.code ?? undefined,
+    })),
+  ]
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => productUomBatchesService.remove(id),
@@ -265,33 +296,27 @@ export default function ProductUomBatchesView() {
           />
         </div>
 
-        {/* Product UOM filter */}
-        <select
-          value={productUomFilter}
-          onChange={(e) => setProductUomFilter(Number(e.target.value))}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            fontFamily: 'var(--font-sans)',
-            cursor: 'pointer',
-            maxWidth: 280,
-          }}
-        >
-          <option value={0}>All Product UOMs</option>
-          {productUoms.map((pu: any) => (
-            <option key={pu.id} value={pu.id}>
-              {(pu.product?.name ?? 'Product') +
-                ' — ' +
-                (pu.uom?.name ?? pu.uom?.code ?? 'UOM') +
-                (pu.code ? ` (${pu.code})` : '')}
-            </option>
-          ))}
-        </select>
+        {/* Product UOM filter — searchable (list can hold thousands of SKUs) */}
+        <div style={{ width: 280, flexShrink: 0 }}>
+          <SearchableSelect
+            value={productUomFilter}
+            onChange={(v) => {
+              setProductUomFilter(Number(v) || 0)
+              setPage(1)
+            }}
+            options={puFilterOptions}
+            placeholder="All Product UOMs"
+            searchPlaceholder="Search product UOM..."
+            loading={puLoading}
+            onSearchChange={setPuDropdownSearch}
+            triggerStyle={{
+              height: 34,
+              padding: '0 12px',
+              fontSize: 13,
+              borderRadius: 'var(--radius-md)',
+            }}
+          />
+        </div>
         <select
           value={categoryFilter}
           onChange={(e) => {

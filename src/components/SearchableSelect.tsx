@@ -25,6 +25,8 @@ export interface SearchableSelectProps {
   dataFocusFirst?: boolean
   tabIndex?: number
   id?: string
+  /** Extra inline styles for the trigger button (merged over the defaults). */
+  triggerStyle?: React.CSSProperties
 }
 
 function focusNextElement(fromElement: HTMLElement, reverse = false) {
@@ -66,6 +68,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
       dataFocusFirst,
       tabIndex,
       id,
+      triggerStyle,
     },
     ref,
   ) {
@@ -245,6 +248,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                 : 'var(--foreground-subtle)',
             fontFamily: 'var(--font-sans)',
             boxSizing: 'border-box',
+            ...triggerStyle,
           }}
         >
           <div

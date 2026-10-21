@@ -965,10 +965,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                           setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
                         }
                       }}
-                      options={productUomOptions.filter((o: any) => {
-                        const selectedIds = watch('details').map(d => d.product_uom_id).filter(id => id > 0)
-                        return !selectedIds.includes(o.value) || o.value === f.value
-                      })}
+                      options={productUomOptions}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={productUomsLoading}

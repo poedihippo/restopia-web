@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Eye, X, Search } from "lucide-react";
 import { paymentMethodsService as paymentMethodService } from "@/services/payment-methods.service";
 import { chartOfAccountsService } from "@/services/accounting.service";
+import SearchableSelect from "@/components/SearchableSelect";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function PaymentMethodsView() {
@@ -57,19 +58,30 @@ export default function PaymentMethodsView() {
     null,
   );
 
-  const { data: chartOfAccountsData } = useQuery({
-    queryKey: ["chart-of-accounts-pm"],
-    queryFn: () =>
-      chartOfAccountsService
-        .list({
-          per_page: 500,
-          sort: "code",
-          "filter[use_as_payment_method]": "true",
-        } as any)
-        .then((r) => (r.data as any)?.data ?? []),
-    enabled: showForm,
-  });
+  const { data: chartOfAccountsData, isLoading: chartOfAccountsLoading } =
+    useQuery({
+      queryKey: ["chart-of-accounts-pm"],
+      queryFn: () =>
+        chartOfAccountsService
+          .list({
+            per_page: 500,
+            sort: "code",
+            "filter[use_as_payment_method]": "true",
+          } as any)
+          .then((r) => (r.data as any)?.data ?? []),
+      enabled: showForm,
+    });
   const chartOfAccounts = chartOfAccountsData ?? [];
+
+  // Searchable options for the COA picker (searchable by name and code).
+  const coaSelectOptions = [
+    { value: 0, label: "— None —" },
+    ...chartOfAccounts.map((coa: any) => ({
+      value: coa.id as number,
+      label: (coa.name as string) ?? `COA #${coa.id}`,
+      sublabel: (coa.code as string) ?? undefined,
+    })),
+  ];
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
@@ -153,7 +165,7 @@ export default function PaymentMethodsView() {
   });
 
   const thStyle: React.CSSProperties = {
-    padding: "10px 16px",
+    padding: "14px 20px",
     textAlign: "left",
     fontSize: 12,
     fontWeight: 600,
@@ -161,11 +173,11 @@ export default function PaymentMethodsView() {
     borderBottom: "1px solid var(--border)",
   };
   const tdStyle: React.CSSProperties = {
-    padding: "12px 16px",
+    padding: "16px 20px",
     fontSize: 14,
     color: "var(--foreground)",
     borderBottom: "1px solid var(--border)",
-    verticalAlign: "top",
+    verticalAlign: "middle",
   };
 
   return (
@@ -302,26 +314,26 @@ export default function PaymentMethodsView() {
           background: "var(--surface)",
           border: "1px solid var(--border)",
           borderRadius: "var(--radius-lg)",
-          overflow: "hidden",
-          maxWidth: 960,
+          overflowX: "auto",
         }}
       >
         <table
           style={{
             width: "100%",
+            minWidth: 1040,
             borderCollapse: "collapse",
             tableLayout: "fixed",
           }}
         >
           <thead>
             <tr>
-              <th style={{ ...thStyle, width: "16%" }}>Name</th>
+              <th style={{ ...thStyle, width: "14%" }}>Name</th>
               <th style={{ ...thStyle, width: "12%" }}>Type</th>
-              <th style={{ ...thStyle, width: "10%" }}>Source</th>
-              <th style={{ ...thStyle, width: "26%" }}>Chart of Account</th>
-              <th style={{ ...thStyle, width: "16%" }}>Bank Account</th>
-              <th style={{ ...thStyle, width: "12%" }}>Created</th>
-              <th style={{ ...thStyle, width: "140px" }}>Actions</th>
+              <th style={{ ...thStyle, width: "9%" }}>Source</th>
+              <th style={{ ...thStyle, width: "24%" }}>Chart of Account</th>
+              <th style={{ ...thStyle, width: "15%" }}>Bank Account</th>
+              <th style={{ ...thStyle, width: "11%" }}>Created</th>
+              <th style={{ ...thStyle, width: 200 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -555,7 +567,7 @@ export default function PaymentMethodsView() {
                     <div
                       style={{
                         display: "flex",
-                        gap: 6,
+                        gap: 8,
                         alignItems: "center",
                         whiteSpace: "nowrap",
                       }}
@@ -565,7 +577,8 @@ export default function PaymentMethodsView() {
                         onClick={() => setSelectedItem(item)}
                         title="View"
                         style={{
-                          padding: 6,
+                          width: 32,
+                          height:32,
                           background: "none",
                           border: "1px solid var(--border)",
                           borderRadius: "var(--radius-sm)",
@@ -608,8 +621,9 @@ export default function PaymentMethodsView() {
                           type="button"
                           onClick={() => setDeleteTarget(item)}
                           style={{
+                            height:32,
                             fontSize: 12,
-                            padding: "4px 10px",
+                            padding: "0 14px",
                             border: "1px solid var(--destructive)",
                             borderRadius: "var(--radius-sm)",
                             background: "transparent",
@@ -652,7 +666,8 @@ export default function PaymentMethodsView() {
             style={{
               position: "relative",
               zIndex: 50,
-              width: 400,
+              width: "100%",
+              maxWidth: 440,
               height: "100%",
               background: "var(--surface)",
               borderLeft: "1px solid var(--border)",
@@ -793,32 +808,24 @@ export default function PaymentMethodsView() {
               >
                 Chart of Account
               </label>
-              <select
-                value={chartOfAccountId ?? ""}
-                onChange={(e) =>
+              <SearchableSelect
+                value={chartOfAccountId ?? 0}
+                onChange={(val: any) =>
                   setChartOfAccountId(
-                    e.target.value ? Number(e.target.value) : null,
+                    val && Number(val) > 0 ? Number(val) : null,
                   )
                 }
-                style={{
-                  width: "100%",
+                options={coaSelectOptions}
+                placeholder="— None —"
+                searchPlaceholder="Search account name or code..."
+                loading={chartOfAccountsLoading}
+                triggerStyle={{
                   height: 40,
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
                   padding: "0 12px",
                   fontSize: 14,
-                  color: "var(--foreground)",
-                  background: "var(--surface-raised)",
-                  boxSizing: "border-box",
+                  borderRadius: "var(--radius-sm)",
                 }}
-              >
-                <option value="">— None —</option>
-                {chartOfAccounts.map((coa: any) => (
-                  <option key={coa.id} value={coa.id}>
-                    {coa.code} — {coa.name}
-                  </option>
-                ))}
-              </select>
+              />
               <p
                 style={{
                   fontSize: 12,
