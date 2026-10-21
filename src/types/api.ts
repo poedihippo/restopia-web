@@ -140,6 +140,8 @@ export interface ProductRequest {
   base_uom_id?: number | null
   reorder_point?: number | null
   is_active?: boolean
+  is_deferred?: boolean
+  is_cutable_source?: boolean
   uoms?: ProductUomPayload[]
 }
 
@@ -218,6 +220,11 @@ export interface ProductInventory {
   display_uom_code?: string | null
   base_stock?: number | null
   base_uom_code?: string | null
+  /** Stock allocated for re-cutting (base uom); credited by portioning a cutable-source SKU. */
+  cutable_stock?: number | null
+  cutable_reserved_base_stock?: number | null
+  /** max(cutable_stock - cutable_reserved_base_stock, 0) */
+  available_cutable_stock?: number | null
   converted_qty?: number | null
   converted_uom_code?: string | null
   min_qty?: number
@@ -239,6 +246,8 @@ export interface ProductInventory {
         id: number
         name: string
         type?: string
+        is_deferred?: boolean
+        is_cutable_source?: boolean
         product_category?: { id: number; name: string }
       }
       uom?: { id: number; name: string; code: string }
@@ -387,6 +396,8 @@ export interface PortioningReservationRow {
   settled_exact_qty: number
   product_inventory_id: number
   portioning_detail_material_id: number
+  /** Reserved from the row's cutable stock instead of its base stock. */
+  consumes_cutable?: boolean
 }
 export interface PortioningSellableRow {
   id: number
@@ -411,6 +422,8 @@ export interface PortioningDetailRow {
   fraction_base?: number
   fraction_source?: string
   recipe_id?: number
+  /** Cutable stock this detail credited to its output anchor row (0/absent = none). */
+  cutable_credit_qty?: number
   product_uom?: {
     id: number
     name?: string

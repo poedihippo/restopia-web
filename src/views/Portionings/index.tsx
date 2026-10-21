@@ -54,6 +54,25 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+function CutableBadge({ label }: { label: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '3px 10px',
+        borderRadius: 99,
+        fontSize: 11,
+        fontWeight: 600,
+        background: 'var(--info-bg)',
+        color: 'var(--info)',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
 /** Numbers on this screen stay readable: at most 2 decimals, Indonesian format. */
 const qty = (v: unknown): string => {
   const n = Number(v)
@@ -582,6 +601,9 @@ export default function PortioningsView() {
                                       </span>
                                     )}
                                     <StatusBadge status={d.status} />
+                                    {Number(d.cutable_credit_qty ?? 0) > 0 && (
+                                      <CutableBadge label={`+${qty(d.cutable_credit_qty)} Cutable`} />
+                                    )}
                                   </div>
 
                                   <div
@@ -639,6 +661,12 @@ export default function PortioningsView() {
                                             <>
                                               {' '}· sisa{' '}
                                               <strong style={{ color: 'var(--foreground)' }}>{qty(r.outstanding_base_qty)}</strong>
+                                            </>
+                                          )}
+                                          {r.consumes_cutable && (
+                                            <>
+                                              {' '}
+                                              <CutableBadge label="Cutable" />
                                             </>
                                           )}
                                         </span>

@@ -14,7 +14,12 @@ import { portioningsService } from '@/services/portionings.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
 import { parseApiError, toastMutationApiError } from '@/utils/apiError'
-import { availableStockOf } from '@/utils/inventoryStock'
+import {
+  availableStockOf,
+  cutableStockOf,
+  isCutableSourceInventoryRow,
+  isDeferredInventoryRow,
+} from '@/utils/inventoryStock'
 import { getProductUomName } from '@/utils/productUomName'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
@@ -132,6 +137,19 @@ const formatNumber = (v: unknown, maxFractionDigits = 2): string => {
   const n = Number(v)
   return Number.isFinite(n) ? n.toLocaleString('id-ID', { maximumFractionDigits: maxFractionDigits }) : '—'
 }
+
+/**
+ * A row is picked by its cutable stock (not `stock`, which is 0 on a deferred
+ * anchor) when its product is a cutable source or it already holds cutable stock.
+ */
+const isCutableRow = (inv: any): boolean =>
+  isCutableSourceInventoryRow(inv) || Number(inv?.cutable_stock ?? 0) > 0
+
+/**
+ * A deferred SKU's anchor row holds no physical stock (always 0); its units live
+ * in sellable lots. Unless the product is a cutable source it cannot be a base.
+ */
+const isSellableOnlyRow = (inv: any): boolean => isDeferredInventoryRow(inv) && !isCutableRow(inv)
 
 // ── Error wording ────────────────────────────────────────────────────────────
 // The API answers with literal English sentences. Rewrite the ones operators
@@ -367,11 +385,13 @@ export default function PortioningForm() {
   // Cut ratio cache: fraction_base (base consumed per 1 hasil) per base-inventory × result-SKU,
   // probed through the existing /portionings/preview endpoint.
   const [ratios, setRatios] = useState<Record<string, number>>({})
+  // Why a base × SKU pair could not be probed (e.g. the SKU is not a cut of that base).
+  const [ratioErrors, setRatioErrors] = useState<Record<string, string>>({})
   const ratioKey = (invId: number, puId: number) => `${invId}:${puId}`
-  const probeRatio = (invId: number, puId: number) => {
-    if (!invId || !puId || ratios[ratioKey(invId, puId)] != null) return
+  /** fraction_base of one result unit out of the base row, asked of the backend (throws if it refuses the pair). */
+  const previewFraction = async (invId: number, puId: number): Promise<number> => {
     const v = getValues()
-    portioningsService
+    const resp = await portioningsService
       .preview({
         date: v.date,
         status: 'pending',
@@ -395,11 +415,23 @@ export default function PortioningForm() {
         ],
       } as any)
       .then((r) => r.data)
-      .then((resp) => {
-        const n = Number(normalizePreview(resp).details[0]?.fractionBase)
-        if (Number.isFinite(n) && n > 0) setRatios((p) => ({ ...p, [ratioKey(invId, puId)]: n }))
+    const n = Number(normalizePreview(resp).details[0]?.fractionBase)
+    if (!Number.isFinite(n) || n <= 0) throw new Error('Rasio potong tidak ditemukan')
+    return n
+  }
+  const probeRatio = (invId: number, puId: number) => {
+    if (!invId || !puId || ratios[ratioKey(invId, puId)] != null) return
+    previewFraction(invId, puId)
+      .then((n) => {
+        setRatios((p) => ({ ...p, [ratioKey(invId, puId)]: n }))
+        setRatioErrors((p) => {
+          const { [ratioKey(invId, puId)]: _cleared, ...rest } = p
+          return rest
+        })
       })
-      .catch(() => {})
+      .catch((err) => {
+        setRatioErrors((p) => ({ ...p, [ratioKey(invId, puId)]: parseApiError(humanizeApiError(err)) }))
+      })
   }
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -443,7 +475,7 @@ export default function PortioningForm() {
   }, [stages, setValue])
 
   // Base-cake picker: this branch's inventory rows under the "Konsumsi Dari" dimension.
-  const { data: inventoriesData, isLoading: inventoriesLoading } = useQuery({
+  const { data: inventoriesData, isLoading: inventoriesLoading, isFetching: inventoriesFetching } = useQuery({
     queryKey: ['product-inventories-all', 'portioning', activeBranchId, watchSourceOwnerRef, watchSourceStage],
     enabled: !!activeBranchId,
     queryFn: () =>
@@ -459,16 +491,52 @@ export default function PortioningForm() {
         .then((r) => r.data),
   })
   const inventories: any[] = (inventoriesData as any)?.data ?? []
+
+  // The picker keeps showing a row that was picked earlier even after "Konsumsi
+  // Dari" moves to another owner/stage, and that stale id would still be sent on
+  // save. Once the list for the new dimension has loaded, drop every selection
+  // that is not in it (and the SKU / qty that depended on it).
+  useEffect(() => {
+    if (inventoriesLoading || inventoriesFetching || !inventoriesData) return
+    const inDimension = new Set(inventories.map((inv: any) => Number(inv.id)))
+    ;(getValues('details') ?? []).forEach((d, i) => {
+      const id = Number(d?.base_product_inventory_id ?? 0)
+      if (id > 0 && !inDimension.has(id)) {
+        setValue(`details.${i}.base_product_inventory_id`, 0)
+        setValue(`details.${i}.product_uom_id`, 0)
+        setValue(`details.${i}.base_qty`, 1)
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoriesData, inventoriesLoading, inventoriesFetching])
+
   const inventoryOptions = inventories.map((inv: any) => {
     const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
     const stockQty = inv.display_qty ?? inv.stock ?? 0
     const expiry = inv?.product_uom_batch?.expiry_date ?? inv?.expiry_date
+    // Cutable stock is in the base uom.
+    const cutableUnit = inv.base_uom_code ?? inv.display_uom_code ?? pu?.uom?.code
+    // The row's own dimension and the product's type, so what the list shows can be
+    // checked against "Konsumsi Dari" (a WIP cake can legitimately sit in `finished`).
+    const productType: string | undefined = pu?.product?.type
+    const dimension = [
+      inv.stage ? `Stage: ${inv.stage}` : '',
+      inv.owner_ref ? `Owner: ${inv.owner_ref}` : '',
+      productType ? `Tipe: ${productType.toUpperCase()}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
     return {
       value: Number(inv.id),
       label: [getProductUomName(pu, inv.code), pu?.uom?.code].filter(Boolean).join(' · '),
       sublabel: [
         inv.code ? `SKU: ${inv.code}` : '',
-        `Stok: ${formatNumber(stockQty)}${inv.display_uom_code ? ` ${inv.display_uom_code}` : ''}`,
+        isCutableRow(inv)
+          ? `Cutable: ${formatNumber(cutableStockOf(inv))}${cutableUnit ? ` ${cutableUnit}` : ''}`
+          : isSellableOnlyRow(inv)
+            ? `Sellable: ${formatNumber(inv.sellable_qty ?? 0)} (bukan Cutable Source)`
+            : `Stok: ${formatNumber(stockQty)}${inv.display_uom_code ? ` ${inv.display_uom_code}` : ''}`,
+        dimension,
         expiry ? `Exp: ${String(expiry).slice(0, 10)}` : '',
       ]
         .filter(Boolean)
@@ -476,13 +544,41 @@ export default function PortioningForm() {
     }
   })
   const invStockById = new Map<number, string>()
+  // What a base row can still give to a cut, in the base unit "Qty base" is
+  // entered in: cutable stock for cutable rows, available stock otherwise.
+  // `kind` says which figure that is: cutable stock, the sellable lots of a deferred
+  // SKU that is not a cutable source (it cannot be cut), or plain stock.
+  const invAvailById = new Map<
+    number,
+    { qty: number; unit: string; cutable: boolean; kind: 'cutable' | 'sellable' | 'stock'; sellable: number }
+  >()
   for (const inv of inventories) {
     const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
     const stockQty = inv.display_qty ?? inv.stock ?? 0
+    const cutable = isCutableRow(inv)
+    const unit: string = inv.base_uom_code ?? inv.display_uom_code ?? pu?.uom?.code ?? ''
+    const sellable = Number(inv?.sellable_qty ?? 0)
+    if (cutable) {
+      invStockById.set(Number(inv.id), `${formatNumber(cutableStockOf(inv))}${unit ? ` ${unit}` : ''}`)
+      invAvailById.set(Number(inv.id), { qty: cutableStockOf(inv), unit, cutable, kind: 'cutable', sellable })
+      continue
+    }
+    if (isSellableOnlyRow(inv)) {
+      invStockById.set(Number(inv.id), `${formatNumber(sellable)}${unit ? ` ${unit}` : ''}`)
+      invAvailById.set(Number(inv.id), { qty: 0, unit, cutable, kind: 'sellable', sellable })
+      continue
+    }
     invStockById.set(
       Number(inv.id),
       `${formatNumber(stockQty)}${inv.display_uom_code ? ` ${inv.display_uom_code}` : pu?.uom?.code ? ` ${pu.uom.code}` : ''}`,
     )
+    invAvailById.set(Number(inv.id), {
+      qty: inv.available_base_stock != null ? Number(inv.available_base_stock) : availableStockOf(inv),
+      unit,
+      cutable,
+      kind: 'stock',
+      sellable,
+    })
   }
 
   // Base cake → its product-UOM, used to resolve which result SKUs can be cut
@@ -513,7 +609,7 @@ export default function PortioningForm() {
     queryFn: () =>
       api
         .get('/product-uoms', {
-          params: { per_page: 500, include: 'product', 'filter[product_types]': 'final' },
+          params: { per_page: 500, include: 'product,uom', 'filter[product_types]': 'final' },
         })
         .then((r) => r.data),
   })
@@ -523,6 +619,21 @@ export default function PortioningForm() {
       .map((pu: any) => Number(pu.id))
       .filter((id: number) => id > 0),
   )
+
+  // Deferred final SKUs as picker entries (label + product), used to name the
+  // cut targets of a cutable source below.
+  const deferredFinalOptions: { value: number; productId: number; label: string; sublabel?: string }[] = (
+    ((deferredUomsData as any)?.data ?? []) as any[]
+  )
+    .filter((pu) => pu?.product?.is_deferred === true && Number(pu?.id) > 0)
+    .map((pu) => ({
+      value: Number(pu.id),
+      productId: Number(pu?.product?.id ?? pu?.product_id ?? 0),
+      label: [getProductUomName(pu), pu?.uom?.code].filter(Boolean).join(' · '),
+      sublabel: pu?.code ? `SKU: ${pu.code}` : undefined,
+    }))
+  const inventoryById = new Map<number, any>(inventories.map((inv: any) => [Number(inv.id), inv]))
+  const deferredOptionByPu = new Map(deferredFinalOptions.map((o) => [o.value, o]))
 
   // Result-SKU options per selected base cake: recipes whose materials contain
   // that base are exactly the SKUs the backend can portion out of it.
@@ -556,6 +667,107 @@ export default function PortioningForm() {
           .then((r) => r.data),
     })),
   })
+
+  // A cutable source (e.g. a Loaf) is rarely a material of its smaller cuts, so
+  // recipes alone cannot say what it can be cut into. Take what it is itself made
+  // from (its recipe's production materials, e.g. the 20x40), look at the deferred
+  // SKUs whose recipes use the same material, and keep only the ones the backend
+  // accepts for this exact base row (/portionings/preview) — the same check a save
+  // runs, so the list never offers a pair that would be refused.
+  const cutableBaseInvIds = Array.from(
+    new Set(
+      watchedDetails
+        .map((d) => Number(d?.base_product_inventory_id))
+        .filter((id) => id > 0 && isCutableSourceInventoryRow(inventoryById.get(id))),
+    ),
+  )
+  const cutTargetQueries = useQueries({
+    queries: cutableBaseInvIds.map((invId) => ({
+      queryKey: ['portioning-cut-targets', activeBranchId, invId],
+      enabled: deferredPuIds.size > 0,
+      staleTime: 30 * 1000,
+      retry: 0,
+      queryFn: async (): Promise<{ puId: number; fraction: number }[]> => {
+        const basePuId = invProductUomById.get(invId) ?? 0
+        const baseProductId = deferredOptionByPu.get(basePuId)?.productId ?? 0
+        const own: any = await api
+          .get('/recipes', { params: { per_page: 50, include: 'recipe_materials', 'filter[product_uom_id]': basePuId } })
+          .then((r) => r.data)
+        const materials = new Set<number>()
+        for (const rec of (own?.data ?? []) as any[]) {
+          for (const m of (rec?.recipe_materials ?? []) as any[]) {
+            if (m?.deduction_type === 'deduct_on_sold' || m?.deduction_type === 'deduct_on_sellable_settlement') continue
+            if (Number(m?.product_uom_id) > 0) materials.add(Number(m.product_uom_id))
+          }
+        }
+        const candidates = new Set<number>()
+        for (const materialPuId of materials) {
+          const used: any = await api
+            .get('/recipes', {
+              params: { per_page: 200, include: 'product_uom', 'filter[material_product_uom_id]': materialPuId },
+            })
+            .then((r) => r.data)
+          for (const rec of (used?.data ?? []) as any[]) {
+            const puId = Number(rec?.product_uom_id ?? rec?.product_uom?.id ?? 0)
+            if (!puId || puId === basePuId || !deferredPuIds.has(puId)) continue
+            if (baseProductId && deferredOptionByPu.get(puId)?.productId === baseProductId) continue
+            candidates.add(puId)
+          }
+        }
+        const accepted = await Promise.all(
+          Array.from(candidates).map(async (puId) => {
+            try {
+              return { puId, fraction: await previewFraction(invId, puId) }
+            } catch {
+              return null
+            }
+          }),
+        )
+        return accepted.filter((x): x is { puId: number; fraction: number } => x != null)
+      },
+    })),
+  })
+  const cutTargetsByInv = new Map<number, { options: { value: number; label: string; sublabel?: string }[]; loading: boolean; error?: string }>()
+  cutTargetQueries.forEach((q, i) => {
+    const options = ((q.data ?? []) as { puId: number; fraction: number }[])
+      .map(({ puId, fraction }) => {
+        const o = deferredOptionByPu.get(puId)
+        return {
+          value: puId,
+          label: o?.label ?? `SKU #${puId}`,
+          sublabel: [o?.sublabel, `Base: ${formatNumber(fraction, 4)} per hasil`].filter(Boolean).join(' · '),
+        }
+      })
+      .sort((a, b) => a.label.localeCompare(b.label))
+    cutTargetsByInv.set(cutableBaseInvIds[i], {
+      options,
+      loading: q.isLoading || (q.isFetching && !q.data),
+      error: q.isError ? parseApiError(q.error) : undefined,
+    })
+  })
+  // The probe already produced each pair's ratio: seed the ratio cache with it, so
+  // picking one of these SKUs needs no further preview call.
+  const cutTargetSig = cutTargetQueries.map((q) => JSON.stringify(q.data ?? null)).join('|')
+  useEffect(() => {
+    const seeded: Record<string, number> = {}
+    cutTargetQueries.forEach((q, i) => {
+      for (const t of (q.data ?? []) as { puId: number; fraction: number }[]) {
+        seeded[ratioKey(cutableBaseInvIds[i], t.puId)] = t.fraction
+      }
+    })
+    setRatios((prev) => {
+      const next = { ...prev }
+      let changed = false
+      for (const [k, v] of Object.entries(seeded)) {
+        if (next[k] !== v) {
+          next[k] = v
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cutTargetSig])
 
   const cutOptionsByBase = new Map<number, { value: number; label: string; sublabel?: string }[]>()
   const cutLoadingByBase = new Map<number, boolean>()
@@ -610,11 +822,14 @@ export default function PortioningForm() {
       // The inventory list may not have loaded yet — don't claim "no stock".
       return { basePuId, options: [], loading: inventoriesLoading || deferredUomsLoading, error: undefined, allNonDeferred: false }
     }
+    const recipeOptions = cutOptionsByBase.get(basePuId) ?? []
+    const seen = new Set(recipeOptions.map((o) => o.value))
+    const targets = cutTargetsByInv.get(Number(invId))
     return {
       basePuId,
-      options: cutOptionsByBase.get(basePuId) ?? [],
-      loading: (cutLoadingByBase.get(basePuId) ?? false) || deferredUomsLoading,
-      error: cutErrorByBase.get(basePuId),
+      options: [...recipeOptions, ...(targets?.options ?? []).filter((o) => !seen.has(o.value))],
+      loading: (cutLoadingByBase.get(basePuId) ?? false) || deferredUomsLoading || (targets?.loading ?? false),
+      error: cutErrorByBase.get(basePuId) ?? targets?.error,
       allNonDeferred: cutAllNonDeferredByBase.has(basePuId),
     }
   }
@@ -638,16 +853,20 @@ export default function PortioningForm() {
           'filter[branch_id]': activeBranchId,
           'filter[product_type]': 'final',
           'filter[is_deferred]': true,
-          include: 'product_uom_batch,product_uom_batch.product_uom',
+          include: 'product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
         } as any)
         .then((r) => r.data),
   })
   const finalStockById = new Map<number, number>()
+  // Cutable stock per result product-UOM — only for cutable-source SKUs (or rows
+  // already holding some), so ordinary results keep showing the sellable figure alone.
+  const finalCutableById = new Map<number, number>()
   for (const inv of (finalInvData as any)?.data ?? []) {
     const pu = inv?.product_uom_batch?.product_uom ?? inv?.product_uom
     const id = Number(pu?.id)
     if (!id) continue
     finalStockById.set(id, (finalStockById.get(id) ?? 0) + availableStockOf(inv))
+    if (isCutableRow(inv)) finalCutableById.set(id, (finalCutableById.get(id) ?? 0) + cutableStockOf(inv))
   }
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -960,6 +1179,9 @@ export default function PortioningForm() {
                   />
                 </div>
               </div>
+              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                Memotong hasil portioning (mis. Loaf → Ind)? Pilih stage <strong>finished</strong>.
+              </span>
             </div>
 
             {/* Output Ke */}
@@ -1053,7 +1275,14 @@ export default function PortioningForm() {
               const puId = Number(d?.product_uom_id ?? 0)
               const baseQty = Number(d?.base_qty ?? 0)
               const baseStock = invId > 0 ? (invStockById.get(invId) ?? '—') : '—'
-              const resultStock = puId > 0 && finalStockById.has(puId) ? `${formatNumber(finalStockById.get(puId))}` : '—'
+              const baseAvail = invId > 0 ? invAvailById.get(invId) : undefined
+              const baseOver = baseAvail != null && baseAvail.kind !== 'sellable' && baseQty > baseAvail.qty
+              const resultStock =
+                puId > 0 && finalStockById.has(puId)
+                  ? `${formatNumber(finalStockById.get(puId))}${
+                      finalCutableById.has(puId) ? ` · Cutable: ${formatNumber(finalCutableById.get(puId))}` : ''
+                    }`
+                  : '—'
               const fraction = ratios[ratioKey(invId, puId)]
               const resultQty = fraction ? baseQty / fraction : null
               const yieldN = fraction ? 1 / fraction : null
@@ -1140,7 +1369,9 @@ export default function PortioningForm() {
                         )}
                       </div>
                       <div>
-                        <label style={labelStyle}>Stok</label>
+                        <label style={labelStyle}>
+                          {baseAvail?.kind === 'cutable' ? 'Cutable' : baseAvail?.kind === 'sellable' ? 'Sellable' : 'Stok'}
+                        </label>
                         <div style={roStyle}>{baseStock}</div>
                       </div>
                       <div>
@@ -1158,6 +1389,31 @@ export default function PortioningForm() {
                           }}
                         />
                         {rowErrors?.base_qty && <span style={errorTextStyle}>{rowErrors.base_qty.message}</span>}
+                        {baseAvail != null && baseAvail.kind !== 'sellable' && (
+                          <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 3, display: 'block' }}>
+                            Tersedia untuk dipotong: {formatNumber(baseAvail.qty)}
+                            {baseAvail.unit ? ` ${baseAvail.unit}` : ''}
+                          </span>
+                        )}
+                        {baseAvail?.kind === 'sellable' && (
+                          <span style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3, display: 'block' }}>
+                            SKU final Deferred tidak punya stok fisik (selalu 0) — yang ada hanya lot sellable (
+                            {formatNumber(baseAvail.sellable)}). Baru bisa dipotong lagi setelah produknya ber-flag
+                            Cutable Source (menu Products).
+                          </span>
+                        )}
+                        {baseAvail?.kind === 'cutable' && baseAvail.qty <= 0 && baseAvail.sellable > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3, display: 'block' }}>
+                            Stok cutable 0 padahal ada {formatNumber(baseAvail.sellable)} lot sellable — lot yang dibuat
+                            sebelum produk ber-flag Cutable Source belum punya stok cutable (perlu backfill).
+                          </span>
+                        )}
+                        {baseOver && baseAvail != null && (
+                          <span style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3, display: 'block' }}>
+                            Qty base melebihi yang tersedia ({formatNumber(baseAvail.qty)}
+                            {baseAvail.unit ? ` ${baseAvail.unit}` : ''}) — server tetap memvalidasi saat simpan.
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1214,9 +1470,16 @@ export default function PortioningForm() {
                           >
                             {cutError
                               ? `Gagal memuat daftar SKU hasil: ${cutError}`
-                              : allNonDeferred
+                              : baseAvail?.kind === 'sellable'
+                                ? 'Base ini SKU final Deferred yang belum ber-flag Cutable Source, jadi tidak bisa dipotong lagi. Aktifkan Cutable Source di menu Products.'
+                                : allNonDeferred
                                 ? 'Base cake ini punya resep, tetapi semua hasilnya belum ber-flag Deferred. Portioning hanya menerima produk final ber-flag Deferred — aktifkan dulu di menu Products.'
                                 : 'Tidak ada stok produk yang dapat dibagi dari base cake ini.'}
+                          </span>
+                        )}
+                        {invId > 0 && puId > 0 && ratioErrors[ratioKey(invId, puId)] && (
+                          <span style={{ fontSize: 11, color: 'var(--destructive)', marginTop: 3, display: 'block' }}>
+                            SKU ini tidak bisa dipotong dari base yang dipilih: {ratioErrors[ratioKey(invId, puId)]}
                           </span>
                         )}
                       </div>
