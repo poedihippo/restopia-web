@@ -130,7 +130,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const order = (data as any)?.data as PurchaseOrderFull | undefined
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action, details, total_price, tax_id, additional_charges }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number, additional_charges?: { name: string; amount: number; description?: string }[] }) =>
+    mutationFn: ({ id, action, details, total_price, tax_id, additional_charges }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number, additional_charges?: { name: string; chart_of_account_id?: number; amount: number; description?: string }[] }) =>
       action === 'accept'
         ? purchaseOrdersService.accept(id, { details, total_price, tax_id, additional_charges })
         : purchaseOrdersService.reject(id),

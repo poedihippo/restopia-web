@@ -3,7 +3,10 @@ import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { getCanReadPrice } from '@/utils/price'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { taxesService } from '@/services/taxes.service'
+import { chartOfAccountsService } from '@/services/accounting.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import { getProductUomName } from '@/utils/productUomName'
 
 export interface AcceptPODetailPayload {
@@ -19,6 +22,7 @@ export interface AcceptPODetailPayload {
 
 export interface AcceptPOAdditionalCharge {
   name: string
+  chart_of_account_id: number
   amount: number
   description?: string
 }
@@ -54,6 +58,20 @@ export default function AcceptPOModal({
   })
   const taxes = (taxesData as any)?.data ?? []
 
+  // Every additional charge needs a chart of account (required by the API).
+  const { data: coaData, isLoading: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'charges'],
+    queryFn: () =>
+      chartOfAccountsService
+        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .then((r) => (r.data as any)?.data ?? []),
+  })
+  const coaOptions = ((coaData as any) ?? []).map((coa: any) => ({
+    value: coa.id as number,
+    label: (coa.name as string) ?? `COA #${coa.id}`,
+    sublabel: (coa.code as string) ?? undefined,
+  }))
+
   useEffect(() => {
     if (isOpen && purchaseOrder?.purchase_order_details) {
       const initialDetails = purchaseOrder.purchase_order_details.map((d: any) => ({
@@ -71,6 +89,7 @@ export default function AcceptPOModal({
       setAdditionalCharges(
         (purchaseOrder.additional_charges ?? []).map((c: any) => ({
           name: c.name || '',
+          chart_of_account_id: Number(c.chart_of_account_id ?? 0),
           amount: c.amount || 0,
           description: c.description || '',
         }))
@@ -122,10 +141,10 @@ export default function AcceptPOModal({
   }
 
   const handleAddCharge = () => {
-    setAdditionalCharges([...additionalCharges, { name: '', amount: 0, description: '' }])
+    setAdditionalCharges([...additionalCharges, { name: '', chart_of_account_id: 0, amount: 0, description: '' }])
   }
 
-  const handleChargeChange = (index: number, field: 'name' | 'amount' | 'description', value: string) => {
+  const handleChargeChange = (index: number, field: 'name' | 'amount' | 'description' | 'chart_of_account_id', value: string | number) => {
     const newCharges = [...additionalCharges]
     newCharges[index] = {
       ...newCharges[index],
@@ -140,8 +159,15 @@ export default function AcceptPOModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const validCharges = additionalCharges.filter(c => c.name.trim() && c.amount > 0)
-    onConfirm({ details, tax_id: taxId, additional_charges: validCharges })
+    // Keep every row that has a name — amount may now be positive, zero or
+    // negative (negative = deduction). Drop fully blank rows silently.
+    const namedCharges = additionalCharges.filter(c => c.name.trim())
+    const missingAccount = namedCharges.find(c => !(c.chart_of_account_id > 0))
+    if (missingAccount) {
+      toast.error(`Choose a chart of account for charge "${missingAccount.name.trim()}"`)
+      return
+    }
+    onConfirm({ details, tax_id: taxId, additional_charges: namedCharges })
   }
 
   const rp = (n: number | string | null | undefined) =>
@@ -365,6 +391,7 @@ export default function AcceptPOModal({
                     <thead>
                       <tr style={{ background: BG_WARM }}>
                         <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Name</th>
+                        <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Chart of Account</th>
                         <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'right' }}>Amount</th>
                         <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Description</th>
                         <th style={{ width: 44 }} />
@@ -377,7 +404,18 @@ export default function AcceptPOModal({
                             <input type="text" value={charge.name} onChange={(e) => handleChargeChange(i, 'name', e.target.value)} placeholder="e.g. Shipping" className={inputCls} style={inputBase} />
                           </td>
                           <td style={{ padding: '8px 10px' }}>
-                            <input type="number" step="any" min="0" value={charge.amount} onChange={(e) => handleChargeChange(i, 'amount', e.target.value)} placeholder="0" className={inputCls} style={{ ...inputBase, textAlign: 'right' }} />
+                            <SearchableSelect
+                              value={charge.chart_of_account_id || 0}
+                              onChange={(v) => handleChargeChange(i, 'chart_of_account_id', Number(v) || 0)}
+                              options={coaOptions}
+                              placeholder="Select account... *"
+                              searchPlaceholder="Search account name or code..."
+                              loading={coaLoading}
+                              triggerStyle={{ padding: '8px 10px', fontSize: 13, borderRadius: 8 }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <input type="number" step="any" value={charge.amount} onChange={(e) => handleChargeChange(i, 'amount', e.target.value)} placeholder="0" className={inputCls} style={{ ...inputBase, textAlign: 'right' }} />
                           </td>
                           <td style={{ padding: '8px 10px' }}>
                             <input type="text" value={charge.description || ''} onChange={(e) => handleChargeChange(i, 'description', e.target.value)} placeholder="Optional" className={inputCls} style={inputBase} />
@@ -433,7 +471,7 @@ export default function AcceptPOModal({
                     <span style={{ color: TEXT_MUTED }}>Tax ({taxRate}%)</span>
                     <span style={{ fontWeight: 500, color: TEXT }}>{rp(taxAmount)}</span>
                   </div>
-                  {additionalChargesTotal > 0 && (
+                  {additionalChargesTotal !== 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                       <span style={{ color: TEXT_MUTED }}>Additional Charges</span>
                       <span style={{ fontWeight: 500, color: TEXT }}>{rp(additionalChargesTotal)}</span>

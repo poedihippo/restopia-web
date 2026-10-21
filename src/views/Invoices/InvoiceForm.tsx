@@ -10,6 +10,7 @@ import { salesOrdersService } from '@/services/sales-orders.service'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import { getCanReadPrice } from '@/utils/price'
 import SearchableSelect from '@/components/SearchableSelect'
+import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 
 const todayInputDate = () => new Date().toISOString().split('T')[0]
@@ -76,7 +77,7 @@ export default function InvoiceForm() {
   const [selectedSoIds, setSelectedSoIds] = useState<number[]>([])
 
   // Free-form additional charges
-  const [freeCharges, setFreeCharges] = useState<{ id: string, name: string, amount: number, description: string }[]>([])
+  const [freeCharges, setFreeCharges] = useState<{ id: string, name: string, chart_of_account_id: number, amount: number, description: string }[]>([])
 
   // Details tracking
   const [details, setDetails] = useState<Record<number, DetailSelection>>({})
@@ -97,6 +98,20 @@ export default function InvoiceForm() {
   })
 
   const availableSOs = (soData as any)?.data || []
+
+  // Chart of accounts for standalone (custom) charges — required by the API.
+  const { data: coaData, isLoading: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'charges'],
+    queryFn: () =>
+      chartOfAccountsService
+        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .then(r => (r.data as any)?.data ?? []),
+  })
+  const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
+    value: coa.id as number,
+    label: (coa.name as string) ?? `COA #${coa.id}`,
+    sublabel: (coa.code as string) ?? undefined,
+  }))
 
   const handleSoSelection = (soId: number) => {
     setSelectedSoIds(prev => {
@@ -161,8 +176,11 @@ export default function InvoiceForm() {
           setSoCharges(c => {
             const copy = { ...c }
             newSo.additional_charges?.forEach((charge: any) => {
-              const remaining = charge.amount - (charge.billed_amount || 0)
-              if (remaining > 0) {
+              const amount = Number(charge.amount ?? 0)
+              const remaining = amount - Number(charge.billed_amount || 0)
+              // Remaining may be positive or negative (deduction); a zero
+              // charge stays billable as a zero invoice charge.
+              if (remaining !== 0 || amount === 0) {
                 copy[charge.id] = {
                   sales_order_component_id: charge.id,
                   name: charge.name,
@@ -214,18 +232,20 @@ export default function InvoiceForm() {
 
       const payloadCharges = [
         ...Object.values(soCharges)
-          .filter(c => c.included && c.amount > 0)
+          .filter(c => c.included)
           .map(c => ({
             sales_order_component_id: c.sales_order_component_id,
             name: c.name,
-            amount: Number(c.amount) === c.max_amount ? undefined : Number(c.amount), // Omit amount if full remaining
+            // Omitting the amount bills the full remaining amount (any sign)
+            amount: Number(c.amount) === c.max_amount ? undefined : Number(c.amount),
             description: c.description || undefined
           })),
         ...freeCharges
-          .filter(c => c.amount > 0)
+          .filter(c => c.name.trim())
           .map(c => ({
-            name: c.name,
-            amount: Number(c.amount),
+            name: c.name.trim(),
+            chart_of_account_id: c.chart_of_account_id,
+            amount: Number(c.amount) || 0,
             description: c.description || undefined
           }))
       ]
@@ -455,10 +475,17 @@ export default function InvoiceForm() {
                     {c.included && (
                       <input
                         type="number"
+                        step="any"
                         value={c.amount}
-                        min="0"
-                        max={c.max_amount}
-                        onChange={e => setSoCharges({ ...soCharges, [c.sales_order_component_id as number]: { ...c, amount: Number(e.target.value) } })}
+                        onChange={e => {
+                          const max = Number(c.max_amount ?? 0)
+                          const raw = Number(e.target.value)
+                          let v = Number.isFinite(raw) ? raw : 0
+                          // Same sign as the remaining amount, never larger
+                          if (v !== 0 && max !== 0 && Math.sign(v) !== Math.sign(max)) v = 0
+                          if (max !== 0 && Math.abs(v) > Math.abs(max)) v = max
+                          setSoCharges({ ...soCharges, [c.sales_order_component_id as number]: { ...c, amount: v } })
+                        }}
                         style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
                       />
                     )}
@@ -487,18 +514,35 @@ export default function InvoiceForm() {
                   </div>
                   <input
                     type="number"
-                    placeholder="Amount"
+                    step="any"
+                    placeholder="Amount (0 = none, negative = deduction)"
                     value={fc.amount}
                     onChange={e => {
-                      const copy = [...freeCharges]; copy[idx].amount = Number(e.target.value); setFreeCharges(copy)
+                      const copy = [...freeCharges]; copy[idx].amount = Number(e.target.value) || 0; setFreeCharges(copy)
                     }}
                     style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
                   />
+                  <div>
+                    <SearchableSelect
+                      value={fc.chart_of_account_id || 0}
+                      onChange={v => {
+                        const copy = [...freeCharges]; copy[idx].chart_of_account_id = Number(v) || 0; setFreeCharges(copy)
+                      }}
+                      options={coaChargeOptions}
+                      placeholder="Select account... *"
+                      searchPlaceholder="Search account name or code..."
+                      loading={coaLoading}
+                      triggerStyle={{ height: 32, padding: '0 8px', fontSize: 13, borderRadius: 'var(--radius-sm)' }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4 }}>
+                      Required — account used to record this charge.
+                    </div>
+                  </div>
                 </div>
               ))}
               <button
                 type="button"
-                onClick={() => setFreeCharges(f => [...f, { id: Math.random().toString(), name: '', amount: 0, description: '' }])}
+                onClick={() => setFreeCharges(f => [...f, { id: Math.random().toString(), name: '', chart_of_account_id: 0, amount: 0, description: '' }])}
                 style={{ width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--foreground-muted)', cursor: 'pointer', fontSize: 13 }}
               >
                 <Plus size={14} /> Add Custom Charge
@@ -526,6 +570,19 @@ export default function InvoiceForm() {
             <button
               onClick={() => {
                 if (selectedSoIds.length === 0) return toast.error('Select at least one Sales Order')
+                const missingAccount = freeCharges.find(c => c.name.trim() && !(c.chart_of_account_id > 0))
+                if (missingAccount) return toast.error(`Custom charge "${missingAccount.name.trim()}" needs a chart of account`)
+                // Mirror the billing rules: keep the remaining amount's sign
+                // and never exceed it in absolute value.
+                const wrongSign = Object.values(soCharges).find(
+                  c => c.included && Number(c.amount) !== 0 && Number(c.max_amount ?? 0) !== 0 &&
+                    Math.sign(Number(c.amount)) !== Math.sign(Number(c.max_amount))
+                )
+                if (wrongSign) return toast.error(`Charge "${wrongSign.name}" must keep the sign of the remaining amount`)
+                const tooLarge = Object.values(soCharges).find(
+                  c => c.included && Math.abs(Number(c.amount)) > Math.abs(Number(c.max_amount ?? 0))
+                )
+                if (tooLarge) return toast.error(`Charge "${tooLarge.name}" exceeds the remaining amount`)
                 create()
               }}
               disabled={isPending || selectedSoIds.length === 0}

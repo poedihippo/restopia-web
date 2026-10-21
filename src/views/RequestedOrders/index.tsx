@@ -43,6 +43,7 @@ interface RequestedPO {
   additional_charges?: Array<{
     id: number
     name: string
+    chart_of_account_id?: number | null
     amount: number
     description?: string
   }>
@@ -147,7 +148,7 @@ export default function RequestedOrdersView() {
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1
 
   const actionMutation = useMutation({
-    mutationFn: ({ id, action, details, total_price, tax_id, additional_charges }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number, additional_charges?: { name: string; amount: number; description?: string }[] }) =>
+    mutationFn: ({ id, action, details, total_price, tax_id, additional_charges }: { id: number; action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number, additional_charges?: { name: string; chart_of_account_id?: number; amount: number; description?: string }[] }) =>
       action === 'accept'
         ? purchaseOrdersService.accept(id, { details, total_price, tax_id, additional_charges })
         : purchaseOrdersService.reject(id),
@@ -755,7 +756,7 @@ export default function RequestedOrdersView() {
                           ))}
                         </div>
                       )}
-                      {(!item.additional_charges?.length && (item.additional_charge_price ?? 0) > 0) && (
+                      {(!item.additional_charges?.length && (item.additional_charge_price ?? 0) !== 0) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px' }}>
                           <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Additional Charges</span>
                           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>

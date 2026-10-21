@@ -17,6 +17,7 @@ import { salesChannelsService } from '@/services/sales-channels.service'
 import { taxesService } from '@/services/taxes.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
+import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
@@ -114,15 +115,31 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const [taxId, setTaxId] = useState<number | undefined>(editingOrder?.tax_id ?? undefined)
   const [additionalCharges, setAdditionalCharges] = useState<{
     name: string
+    chart_of_account_id: number
     amount: number
     description?: string
   }[]>(() => {
     return editingOrder?.additional_charges?.map((c: any) => ({
       name: c.name,
+      chart_of_account_id: Number(c.chart_of_account_id ?? 0),
       amount: c.amount,
       description: c.description
     })) ?? []
   })
+
+  // Chart of accounts for additional charges — required by the API.
+  const { data: coaData, isLoading: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'charges'],
+    queryFn: () =>
+      chartOfAccountsService
+        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .then((r) => (r.data as any)?.data ?? []),
+  })
+  const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
+    value: coa.id as number,
+    label: (coa.name as string) ?? `COA #${coa.id}`,
+    sublabel: (coa.code as string) ?? undefined,
+  }))
 
   // ── Line items state ───────────────────────────────────────────────────────
   const [items, setItems] = useState<LineItem[]>(() => {
@@ -556,7 +573,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         settlement_status: settlementStatus,
         description: description || undefined,
         tax_id: taxId,
-        additional_charges: additionalCharges,
+        additional_charges: additionalCharges
+          .filter((c) => c.name.trim())
+          .map((c) => ({
+            name: c.name,
+            chart_of_account_id: c.chart_of_account_id,
+            amount: Number(c.amount) || 0,
+            description: c.description || undefined,
+          })),
         details: items.map((i) => ({
           product_inventory_id: i.product_inventory_id ?? null,
           bundle_id: i.bundle_id ?? null,
@@ -1664,7 +1688,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           Additional Charges
         </h3>
         {additionalCharges.map((charge, idx) => (
-          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 2fr 40px', gap: 10, marginBottom: 8, alignItems: 'start' }}>
+          <div key={idx} style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 2fr 40px', gap: 10, marginBottom: 8, alignItems: 'start' }}>
             <input
               type="text"
               value={charge.name}
@@ -1676,15 +1700,33 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               placeholder="Charge Name *"
               style={fieldStyle}
             />
-            <LocalizedNumberInput
-              value={charge.amount}
-              onChange={(val) => {
+            <SearchableSelect
+              value={charge.chart_of_account_id || 0}
+              onChange={(v) => {
                 const newCharges = [...additionalCharges]
-                newCharges[idx].amount = Math.max(0, val)
+                newCharges[idx].chart_of_account_id = Number(v) || 0
                 setAdditionalCharges(newCharges)
               }}
-              decimals={2}
-              placeholder="Amount *"
+              options={coaChargeOptions}
+              placeholder="Select account... *"
+              searchPlaceholder="Search account name or code..."
+              loading={coaLoading}
+              triggerStyle={{ height: 38, padding: '0 12px', fontSize: 14, borderRadius: 'var(--radius-sm)' }}
+            />
+            {/* Plain number input (not LocalizedNumberInput): the localized
+                sanitizer strips "-", and charges may now be negative. */}
+            <input
+              type="number"
+              step="any"
+              value={charge.amount}
+              onChange={(e) => {
+                const newCharges = [...additionalCharges]
+                const v = Number(e.target.value)
+                // Amount may be positive, zero or negative (deduction)
+                newCharges[idx].amount = Number.isFinite(v) ? v : 0
+                setAdditionalCharges(newCharges)
+              }}
+              placeholder="Amount"
               style={fieldStyle}
             />
             <input
@@ -1709,7 +1751,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         ))}
         <button
           type="button"
-          onClick={() => setAdditionalCharges(prev => [...prev, { name: '', amount: 0 }])}
+          onClick={() => setAdditionalCharges(prev => [...prev, { name: '', chart_of_account_id: 0, amount: 0 }])}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -1842,6 +1884,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 const paymentErr = validatePaymentBeforeSubmit()
                 if (paymentErr) {
                   toast.error(paymentErr)
+                  return
+                }
+                const chargeMissingAccount = additionalCharges.find(
+                  (c) => c.name.trim() && !(c.chart_of_account_id > 0),
+                )
+                if (chargeMissingAccount) {
+                  toast.error(`Additional charge "${chargeMissingAccount.name.trim()}" needs a chart of account`)
                   return
                 }
                 mutate()
