@@ -15,6 +15,7 @@ import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { taxesService } from '@/services/taxes.service'
+import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
@@ -62,7 +63,10 @@ const schema = z.object({
   details: z.array(detailSchema).min(1, 'At least one item required'),
   additional_charges: z.array(z.object({
     name: z.string().min(1, 'Name required'),
-    amount: z.coerce.number().min(0, 'Amount must be >= 0'),
+    chart_of_account_id: z.coerce.number().min(1, 'Account is required'),
+    // Amount may be positive, zero or negative (negative = deduction).
+    // Omitted / cleared input is treated as 0.
+    amount: z.coerce.number().catch(0),
     description: z.string().optional(),
   })).optional(),
   type: z.string().min(1, 'Type is required'),
@@ -163,6 +167,21 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
   const taxes = (taxesData as any)?.data ?? []
 
+  // Chart of accounts for additional charges — every charge needs one
+  // (required by the API), searchable by name or code.
+  const { data: coaData, isLoading: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'charges'],
+    queryFn: () =>
+      chartOfAccountsService
+        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .then((r) => (r.data as any)?.data ?? []),
+  })
+  const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
+    value: coa.id as number,
+    label: (coa.name as string) ?? `COA #${coa.id}`,
+    sublabel: (coa.code as string) ?? undefined,
+  }))
+
   const selectedTax = taxes.find((t: any) => t.id === watchTaxId)
   const taxRate = selectedTax?.rate ?? 0
 
@@ -192,9 +211,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   // Query utama: hanya aktif + default — single call, no loop.
   // Filter branch_type dari auth/me (user.branch.type) agar SKU sesuai tipe branch.
-  // Pengecualian: branch type "outlet" tidak perlu difilter — tampilkan semua product-UOM.
-  const branchTypeRaw = ((user as any)?.branch?.type as string | undefined) || ''
-  const activeBranchType = branchTypeRaw && branchTypeRaw !== 'outlet' ? branchTypeRaw : undefined
+  // Berlaku untuk semua tipe branch, termasuk "outlet" (product-UOM kini punya
+  // branch_types "outlet", jadi tidak perlu lagi pengecualian).
+  const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', activeProductTypes, activeBranchType, debouncedDropdownSearch],
     queryFn: () =>
@@ -965,10 +984,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                           setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
                         }
                       }}
-                      options={productUomOptions.filter((o: any) => {
-                        const selectedIds = watch('details').map(d => d.product_uom_id).filter(id => id > 0)
-                        return !selectedIds.includes(o.value) || o.value === f.value
-                      })}
+                      options={productUomOptions}
                       placeholder="Select product..."
                       searchPlaceholder="Search products..."
                       loading={productUomsLoading}
@@ -1151,7 +1167,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               </h3>
               <button
                 type="button"
-                onClick={() => appendCharge({ name: '', amount: 0 })}
+                onClick={() => appendCharge({ name: '', amount: 0, chart_of_account_id: 0 })}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1183,15 +1199,32 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{errors.additional_charges[index].name.message}</span>
                       )}
                     </div>
+                    <div style={{ flex: 2 }}>
+                      <Controller
+                        name={`additional_charges.${index}.chart_of_account_id`}
+                        control={control}
+                        render={({ field: coaField }) => (
+                          <SearchableSelect
+                            value={coaField.value ?? 0}
+                            onChange={coaField.onChange}
+                            options={coaChargeOptions}
+                            placeholder="Select account... *"
+                            searchPlaceholder="Search account name or code..."
+                            loading={coaLoading}
+                            error={errors.additional_charges?.[index]?.chart_of_account_id?.message}
+                            triggerStyle={{ padding: '8px 10px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
+                          />
+                        )}
+                      />
+                    </div>
                     <div style={{ flex: 1.5 }}>
                       <div style={{ position: 'relative' }}>
                         <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--foreground-muted)' }}>Rp</span>
                         <input
                           type="number"
                           step="any"
-                          min="0"
                           {...register(`additional_charges.${index}.amount`, { valueAsNumber: true })}
-                          placeholder="Amount *"
+                          placeholder="Amount (0 = none)"
                           style={{ ...lineInputStyle, paddingLeft: 32 }}
                         />
                       </div>
@@ -1261,7 +1294,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                   <span>Tax Amount:</span>
                   <span><PriceDisplay amount={taxAmount} prefix="Rp " /></span>
                 </div>
-              {additionalChargesTotal > 0 && (
+              {additionalChargesTotal !== 0 && (
                 <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
                   <span>Additional Charges:</span>
                   <span><PriceDisplay amount={additionalChargesTotal} prefix="Rp " /></span>

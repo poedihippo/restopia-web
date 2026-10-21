@@ -11,6 +11,10 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
+import {
+  convertUp,
+  type ConversionEntry,
+} from '@/utils/unitDisplay'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { LayoutList, Download, Loader2, ExternalLink } from 'lucide-react'
@@ -28,8 +32,14 @@ interface CardStockCounter {
 }
 
 interface CardStock {
+  base_uom_code?: string
   in?: CardStockCounter
   out?: CardStockCounter
+}
+
+interface BranchConversion extends ConversionEntry {
+  id?: number
+  branch_types?: string[] | null
 }
 
 interface ProductUomCardStock {
@@ -37,7 +47,13 @@ interface ProductUomCardStock {
   name?: string
   code?: string
   product_id: number
-  product?: { id: number; name: string; code?: string }
+  product?: {
+    id: number
+    name: string
+    code?: string
+    base_uom_id?: number
+    conversions?: BranchConversion[]
+  }
   uom_id: number
   uom?: { id: number; name: string; code?: string }
   stock?: number
@@ -46,11 +62,121 @@ interface ProductUomCardStock {
 
 const getToday = () => new Date().toISOString().slice(0, 10)
 
+/**
+ * Konversi yang berlaku untuk branch type aktif (user.branch.type dari auth/me).
+ * - `branch_types` kosong / tidak ada → dianggap berlaku untuk semua branch
+ *   (data lama belum punya field ini).
+ * - `activeBranchType` kosong (mis. superadmin tanpa branch) → tanpa filter.
+ */
+function filterConversionsForBranch(
+  conversions: BranchConversion[] | undefined | null,
+  activeBranchType?: string | null,
+): BranchConversion[] {
+  if (!conversions || conversions.length === 0) return []
+  const t = (activeBranchType ?? '').trim().toLowerCase()
+  if (!t) return conversions
+  return conversions.filter((c) => {
+    const bts = Array.isArray(c.branch_types) ? c.branch_types : []
+    if (bts.length === 0) return true
+    return bts.some((bt) => String(bt).toLowerCase() === t)
+  })
+}
+
+/**
+ * Satuan tampilan untuk branch type aktif.
+ *
+ * Kandidat = semua unit yang disebut konversi ber-label branch aktif.
+ * - Base unit termasuk satuan branch (mis. branch "other" pada produk GR
+ *   dengan konversi KG(1000)→GR ber-label other) → pakai base unit.
+ * - Selain itu → pakai satuan branch TERBESAR yang bisa dicapai dari base
+ *   (mis. branch warehouse: konversi BALL(50)→KG ber-label warehouse membuat
+ *   kandidat BALL & KG; dari base GR → BALL, jadi 350.000 GR tampil 7 BALL).
+ *
+ * Penghitungan sendiri memakai SEMUA konversi, termasuk step penghubung yang
+ * ber-label branch lain (mis. KG(1000)→GR ber-label "other" tetap dipakai
+ * sebagai jembatan GR→KG→BALL).
+ *
+ * Return null → caller memakai base unit.
+ */
+function resolveBranchUnit(
+  baseUomCode: string,
+  allConversions: BranchConversion[],
+  labeledConversions: BranchConversion[],
+): string | null {
+  if (!baseUomCode || labeledConversions.length === 0) return null
+
+  const candidates = new Set<string>()
+  for (const c of labeledConversions) {
+    candidates.add(c.uom_code)
+    candidates.add(c.target_uom_code)
+  }
+  if (candidates.has(baseUomCode)) return null
+
+  let best: string | null = null
+  let bestRatio = Number.POSITIVE_INFINITY
+  for (const unit of candidates) {
+    if (unit === baseUomCode) continue
+    // 1 base unit berapa `unit` — ratio paling kecil = satuan paling besar.
+    const ratio = convertUp(1, baseUomCode, unit, allConversions)
+    if (ratio == null || !Number.isFinite(ratio) || ratio <= 0) continue
+    if (ratio < bestRatio) {
+      bestRatio = ratio
+      best = unit
+    }
+  }
+  return best
+}
+
+function formatQty(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—'
+  return n.toLocaleString('id-ID', { maximumFractionDigits: 4 })
+}
+
+/**
+ * Satuan angka utama (sudah dikonversi ke satuan branch) + nilai pada satuan
+ * aslinya sebagai subteks kecil, hanya bila satuannya berbeda.
+ */
+function QuantityCell({
+  value,
+  unit,
+  subValue,
+  subUnit,
+  color,
+}: {
+  value: number | null | undefined
+  unit: string
+  subValue?: number | null
+  subUnit?: string
+  color: string
+}) {
+  const showSub = subValue != null && !!subUnit && subUnit !== unit
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color, whiteSpace: 'nowrap' }}>
+        {formatQty(value)}
+        {value != null && (
+          <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--foreground-muted)', marginLeft: 5 }}>
+            {unit}
+          </span>
+        )}
+      </span>
+      {showSub && (
+        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', whiteSpace: 'nowrap' }}>
+          {formatQty(subValue)} {subUnit}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function StockCardView() {
   const router = useRouter()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
   const canRead = hasPermission('stock-movement.read')
   const activeProductTypes = useActiveBranchProductTypes()
+  // Konversi di kartu stok selalu mengikuti tipe branch yang sedang aktif
+  // (warehouse → konversi branch warehouse, production → production, dst).
+  const activeBranchType = user?.branch?.type || ''
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -201,6 +327,9 @@ export default function StockCardView() {
           </h1>
           <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
             Ringkasan stok per product UOM dengan counter masuk/keluar per jenis dokumen
+            {activeBranchType ? (
+              <> · Konversi satuan mengikuti branch type <strong style={{ color: 'var(--foreground)' }}>{activeBranchType}</strong></>
+            ) : null}
           </p>
         </div>
         <button
@@ -363,6 +492,33 @@ export default function StockCardView() {
                 items.map((item, idx) => {
                   const inTotal = item.card_stock?.in?.total ?? 0
                   const outTotal = item.card_stock?.out?.total ?? 0
+
+                  // Satuan tampilan mengikuti branch type aktif (mis. warehouse
+                  // → BALL). Semua konversi dipakai untuk penghitungannya,
+                  // termasuk step penghubung milik branch lain.
+                  const baseUom = item.card_stock?.base_uom_code || item.uom?.code || ''
+                  const rowUom = item.uom?.code || baseUom
+                  const allConvs = item.product?.conversions ?? []
+                  const labeledConvs = filterConversionsForBranch(allConvs, activeBranchType)
+                  const displayUnit = resolveBranchUnit(baseUom, allConvs, labeledConvs) ?? baseUom
+
+                  const toDisplay = (
+                    value: number,
+                    fromUom: string,
+                  ): { value: number; unit: string } => {
+                    if (!fromUom || fromUom === displayUnit) return { value, unit: displayUnit || fromUom }
+                    const converted = convertUp(value, fromUom, displayUnit, allConvs)
+                    // Rantai tidak terjangkau → tampil apa adanya di satuan asal
+                    if (converted == null || !Number.isFinite(converted)) {
+                      return { value, unit: fromUom }
+                    }
+                    return { value: converted, unit: displayUnit }
+                  }
+
+                  const inCell = toDisplay(inTotal, baseUom)
+                  const outCell = toDisplay(outTotal, baseUom)
+                  const stockCell = item.stock != null ? toDisplay(item.stock, rowUom) : null
+
                   return (
                     <tr
                       key={item.id}
@@ -396,20 +552,34 @@ export default function StockCardView() {
                           )}
                         </div>
                       </td>
-                      <td style={tdStyle}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--success)' }}>
-                          {inTotal.toLocaleString('id-ID')}
-                        </span>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>
+                        <QuantityCell
+                          value={inCell.value}
+                          unit={inCell.unit}
+                          subValue={inCell.unit === baseUom ? undefined : inTotal}
+                          subUnit={baseUom}
+                          color="var(--success)"
+                        />
                       </td>
-                      <td style={tdStyle}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--destructive)' }}>
-                          {outTotal.toLocaleString('id-ID')}
-                        </span>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>
+                        <QuantityCell
+                          value={outCell.value}
+                          unit={outCell.unit}
+                          subValue={outCell.unit === baseUom ? undefined : outTotal}
+                          subUnit={baseUom}
+                          color="var(--destructive)"
+                        />
                       </td>
-                      <td style={tdStyle}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
-                          {item.stock != null ? item.stock.toLocaleString('id-ID') : '—'}
-                        </span>
+                      <td style={{ ...tdStyle, verticalAlign: 'top' }}>
+                        <QuantityCell
+                          value={stockCell ? stockCell.value : null}
+                          unit={stockCell ? stockCell.unit : rowUom}
+                          subValue={
+                            stockCell && stockCell.unit !== rowUom ? item.stock : undefined
+                          }
+                          subUnit={rowUom}
+                          color="var(--foreground)"
+                        />
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
                         <ExternalLink size={14} style={{ color: 'var(--foreground-muted)' }} />

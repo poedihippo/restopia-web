@@ -53,6 +53,7 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
         : [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
       additional_charges: (order.additional_charges ?? []).map((c: any) => ({
         name: c.name ?? '',
+        chart_of_account_id: Number(c.chart_of_account_id ?? 0),
         amount: Number(c.amount ?? 0),
         description: c.description ?? '',
       })),

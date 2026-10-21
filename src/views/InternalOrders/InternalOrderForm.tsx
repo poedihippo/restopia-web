@@ -109,9 +109,9 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   const branches = (branchesData as any)?.data ?? []
 
   // Filter branch_type dari auth/me (user.branch.type) agar SKU sesuai tipe branch.
-  // Pengecualian: branch type "outlet" tidak perlu difilter — tampilkan semua product-UOM.
-  const branchTypeRaw = ((user as any)?.branch?.type as string | undefined) || ''
-  const activeBranchType = branchTypeRaw && branchTypeRaw !== 'outlet' ? branchTypeRaw : undefined
+  // Berlaku untuk semua tipe branch, termasuk "outlet" (product-UOM kini punya
+  // branch_types "outlet", jadi tidak perlu lagi pengecualian).
+  const activeBranchType = ((user as any)?.branch?.type as string | undefined) || undefined
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
     queryKey: ['product-uoms-all', activeBranchType, debouncedDropdownSearch],
     queryFn: () =>

@@ -69,7 +69,7 @@ interface InvoiceFull {
   branch?: { id: number; name: string }
   billed_branch?: { id: number; name: string }
   invoice_details?: InvoiceDetailLine[]
-  additional_charges?: { id: number; name: string; amount: number }[]
+  additional_charges?: { id: number; name: string; amount: number; chart_of_account_id?: number | null }[]
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -542,7 +542,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                   </td>
                 </tr>
               ))
-            ) : (invoice.additional_charge_price ?? 0) > 0 ? (
+            ) : (invoice.additional_charge_price ?? 0) !== 0 ? (
               <tr style={{ background: 'var(--background)' }}>
                 <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   Additional Charges
@@ -599,7 +599,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
       <div style={{ marginTop: 32, marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)' }}>Payments</h2>
-          {invoice.status !== 'paid' && invoice.status !== 'void' && !showPaymentForm && (
+          {invoice.status !== 'paid' && invoice.status !== 'void' && !showPaymentForm && Number(invoice.total_price ?? 0) > 0 && (
             <button
               type="button"
               onClick={() => setShowPaymentForm(true)}
@@ -892,7 +892,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                       <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(ac.amount)}</td>
                     </tr>
                   ))
-                ) : (invoice.additional_charge_price ?? 0) > 0 ? (
+                ) : (invoice.additional_charge_price ?? 0) !== 0 ? (
                   <tr>
                     <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Additional Charges</td>
                     <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.additional_charge_price)}</td>
