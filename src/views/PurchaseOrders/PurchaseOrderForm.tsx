@@ -1,6 +1,6 @@
 'use client'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
-import { getProductUomName } from '@/utils/productUomName';
+import { getProductUomName, withProductType } from '@/utils/productUomName';
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
@@ -363,7 +363,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     }))
   const productUomOptions = mergedProductUoms.map((pu: any) => ({
     value: pu.id as number,
-    label: getProductUomName(pu, pu.product?.name),
+    label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
     base_price: pu.base_price ?? 0,

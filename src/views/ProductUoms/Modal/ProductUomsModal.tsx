@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import useGetProductList from "@/hooks/product/useGetProductList";
 import useGetUOMList from "@/hooks/uom/useGetUOMList";
+import { withProductType } from "@/utils/productUomName";
 import { Controller, UseFormReturn } from "react-hook-form";
 import { useState, useEffect } from "react";
 import { ProductUomsFormValues } from "./useCreateProductUomsModal";
@@ -117,7 +118,7 @@ export const ProductUomsModal = ({
                       options={
                         productData?.data?.map((item) => ({
                           value: item.id,
-                          label: item.name ?? "",
+                          label: withProductType(item.name ?? "", item.type),
                         })) ?? []
                       }
                       value={
@@ -125,7 +126,7 @@ export const ProductUomsModal = ({
                           ?.filter((item) => item.id === field.value)
                           .map((item) => ({
                             value: item.id,
-                            label: item.name ?? "",
+                            label: withProductType(item.name ?? "", item.type),
                           }))[0] ?? null
                       }
                       onInputChange={(newValue, actionMeta) => {

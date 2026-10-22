@@ -15,7 +15,7 @@ import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, Sparkles } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
-import { describeSuggestionReason } from '@/utils/productUomName'
+import { describeSuggestionReason, withProductType } from '@/utils/productUomName'
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
@@ -144,7 +144,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
   const productOptions = React.useMemo(() => {
     const base = products.map((p: any) => ({
       value: p.id as number,
-      label: (p.name as string) ?? '',
+      label: withProductType((p.name as string) ?? '', p.type),
       sublabel: p.code as string | undefined,
     }))
     if (
@@ -154,7 +154,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     ) {
       base.unshift({
         value: editData.product_id,
-        label: editData.product.name ?? 'Product',
+        label: withProductType(editData.product.name ?? 'Product', (editData.product as any).type),
         sublabel: editData.product.code,
       })
     }

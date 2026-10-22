@@ -12,7 +12,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import api from '@/hooks/useApi'
@@ -131,7 +131,7 @@ export default function ConversionForm() {
   )
   const materialOptions = materialPus.map((pu: any) => ({
     value: pu.id as number,
-    label: getProductUomName(pu, pu.product?.name) || `PU #${pu.id}`,
+    label: withProductType(getProductUomName(pu, pu.product?.name) || `PU #${pu.id}`, pu.product?.type),
     sublabel: pu.uom?.name ?? '',
     description: pu.code ?? undefined,
   }))

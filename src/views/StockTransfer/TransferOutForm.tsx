@@ -12,7 +12,7 @@ import { branchesService } from '@/services/branches.service'
 import { companiesService } from '@/services/companies.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -251,7 +251,7 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
 
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
-    label: getProductUomName(pu, pu.product?.name),
+    label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
   }))

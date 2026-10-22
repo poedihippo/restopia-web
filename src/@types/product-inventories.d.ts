@@ -48,6 +48,8 @@ export interface Product {
   product_category_id?: number;
   code?: string;
   name?: string;
+  /** raw | wip | final | supply — needed to disambiguate same-named products. */
+  type?: string | null;
   product_category?: ProductCategory;
 }
 

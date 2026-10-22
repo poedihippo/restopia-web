@@ -20,7 +20,7 @@ import {
   isCutableSourceInventoryRow,
   isDeferredInventoryRow,
 } from '@/utils/inventoryStock'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import type { PortioningRequest } from '@/types/api'
@@ -516,19 +516,22 @@ export default function PortioningForm() {
     const expiry = inv?.product_uom_batch?.expiry_date ?? inv?.expiry_date
     // Cutable stock is in the base uom.
     const cutableUnit = inv.base_uom_code ?? inv.display_uom_code ?? pu?.uom?.code
-    // The row's own dimension and the product's type, so what the list shows can be
-    // checked against "Konsumsi Dari" (a WIP cake can legitimately sit in `finished`).
+    // The row's own dimension, so what the list shows can be checked against
+    // "Konsumsi Dari" (a WIP cake can legitimately sit in `finished`). The
+    // product type itself lives in the option label now (withProductType).
     const productType: string | undefined = pu?.product?.type
     const dimension = [
       inv.stage ? `Stage: ${inv.stage}` : '',
       inv.owner_ref ? `Owner: ${inv.owner_ref}` : '',
-      productType ? `Tipe: ${productType.toUpperCase()}` : '',
     ]
       .filter(Boolean)
       .join(' · ')
     return {
       value: Number(inv.id),
-      label: [getProductUomName(pu, inv.code), pu?.uom?.code].filter(Boolean).join(' · '),
+      label: withProductType(
+        [getProductUomName(pu, inv.code), pu?.uom?.code].filter(Boolean).join(' · '),
+        productType,
+      ),
       sublabel: [
         inv.code ? `SKU: ${inv.code}` : '',
         isCutableRow(inv)
@@ -629,7 +632,7 @@ export default function PortioningForm() {
     .map((pu) => ({
       value: Number(pu.id),
       productId: Number(pu?.product?.id ?? pu?.product_id ?? 0),
-      label: [getProductUomName(pu), pu?.uom?.code].filter(Boolean).join(' · '),
+      label: withProductType([getProductUomName(pu), pu?.uom?.code].filter(Boolean).join(' · '), pu?.product?.type),
       sublabel: pu?.code ? `SKU: ${pu.code}` : undefined,
     }))
   const inventoryById = new Map<number, any>(inventories.map((inv: any) => [Number(inv.id), inv]))
@@ -801,7 +804,7 @@ export default function PortioningForm() {
       const basePerResult = baseMaterial ? Number(baseMaterial.qty) / recipeQty : NaN
       opts.push({
         value: puId,
-        label: [getProductUomName(pu), pu?.uom?.code].filter(Boolean).join(' · '),
+        label: withProductType([getProductUomName(pu), pu?.uom?.code].filter(Boolean).join(' · '), pu?.product?.type),
         sublabel:
           [
             pu?.code ? `SKU: ${pu.code}` : '',

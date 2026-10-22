@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import useGetProductList from "@/hooks/product/useGetProductList";
 import useGetUOMList from "@/hooks/uom/useGetUOMList";
+import { withProductType } from "@/utils/productUomName";
 import { Trash } from "lucide-react";
 import { Control, Controller, FieldArrayWithId, UseFieldArrayAppend, UseFieldArrayRemove, UseFormReturn } from "react-hook-form";
 import { RecipesFormValues } from "./useCreateRecipesModal";
@@ -75,7 +76,7 @@ const DetailRow = ({ control, index, onRemove, excludeProductsIds }: DetailRowPr
                       filter((item) => !excludeProductsIds.includes(item.id))?.
                       map((item) => ({
                         value: item.id,
-                        label: `${item.name} - ${item.code}`,
+                        label: withProductType(`${item.name} - ${item.code}`, item.type),
                       })) ?? []
                   }
                   value={
@@ -83,7 +84,7 @@ const DetailRow = ({ control, index, onRemove, excludeProductsIds }: DetailRowPr
                       ?.filter((item) => item.id === field.value)
                       .map((item) => ({
                         value: item.id,
-                        label: `${item.name} - ${item.code}`,
+                        label: withProductType(`${item.name} - ${item.code}`, item.type),
                       }))[0] ?? null
                   }
                   onChange={(selected) => {

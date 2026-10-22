@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import { formatCurrency } from '@/utils/price';
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { availableStockOf } from '@/utils/inventoryStock'
 
 
@@ -882,7 +882,7 @@ function BundleBatchPickerModal({
                   >
                     {detail.items.map((opt: any) => (
                       <option key={opt.id} value={opt.id}>
-                        {getProductUomName(opt.product_uom, opt.product_uom?.product?.name) || 'Unknown Product'}
+                        {withProductType(getProductUomName(opt.product_uom, opt.product_uom?.product?.name) || 'Unknown Product', opt.product_uom?.product?.type)}
                       </option>
                     ))}
                   </select>

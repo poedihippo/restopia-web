@@ -7,6 +7,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -88,7 +89,7 @@ export default function ProductionsView() {
   
   const productOptions = (productsData as any)?.data?.map((p: any) => ({
     value: p.id,
-    label: p.name,
+    label: withProductType(p.name, p.type),
   })) ?? []
 
   const { data, isLoading, isError } = useQuery({

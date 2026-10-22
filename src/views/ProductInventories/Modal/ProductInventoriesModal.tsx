@@ -20,6 +20,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { status } from "@/constants/global";
 import useGetProductUomsList from "@/hooks/product-uoms/useGetProductUomsList";
+import { withProductType } from "@/utils/productUomName";
 import { X } from "lucide-react";
 import {useState,  useEffect } from "react";
 import { Controller, UseFormReturn } from "react-hook-form";
@@ -103,7 +104,7 @@ export const ProductInventoriesModal = ({
                       options={
                         productData?.data?.map((item) => ({
                           value: item.id,
-                          label: `${item.product?.name ?? ""} - ${item.uom?.name ?? ""}`,
+                          label: withProductType(`${item.product?.name ?? ""} - ${item.uom?.name ?? ""}`, item.product?.type),
                         })) ?? []
                       }
                       value={
@@ -111,7 +112,7 @@ export const ProductInventoriesModal = ({
                           ?.filter((item) => item.id === field.value)
                           .map((item) => ({
                             value: item.id,
-                            label: `${item.product?.name ?? ""} - ${item.uom?.name ?? ""}`,
+                            label: withProductType(`${item.product?.name ?? ""} - ${item.uom?.name ?? ""}`, item.product?.type),
                           }))[0] ?? null
                       }
                       onChange={(selected) => {

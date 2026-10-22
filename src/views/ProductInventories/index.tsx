@@ -800,45 +800,56 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                   item.product_uom?.uom?.code ?? ''
                 const puFallback = getProductUom(item.product_uom_id)
 
-                // For "largest" mode: walk the conversion chain from base → top,
-                // dividing by each amount. The resulting value is in the
-                // largest UOM. Fall back to base if chain is incomplete.
-                // For "branch" mode: convert base → the product-UOM whose
-                // branch_type matches the user's branch.type. Fall back to
-                // base if the product has no matching UOM / conversion.
-                let stockQty = baseQty
-                let stockUnit = baseUomCode
-                if (unitMode === 'largest' && conversions && conversions.length > 0) {
-                  const chain = [...conversions].sort((a, b) => a.amount - b.amount)
-                  for (const step of chain) {
-                    const next = stockQty / step.amount
-                    if (next < 1) break
-                    stockQty = next
-                    stockUnit = step.uom_code
+                // Convert a base-unit qty into the display unit of the active
+                // mode.
+                //   largest: walk the conversion chain from base → top, dividing
+                //            by each amount; falls back to base if incomplete.
+                //   branch : convert base → the product-UOM whose branch_types
+                //            contain the user's branch.type; falls back to base
+                //            if the product has no matching UOM / conversion.
+                //   smallest: no match, so the base unit is returned as-is.
+                const toDisplayUnit = (value: number): { qty: number; unit: string } => {
+                  if (unitMode === 'largest' && conversions && conversions.length > 0) {
+                    let qty = value
+                    let unit = baseUomCode
+                    const chain = [...conversions].sort((a, b) => a.amount - b.amount)
+                    for (const step of chain) {
+                      const next = qty / step.amount
+                      if (next < 1) break
+                      qty = next
+                      unit = step.uom_code
+                    }
+                    return { qty, unit }
                   }
-                } else if (unitMode === 'branch' && userBranchType) {
-                  const productId =
-                    item.product_uom_batch?.product_uom?.product?.id ??
-                    item.product_uom?.product?.id ??
-                    puFallback?.product?.id
-                  const target = productId ? branchUomByProductId.get(Number(productId)) : undefined
-                  if (target?.uomCode) {
-                    const converted = convertUp(baseQty, baseUomCode, target.uomCode, conversions ?? target.conversions)
-                    if (converted !== null) {
-                      stockQty = converted
-                      stockUnit = target.uomCode
+                  if (unitMode === 'branch' && userBranchType) {
+                    const productId =
+                      item.product_uom_batch?.product_uom?.product?.id ??
+                      item.product_uom?.product?.id ??
+                      puFallback?.product?.id
+                    const target = productId ? branchUomByProductId.get(Number(productId)) : undefined
+                    if (target?.uomCode) {
+                      const converted = convertUp(value, baseUomCode, target.uomCode, conversions ?? target.conversions)
+                      if (converted !== null) return { qty: converted, unit: target.uomCode }
                     }
                   }
+                  return { qty: value, unit: baseUomCode }
                 }
-                const stockDisplay =
-                  unitMode === 'smallest'
-                    ? `${baseQty.toLocaleString('id-ID')} ${baseUomCode}`
-                    : `${stockQty.toLocaleString('id-ID')} ${stockUnit}`
+
+                // `toDisplayUnit` falls back to the base unit for "smallest"
+                // mode, so one call covers every mode. The UOM column reads
+                // `stockUnit`, so both cells always agree.
+                const stock = toDisplayUnit(baseQty)
+                const stockUnit = stock.unit
+                const stockDisplay = `${stock.qty.toLocaleString('id-ID')} ${stock.unit}`
 
                 // Sellable Qty = what can actually be sold right now
                 // (sellable_qty for deferred SKUs, available stock otherwise).
-                const sellableQty = availableStockOf(item)
-                const isLow = sellableQty <= 0
+                // Also a base-unit figure, so it follows the same display
+                // conversion as the Qty column.
+                const sellableBase = availableStockOf(item)
+                const isLow = sellableBase <= 0
+                const sellable = toDisplayUnit(sellableBase)
+                const sellableDisplay = `${sellable.qty.toLocaleString('id-ID')} ${sellable.unit}`
 
                 // Cutable = stock a portioning can still re-cut (base uom). Only
                 // meaningful for cutable-source SKUs or rows that already hold some.
@@ -979,7 +990,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           color: 'var(--foreground-muted)',
                         }}
                       >
-                        {canRead ? sellableQty.toLocaleString('id-ID') : "***"}
+                        {canRead ? sellableDisplay : "***"}
                       </td>
                       {/* Cutable */}
                       <td style={{ padding: '12px 16px' }}>

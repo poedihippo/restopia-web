@@ -16,7 +16,7 @@ import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import RecipeImportModal from '@/views/PurchaseOrders/RecipeImportModal'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 
 const detailSchema = z.object({
   product_uom_id: z.coerce.number().min(0, 'Product required'),
@@ -139,7 +139,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     }))
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
-    label: getProductUomName(pu, pu.product?.name) || '',
+    label: withProductType(getProductUomName(pu, pu.product?.name) || '', pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
     price: pu.base_price ?? 0,

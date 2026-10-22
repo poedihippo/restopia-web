@@ -11,7 +11,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -227,7 +227,10 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     const stockUom = row.display_uom_code ? ` ${row.display_uom_code}` : ''
     return {
       value: row.id,
-      label: `${product?.code ?? ''} ${productLabel}`.trim() || `Item #${row.id}`,
+      label: withProductType(
+        `${product?.code ?? ''} ${productLabel}`.trim() || `Item #${row.id}`,
+        product?.type,
+      ),
       sublabel: `batch ${batchCode} · ${owner}/${stage}/${location} · stok ${stock}${stockUom}`,
     }
   }), [inventoryRows, companies])

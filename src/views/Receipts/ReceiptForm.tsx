@@ -2,7 +2,7 @@
 
 import React, { useState,  useEffect, useMemo } from 'react'
 import { getCanReadPrice } from '@/utils/price'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -141,7 +141,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     queryFn: () =>
       deliveriesService
         .findById(watchDeliveryId as number, {
-          include: 'branch,target_branch,delivery_details',
+          include: 'branch,target_branch,delivery_details,delivery_details.product_uom,delivery_details.product_uom.product',
         })
         .then((r) => r.data),
     enabled: !!watchDeliveryId && (watchDeliveryId as number) > 0,
@@ -290,7 +290,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
   const productUomOptions = useMemo(() => {
     const deliveryOpts = deliveryDetail?.delivery_details?.map((dd: any) => ({
       value: dd.product_uom?.id ?? dd.product_uom_id ?? 0,
-      label: getProductUomName(dd.product_uom),
+      label: withProductType(getProductUomName(dd.product_uom), dd.product_uom?.product?.type),
       sublabel: (dd.product_uom?.uom?.name as string) ?? '',
       description: (dd.product_uom?.code as string) ?? undefined,
       base_price: dd.product_uom?.base_price ?? 0,
@@ -299,7 +299,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
     const receiptOpts = initialData?.receipt_details?.map((rd: any) => ({
       value: rd.product_uom?.id ?? rd.product_uom_id ?? 0,
-      label: getProductUomName(rd.product_uom),
+      label: withProductType(getProductUomName(rd.product_uom), rd.product_uom?.product?.type),
       sublabel: (rd.product_uom?.uom?.name as string) ?? '',
       description: (rd.product_uom?.code as string) ?? undefined,
       base_price: rd.product_uom?.base_price ?? 0,

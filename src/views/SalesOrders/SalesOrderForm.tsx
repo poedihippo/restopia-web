@@ -23,7 +23,7 @@ import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { formatNumberId, parseNumberId, sanitizeNumberInput } from '@/utils/numberFormat'
 
 const generateKey = () =>
@@ -276,7 +276,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           'filter[search]': productSearchDebounced || undefined,
           'filter[product_type]': 'final',
           'filter[status]': 'active',
-          include: 'branch,product_uom_batch',
+          include: 'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
         })
         .then((r) => r.data),
   })
@@ -1431,9 +1431,12 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                             <div style={{ fontSize: 13, fontWeight: isHighlighted ? 700 : 600, color: isHighlighted ? 'var(--accent)' : 'var(--foreground)', paddingRight: 8 }}>
-                              {(getProductUomName(p.product_uom_batch?.product_uom) || undefined)
-                                ?? (getProductUomName(p.product_uom) || undefined)
-                                ?? p.code}
+                              {withProductType(
+                                (getProductUomName(p.product_uom_batch?.product_uom) || undefined)
+                                  ?? (getProductUomName(p.product_uom) || undefined)
+                                  ?? p.code,
+                                p.product_uom_batch?.product_uom?.product?.type,
+                              )}
                             </div>
                             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
                               {formatCurrency(

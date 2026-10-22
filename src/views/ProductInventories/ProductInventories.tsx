@@ -1,4 +1,5 @@
 import { formatDate } from '@/utils/date';
+import { withProductType } from '@/utils/productUomName';
 import { IProductInventories } from "@/@types/product-inventories";
 import { Button } from "@/components/ui/button";
 import { Column, DataTable } from "@/components/ui/data-table";
@@ -74,7 +75,10 @@ const ProductInventories = () => {
     () =>
       products.map((item) => ({
         value: item.id,
-        label: `${item.product?.name ?? ""} - ${item.uom?.name ?? ""} - ${item.uom?.code ?? ""}`,
+        label: withProductType(
+          `${item.product?.name ?? ""} - ${item.uom?.name ?? ""} - ${item.uom?.code ?? ""}`,
+          item.product?.type,
+        ),
       })),
     [products],
   );

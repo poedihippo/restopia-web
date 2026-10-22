@@ -8,7 +8,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { useAuth } from '@/hooks/useAuth'
@@ -146,7 +146,10 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
     const expiryDate = batch.expiry_date ? formatExpiry(batch.expiry_date) : 'No expiry'
     return {
       value: batch.id as number,
-      label: `${name}${uomCode ? ` · ${uomCode}` : ''} · Stok: ${displayStock} · Exp: ${expiryDate}`,
+      label: withProductType(
+        `${name}${uomCode ? ` · ${uomCode}` : ''} · Stok: ${displayStock} · Exp: ${expiryDate}`,
+        batch.product_uom?.product?.type,
+      ),
       sublabel: batch.batch_code ?? undefined,
     }
   })
