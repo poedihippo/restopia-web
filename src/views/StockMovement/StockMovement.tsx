@@ -1,4 +1,5 @@
 import { formatDateTime } from '@/utils/date';
+import { withProductType } from '@/utils/productUomName';
 import { IStockMovement } from "@/@types/stock-movements";
 import { Column, DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,10 @@ const StockMovement = () => {
     () =>
       products.map((item) => ({
         value: item.id,
-        label: `${item?.product_uom?.product?.name ?? ""} - ${item.branch?.name ?? ""} - ${item.product_uom?.uom?.code}`,
+        label: withProductType(
+          `${item?.product_uom?.product?.name ?? ""} - ${item.branch?.name ?? ""} - ${item.product_uom?.uom?.code}`,
+          item?.product_uom?.product?.type,
+        ),
       })),
     [products],
   );

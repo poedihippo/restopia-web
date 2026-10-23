@@ -27,7 +27,7 @@ import {
 import SearchableSelect from '@/components/SearchableSelect'
 import { FloatingPanel } from '@/components/FloatingPanel'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -513,7 +513,7 @@ export function MaterialPicker({
                       onMouseEnter={() => setHighlightIndex(i)}
                       style={optionRowStyle(i === highlightIndex)}
                     >
-                      <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{p.name}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{withProductType(p.name, p.type)}</span>
                       <span style={{ color: 'var(--foreground-muted)', fontSize: 10 }}>{p.code}</span>
                     </button>
                   ))
@@ -2484,7 +2484,7 @@ export default function ProductionForm({
                                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
                                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                                   >
-                                    {p.name}
+                                    {withProductType(p.name, p.type)}
                                     <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginLeft: 8 }}>
                                       {p.code}
                                     </span>

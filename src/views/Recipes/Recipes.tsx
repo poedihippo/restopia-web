@@ -1,4 +1,5 @@
 import { formatDate } from '@/utils/date';
+import { withProductType } from '@/utils/productUomName';
 import { DeleteConfirmModal } from "@/components/ui/delete-confirm-modal";
 import { RecipesModal } from "./Modal/RecipesModal";
 import useRecipes from "./useRecipes";
@@ -41,7 +42,7 @@ const Recipes = () => {
     () =>
       products.map((item) => ({
         value: item.id,
-        label: item.name ?? "",
+        label: withProductType(item.name ?? "", item.type),
       })),
     [products],
   );

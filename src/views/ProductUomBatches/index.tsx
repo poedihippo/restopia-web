@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import api from '@/hooks/useApi'
@@ -189,9 +190,12 @@ export default function ProductUomBatchesView() {
     { value: 0, label: 'All Product UOMs' },
     ...productUoms.map((pu: any) => ({
       value: pu.id as number,
-      label: `${pu.product?.name ?? 'Product'} — ${
-        pu.uom?.name ?? pu.uom?.code ?? 'UOM'
-      }`,
+      label: withProductType(
+        `${pu.product?.name ?? 'Product'} — ${
+          pu.uom?.name ?? pu.uom?.code ?? 'UOM'
+        }`,
+        pu.product?.type,
+      ),
       description: pu.code ?? undefined,
     })),
   ]

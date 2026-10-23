@@ -7,7 +7,7 @@ import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -408,7 +408,7 @@ export default function StockMovementView() {
     { value: 0, label: 'Semua Produk' },
     ...((productsData as any)?.data ?? []).map((p: any) => ({
       value: p.id as number,
-      label: (p.name as string) ?? `Product #${p.id}`,
+      label: withProductType((p.name as string) ?? `Product #${p.id}`, p.type),
       sublabel: p.code as string | undefined,
     })),
   ]

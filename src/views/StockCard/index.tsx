@@ -8,6 +8,7 @@ import { productsService } from '@/services/products.service'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
+import { withProductType } from '@/utils/productUomName'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
@@ -215,7 +216,7 @@ export default function StockCardView() {
     { value: 0, label: 'Semua Produk' },
     ...products.map((p: any) => ({
       value: p.id as number,
-      label: (p.name as string) ?? `Product #${p.id}`,
+      label: withProductType((p.name as string) ?? `Product #${p.id}`, p.type),
       sublabel: p.code as string | undefined,
     })),
   ]

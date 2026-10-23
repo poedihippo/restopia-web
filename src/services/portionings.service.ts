@@ -14,7 +14,7 @@ export const portioningsService = {
   preview: (data: PortioningRequest) =>
     api.post<ApiResponse<unknown>>('/portionings/preview', data),
 
-  update: (id: number, data: Partial<PortioningRequest>) =>
+  update: (id: number, data: PortioningRequest) =>
     api.patch<ApiResponse<unknown>>(`/portionings/${id}`, data),
 
   delete: (id: number) =>

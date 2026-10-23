@@ -22,7 +22,7 @@ import { Plus, Trash2, ArrowLeft, Loader2, Save, ArrowRightLeft } from 'lucide-r
 import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -756,7 +756,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   }))
   const toProductUomOption = (pu: any) => ({
     value: pu.id as number,
-    label: getProductUomName(pu),
+    label: withProductType(getProductUomName(pu), pu.product?.type),
     sublabel: (pu.uom?.name as string) ?? '',
     description: (pu.code as string) ?? undefined,
     base_price: pu.base_price ?? 0,

@@ -13,6 +13,38 @@ export function getProductUomName(
   return pu?.product?.name ?? fallbackProductName ?? ''
 }
 
+/**
+ * Canonical display label per product type.
+ *
+ * Selector option labels must carry the type: the same product name can exist
+ * in several types (e.g. a cake as both `wip` "Unfinish" and `final`
+ * "Finished"), so name alone is ambiguous when picking a row.
+ */
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  raw: 'Raw',
+  wip: 'WIP',
+  final: 'Final',
+  supply: 'Supply',
+}
+
+/** "wip" → "WIP"; unknown/empty types fall back to the raw value. */
+export function productTypeLabel(type?: string | null): string {
+  const raw = (type ?? '').trim()
+  if (!raw) return ''
+  return PRODUCT_TYPE_LABELS[raw.toLowerCase()] ?? raw
+}
+
+/**
+ * Append the product type to an option label: `withProductType("Brownies", "wip")`
+ * → "Brownies · WIP". A labelless call still returns the bare type, and a call
+ * without a type is returned untouched — so it is safe to wrap any label.
+ */
+export function withProductType(label: string, type?: string | null): string {
+  const suffix = productTypeLabel(type)
+  if (!suffix) return label
+  return label ? `${label} · ${suffix}` : suffix
+}
+
 /** Human-readable helper text for a non-actionable name-suggestion reason. */
 export function describeSuggestionReason(reason: string): string {
   switch (reason) {

@@ -11,6 +11,7 @@ import { productInventoriesService } from '@/services/product-inventories.servic
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -189,7 +190,10 @@ export default function DimensionTransferRequestSheet({
     const stock = row.stock ?? row.qty ?? 0
     return {
       value: row.id,
-      label: `${product?.code ?? ''} ${product?.name ?? ''}`.trim() || `Item #${row.id}`,
+      label: withProductType(
+        `${product?.code ?? ''} ${product?.name ?? ''}`.trim() || `Item #${row.id}`,
+        product?.type,
+      ),
       sublabel: `batch ${batchCode} · ${owner}/${stage}/${location} · stok ${stock}`,
     }
   })

@@ -13,7 +13,7 @@ import api from '@/hooks/useApi'
 import { X, Loader2, Trash2 } from 'lucide-react'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { useAuth } from '@/hooks/useAuth'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint } from '@/utils/deductionType'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
@@ -587,7 +587,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                           color: 'var(--foreground)',
                         }}
                       >
-                        {p.name}
+                        {withProductType(p.name, p.type)}
                       </div>
                       <div
                         style={{
@@ -596,7 +596,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                           marginTop: 2,
                         }}
                       >
-                        {p.code} · {p.type}
+                        {p.code}
                       </div>
                     </div>
                   ))}
@@ -978,7 +978,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
                               marginTop: 2,
                             }}
                           >
-                            {p.code} · {p.type}
+                            {p.code}
                           </div>
                         </div>
                       </div>

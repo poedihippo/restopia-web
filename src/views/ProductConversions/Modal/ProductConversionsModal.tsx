@@ -14,6 +14,7 @@ import { Controller, UseFormReturn } from "react-hook-form";
 import { ProductConversionsFormValues } from "./useCreateProductConversionsModal";
 import useGetProductList from "@/hooks/product/useGetProductList";
 import useGetUOMList from "@/hooks/uom/useGetUOMList";
+import { withProductType } from "@/utils/productUomName";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 
 interface Props {
@@ -87,7 +88,7 @@ export const ProductConversionsModal = ({
                       options={
                         productData?.data?.map((item) => ({
                           value: item.id,
-                          label: item.name ?? "",
+                          label: withProductType(item.name ?? "", item.type),
                         })) ?? []
                       }
                       value={
@@ -95,7 +96,7 @@ export const ProductConversionsModal = ({
                           ?.filter((item) => item.id === field.value)
                           .map((item) => ({
                             value: item.id,
-                            label: item.name ?? "",
+                            label: withProductType(item.name ?? "", item.type),
                           }))[0] ?? null
                       }
                       onChange={(selected) => {

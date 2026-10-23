@@ -19,7 +19,7 @@ import { Control, Controller, FormProvider, useFormContext, useWatch } from "rea
 import Image from "next/image";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { getProductUomName } from "@/utils/productUomName";
+import { getProductUomName, withProductType } from "@/utils/productUomName";
 import { PurchaseOrdersFormValues, useEditPurchaseOrders } from "./useEditPurchaseOrders";
 import useGetSupplierList from "@/hooks/suppliers/useGetSupplierList";
 import useGetBranchList from "@/hooks/branches/useGetBranchList";
@@ -36,7 +36,7 @@ const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) =>
   const { data: productInventoryData, isLoading: isLoadingProductInventory } =
     useGetProductInventoriesList(
       {
-        include: "branch,product_uom",
+        include: "branch,product_uom,product_uom.product",
       },
       {
         enabled: true,
@@ -70,7 +70,7 @@ const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) =>
                 options={
                   productInventoryData?.data?.map((item) => ({
                     value: item.id,
-                    label: `${item.branch?.name} - ${getProductUomName(item.product_uom, item.product_uom?.product?.name)} - ${item.product_uom?.uom?.code}`,
+                    label: withProductType(`${item.branch?.name} - ${getProductUomName(item.product_uom, item.product_uom?.product?.name)} - ${item.product_uom?.uom?.code}`, item.product_uom?.product?.type),
                   })) ?? []
                 }
                 value={
@@ -78,7 +78,7 @@ const DetailRow = ({ control, index, watchedType, onRemove }: DetailRowProps) =>
                     ?.filter((item) => item.id === field.value)
                     .map((item) => ({
                       value: item.id,
-                      label: `${item.branch?.name} - ${getProductUomName(item.product_uom, item.product_uom?.product?.name)} - ${item.product_uom?.uom?.code}`,
+                      label: withProductType(`${item.branch?.name} - ${getProductUomName(item.product_uom, item.product_uom?.product?.name)} - ${item.product_uom?.uom?.code}`, item.product_uom?.product?.type),
                     }))[0] ?? null
                 }
                 onChange={(selected) => {

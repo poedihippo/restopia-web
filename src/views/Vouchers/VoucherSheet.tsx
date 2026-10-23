@@ -12,7 +12,7 @@ import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { X, Loader2 } from 'lucide-react'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 
@@ -154,7 +154,8 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
       .filter((p: any) => isProductTypeAllowed(p.product, activeProductTypes))
       .map((p: any) => {
         const name = getProductUomName(p, p.product?.name)
-        return { label: name ? `${name} (${p.code || p.uom?.code || p.id})` : (p.code || p.id), value: p.id }
+        const base = name ? `${name} (${p.code || p.uom?.code || p.id})` : (p.code || String(p.id))
+        return { label: withProductType(base, p.product?.type), value: p.id }
       })
   }, [productUomsData, activeProductTypes])
 

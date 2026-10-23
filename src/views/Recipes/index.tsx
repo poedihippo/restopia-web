@@ -11,7 +11,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { getProductUomName } from '@/utils/productUomName'
+import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint, deductionTypeLabel, deductionTypeTone } from '@/utils/deductionType'
 import {
   Plus,
@@ -115,7 +115,7 @@ export default function RecipesView() {
 
   const productOptions = (productsData as any)?.data?.map((p: any) => ({
     value: p.id,
-    label: p.name,
+    label: withProductType(p.name, p.type),
     sublabel: p.code ? `SKU: ${p.code}` : undefined,
   })) ?? []
 

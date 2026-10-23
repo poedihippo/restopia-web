@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { withProductType } from '@/utils/productUomName'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2 } from 'lucide-react'
@@ -89,9 +90,10 @@ export default function ProductUomBatchSheet({
 
   const productUomOptions = productUoms.map((pu: any) => ({
     value: pu.id as number,
-    label: `${pu.product?.name ?? 'Product'} — ${
-      pu.uom?.name ?? pu.uom?.code ?? 'UOM'
-    }`,
+    label: withProductType(
+      `${pu.product?.name ?? 'Product'} — ${pu.uom?.name ?? pu.uom?.code ?? 'UOM'}`,
+      pu.product?.type,
+    ),
     description: pu.code ?? undefined,
   }))
 

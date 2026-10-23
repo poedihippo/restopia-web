@@ -39,7 +39,7 @@ const useStockMovement = () => {
   const { data, isLoading, refetch } = useGetStockMovementList(queryParams);
   const { data: productData, isLoading: isLoadingProduct } =
     useGetProductInventoriesList({
-      include: "created_by,updated_by,branch,product_uom",
+      include: "created_by,updated_by,branch,product_uom,product_uom.product",
     });
   const { data: branchData, isLoading: isLoadingBranch } = useGetBranchList();
 

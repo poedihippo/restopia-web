@@ -8,6 +8,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productConversionsService } from '@/services/product-conversions.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { withProductType } from '@/utils/productUomName'
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, ArrowRight } from 'lucide-react'
@@ -102,7 +103,7 @@ export default function ProductConversionSheet({
 
   const productOptions = products.map((p: any) => ({
     value: p.id as number,
-    label: (p.name as string) ?? '',
+    label: withProductType((p.name as string) ?? '', p.type),
     sublabel: p.code as string | undefined,
   }))
   const uomOptions = uoms.map((u: any) => ({

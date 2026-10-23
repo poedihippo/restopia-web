@@ -1,4 +1,5 @@
 import { formatDate } from '@/utils/date';
+import { withProductType } from '@/utils/productUomName';
 import { IProductUom } from "@/@types/product-uoms";
 import { Button } from "@/components/ui/button";
 import { Column, DataTable } from "@/components/ui/data-table";
@@ -62,7 +63,7 @@ const ProductUoms = () => {
     () =>
       products.map((item) => ({
         value: item.id,
-        label: item.name ?? "",
+        label: withProductType(item.name ?? "", item.type),
       })),
     [products],
   );

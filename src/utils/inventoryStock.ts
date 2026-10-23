@@ -84,20 +84,43 @@ export const availableStockOf = (row: InventoryRow | null | undefined): number =
 
 /**
  * Cutable stock of the row (base unit) that can still be reserved by a
- * portioning: `available_cutable_stock`, else cutable minus its reserved part.
- * Cutable stock is credited to a cutable-source SKU's anchor row (which holds
- * no physical `stock`), so this is the figure that matters for re-cutting it.
+ * portioning. Cutable stock is credited to a cutable-source SKU's anchor row
+ * (which holds no physical `stock`), so this is the figure that matters for
+ * re-cutting it.
+ *
+ * `available_cutable_stock` is normally authoritative, but the response mapper
+ * (product_inventory_response.go#availableCutableStock) additionally clamps it
+ * to `sellable_qty`. `sellable_qty` is resolved per-row from product_sellables
+ * and is 0 for any row without active sellable lots — including a physical lot
+ * row that legitimately holds cutable stock. `SellableQty` is also set to a
+ * non-nil &0 for those rows, so the mapper's `SellableQty != nil` guard never
+ * spares them and it reports 0 where stock remains.
+ *
+ * The two backend paths that actually TRANSACT never apply that clamp —
+ * ReserveCutableStock and PeekAvailableCutableStock both compute
+ * `cutable_stock - cutable_reserved_base_stock` directly — so a reported 0
+ * alongside a positive remainder is the mapper under-reporting, not stock that
+ * is really gone. Trust the remainder in that case; when the mapper does
+ * report a positive figure it is a genuine sellable clamp, so honour it but
+ * never above the remainder.
+ *
+ * TODO(backend): drop this workaround once availableCutableStock stops clamping
+ * by a sellable_qty that is only meaningful on a deferred SKU's anchor row.
  */
 export const cutableStockOf = (row: InventoryRow | null | undefined): number => {
   if (!row) return 0
 
-  if (row.available_cutable_stock != null && Number.isFinite(Number(row.available_cutable_stock))) {
-    return Number(row.available_cutable_stock)
-  }
+  const remainder =
+    row.cutable_stock != null && Number.isFinite(Number(row.cutable_stock))
+      ? Math.max(Number(row.cutable_stock) - Number(row.cutable_reserved_base_stock ?? 0), 0)
+      : null
 
-  if (row.cutable_stock != null && Number.isFinite(Number(row.cutable_stock))) {
-    return Math.max(Number(row.cutable_stock) - Number(row.cutable_reserved_base_stock ?? 0), 0)
-  }
+  const reported =
+    row.available_cutable_stock != null && Number.isFinite(Number(row.available_cutable_stock))
+      ? Number(row.available_cutable_stock)
+      : null
 
-  return 0
+  if (reported == null) return remainder ?? 0
+  if (reported > 0) return remainder != null ? Math.min(reported, remainder) : reported
+  return remainder ?? 0
 }
