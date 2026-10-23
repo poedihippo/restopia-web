@@ -878,6 +878,15 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
             </div>
           )}
 
+          {/* Cutable Source unavailable for non-final types */}
+          {watchedType !== 'final' && watchedType !== '' && (
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              <strong>Cutable Source</strong> hanya tersedia untuk tipe <strong>Final</strong>{' '}
+              produk — saat ini tipe <strong>{watchedType.toUpperCase()}</strong> tidak mendukung
+              flag ini.
+            </span>
+          )}
+
           {/* Description */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {fieldLabel('Description')}

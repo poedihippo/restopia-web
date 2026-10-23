@@ -852,3 +852,9 @@ export interface SellableSettlementRunResult {
   skipped: SellableSettlementSkipped[]
   [key: string]: any
 }
+
+// Sellables — portioned lots (GET /sellables, read-only)
+export type Sellable = components["schemas"]["SellableResponse"]
+export type SellableUsage = components["schemas"]["SellableUsageResponse"]
+export type SellableSummary = components["schemas"]["SellableSummaryResponse"]
+export type SellableStatus = 'active' | 'closed' | 'cancelled'

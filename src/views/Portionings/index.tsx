@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   Eye,
+  Pencil,
   Trash2,
   Scissors,
   ChevronDown,
@@ -119,6 +120,7 @@ export default function PortioningsView() {
   const { hasPermission } = useAuth()
   const canRead = hasPermission('production.read')
   const canCreate = hasPermission('production.create')
+  const canUpdate = hasPermission('production.update')
   const canDelete = hasPermission('production.delete')
 
   const [search, setSearch] = useState('')
@@ -525,9 +527,27 @@ export default function PortioningsView() {
                             color: 'var(--foreground-muted)',
                             display: 'flex',
                           }}
+                          title="View details"
                         >
                           <Eye size={14} />
                         </button>
+                        {canUpdate && item.status === 'pending' && (
+                          <button
+                            onClick={() => router.push(`/production/portioning/${item.id}/edit`)}
+                            style={{
+                              padding: 6,
+                              background: 'none',
+                              border: 'none',
+                              borderRadius: 'var(--radius-sm)',
+                              cursor: 'pointer',
+                              color: 'var(--info)',
+                              display: 'flex',
+                            }}
+                            title="Edit draft"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
                         {canDelete && (
                           <button
                             onClick={() => setCancelConfirm(item)}

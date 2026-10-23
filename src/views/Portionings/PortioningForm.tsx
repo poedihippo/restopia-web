@@ -23,7 +23,7 @@ import {
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
-import type { PortioningRequest } from '@/types/api'
+import type { Portioning, PortioningRequest } from '@/types/api'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 // Location pickers are hidden on this form; the backend always gets GENERAL.
@@ -341,11 +341,14 @@ function PreviewPanel({ preview, stale }: { preview: PreviewState; stale: boolea
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function PortioningForm() {
+export default function PortioningForm({ editId }: { editId?: number } = {}) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const activeBranchId = user?.branch?.id
+  // Mode flag: any edit route lands here; validity is checked separately below
+  // so a bad id shows an error instead of silently falling back to create mode.
+  const isEdit = editId != null
 
   const [preview, setPreview] = useState<PreviewState | null>(null)
 
@@ -356,6 +359,7 @@ export default function PortioningForm() {
     watch,
     setValue,
     getValues,
+    reset,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -464,15 +468,95 @@ export default function PortioningForm() {
   const stages: { code: string; name: string }[] = (stagesData as any)?.data ?? []
   const stageOptions = stages.map((s) => ({ value: s.code, label: s.name }))
 
-  // Default Output Ke stage to 'finished' once stages load (fresh form only).
+  // Default Output Ke stage to 'finished' once stages load (fresh form only —
+  // in edit mode the stored record's stage must not be clobbered).
   const didDefaultOutputStage = useRef(false)
   useEffect(() => {
-    if (didDefaultOutputStage.current || stages.length === 0) return
+    if (isEdit || didDefaultOutputStage.current || stages.length === 0) return
     didDefaultOutputStage.current = true
     if (stages.some((s) => s.code === 'finished')) {
       setValue('output_stage', 'finished')
     }
-  }, [stages, setValue])
+  }, [isEdit, stages, setValue])
+
+  // ── Edit mode: load the stored portioning and pre-fill the form ────────────
+  const didLoadEdit = useRef(false)
+  const validEditId = !!editId && Number.isFinite(Number(editId)) && Number(editId) > 0
+  const { data: editData, isError: editIsError } = useQuery({
+    queryKey: ['portioning', 'edit', editId],
+    enabled: validEditId,
+    retry: 1,
+    queryFn: () =>
+      portioningsService
+        .findById(Number(editId), { include: 'created_by,updated_by,details' })
+        .then((r) => r.data),
+  })
+  // Same defensive unwrap as the list: {success, data: portioning} or one level deeper.
+  const editEnvelope = (editData ?? null) as { data?: Portioning | { data?: Portioning } } | null
+  const editBody = editEnvelope?.data
+  const editRecord: Portioning | null =
+    editBody && 'id' in editBody ? editBody : (editBody as { data?: Portioning } | undefined)?.data ?? null
+
+  useEffect(() => {
+    if (!isEdit || didLoadEdit.current || !editRecord?.id) return
+    if (!Array.isArray(editRecord.details)) return
+    didLoadEdit.current = true
+    didDefaultOutputStage.current = true
+
+    const seeded: Record<string, number> = {}
+    const needsProbe: { i: number; invId: number; puId: number; qty: number }[] = []
+    const details = (editRecord.details ?? []).map((d, i) => {
+      const invId = Number(d.base_product_inventory_id ?? 0)
+      const puId = Number(d.product_uom_id ?? 0)
+      const qty = Number(d.qty ?? 0)
+      const fraction = Number(d.fraction_base ?? 0)
+      if (fraction > 0 && invId > 0 && puId > 0) {
+        // Seed the ratio cache so `ratiosReady` passes without re-probing.
+        seeded[ratioKey(invId, puId)] = fraction
+      } else if (invId > 0 && puId > 0 && qty > 0) {
+        needsProbe.push({ i, invId, puId, qty })
+      }
+      return {
+        base_product_inventory_id: invId,
+        // The API stores the RESULT qty; the form edits the base qty it came from.
+        base_qty: fraction > 0 ? Number((qty * fraction).toPrecision(12)) : qty,
+        product_uom_id: puId,
+        batch_code: d.batch_code ?? '',
+        expiry_date: d.expiry_date ? String(d.expiry_date).slice(0, 10) : '',
+      }
+    })
+
+    if (Object.keys(seeded).length > 0) setRatios((p) => ({ ...p, ...seeded }))
+
+    reset({
+      date: editRecord.date ? String(editRecord.date).slice(0, 10) : todayLocalISO(),
+      status: editRecord.status === 'final' ? 'final' : 'pending',
+      description: editRecord.description ?? '',
+      source_owner_ref: editRecord.source_owner_ref || 'GENERAL',
+      source_stage: editRecord.source_stage || 'GENERAL',
+      output_owner_ref: editRecord.output_owner_ref || 'GENERAL',
+      output_stage: editRecord.output_stage || 'GENERAL',
+      details: details.length > 0 ? details : [emptyDetail()],
+    })
+
+    // Details without a stored fraction: ask the backend for the ratio, then
+    // back-fill the correct base qty (placeholder above is the result qty).
+    needsProbe.forEach(({ i, invId, puId, qty }) => {
+      previewFraction(invId, puId)
+        .then((f) => {
+          setRatios((p) => ({ ...p, [ratioKey(invId, puId)]: f }))
+          setRatioErrors((p) => {
+            const { [ratioKey(invId, puId)]: _cleared, ...rest } = p
+            return rest
+          })
+          setValue(`details.${i}.base_qty`, Number((qty * f).toPrecision(12)))
+        })
+        .catch((err) => {
+          setRatioErrors((p) => ({ ...p, [ratioKey(invId, puId)]: parseApiError(humanizeApiError(err)) }))
+        })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, editRecord])
 
   // Base-cake picker: this branch's inventory rows under the "Konsumsi Dari" dimension.
   const { data: inventoriesData, isLoading: inventoriesLoading, isFetching: inventoriesFetching } = useQuery({
@@ -919,17 +1003,30 @@ export default function PortioningForm() {
     onError: (err: any) => toastMutationApiError(humanizeApiError(err), 'Gagal memuat preview'),
   })
 
-  const createMutation = useMutation({
-    mutationFn: (body: PortioningRequest) => portioningsService.create(body),
+  const saveMutation = useMutation({
+    mutationFn: (body: PortioningRequest) =>
+      isEdit ? portioningsService.update(Number(editId), body) : portioningsService.create(body),
     onSuccess: (_resp, body) => {
       queryClient.invalidateQueries({ queryKey: ['portionings'] })
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
       queryClient.invalidateQueries({ queryKey: ['product-inventories-all'] })
-      toast.success(body.status === 'final' ? 'Portioning disimpan & direserve' : 'Portioning disimpan sebagai draft')
-      // Land on the list so the freshly created document is visible right away.
+      toast.success(
+        isEdit
+          ? body.status === 'final'
+            ? 'Perubahan portioning disimpan & reservation dibangun ulang'
+            : 'Draft portioning diperbarui'
+          : body.status === 'final'
+            ? 'Portioning disimpan & direserve'
+            : 'Portioning disimpan sebagai draft',
+      )
+      // Land on the list so the freshly created/updated document is visible right away.
       router.push('/production/portioning')
     },
-    onError: (err: any) => toastMutationApiError(humanizeApiError(err), 'Gagal menyimpan portioning'),
+    onError: (err: any) =>
+      toastMutationApiError(
+        humanizeApiError(err),
+        isEdit ? 'Gagal memperbarui portioning' : 'Gagal menyimpan portioning',
+      ),
   })
 
   const getFirstErrorMessage = (errs: any): string | undefined => {
@@ -967,14 +1064,97 @@ export default function PortioningForm() {
         return
       }
       setValue('status', status)
-      createMutation.mutate(buildPayload(values, status))
+      saveMutation.mutate(buildPayload(values, status))
     }, onInvalid)()
 
   const shortfallBlocksFinal = hasAnyShortfall(preview?.result)
   const previewStale = !!preview && preview.sig !== formSignature(watchedValues)
-  const isPending = createMutation.isPending
+  const isPending = saveMutation.isPending
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  // Edit mode: wait for the stored record before rendering the form, otherwise
+  // the blank defaults would flash and the load effect could race the inputs.
+  if (isEdit && !validEditId) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 80 }}>
+        <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
+          Id portioning tidak valid.
+        </span>
+        <button
+          type="button"
+          onClick={() => router.push('/production/portioning')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 12px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            cursor: 'pointer',
+            color: 'var(--foreground-muted)',
+          }}
+        >
+          <ArrowLeft size={14} />
+          Kembali ke daftar
+        </button>
+      </div>
+    )
+  }
+
+  if (isEdit && !editData && !editIsError) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 80 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 99,
+              border: '3px solid var(--border)',
+              borderTop: '3px solid var(--accent)',
+              animation: 'spin 0.8s linear infinite',
+            }}
+          />
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+            Memuat portioning...
+          </span>
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  if (isEdit && (editIsError || !editRecord?.id)) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 80 }}>
+        <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
+          Portioning tidak ditemukan atau tidak bisa dimuat.
+        </span>
+        <button
+          type="button"
+          onClick={() => router.push('/production/portioning')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 12px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            cursor: 'pointer',
+            color: 'var(--foreground-muted)',
+          }}
+        >
+          <ArrowLeft size={14} />
+          Kembali ke daftar
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1000 }}>
@@ -1018,10 +1198,18 @@ export default function PortioningForm() {
               color: 'var(--foreground)',
             }}
           >
-            New Portioning
+            {isEdit ? 'Edit Portioning' : 'New Portioning'}
           </h1>
           <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '2px 0 0' }}>
-            Potong kue base menjadi SKU final
+            {isEdit && editRecord?.code ? (
+              <span style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>
+                {editRecord.code}
+              </span>
+            ) : (
+              'Potong kue base menjadi SKU final'
+            )}
+            {isEdit &&
+              ' — penyimpanan ulang membangun kembali portioning (reservation dilepas & dibuat ulang; ditolak bila sudah ada yang terjual).'}
           </p>
         </div>
       </div>

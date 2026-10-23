@@ -111,6 +111,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },
           { label: 'Stock Opname', href: '/products/product-inventory/stock-opname', permission: ['stock-opname.menu', 'stock-opname.read', 'product-inventory.menu', 'product-inventory.read'] },
+          { label: 'Sellables', href: '/inventory/sellables', permission: ['sellable.menu', 'sellable.read', 'product-inventory.menu', 'product-inventory.read'] },
           { label: 'Sellable Settlements', href: '/inventory/sellable-settlements', permission: ['sellable-settlement.menu', 'sellable-settlement.read', 'product-inventory.menu', 'product-inventory.read'] },
         ],
       },
