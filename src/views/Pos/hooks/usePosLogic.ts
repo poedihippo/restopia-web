@@ -520,12 +520,30 @@ export function usePosLogic() {
 
     const uomOf = (g: any) => g.defaultLot?.product_uom_batch?.product_uom ?? g.defaultLot?.product_uom
     const priceOf = (g: any) => Number(uomOf(g)?.base_price ?? 0)
-    const nameOf = (g: any) =>
-      String(uomOf(g)?.code ?? uomOf(g)?.product?.code ?? uomOf(g)?.product?.name ?? '')
-    if (sortBy === 'price_asc') groups.sort((a, b) => priceOf(a) - priceOf(b))
-    else if (sortBy === 'price_desc') groups.sort((a, b) => priceOf(b) - priceOf(a))
-    else if (sortBy === 'stock_desc') groups.sort((a, b) => b.totalStock - a.totalStock)
-    else groups.sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+    // Alphabetical key: product name first (what staff actually recognise),
+    // then SKU / product code, then a stable id fallback — NEVER empty. An
+    // empty key made every localeCompare() return 0, turning the sort into a
+    // no-op and leaving the API's stock-correlated row order on screen (which
+    // looked like "sorted by stock" and shuffled the grid on every sale).
+    const nameOf = (g: any) => {
+      const uom = uomOf(g)
+      const label = uom?.product?.name ?? uom?.code ?? uom?.product?.code ?? ''
+      return String(label || g.product_uom_id || g.key)
+    }
+    const compareBy = (a: any, b: any): number => {
+      if (sortBy === 'price_asc') return priceOf(a) - priceOf(b)
+      if (sortBy === 'price_desc') return priceOf(b) - priceOf(a)
+      return nameOf(a).localeCompare(nameOf(b))
+    }
+    // In-stock first, out-of-stock pinned to the very end, then the chosen
+    // order. Array.sort is stable, so a card keeps its position across
+    // transactions; it only moves when it actually sells out — and then it
+    // drops to the bottom instead of leaving a dead card mid-grid.
+    groups.sort((a, b) => {
+      const aOut = a.totalStock > 0 ? 0 : 1
+      const bOut = b.totalStock > 0 ? 0 : 1
+      return aOut - bOut || compareBy(a, b)
+    })
 
     // "In stock only" is evaluated client-side against each group's summed
     // available stock.

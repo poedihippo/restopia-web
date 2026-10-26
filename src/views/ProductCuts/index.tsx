@@ -3,12 +3,31 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { productCutsService, type ProductCut } from '@/services/product-cuts.service'
+import { productCutsService, type ProductCut, type ProductCutUom } from '@/services/product-cuts.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductCutSheet from './ProductCutSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { Plus, Search, Pencil, Trash2, Scissors, Eye, X } from 'lucide-react'
+
+/** Human label for an embedded product-UOM: product name, falling back to the unit's own name. */
+const uomLabel = (uom?: { name?: string; code?: string; product?: { name?: string } }): string =>
+  uom?.product?.name ?? uom?.name ?? ''
+
+/** Product name over its SKU code, for the parent/child cells. */
+const ProductCell = ({ uom }: { uom?: ProductCutUom }) => {
+  const name = uomLabel(uom)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>{name || '—'}</span>
+      {uom?.code && (
+        <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--foreground-muted)' }}>
+          {uom.code}
+        </span>
+      )}
+    </div>
+  )
+}
 
 export default function ProductCutsView() {
   const queryClient = useQueryClient()
@@ -166,8 +185,6 @@ export default function ProductCutsView() {
             )}
 
             {!isLoading && items.map((item, idx) => {
-              const parentCode = item.parent_product_uom?.code ?? ''
-              const childCode = item.child_product_uom?.code ?? ''
               return (
                 <tr
                   key={item.id}
@@ -179,7 +196,7 @@ export default function ProductCutsView() {
                     {(page - 1) * perPage + idx + 1}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {canRead ? parentCode || '—' : '***'}
+                    {canRead ? <ProductCell uom={item.parent_product_uom} /> : '***'}
                   </td>
                   <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, fontWeight: 600 }}>
@@ -187,7 +204,7 @@ export default function ProductCutsView() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {canRead ? childCode || '—' : '***'}
+                    {canRead ? <ProductCell uom={item.child_product_uom} /> : '***'}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>
                     {canRead ? Number(item.yield_qty).toLocaleString('id-ID') : '***'}
@@ -256,10 +273,10 @@ export default function ProductCutsView() {
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
                 { label: 'ID', value: selectedItem.id },
+                { label: 'Parent Product', value: uomLabel(selectedItem.parent_product_uom) || '—' },
                 { label: 'Parent SKU', value: selectedItem.parent_product_uom?.code },
-                { label: 'Parent Product UOM', value: selectedItem.parent_product_uom?.id },
+                { label: 'Child Product', value: uomLabel(selectedItem.child_product_uom) || '—' },
                 { label: 'Child SKU', value: selectedItem.child_product_uom?.code },
-                { label: 'Child Product UOM', value: selectedItem.child_product_uom?.id },
                 { label: 'Yield (1 → N)', value: selectedItem.yield_qty },
                 { label: 'Scrap Rate', value: selectedItem.scrap_rate ?? 0 },
                 { label: 'Created At', value: selectedItem.created_at ? String(selectedItem.created_at) : '—' },

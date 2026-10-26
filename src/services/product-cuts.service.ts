@@ -28,8 +28,18 @@ export interface ProductCut {
   yield_qty: number
   scrap_rate?: number | null
   created_at?: string
-  parent_product_uom?: { id: number; product_id?: number; code?: string; name?: string }
-  child_product_uom?: { id: number; product_id?: number; code?: string; name?: string }
+  parent_product_uom?: ProductCutUom
+  child_product_uom?: ProductCutUom
+}
+
+/** A product-UOM as embedded on a cut row — carries its product for display. */
+export interface ProductCutUom {
+  id: number
+  product_id?: number
+  code?: string
+  /** Display name of the unit itself; `product.name` is the plain product name. */
+  name?: string
+  product?: { id?: number; name?: string; code?: string; type?: string }
 }
 
 export const productCutsService = {

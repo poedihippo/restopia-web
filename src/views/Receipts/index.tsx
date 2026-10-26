@@ -78,6 +78,10 @@ export default function ReceiptsView() {
   const canCreate = hasPermission('receipt.create')
   const canEdit = hasPermission('receipt.update')
   const canDelete = hasPermission('receipt.delete')
+
+  // The "New Receipt" button is hidden on request — NOT removed. Flip this to
+  // true to bring it back.
+  const SHOW_CREATE_BUTTON = false
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -242,7 +246,7 @@ export default function ReceiptsView() {
             Record goods received from deliveries
           </p>
         </div>
-        {canCreate && !isSenderOfFilteredDelivery && (
+        {SHOW_CREATE_BUTTON && canCreate && !isSenderOfFilteredDelivery && (
           <button
             onClick={() =>
               router.push(

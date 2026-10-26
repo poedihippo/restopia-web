@@ -572,9 +572,10 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   })
 
   const previewMutation = useMutation({
-    mutationFn: (body: PortioningRequest) => portioningsService.preview(body).then((r) => r.data),
-    onSuccess: (resp, body) => {
-      setPreview({ sig: formSignature(body.details), result: normalizePreview(resp) })
+    mutationFn: ({ body, sig }: { body: PortioningRequest; sig: string }) =>
+      portioningsService.preview(body).then((r) => r.data),
+    onSuccess: (resp, { sig }) => {
+      setPreview({ sig, result: normalizePreview(resp) })
     },
     onError: (err: any) => toastMutationApiError(err, 'Gagal memuat preview'),
   })
@@ -620,7 +621,10 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   }
 
   const onPreview = (values: FormValues) => {
-    previewMutation.mutate(buildPayload(values, values.status))
+    // `sig` must be built from the FORM details (not the API payload) so it
+    // compares equal to `formSignature(watchedValues.details)` below —
+    // otherwise the panel shows "Form berubah sejak preview" permanently.
+    previewMutation.mutate({ body: buildPayload(values, values.status), sig: formSignature(values.details) })
   }
 
   const saveAs = (status: 'pending' | 'final') =>
