@@ -33,19 +33,6 @@ const getApiErrorMessage = (err: any, fallback = 'An error occurred'): string =>
   return data?.message || fallback
 }
 
-/**
- * A sale can now be refused because a box or knife (or the product itself) is
- * short — the backend answers with a 422 whose text already names what to fix
- * ("... Adjust Box medium stock first."). Show that text as-is and point the
- * operator at the stock-adjust screen.
- */
-const isStockShortageError = (msg: string): boolean =>
-  /has \d+,\s*needs \d+|only \d+ in stock,\s*needs \d+|Adjust .+ stock first/i.test(msg)
-
-/** Appends an "adjust stock" hint to a stock-shortage 422, else returns it unchanged. */
-const withAdjustStockHint = (msg: string): string =>
-  isStockShortageError(msg) ? `${msg} — Sesuaikan stok lewat Stock Opname / Product Inventory.` : msg
-
 // Inventory rows carry expiry on the batch, not on the row itself.
 const expiryOf = (row: any): string | null =>
   row?.product_uom_batch?.expiry_date ?? row?.expiry_date ?? null
@@ -463,8 +450,10 @@ export function usePosLogic() {
       if (selectedCategoryId) params['filter[product_category_id]'] = selectedCategoryId
       if (searchDebounced) params['filter[search]'] = searchDebounced
 
-      // No server-side stock filter or sort is used here; both are applied
-      // client-side in groupedItems against the row's `stock`.
+      // No server-side stock filter or sort: `filter[stock_gte]` / `sort=stock`
+      // both read the raw `stock` column, which is 0 on a deferred SKU's
+      // anchor row even when it still has sellable_qty. Availability differs
+      // per product mode, so both are applied client-side in groupedItems.
 
       return productInventoriesService.list(params as any).then((r) => r.data)
     },
@@ -506,7 +495,8 @@ export function usePosLogic() {
       }
       g.lots.push(row)
       // All lots in a group share one product_uom, so summing the available
-      // quantity across them is safe — no cross-unit mixing.
+      // quantity across them is safe — no cross-unit mixing. Deferred SKUs
+      // sell from sellable_qty, normal SKUs from their on-hand stock.
       g.totalStock += availableStockOf(row)
     }
 
@@ -527,8 +517,9 @@ export function usePosLogic() {
     else if (sortBy === 'stock_desc') groups.sort((a, b) => b.totalStock - a.totalStock)
     else groups.sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
 
-    // "In stock only" is evaluated client-side against each group's summed
-    // available stock.
+    // "In stock only" is evaluated here rather than server-side: a deferred
+    // SKU's anchor row has stock = 0, so `filter[stock_gte]` would hide SKUs
+    // that still have sellable_qty left.
     return inStockOnly ? groups.filter((g) => g.totalStock > 0) : groups
   }, [items, sortBy, inStockOnly])
 
@@ -598,7 +589,8 @@ export function usePosLogic() {
   const addLotToCart = useCallback((lot: any) => {
     if (!lot) return
 
-    // Availability is the row's stock.
+    // Availability differs by product mode: deferred SKUs sell from
+    // sellable_qty (the anchor row), normal SKUs from their physical stock.
     const available = availableStockOf(lot)
 
     if (available <= 0) {
@@ -822,7 +814,7 @@ export function usePosLogic() {
       resetCart()
     },
     onError: (err: any) =>
-      toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to hold order'))),
+      toast.error(getApiErrorMessage(err, 'Failed to hold order')),
   })
 
   const handleHold = () => {
@@ -984,7 +976,7 @@ export function usePosLogic() {
       }, 1500)
     },
     onError: (err: any) => {
-      toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to place order')))
+      toast.error(getApiErrorMessage(err, 'Failed to place order'))
     },
   })
 

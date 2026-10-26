@@ -11,7 +11,7 @@ import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
-import { availableStockOf } from '@/utils/inventoryStock'
+import { availableStockOf, cutableStockOf, isCutableSourceInventoryRow } from '@/utils/inventoryStock'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
@@ -46,13 +46,21 @@ import {
 interface ProductInventory {
   id: number
   qty: number
-  /** The one quantity now — the old sellable/cutable/reserved figures are gone. */
   stock?: number
   display_qty?: number | null
   display_uom_code?: string | null
   base_stock?: number | null
   base_uom_code?: string | null
   min_qty?: number
+  /** Sellable pool size (deferred SKUs); see @/utils/inventoryStock */
+  sellable_qty?: number | null
+  is_deferred?: boolean | null
+  reserved_base_stock?: number | null
+  available_base_stock?: number | null
+  /** Stock reserved for re-cutting (base uom); see cutableStockOf in @/utils/inventoryStock */
+  cutable_stock?: number | null
+  cutable_reserved_base_stock?: number | null
+  available_cutable_stock?: number | null
   code?: string
   expiry_date?: string
   status?: 'active' | 'inactive'
@@ -69,6 +77,8 @@ interface ProductInventory {
       id: number
       name: string
       type?: string
+      is_deferred?: boolean | null
+      is_cutable_source?: boolean | null
       conversions?: ConversionEntry[]
       product_category?: { id: number; name: string }
     }
@@ -86,6 +96,8 @@ interface ProductInventory {
         id: number
         name: string
         type?: string
+        is_deferred?: boolean | null
+        is_cutable_source?: boolean | null
         conversions?: ConversionEntry[]
         product_category?: { id: number; name: string }
       }
@@ -686,6 +698,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 { label: 'Location', width: 120 },
                 { label: 'Branch', width: 160 },
                 { label: 'Qty', width: 100 },
+                { label: 'Sellable Qty', width: 120 },
+                { label: 'Cutable', width: 120 },
                 { label: 'Status', width: 110 },
                 { label: '', width: 110 },
               ].map(({ label, width }, i) => (
@@ -711,7 +725,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={11} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={13} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -740,7 +754,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             {isError && (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={13}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -755,7 +769,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={11}>
+                <td colSpan={13}>
                   <div
                     style={{
                       padding: 48,
@@ -828,8 +842,20 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 const stockUnit = stock.unit
                 const stockDisplay = `${stock.qty.toLocaleString('id-ID')} ${stock.unit}`
 
-                // A row is "low" when nothing is left to sell.
-                const isLow = availableStockOf(item) <= 0
+                // Sellable Qty = what can actually be sold right now
+                // (sellable_qty for deferred SKUs, available stock otherwise).
+                // Also a base-unit figure, so it follows the same display
+                // conversion as the Qty column.
+                const sellableBase = availableStockOf(item)
+                const isLow = sellableBase <= 0
+                const sellable = toDisplayUnit(sellableBase)
+                const sellableDisplay = `${sellable.qty.toLocaleString('id-ID')} ${sellable.unit}`
+
+                // Cutable = stock a portioning can still re-cut (base uom). Only
+                // meaningful for cutable-source SKUs or rows that already hold some.
+                const cutableQty = cutableStockOf(item)
+                const cutableReserved = Number(item.cutable_reserved_base_stock ?? 0)
+                const showCutable = Number(item.cutable_stock ?? 0) > 0 || isCutableSourceInventoryRow(item)
 
                 return (
                   <tr
@@ -956,6 +982,35 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     </td>
 
                     <>
+                      {/* Sellable Qty */}
+                      <td
+                        style={{
+                          padding: '12px 16px',
+                          fontSize: 13,
+                          color: 'var(--foreground-muted)',
+                        }}
+                      >
+                        {canRead ? sellableDisplay : "***"}
+                      </td>
+                      {/* Cutable */}
+                      <td style={{ padding: '12px 16px' }}>
+                        {!canRead ? (
+                          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>***</span>
+                        ) : showCutable ? (
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                              {cutableQty.toLocaleString('id-ID')} {baseUomCode}
+                            </div>
+                            {cutableReserved > 0 && (
+                              <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                                Reserved: {cutableReserved.toLocaleString('id-ID')}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+                        )}
+                      </td>
                       {/* Status */}
                       <td style={{ padding: '12px 16px' }}>
                         <span

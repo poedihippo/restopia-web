@@ -34,6 +34,7 @@ interface Product {
   code?: string
   type?: 'raw' | 'wip' | 'final' | 'supply'
   is_active: boolean
+  is_deferred?: boolean
   product_category_id: number
   description?: string
   reorder_point?: number | null

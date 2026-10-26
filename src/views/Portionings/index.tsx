@@ -55,6 +55,25 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
+function CutableBadge({ label }: { label: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '3px 10px',
+        borderRadius: 99,
+        fontSize: 11,
+        fontWeight: 600,
+        background: 'var(--info-bg)',
+        color: 'var(--info)',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
 /** Numbers on this screen stay readable: at most 2 decimals, Indonesian format. */
 const qty = (v: unknown): string => {
   const n = Number(v)
@@ -151,7 +170,7 @@ export default function PortioningsView() {
     queryFn: () =>
       portioningsService
         .findById(expandedId!, {
-          include: 'created_by,updated_by,details,details.materials',
+          include: 'created_by,updated_by,details,details.materials,details.reservation,details.sellable',
         })
         .then((r) => r.data),
     enabled: expandedId !== null,
@@ -164,7 +183,7 @@ export default function PortioningsView() {
     mutationFn: (id: number) => portioningsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['portionings'] })
-      toast.success('Portioning dibatalkan & stok dibalik')
+      toast.success('Portioning dibatalkan & reservation dilepas')
       setCancelConfirm(null)
       setExpandedId(null)
     },
@@ -577,6 +596,8 @@ export default function PortioningsView() {
                             )}
                             {(expandedItem.details ?? []).map((d) => {
                               const materials = d.materials ?? []
+                              const reservations = d.reservations ?? []
+                              const sellable = d.sellable
                               return (
                                 <div
                                   key={d.id}
@@ -600,6 +621,9 @@ export default function PortioningsView() {
                                       </span>
                                     )}
                                     <StatusBadge status={d.status} />
+                                    {Number(d.cutable_credit_qty ?? 0) > 0 && (
+                                      <CutableBadge label={`+${qty(d.cutable_credit_qty)} Cutable`} />
+                                    )}
                                   </div>
 
                                   <div
@@ -610,12 +634,6 @@ export default function PortioningsView() {
                                     }}
                                   >
                                     <DetailField label="Qty hasil" value={qty(d.qty)} />
-                                    <DetailField label="Source qty" value={qty(d.source_qty)} />
-                                    <DetailField label="Scrap" value={qty(d.scrap_qty)} />
-                                    <DetailField
-                                      label="Yield"
-                                      value={d.yield_qty == null ? '—' : qty(d.yield_qty)}
-                                    />
                                     <DetailField
                                       label="Base cake"
                                       value={
@@ -643,6 +661,56 @@ export default function PortioningsView() {
                                     title="Kemasan yang dipakai (per 1 hasil)"
                                     items={materials.filter((m) => m.role !== 'base')}
                                   />
+
+                                  {reservations.length > 0 && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+                                        Reservasi base cake
+                                      </span>
+                                      {reservations.map((r, i) => (
+                                        <span key={r.id ?? i} style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                                          • Dipesan{' '}
+                                          <strong style={{ color: 'var(--foreground)' }}>{qty(r.reserved_base_qty)}</strong>
+                                          {r.applied_base_qty != null && (
+                                            <>
+                                              {' '}· terpakai{' '}
+                                              <strong style={{ color: 'var(--foreground)' }}>{qty(r.applied_base_qty)}</strong>
+                                            </>
+                                          )}
+                                          {r.outstanding_base_qty != null && (
+                                            <>
+                                              {' '}· sisa{' '}
+                                              <strong style={{ color: 'var(--foreground)' }}>{qty(r.outstanding_base_qty)}</strong>
+                                            </>
+                                          )}
+                                          {r.consumes_cutable && (
+                                            <>
+                                              {' '}
+                                              <CutableBadge label="Cutable" />
+                                            </>
+                                          )}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {sellable && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+                                        Stok jual (sellable)
+                                      </span>
+                                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                                        Dibuat{' '}
+                                        <strong style={{ color: 'var(--foreground)' }}>{qty(sellable.qty)}</strong> · terjual{' '}
+                                        <strong style={{ color: 'var(--foreground)' }}>
+                                          {qty(Number(sellable.qty ?? 0) - Number(sellable.remaining_qty ?? 0))}
+                                        </strong>{' '}
+                                        · sisa{' '}
+                                        <strong style={{ color: 'var(--foreground)' }}>{qty(sellable.remaining_qty)}</strong>
+                                        {sellable.batch_code ? ` · ${sellable.batch_code}` : ''} · {sellable.status}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               )
                             })}
@@ -693,8 +761,8 @@ export default function PortioningsView() {
               Cancel Portioning {cancelConfirm.code}
             </h3>
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px' }}>
-              This reverses the portioning&apos;s own stock movements (the source comes back, the
-              outputs leave). It is refused once any output has been sold, cut or moved.
+              This will cancel the portioning and release its reservations. Cancel is refused once
+              any of the output has been sold.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
