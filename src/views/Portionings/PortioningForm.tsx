@@ -52,7 +52,7 @@ type FormValues = z.infer<typeof schema>
 
 const fieldInputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '6px 8px',
+  padding: '7px 10px',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
   fontSize: 12,
@@ -61,13 +61,14 @@ const fieldInputStyle: React.CSSProperties = {
   outline: 'none',
   fontFamily: 'var(--font-sans)',
   boxSizing: 'border-box',
+  minWidth: 0,
 }
 
 const labelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 500,
   color: 'var(--foreground)',
-  marginBottom: 2,
+  marginBottom: 4,
   display: 'block',
 }
 
@@ -85,10 +86,11 @@ const cardStyle: React.CSSProperties = {
   borderRadius: 'var(--radius-lg)',
   overflow: 'visible',
   boxShadow: 'var(--shadow-sm)',
+  minWidth: 0,
 }
 
 const cardHeaderStyle: React.CSSProperties = {
-  padding: '10px 16px',
+  padding: '12px 20px',
   borderBottom: '1px solid var(--border)',
   background: 'var(--background)',
   borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
@@ -105,6 +107,37 @@ const roStyle: React.CSSProperties = {
   background: 'var(--background)',
   borderStyle: 'dashed',
   color: 'var(--foreground-muted)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
+// minmax(0, 1fr) stops long content (e.g. the source dropdown text) from
+// pushing a column wider than its parent card.
+const twoColGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  gap: 16,
+}
+
+const columnBox: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  minWidth: 0,
+}
+
+const fieldWrap: React.CSSProperties = {
+  minWidth: 0,
+  maxWidth: '100%',
+}
+
+const hintStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--foreground-muted)',
+  marginTop: 4,
+  display: 'block',
+  lineHeight: 1.4,
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -120,7 +153,9 @@ const emptyDetail = (): FormValues['details'][number] => ({
   base_product_inventory_id: 0,
   product_uom_id: 0,
   qty: 1,
-  source_qty: undefined,
+  // Default 1 (like the old `base_qty: 1`) so picking an SKU immediately
+  // derives qty hasil = source_qty × yield instead of leaving it blank.
+  source_qty: 1,
   batch_code: '',
   expiry_date: '',
 })
@@ -198,6 +233,7 @@ function PreviewPanel({ result, stale }: { result: PreviewResult; stale: boolean
           justifyContent: 'space-between',
           alignItems: 'center',
           gap: 12,
+          flexWrap: 'wrap',
         }}
       >
         <span style={sectionHeaderStyle}>Hasil Preview</span>
@@ -219,7 +255,7 @@ function PreviewPanel({ result, stale }: { result: PreviewResult; stale: boolean
           </span>
         )}
       </div>
-      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {result.shortfalls.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {result.shortfalls.map((s, i) => (
@@ -257,7 +293,7 @@ function PreviewPanel({ result, stale }: { result: PreviewResult; stale: boolean
                   color: 'var(--foreground-muted)',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  padding: '6px 10px',
+                  padding: '8px 12px',
                 }}
               >
                 <span>
@@ -285,9 +321,9 @@ function PreviewPanel({ result, stale }: { result: PreviewResult; stale: boolean
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
                   background: 'var(--background)',
-                  padding: 10,
+                  padding: '10px 12px',
                   display: 'flex',
-                  gap: 12,
+                  gap: 16,
                   flexWrap: 'wrap',
                   fontSize: 12,
                   color: 'var(--foreground-muted)',
@@ -460,6 +496,30 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
     return hit ? Number(hit.yield_qty) : null
   }
 
+  // ── Flow: qty hasil diturunkan dari source_qty ─────────────────────────────
+  // qty hasil is no longer typed — it is `source_qty × yield`, the same
+  // relationship the old base_qty form used (base_qty / fraction_base).
+  //
+  // Runs only from user edits (source_qty / SKU onChange), never on load, so:
+  //  - an existing document whose qty intentionally differs from
+  //    source_qty × yield (a partial cut, i.e. scrap — see P6) is left alone, and
+  //  - a seed into the form never rewrites a stored value.
+  // When the yield is not loaded yet nothing happens and the field simply
+  // stays manual until it is; picking a SKU happens from a dropdown the same
+  // query populated, so in practice yield is available at that moment.
+  const deriveQtyFromSource = (index: number, invId: number, puId: number, srcRaw: unknown) => {
+    const y = yieldFor(invId, puId)
+    const raw = Number(srcRaw)
+    if (!y || y <= 0 || !Number.isFinite(raw) || raw <= 0) return
+    // Round first — buildPayload sends `Math.round(source_qty)`, so deriving
+    // from the same rounded value keeps qty and source_qty in agreement (a
+    // typed 1.5 becomes 2 on both sides instead of 2 sent with qty for 1.5).
+    const next = Math.round(raw) * y
+    if (Number(getValues(`details.${index}.qty`)) !== next) {
+      setValue(`details.${index}.qty`, next)
+    }
+  }
+
   // ── Dimension pickers (owner + stage) ────────────────────────────────────
   const [companySearch, setCompanySearch] = useState('')
   const [debouncedCompanySearch, setDebouncedCompanySearch] = useState('')
@@ -572,7 +632,9 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   })
 
   const previewMutation = useMutation({
-    mutationFn: ({ body, sig }: { body: PortioningRequest; sig: string }) =>
+    // `sig` rides along in the variables so onSuccess can store it; it is not
+    // needed to call the endpoint itself.
+    mutationFn: ({ body }: { body: PortioningRequest; sig: string }) =>
       portioningsService.preview(body).then((r) => r.data),
     onSuccess: (resp, { sig }) => {
       setPreview({ sig, result: normalizePreview(resp) })
@@ -706,7 +768,12 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1000 }}>
+    <div
+      style={{
+        display: 'flex', flexDirection: 'column', gap: 24,
+        maxWidth: 1200, width: '100%', paddingTop: 8, paddingBottom: 24,
+      }}
+    >
       {/* Top bar */}
       <div
         style={{
@@ -727,7 +794,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           <ArrowLeft size={14} />
           Back
         </button>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>
             {isEdit ? 'Edit Portioning' : 'New Portioning'}
           </h1>
@@ -744,7 +811,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       </div>
 
       {/* Form — Enter must never submit (Final moves stock) */}
-      <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
           <span style={{ color: 'var(--destructive)' }}>*</span>
           <span>Required fields</span>
@@ -752,11 +819,11 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
 
         {/* Section 1 — Header */}
         <div style={cardStyle}>
-          <div style={{ ...cardHeaderStyle, padding: '14px 20px' }}>
+          <div style={cardHeaderStyle}>
             <span style={sectionHeaderStyle}>Portioning Details</span>
           </div>
-          <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 20, ...twoColGrid }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                 Tanggal
                 <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
@@ -769,7 +836,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
               {errors.date && <span style={errorTextStyle}>{errors.date.message}</span>}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                 Status
                 <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
@@ -791,7 +858,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                           type="button"
                           onClick={() => field.onChange(s.value)}
                           style={{
-                            padding: '6px 14px', borderRadius: 'var(--radius-md)', fontSize: 13,
+                            padding: '6px 18px', borderRadius: 'var(--radius-md)', fontSize: 13,
                             fontWeight: 500, cursor: 'pointer',
                             border: isSel ? `1px solid var(--${tone})` : '1px solid var(--border)',
                             background: isSel ? `var(--${tone}-bg)` : 'var(--surface)',
@@ -805,12 +872,10 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                   </div>
                 )}
               />
-              <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4 }}>
-                Draft tidak memindah stok.
-              </span>
+              <span style={hintStyle}>Draft tidak memindah stok.</span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2', minWidth: 0 }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
@@ -827,11 +892,11 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           <div style={cardHeaderStyle}>
             <span style={sectionHeaderStyle}>Dimensi Portioning</span>
           </div>
-          <div style={{ padding: '10px 16px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ ...sectionHeaderStyle, fontSize: 9 }}>Konsumsi Dari</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div>
+          <div style={{ padding: 20, ...twoColGrid, gap: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+              <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>Konsumsi Dari</span>
+              <div style={{ ...twoColGrid, gap: 10 }}>
+                <div style={fieldWrap}>
                   <label style={labelStyle}>
                     Owner <span style={{ color: 'var(--destructive)' }}>*</span>
                   </label>
@@ -852,7 +917,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                     )}
                   />
                 </div>
-                <div>
+                <div style={fieldWrap}>
                   <label style={labelStyle}>
                     Stage <span style={{ color: 'var(--destructive)' }}>*</span>
                   </label>
@@ -873,15 +938,20 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                   />
                 </div>
               </div>
-              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+              <span style={{ ...hintStyle, marginTop: 0 }}>
                 Memotong hasil portioning (mis. Loaf → Ind)? Pilih stage <strong>finished</strong>.
               </span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ ...sectionHeaderStyle, fontSize: 9 }}>Output Ke</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div>
+            <div
+              style={{
+                display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0,
+                paddingLeft: 24, borderLeft: '1px solid var(--border)',
+              }}
+            >
+              <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>Output Ke</span>
+              <div style={{ ...twoColGrid, gap: 10 }}>
+                <div style={fieldWrap}>
                   <label style={labelStyle}>
                     Owner <span style={{ color: 'var(--destructive)' }}>*</span>
                   </label>
@@ -902,7 +972,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                     )}
                   />
                 </div>
-                <div>
+                <div style={fieldWrap}>
                   <label style={labelStyle}>
                     Stage <span style={{ color: 'var(--destructive)' }}>*</span>
                   </label>
@@ -951,12 +1021,15 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
             </button>
           </div>
 
-          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {detailFields.map((field, index) => {
               const rowErrors = errors.details?.[index]
               const d = watchedValues.details?.[index]
               const invId = Number(d?.base_product_inventory_id ?? 0)
               const puId = Number(d?.product_uom_id ?? 0)
+              // Documented RHF compose pattern: spread the rest, keep register's
+              // onChange so the value stays tracked, then derive qty hasil.
+              const { onChange: onSourceQtyChange, ...sourceQtyField } = register(`details.${index}.source_qty`)
               const qtyVal = Number(d?.qty ?? 0)
               const src = sourceById.get(invId)
               const { options: outOptions, loading: outLoading } = optionsFor(invId)
@@ -979,8 +1052,8 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                   data-portioning-detail-index={index}
                   style={{
                     border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-                    background: 'var(--background)', padding: 12,
-                    display: 'flex', flexDirection: 'column', gap: 10,
+                    background: 'var(--background)', padding: 16,
+                    display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0,
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1002,17 +1075,17 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ ...twoColGrid, alignItems: 'stretch' }}>
                     {/* FROM — source stock row */}
                     <div
                       style={{
+                        ...columnBox,
                         border: '1px solid var(--border)', borderRadius: 'var(--radius-md)',
-                        background: 'var(--surface)', padding: 12,
-                        display: 'flex', flexDirection: 'column', gap: 8,
+                        background: 'var(--surface)', padding: 14,
                       }}
                     >
                       <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>From · sumber</span>
-                      <div>
+                      <div style={fieldWrap}>
                         <label style={labelStyle}>
                           Baris sumber <span style={{ color: 'var(--destructive)' }}>*</span>
                         </label>
@@ -1025,9 +1098,12 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                               onChange={(v) => {
                                 f.onChange(v)
                                 // The allowed outputs belong to one source row, so
-                                // clear the SKU when the source changes.
+                                // clear the SKU when the source changes. source_qty
+                                // goes back to 1 and qty is re-based — both were
+                                // derived from the previous row and would be stale.
                                 setValue(`details.${index}.product_uom_id`, 0)
-                                setValue(`details.${index}.source_qty`, undefined)
+                                setValue(`details.${index}.source_qty`, 1)
+                                setValue(`details.${index}.qty`, 1)
                               }}
                               options={sourceOptions}
                               placeholder="Pilih baris sumber..."
@@ -1038,7 +1114,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                           )}
                         />
                       </div>
-                      <div>
+                      <div style={fieldWrap}>
                         <label style={labelStyle}>Stok sumber</label>
                         <div style={roStyle}>
                           {src
@@ -1046,7 +1122,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                             : '—'}
                         </div>
                       </div>
-                      <div>
+                      <div style={fieldWrap}>
                         <label style={labelStyle}>
                           Source qty <span style={{ color: 'var(--foreground-subtle)', fontWeight: 400 }}>(opsional)</span>
                         </label>
@@ -1055,10 +1131,14 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                           step="1"
                           min="1"
                           placeholder={impliedSourceQty != null ? `Otomatis: ${formatNumber(impliedSourceQty)}` : 'Otomatis'}
-                          {...register(`details.${index}.source_qty`)}
+                          {...sourceQtyField}
+                          onChange={(e) => {
+                            onSourceQtyChange(e)
+                            deriveQtyFromSource(index, invId, puId, e.target.value)
+                          }}
                           style={fieldInputStyle}
                         />
-                        <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 3, display: 'block' }}>
+                        <span style={hintStyle}>
                           Jumlah unit sumber utuh yang dipakai potongan ini. Kosongkan untuk otomatis
                           (ceil total fraksi).
                         </span>
@@ -1068,13 +1148,13 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                     {/* TO — output SKU */}
                     <div
                       style={{
+                        ...columnBox,
                         border: '1px solid var(--accent-light)', borderRadius: 'var(--radius-md)',
-                        background: 'var(--surface)', padding: 12,
-                        display: 'flex', flexDirection: 'column', gap: 8,
+                        background: 'var(--surface)', padding: 14,
                       }}
                     >
                       <span style={{ ...sectionHeaderStyle, color: 'var(--accent)' }}>To · hasil</span>
-                      <div>
+                      <div style={fieldWrap}>
                         <label style={labelStyle}>
                           SKU hasil <span style={{ color: 'var(--destructive)' }}>*</span>
                         </label>
@@ -1084,7 +1164,19 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                           render={({ field: f }) => (
                             <SearchableSelect
                               value={f.value ?? 0}
-                              onChange={f.onChange}
+                              onChange={(v) => {
+                                f.onChange(v)
+                                // A different SKU means a different yield, so the
+                                // derived qty hasil has to be recomputed. Read
+                                // source_qty fresh — the closure value is fine
+                                // here (unchanged) but getValues never goes stale.
+                                deriveQtyFromSource(
+                                  index,
+                                  invId,
+                                  Number(v),
+                                  getValues(`details.${index}.source_qty`),
+                                )
+                              }}
                               options={outOptions}
                               placeholder={
                                 invId === 0
@@ -1102,13 +1194,13 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                           )}
                         />
                         {invId > 0 && !outLoading && outOptions.length === 0 && (
-                          <span style={{ fontSize: 11, color: 'var(--warning)', marginTop: 3, display: 'block' }}>
+                          <span style={{ ...hintStyle, color: 'var(--warning)' }}>
                             Tidak ada cut table dari produk sumber ini — tambahkan baris di menu
                             Product Cuts.
                           </span>
                         )}
                       </div>
-                      <div>
+                      <div style={fieldWrap}>
                         <label style={labelStyle}>
                           Qty hasil <span style={{ color: 'var(--destructive)' }}>*</span>
                         </label>
@@ -1119,12 +1211,13 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                           {...register(`details.${index}.qty`)}
                           style={{
                             ...fieldInputStyle,
+                            color: 'var(--foreground)',
                             border: `1px solid ${rowErrors?.qty ? 'var(--destructive)' : 'var(--border)'}`,
                           }}
                         />
                         {rowErrors?.qty && <span style={errorTextStyle}>{rowErrors.qty.message}</span>}
                       </div>
-                      <div>
+                      <div style={fieldWrap}>
                         <label style={labelStyle}>Yield</label>
                         <div style={roStyle}>
                           {yld ? `1 sumber = ${formatNumber(yld)} hasil` : '—'}
@@ -1138,8 +1231,13 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div>
+                  <div
+                    style={{
+                      ...twoColGrid, gap: 16,
+                      paddingTop: 14, borderTop: '1px dashed var(--border)',
+                    }}
+                  >
+                    <div style={fieldWrap}>
                       <label style={labelStyle}>Batch Code</label>
                       <input
                         type="text"
@@ -1148,7 +1246,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                         style={fieldInputStyle}
                       />
                     </div>
-                    <div>
+                    <div style={fieldWrap}>
                       <label style={labelStyle}>Expiry Date</label>
                       <input
                         type="date"
@@ -1174,7 +1272,14 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
         {preview && <PreviewPanel result={preview.result} stale={previewStale} />}
 
         {/* Form actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10, paddingTop: 4 }}>
+        <div
+          style={{
+            display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10,
+            position: 'sticky', bottom: 0, zIndex: 5,
+            padding: '12px 0', background: 'var(--background)',
+            borderTop: '1px solid var(--border)', flexWrap: 'wrap',
+          }}
+        >
           {insufficient && (
             <span style={{ fontSize: 12, color: 'var(--destructive)', marginRight: 'auto' }}>
               Stok kurang pada preview — Simpan &amp; Final dinonaktifkan.
