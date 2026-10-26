@@ -140,8 +140,6 @@ export interface ProductRequest {
   base_uom_id?: number | null
   reorder_point?: number | null
   is_active?: boolean
-  is_deferred?: boolean
-  is_cutable_source?: boolean
   uoms?: ProductUomPayload[]
 }
 
@@ -214,17 +212,13 @@ export interface ProductInventory {
   product_uom_id: number
   branch_id: number
   code?: string
+  /** The one quantity now — the old sellable/cutable/reserved figures are gone. */
   stock?: number
   qty?: number
   display_qty?: number | null
   display_uom_code?: string | null
   base_stock?: number | null
   base_uom_code?: string | null
-  /** Stock allocated for re-cutting (base uom); credited by portioning a cutable-source SKU. */
-  cutable_stock?: number | null
-  cutable_reserved_base_stock?: number | null
-  /** max(cutable_stock - cutable_reserved_base_stock, 0) */
-  available_cutable_stock?: number | null
   converted_qty?: number | null
   converted_uom_code?: string | null
   min_qty?: number
@@ -246,8 +240,6 @@ export interface ProductInventory {
         id: number
         name: string
         type?: string
-        is_deferred?: boolean
-        is_cutable_source?: boolean
         product_category?: { id: number; name: string }
       }
       uom?: { id: number; name: string; code: string }
@@ -348,6 +340,12 @@ export interface PortioningDetail {
   product_uom_id: number
   qty: number
   base_product_inventory_id: number
+  /**
+   * Whole number of source units this cut uses. Details cut from the same
+   * source row share it — send it on any of them (or all with the same
+   * number). Left out, the API uses ceil(sum of qty / yield).
+   */
+  source_qty?: number
   batch_code?: string
   expiry_date?: string
   status: 'pending' | 'final'
@@ -375,7 +373,10 @@ export interface PortioningDetailMaterialRow {
   product_inventory_id: number
   product_uom_id: number
   qty_per_unit: number
+  /** `base` is the source (qty in source units); anything else is packaging. */
   role: 'base' | 'packaging'
+  /** What was actually drawn (source units for `base`, drawn qty otherwise). */
+  qty?: number
   owner_ref?: string | null
   stage?: string | null
   location_ref?: string | null
@@ -386,26 +387,6 @@ export interface PortioningDetailMaterialRow {
     location_ref?: string
     stock?: number
   }
-}
-export interface PortioningReservationRow {
-  id: number
-  reserved_base_qty: number
-  applied_base_qty: number
-  released_base_qty: number
-  outstanding_base_qty: number
-  settled_exact_qty: number
-  product_inventory_id: number
-  portioning_detail_material_id: number
-  /** Reserved from the row's cutable stock instead of its base stock. */
-  consumes_cutable?: boolean
-}
-export interface PortioningSellableRow {
-  id: number
-  batch_code?: string
-  qty: number
-  remaining_qty: number
-  status: 'active' | 'closed' | 'cancelled'
-  expiry_date?: string
 }
 export interface PortioningDetailRow {
   id: number
@@ -422,8 +403,12 @@ export interface PortioningDetailRow {
   fraction_base?: number
   fraction_source?: string
   recipe_id?: number
-  /** Cutable stock this detail credited to its output anchor row (0/absent = none). */
-  cutable_credit_qty?: number
+  /** This detail's share of the whole source units used (scrap spread in). */
+  source_qty?: number
+  /** The part of that share nobody got. 0 in normal use. */
+  scrap_qty?: number
+  /** The cut table's yield used. Null on portionings made before this release. */
+  yield_qty?: number | null
   product_uom?: {
     id: number
     name?: string
@@ -432,8 +417,6 @@ export interface PortioningDetailRow {
   }
   product_inventory?: { id: number; stage?: string; owner_ref?: string; location_ref?: string; stock?: number }
   materials?: PortioningDetailMaterialRow[]
-  reservations?: PortioningReservationRow[]
-  sellable?: PortioningSellableRow
 }
 export interface Portioning {
   id: number
@@ -654,8 +637,7 @@ export interface PosCartItem {
   qty: number
   /**
    * How much of this row may still be sold, snapshotted when the line was
-   * added. Deferred SKUs cap at sellable_qty, normal SKUs at their available
-   * physical stock. Undefined for lines restored from a held order, where the
+   * added. Undefined for lines restored from a held order, where the
    * server stays the authority.
    */
   maxQty?: number
@@ -765,96 +747,4 @@ export interface BulkUpsertPriceListItemRequest {
   items: BulkUpsertPriceListItem[]
 }
 
-// Sellable Settlements — turns sales of deferred SKUs into a physical stock deduction (COGS)
-export interface SellableSettlementLine {
-  id: number
-  reservation_id?: number | null
-  product_inventory_id: number
-  product_inventory?: {
-    id: number
-    stock?: number
-    sellable_qty?: number
-    stage?: string
-    location_ref?: string
-    owner_ref?: string
-    product_uom_batch?: {
-      id?: number
-      product_uom?: {
-        id?: number
-        name?: string
-        code?: string
-        product?: { id: number; name?: string; code?: string }
-        uom?: { id?: number; code?: string; name?: string }
-      }
-    }
-    product_uom?: {
-      id?: number
-      name?: string
-      code?: string
-      product?: { id: number; name?: string; code?: string }
-    }
-    [key: string]: any
-  }
-  role: 'base' | 'packaging' | string
-  sold_qty: number
-  exact_base_qty: number
-  applied_base_qty: number
-  unit_cost: number
-  cogs_amount: number
-  [key: string]: any
-}
-
-export interface SellableSettlement {
-  id: number
-  branch_id: number
-  code: string
-  date: string
-  description?: string | null
-  status: 'final' | 'reversed' | string
-  total_cogs: number
-  cogs_journal_id?: number | null
-  created_by_id?: number
-  updated_by_id?: number
-  created_by?: { id: number; name?: string; email?: string; [key: string]: any }
-  updated_by?: { id: number; name?: string; email?: string; [key: string]: any }
-  created_at?: string
-  updated_at?: string
-  lines?: SellableSettlementLine[]
-  [key: string]: any
-}
-
-export interface RunSellableSettlementRequest {
-  /** Settlement date (YYYY-MM-DD) — required */
-  as_of: string
-  description?: string
-  /** Preview only: keeps nothing */
-  dry_run?: boolean
-}
-
-export interface SellableSettlementSkipped {
-  reservation_id?: number
-  product_inventory_id?: number
-  product_id?: number
-  role: 'base' | 'packaging' | string
-  applied_base_qty: number
-  reason: string
-  [key: string]: any
-}
-
-export interface SellableSettlementRunResult {
-  id?: number
-  code?: string
-  as_of: string
-  dry_run: boolean
-  total_cogs: number
-  usage_count: number
-  lines: SellableSettlementLine[]
-  skipped: SellableSettlementSkipped[]
-  [key: string]: any
-}
-
-// Sellables — portioned lots (GET /sellables, read-only)
-export type Sellable = components["schemas"]["SellableResponse"]
-export type SellableUsage = components["schemas"]["SellableUsageResponse"]
-export type SellableSummary = components["schemas"]["SellableSummaryResponse"]
-export type SellableStatus = 'active' | 'closed' | 'cancelled'
+// NOTE: Product Cut types live in @/services/product-cuts.service.ts
