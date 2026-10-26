@@ -836,8 +836,7 @@ function BundleBatchPickerModal({
               const qty = item.qty || detail.qty || 1
               
               const inventories = inventoriesByDetailId[detail.id] || []
-              // Keep only rows with a sellable quantity (deferred SKUs sell
-              // from sellable_qty, normal SKUs from their on-hand stock)
+              // Keep only rows that still have stock to sell.
               const availableInventories = inventories.filter((i: any) => availableStockOf(i) > 0)
               
               const hasChoices = detail.items && detail.items.length > 1

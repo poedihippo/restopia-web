@@ -1,126 +1,25 @@
 /**
  * Availability helpers for product-inventory rows.
  *
- * A product can be flagged `is_deferred`, and the two modes answer "how much
- * can I still sell?" completely differently:
+ * The simplified stock model has ONE quantity per row: `stock` (with
+ * `base_stock` for the same figure in the product's base unit). The old
+ * sellable / cutable / reserved figures are gone, so there is no longer a
+ * per-product "mode" to resolve — availability is just the row's stock.
  *
- *  1. Deferred final SKU (product.is_deferred = true)
- *     - Only the sellable pool may be sold; `stock` is the produced-but-not-
- *       yet-sellable quantity.
- *     - Availability = `sellable_qty` (equivalently the row's `remaining_qty`
- *       from GET /sellables/summary — verified identical, so no extra request).
- *     - The row carrying it is the SKU's ANCHOR row (batch_code "SELLABLE"),
- *       which is also the row a POS cart line must point at.
- *     - Selling consumes sellable lots and never touches base_stock.
- *
- *  2. Normal product (is_deferred = false)
- *     - Availability = the physical stock minus whatever is reserved:
- *       `available_base_stock` (= base_stock - reserved_base_stock).
- *     - `display_qty` / `stock` are presentation only and ignore reservations.
- *     - The row a cart line points at is the physical batch row.
+ * `availableStockOf` is kept as the single call site for "how much can be
+ * sold from this row" so POS, bundles and filters all agree, and so any
+ * future rule change lands in one place.
  */
 
 type InventoryRow = {
-  is_deferred?: boolean | null
-  sellable_qty?: number | null
-  display_qty?: number | null
   stock?: number | null
+  display_qty?: number | null
   qty?: number | null
   base_stock?: number | null
-  reserved_base_stock?: number | null
-  available_base_stock?: number | null
-  cutable_stock?: number | null
-  cutable_reserved_base_stock?: number | null
-  available_cutable_stock?: number | null
-  product?: { is_deferred?: boolean | null; is_cutable_source?: boolean | null }
-  product_uom?: { product?: { is_deferred?: boolean | null; is_cutable_source?: boolean | null } }
-  product_uom_batch?: {
-    product_uom?: { product?: { is_deferred?: boolean | null; is_cutable_source?: boolean | null } }
-  }
-}
-
-/** True when the inventory row belongs to a deferred product. */
-export const isDeferredInventoryRow = (row: InventoryRow | null | undefined): boolean => {
-  if (typeof row?.is_deferred === 'boolean') return row.is_deferred
-  const product = row?.product_uom_batch?.product_uom?.product ?? row?.product_uom?.product ?? row?.product
-  return product?.is_deferred === true
-}
-
-/** True when the inventory row's product is flagged `is_cutable_source`. */
-export const isCutableSourceInventoryRow = (row: InventoryRow | null | undefined): boolean => {
-  const product = row?.product_uom_batch?.product_uom?.product ?? row?.product_uom?.product ?? row?.product
-  return product?.is_cutable_source === true
 }
 
 /** Quantity of the row that can actually be sold right now. */
 export const availableStockOf = (row: InventoryRow | null | undefined): number => {
   if (!row) return 0
-
-  // Deferred final SKU — only the sellable pool is sellable.
-  if (isDeferredInventoryRow(row)) return Number(row.sellable_qty ?? 0)
-
-  // Normal product — physical stock minus the reserved portion. display_qty /
-  // stock still count reservations as available, so they can't be used here.
-  const baseStock = Number(row.base_stock ?? 0)
-  if (baseStock > 0) {
-    const availableBase =
-      row.available_base_stock != null
-        ? Number(row.available_base_stock)
-        : baseStock - Number(row.reserved_base_stock ?? 0)
-
-    // `available_base_stock` is in the product's base unit while the POS sells
-    // in the row's own unit — rescale by the row's display factor when they
-    // differ, otherwise the two quantities are not comparable.
-    const displayQty = Number(row.display_qty ?? row.stock ?? row.qty ?? 0)
-    if (displayQty > 0 && displayQty !== baseStock) {
-      return availableBase * (displayQty / baseStock)
-    }
-    return availableBase
-  }
-
-  // Legacy rows without base_stock — fall back to the presented quantity.
-  return Number(row.display_qty ?? row.stock ?? row.qty ?? 0)
-}
-
-/**
- * Cutable stock of the row (base unit) that can still be reserved by a
- * portioning. Cutable stock is credited to a cutable-source SKU's anchor row
- * (which holds no physical `stock`), so this is the figure that matters for
- * re-cutting it.
- *
- * `available_cutable_stock` is normally authoritative, but the response mapper
- * (product_inventory_response.go#availableCutableStock) additionally clamps it
- * to `sellable_qty`. `sellable_qty` is resolved per-row from product_sellables
- * and is 0 for any row without active sellable lots — including a physical lot
- * row that legitimately holds cutable stock. `SellableQty` is also set to a
- * non-nil &0 for those rows, so the mapper's `SellableQty != nil` guard never
- * spares them and it reports 0 where stock remains.
- *
- * The two backend paths that actually TRANSACT never apply that clamp —
- * ReserveCutableStock and PeekAvailableCutableStock both compute
- * `cutable_stock - cutable_reserved_base_stock` directly — so a reported 0
- * alongside a positive remainder is the mapper under-reporting, not stock that
- * is really gone. Trust the remainder in that case; when the mapper does
- * report a positive figure it is a genuine sellable clamp, so honour it but
- * never above the remainder.
- *
- * TODO(backend): drop this workaround once availableCutableStock stops clamping
- * by a sellable_qty that is only meaningful on a deferred SKU's anchor row.
- */
-export const cutableStockOf = (row: InventoryRow | null | undefined): number => {
-  if (!row) return 0
-
-  const remainder =
-    row.cutable_stock != null && Number.isFinite(Number(row.cutable_stock))
-      ? Math.max(Number(row.cutable_stock) - Number(row.cutable_reserved_base_stock ?? 0), 0)
-      : null
-
-  const reported =
-    row.available_cutable_stock != null && Number.isFinite(Number(row.available_cutable_stock))
-      ? Number(row.available_cutable_stock)
-      : null
-
-  if (reported == null) return remainder ?? 0
-  if (reported > 0) return remainder != null ? Math.min(reported, remainder) : reported
-  return remainder ?? 0
+  return Number(row.stock ?? row.display_qty ?? row.qty ?? 0)
 }
