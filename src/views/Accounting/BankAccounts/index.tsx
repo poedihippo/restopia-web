@@ -116,7 +116,7 @@ export default function BankAccountsView() {
         .list({
           page,
           per_page: perPage,
-          include: 'account,created_by,updated_by',
+          include: 'chart_of_account,created_by,updated_by',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[account_type]': typeFilter || undefined,
@@ -648,13 +648,13 @@ export default function BankAccountsView() {
 
                       {/* Linked CoA */}
                       <td style={tdStyle}>
-                        {item.account ? (
+                        {item.chart_of_account ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground)' }}>
                               <span style={{ fontFamily: 'monospace', color: 'var(--accent)', marginRight: 6 }}>
-                                [{item.account.account_code}]
+                                [{item.chart_of_account.code}]
                               </span>
-                              {item.account.account_name}
+                              {item.chart_of_account.name}
                             </span>
                           </div>
                         ) : (
@@ -1193,8 +1193,8 @@ export default function BankAccountsView() {
                   { label: 'Account Type', value: viewItem.account_type?.toUpperCase() },
                   {
                     label: 'Linked CoA',
-                    value: viewItem.account
-                      ? `[${viewItem.account.account_code}] ${viewItem.account.account_name}`
+                    value: viewItem.chart_of_account
+                      ? `[${viewItem.chart_of_account.code}] ${viewItem.chart_of_account.name}`
                       : '—',
                   },
                   { label: 'Branch', value: viewItem.branch || '—' },

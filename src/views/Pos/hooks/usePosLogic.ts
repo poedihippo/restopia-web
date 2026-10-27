@@ -33,6 +33,19 @@ const getApiErrorMessage = (err: any, fallback = 'An error occurred'): string =>
   return data?.message || fallback
 }
 
+/**
+ * A sale can now be refused because a box or knife (or the product itself) is
+ * short — the backend answers with a 422 whose text already names what to fix
+ * ("... Adjust Box medium stock first."). Show that text as-is and point the
+ * operator at the stock-adjust screen.
+ */
+const isStockShortageError = (msg: string): boolean =>
+  /has \d+,\s*needs \d+|only \d+ in stock,\s*needs \d+|Adjust .+ stock first/i.test(msg)
+
+/** Appends an "adjust stock" hint to a stock-shortage 422, else returns it unchanged. */
+const withAdjustStockHint = (msg: string): string =>
+  isStockShortageError(msg) ? `${msg} — Sesuaikan stok lewat Stock Opname / Product Inventory.` : msg
+
 // Inventory rows carry expiry on the batch, not on the row itself.
 const expiryOf = (row: any): string | null =>
   row?.product_uom_batch?.expiry_date ?? row?.expiry_date ?? null
@@ -450,10 +463,8 @@ export function usePosLogic() {
       if (selectedCategoryId) params['filter[product_category_id]'] = selectedCategoryId
       if (searchDebounced) params['filter[search]'] = searchDebounced
 
-      // No server-side stock filter or sort: `filter[stock_gte]` / `sort=stock`
-      // both read the raw `stock` column, which is 0 on a deferred SKU's
-      // anchor row even when it still has sellable_qty. Availability differs
-      // per product mode, so both are applied client-side in groupedItems.
+      // No server-side stock filter or sort is used here; both are applied
+      // client-side in groupedItems against the row's `stock`.
 
       return productInventoriesService.list(params as any).then((r) => r.data)
     },
@@ -495,8 +506,7 @@ export function usePosLogic() {
       }
       g.lots.push(row)
       // All lots in a group share one product_uom, so summing the available
-      // quantity across them is safe — no cross-unit mixing. Deferred SKUs
-      // sell from sellable_qty, normal SKUs from their on-hand stock.
+      // quantity across them is safe — no cross-unit mixing.
       g.totalStock += availableStockOf(row)
     }
 
@@ -510,16 +520,33 @@ export function usePosLogic() {
 
     const uomOf = (g: any) => g.defaultLot?.product_uom_batch?.product_uom ?? g.defaultLot?.product_uom
     const priceOf = (g: any) => Number(uomOf(g)?.base_price ?? 0)
-    const nameOf = (g: any) =>
-      String(uomOf(g)?.code ?? uomOf(g)?.product?.code ?? uomOf(g)?.product?.name ?? '')
-    if (sortBy === 'price_asc') groups.sort((a, b) => priceOf(a) - priceOf(b))
-    else if (sortBy === 'price_desc') groups.sort((a, b) => priceOf(b) - priceOf(a))
-    else if (sortBy === 'stock_desc') groups.sort((a, b) => b.totalStock - a.totalStock)
-    else groups.sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+    // Alphabetical key: product name first (what staff actually recognise),
+    // then SKU / product code, then a stable id fallback — NEVER empty. An
+    // empty key made every localeCompare() return 0, turning the sort into a
+    // no-op and leaving the API's stock-correlated row order on screen (which
+    // looked like "sorted by stock" and shuffled the grid on every sale).
+    const nameOf = (g: any) => {
+      const uom = uomOf(g)
+      const label = uom?.product?.name ?? uom?.code ?? uom?.product?.code ?? ''
+      return String(label || g.product_uom_id || g.key)
+    }
+    const compareBy = (a: any, b: any): number => {
+      if (sortBy === 'price_asc') return priceOf(a) - priceOf(b)
+      if (sortBy === 'price_desc') return priceOf(b) - priceOf(a)
+      return nameOf(a).localeCompare(nameOf(b))
+    }
+    // In-stock first, out-of-stock pinned to the very end, then the chosen
+    // order. Array.sort is stable, so a card keeps its position across
+    // transactions; it only moves when it actually sells out — and then it
+    // drops to the bottom instead of leaving a dead card mid-grid.
+    groups.sort((a, b) => {
+      const aOut = a.totalStock > 0 ? 0 : 1
+      const bOut = b.totalStock > 0 ? 0 : 1
+      return aOut - bOut || compareBy(a, b)
+    })
 
-    // "In stock only" is evaluated here rather than server-side: a deferred
-    // SKU's anchor row has stock = 0, so `filter[stock_gte]` would hide SKUs
-    // that still have sellable_qty left.
+    // "In stock only" is evaluated client-side against each group's summed
+    // available stock.
     return inStockOnly ? groups.filter((g) => g.totalStock > 0) : groups
   }, [items, sortBy, inStockOnly])
 
@@ -589,8 +616,7 @@ export function usePosLogic() {
   const addLotToCart = useCallback((lot: any) => {
     if (!lot) return
 
-    // Availability differs by product mode: deferred SKUs sell from
-    // sellable_qty (the anchor row), normal SKUs from their physical stock.
+    // Availability is the row's stock.
     const available = availableStockOf(lot)
 
     if (available <= 0) {
@@ -814,7 +840,7 @@ export function usePosLogic() {
       resetCart()
     },
     onError: (err: any) =>
-      toast.error(getApiErrorMessage(err, 'Failed to hold order')),
+      toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to hold order'))),
   })
 
   const handleHold = () => {
@@ -976,7 +1002,7 @@ export function usePosLogic() {
       }, 1500)
     },
     onError: (err: any) => {
-      toast.error(getApiErrorMessage(err, 'Failed to place order'))
+      toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to place order')))
     },
   })
 

@@ -20,16 +20,10 @@ export interface BankAccount {
   is_active: boolean
   created_at?: string
   updated_at?: string
-  account?: {
-    id: number
-    account_code: string
-    account_name: string
-    type?: string
-  }
   chart_of_account?: {
     id: number
-    account_code: string
-    account_name: string
+    code: string
+    name: string
   }
   created_by?: { id: number; name: string; email?: string }
   updated_by?: { id: number; name: string; email?: string }

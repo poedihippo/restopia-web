@@ -94,6 +94,10 @@ export default function DeliveriesView() {
   const canDelete = hasPermission('delivery.delete')
   const canCreateReceipt = hasPermission('receipt.create')
 
+  // The "New Delivery" button is hidden on request — NOT removed. Flip this to
+  // true to bring it back.
+  const SHOW_CREATE_BUTTON = false
+
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -237,7 +241,7 @@ export default function DeliveriesView() {
             Kelola pengiriman masuk (dari supplier) dan keluar (ke cabang)
           </p>
         </div>
-        {canCreate && (<button
+        {SHOW_CREATE_BUTTON && canCreate && (<button
           onClick={() => router.push('/transfer/deliveries/create')}
           style={{
             display: 'flex',

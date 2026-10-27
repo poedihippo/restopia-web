@@ -193,10 +193,9 @@ export default function PosProductGrid({
                 fontFamily: 'var(--font-sans)',
               }}
             >
-              <option value="code">Code A–Z</option>
+              <option value="code">Name A–Z</option>
               <option value="price_asc">Price Low–High</option>
               <option value="price_desc">Price High–Low</option>
-              <option value="stock_desc">Stock High–Low</option>
             </select>
             <button
               type="button"
@@ -836,8 +835,7 @@ function BundleBatchPickerModal({
               const qty = item.qty || detail.qty || 1
               
               const inventories = inventoriesByDetailId[detail.id] || []
-              // Keep only rows with a sellable quantity (deferred SKUs sell
-              // from sellable_qty, normal SKUs from their on-hand stock)
+              // Keep only rows that still have stock to sell.
               const availableInventories = inventories.filter((i: any) => availableStockOf(i) > 0)
               
               const hasChoices = detail.items && detail.items.length > 1
