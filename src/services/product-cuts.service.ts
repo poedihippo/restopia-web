@@ -9,7 +9,7 @@ import type { ApiResponse, PaginatedData, ListParams } from '@/types/api'
  * Rules enforced by the backend (all validation 422):
  *  - parent and child must be on their own base unit
  *  - a product cannot be cut into itself, and no cycles are allowed
- *  - yield must be a whole number >= 2
+ *  - yield must be a whole number >= 1 (1 = a 1-to-1 portioning)
  *  - scrap_rate must be 0 (scrap is recorded on the portioning)
  *  - the parent -> child pair may exist only once (delete is soft, so the
  *    pair can be re-created after a delete)

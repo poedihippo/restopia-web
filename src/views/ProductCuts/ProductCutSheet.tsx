@@ -15,15 +15,15 @@ import SearchableSelect from '@/components/SearchableSelect'
 
 // A cut row points at product-UOMs, and the backend requires both to be on
 // their product's BASE unit (E12: "... must be on its base unit"). Yield must
-// be a whole number >= 2; scrap_rate must be 0 (scrap is recorded on the
-// portioning), so it is not exposed here at all.
+// be a whole number >= 1 (1 covers a 1-to-1 portioning); scrap_rate must be 0
+// (scrap is recorded on the portioning), so it is not exposed here at all.
 const schema = z.object({
   parent_product_uom_id: z.coerce.number().min(1, 'Parent is required'),
   child_product_uom_id: z.coerce.number().min(1, 'Child is required'),
   yield_qty: z.coerce
     .number()
     .int('Yield must be a whole number')
-    .min(2, 'Yield must be at least 2'),
+    .min(1, 'Yield must be at least 1'),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -250,7 +250,7 @@ export default function ProductCutSheet({ open, onClose, editData }: ProductCutS
               {...register('yield_qty', { valueAsNumber: true })}
               type="number"
               step="1"
-              min="2"
+              min="1"
               placeholder="e.g. 4"
               style={{
                 width: '100%', padding: '9px 12px',
@@ -264,12 +264,12 @@ export default function ProductCutSheet({ open, onClose, editData }: ProductCutS
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.yield_qty.message}</span>
             )}
             <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
-              Bilangan bulat minimal 2. Scrap dicatat di portioning, bukan di sini.
+              Bilangan bulat minimal 1. Scrap dicatat di portioning, bukan di sini.
             </span>
           </div>
 
           {/* Live preview */}
-          {watchedParent > 0 && watchedChild > 0 && Number(watchedYield) >= 2 && (
+          {watchedParent > 0 && watchedChild > 0 && Number(watchedYield) >= 1 && (
             <div style={{ padding: '14px 16px', background: 'var(--accent-light-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
               <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: 0.6, display: 'block', marginBottom: 6 }}>
                 Preview
