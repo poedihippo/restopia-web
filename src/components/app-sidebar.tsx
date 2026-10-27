@@ -110,7 +110,7 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.menu' },
           { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
-          { label: 'Stock per Branch', href: '/products/stock-per-branch', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },
+          { label: 'SR/DN/Outlet', href: '/products/stock-per-branch', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },
           { label: 'Stock Opname', href: '/products/product-inventory/stock-opname', permission: ['stock-opname.menu', 'stock-opname.read', 'product-inventory.menu', 'product-inventory.read'] },
         ],
