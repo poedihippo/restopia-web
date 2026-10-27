@@ -20,7 +20,7 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye, Download,
-  RotateCcw, Copy,
+  RotateCcw, Copy, ExternalLink,
 } from 'lucide-react'
 
 interface JournalDetail {
@@ -45,6 +45,8 @@ interface Journal {
   journal_details?: JournalDetail[]
   created_at?: string
   created_by?: { id: number; name: string; email?: string }
+  reference_type?: string | null
+  reference_id?: number | null
 }
 
 interface Period {
@@ -91,6 +93,129 @@ const JOURNAL_TYPE_OPTIONS = [
   { value: 'payment', label: 'Payment' },
   { value: 'purchase', label: 'Purchase' },
 ]
+
+/**
+ * `reference_type` (snake_case, from the API) → frontend route.
+ *
+ * Types that have a dedicated detail page resolve to `<route>/{id}`;
+ * the rest fall back to their list page so the link is still useful.
+ * `sellable_settlements` has no matching page, so it is omitted on purpose.
+ */
+const REFERENCE_ROUTES: Record<string, (id: number) => string> = {
+  companies: () => '/users/companies',
+  branches: () => '/users/branches',
+  roles: () => '/users/roles',
+  users: () => '/users',
+  media: () => '/media',
+  operation_rules: () => '/settings/operation-rules',
+  operations: () => '/settings/operations',
+  shift_rules: () => '/settings/shift-rules',
+  shifts: () => '/settings/shifts',
+  product_categories: () => '/products/product-categories',
+  products: () => '/products',
+  uoms: () => '/products/uom',
+  product_conversions: () => '/products/product-conversions',
+  product_uoms: () => '/products/product-uoms',
+  product_uom_batches: () => '/products/product-uom-batches',
+  bundles: () => '/sales/bundles',
+  product_inventories: () => '/products/product-inventory',
+  stock_movements: () => '/products/product-inventory/stock-movements',
+  stock_opnames: (id) => `/products/product-inventory/stock-opname/${id}`,
+  recipes: () => '/production/recipes',
+  productions: (id) => `/production/${id}/detail`,
+  portionings: () => '/production/portioning',
+  suppliers: () => '/purchase/suppliers',
+  taxes: () => '/accounting/taxes',
+  purchase_orders: (id) => `/purchase/purchase-orders/${id}/detail`,
+  deliveries: (id) => `/transfer/deliveries/${id}/detail`,
+  receipts: (id) => `/transfer/receipts/${id}/detail`,
+  invoices: (id) => `/transfer/invoices/${id}`,
+  customers: () => '/sales/customers',
+  vouchers: (id) => `/sales/vouchers/${id}/detail`,
+  sales_orders: (id) => `/sales/sales-orders/${id}/detail`,
+  sales_channels: () => '/sales/sales-channels',
+  payment_methods: () => '/settings/payment-methods',
+  payments: () => '/sales/payments',
+  account_categories: () => '/accounting/account-categories',
+  account_types: () => '/accounting/account-types',
+  chart_of_accounts: () => '/accounting/chart-of-accounts',
+  account_settings: () => '/accounting/account-settings',
+  product_category_account_settings: () => '/accounting/product-category-account-settings',
+  branch_account_settings: () => '/accounting/branch-account-settings',
+  fiscal_years: () => '/accounting/fiscal-years',
+  periods: () => '/accounting/periods',
+  journals: () => '/accounting/journals',
+  budgets: () => '/accounting/budgets',
+  price_lists: () => '/products/price-lists',
+  stages: () => '/inventory/stages',
+  departments: () => '/settings/departments',
+  bank_accounts: () => '/accounting/bank-accounts',
+  cash_transactions: () => '/accounting/cash-transactions',
+}
+
+const REFERENCE_TYPE_LABELS: Record<string, string> = {
+  companies: 'Company',
+  branches: 'Branch',
+  roles: 'Role',
+  users: 'User',
+  media: 'Media',
+  operation_rules: 'Operation Rule',
+  operations: 'Operation',
+  shift_rules: 'Shift Rule',
+  shifts: 'Shift',
+  product_categories: 'Product Category',
+  products: 'Product',
+  uoms: 'UOM',
+  product_conversions: 'Product Conversion',
+  product_uoms: 'Product UOM',
+  product_uom_batches: 'Product UOM Batch',
+  bundles: 'Bundle',
+  product_inventories: 'Product Inventory',
+  stock_movements: 'Stock Movement',
+  stock_opnames: 'Stock Opname',
+  recipes: 'Recipe',
+  productions: 'Production',
+  portionings: 'Portioning',
+  suppliers: 'Supplier',
+  taxes: 'Tax',
+  purchase_orders: 'Purchase Order',
+  deliveries: 'Delivery',
+  receipts: 'Receipt',
+  invoices: 'Invoice',
+  customers: 'Customer',
+  vouchers: 'Voucher',
+  sales_orders: 'Sales Order',
+  sales_channels: 'Sales Channel',
+  payment_methods: 'Payment Method',
+  payments: 'Payment',
+  account_categories: 'Account Category',
+  account_types: 'Account Type',
+  chart_of_accounts: 'Chart of Account',
+  account_settings: 'Account Setting',
+  product_category_account_settings: 'Product Category Account Setting',
+  branch_account_settings: 'Branch Account Setting',
+  fiscal_years: 'Fiscal Year',
+  periods: 'Period',
+  journals: 'Journal',
+  budgets: 'Budget',
+  price_lists: 'Price List',
+  stages: 'Stage',
+  departments: 'Department',
+  bank_accounts: 'Bank Account',
+  cash_transactions: 'Cash Transaction',
+}
+
+const referenceLabel = (type?: string | null): string => {
+  if (!type) return ''
+  return REFERENCE_TYPE_LABELS[type] ?? type.replace(/_/g, ' ')
+}
+
+/** Route for a reference, or null when the type has no matching page. */
+const referenceHref = (type?: string | null, id?: number | null): string | null => {
+  if (!type || !id) return null
+  const build = REFERENCE_ROUTES[type]
+  return build ? build(id) : null
+}
 
 const getTodayDateString = () => {
   const d = new Date()
@@ -453,6 +578,7 @@ export default function JournalsView() {
               <th style={{ ...thStyle, width: 140 }}>Journal No.</th>
               <th style={{ ...thStyle, width: 130 }}>Date</th>
               <th style={{ ...thStyle, width: 130 }}>Type</th>
+              <th style={{ ...thStyle, width: 150 }}>Reference</th>
               <th style={thStyle}>Description</th>
               <th style={{ ...thStyle, width: 110 }}>Periode</th>
               <th style={{ ...thStyle, width: 140 }}>Created By</th>
@@ -463,12 +589,12 @@ export default function JournalsView() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 9 }).map((__, j) => (
-                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 8 ? 60 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
+                <tr key={i}>{Array.from({ length: 10 }).map((__, j) => (
+                  <td key={j} style={tdStyle}><div style={{ height: 14, borderRadius: 'var(--radius-sm)', background: 'var(--border)', width: j === 9 ? 60 : '80%', animation: 'pulse 1.5s ease-in-out infinite' }} /></td>
                 ))}</tr>
               ))
             ) : items.length === 0 ? (
-              <tr><td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+              <tr><td colSpan={10} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                   <FileText size={32} style={{ opacity: 0.4 }} />
                   <span style={{ fontSize: 14 }}>No journals found</span>
@@ -488,6 +614,55 @@ export default function JournalsView() {
                     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 99, fontSize: 12, background: 'var(--background)', border: '1px solid var(--border)', color: 'var(--foreground-muted)' }}>
                       {JOURNAL_TYPE_LABELS[item.type] ?? item.type}
                     </span>
+                  </td>
+                  <td style={tdStyle}>
+                    {(() => {
+                      const href = referenceHref(item.reference_type, item.reference_id)
+                      if (!href) {
+                        return (
+                          <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>
+                            {item.reference_type
+                              ? `${referenceLabel(item.reference_type)}${item.reference_id ? ` #${item.reference_id}` : ''}`
+                              : '—'}
+                          </span>
+                        )
+                      }
+                      return (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`Buka ${referenceLabel(item.reference_type)} #${item.reference_id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontSize: 13,
+                            color: 'var(--accent)',
+                            textDecoration: 'none',
+                            fontWeight: 500,
+                          }}
+                        >
+                          <span>{referenceLabel(item.reference_type)}</span>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '1px 6px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              background: 'var(--accent-light-bg)',
+                              color: 'var(--accent)',
+                            }}
+                          >
+                            #{item.reference_id}
+                          </span>
+                          <ExternalLink size={11} style={{ color: 'var(--foreground-muted)' }} />
+                        </a>
+                      )
+                    })()}
                   </td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.description || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.period?.name || '—'}</span></td>
@@ -802,6 +977,24 @@ export default function JournalsView() {
                     <span style={{ marginLeft: 6 }}>({formatDateTime(activeDetailJournal.created_at)})</span>
                   )}
                 </p>
+                {(() => {
+                  const href = referenceHref(activeDetailJournal?.reference_type, activeDetailJournal?.reference_id)
+                  if (!href) return null
+                  return (
+                    <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+                      Reference:{' '}
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--accent)', fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        {referenceLabel(activeDetailJournal?.reference_type)} #{activeDetailJournal?.reference_id}
+                        <ExternalLink size={11} />
+                      </a>
+                    </p>
+                  )
+                })()}
               </div>
               <button onClick={() => setDetailItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>

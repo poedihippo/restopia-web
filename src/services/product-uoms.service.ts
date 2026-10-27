@@ -25,4 +25,7 @@ export const productUomsService = {
 
   cardStock: (params?: ListParams) =>
     api.get<ApiResponse<PaginatedData<unknown>>>('/product-uoms/card-stock', { params }),
+
+  stockPosition: (params?: ListParams) =>
+    api.get<ApiResponse<PaginatedData<unknown>>>('/product-uoms/stock-position', { params }),
 }
