@@ -74,13 +74,6 @@ const stickyLeft = (left: number, background: string, z: number): React.CSSPrope
   borderRight: '1px solid var(--border)',
 })
 
-// Opaque accent tint. `--accent-light-bg` is rgba(...,0.12) — translucent, so on
-// a sticky header cell the rows beneath bleed through and look broken.
-// Layering the tint over a solid base via a gradient makes the cell opaque
-// while keeping the same accent look, and still uses only CSS variables.
-const ACCENT_CELL_BG =
-  'linear-gradient(var(--accent-light-bg), var(--accent-light-bg)), var(--surface-raised)'
-
 export default function StockPositionView() {
   const { hasPermission } = useAuth()
   const canRead = hasPermission('stock-movement.read') || hasPermission('product-inventory.read')
@@ -181,12 +174,6 @@ export default function StockPositionView() {
   const branchStockOf = (item: StockPositionItem, branchId: number): number | null => {
     const found = (item.total_in_branches ?? []).find((b) => b.id === branchId)
     return found && found.total_stock != null ? found.total_stock : null
-  }
-
-  const totalAcrossBranches = (item: StockPositionItem): number | null => {
-    const list = item.total_in_branches ?? []
-    if (list.length === 0) return null
-    return list.reduce((s, b) => s + (Number(b.total_stock) || 0), 0)
   }
 
   const labelStyle: React.CSSProperties = {
@@ -348,7 +335,6 @@ export default function StockPositionView() {
                 <th style={{ ...thStyle, ...stickyTopTh, width: 90, textAlign: 'right' }}>PO Masuk</th>
                 <th style={{ ...thStyle, ...stickyTopTh, width: 90, textAlign: 'right' }}>Dikirim</th>
                 <th style={{ ...thStyle, ...stickyTopTh, width: 90, textAlign: 'right' }}>Diterima</th>
-                <th style={{ ...thStyle, ...stickyTopTh, width: 100, textAlign: 'right', background: ACCENT_CELL_BG, color: 'var(--accent)' }}>Total Stok</th>
                 {branchColumns.map((b) => (
                   <th
                     key={b.id}
@@ -370,7 +356,7 @@ export default function StockPositionView() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={8 + branchColumns.length} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                  <td colSpan={7 + branchColumns.length} style={{ textAlign: 'center', padding: '48px 16px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                       {[60, 40, 80, 50, 70].map((w, i) => (
                         <div
@@ -391,7 +377,7 @@ export default function StockPositionView() {
 
               {isError && (
                 <tr>
-                  <td colSpan={8 + branchColumns.length} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                  <td colSpan={7 + branchColumns.length} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                     Gagal memuat data stock position
                   </td>
                 </tr>
@@ -399,7 +385,7 @@ export default function StockPositionView() {
 
               {!isLoading && !isError && items.length === 0 && (
                 <tr>
-                  <td colSpan={8 + branchColumns.length}>
+                  <td colSpan={7 + branchColumns.length}>
                     <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                       <LayoutGrid size={32} style={{ color: 'var(--foreground-subtle)' }} />
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -413,7 +399,6 @@ export default function StockPositionView() {
               {!isLoading &&
                 !isError &&
                 items.map((item, idx) => {
-                  const rowTotal = totalAcrossBranches(item)
                   return (
                     <tr key={item.id}>
                       <td style={{ ...tdStyle, ...stickyLeft(0, BODY_BG, Z_BODY_LEFT), textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 12 }}>
@@ -463,9 +448,6 @@ export default function StockPositionView() {
                       </td>
                       <td style={{ ...tdStyle, ...numStyle, color: 'var(--foreground-muted)' }}>
                         {formatQty(item.total_received, !canRead)}
-                      </td>
-                      <td style={{ ...tdStyle, ...numStyle, fontWeight: 600, background: 'var(--accent-light-bg)', color: 'var(--accent)' }}>
-                        {formatQty(rowTotal ?? item.stock, !canRead)}
                       </td>
                       {branchColumns.map((b) => {
                         const val = branchStockOf(item, b.id)
