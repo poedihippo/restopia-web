@@ -183,13 +183,13 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
   }, [finishedSearch])
 
   const { data: finishedData } = useQuery({
-    queryKey: ['products', 'final', finishedSearchDebounced, activeProductTypes],
+    queryKey: ['products', 'final,wip', finishedSearchDebounced, activeProductTypes],
     enabled: showFinishedDrop === true,
     queryFn: () =>
       api
         .get('/products', {
           params: {
-            'filter[types]': 'final',
+            'filter[types]': 'final,wip',
             'filter[search]': finishedSearchDebounced,
             per_page: 20,
             include: 'product_category',
