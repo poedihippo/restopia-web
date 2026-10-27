@@ -754,6 +754,13 @@ export function usePosLogic() {
     })),
   ]
 
+  // ── Settlement rules (POS) ────────────────────────────────────────────────
+  // Every ONLINE order settles as 'credit' (the marketplace pays later);
+  // OFFLINE is 'settled' unless a credit method is picked. No POS order leaves
+  // as 'pending' — Hold and DP included.
+  const baseSettlementStatus = (): 'credit' | 'settled' =>
+    orderType === 'online' ? 'credit' : 'settled'
+
   const getSettlement = () => {
     const splitCreditUser = isSplitPayment
       ? splitPayments.find((sp) => sp.creditByUserId)?.creditByUserId
@@ -763,7 +770,7 @@ export function usePosLogic() {
       if (splitCreditUser) {
         return { creditType: 'user' as const, creditById: splitCreditUser, settlementStatus: 'credit' as const }
       }
-      return { creditType: null, creditById: null, settlementStatus: 'pending' as const }
+      return { creditType: null, creditById: null, settlementStatus: baseSettlementStatus() }
     }
     if (isCreditMethod) {
       if (creditType === 'customer') {
@@ -771,7 +778,115 @@ export function usePosLogic() {
       }
       return { creditType: 'user' as const, creditById: creditByUserId, settlementStatus: 'credit' as const }
     }
-    return { creditType: null, creditById: null, settlementStatus: 'pending' as const }
+    return { creditType: null, creditById: null, settlementStatus: baseSettlementStatus() }
+  }
+
+  // Customer credit can be a picked customer OR a manually typed name (the
+  // name/phone inputs live in the Payment modal). The API wants a real
+  // customer_id, so a manual name is matched against an existing customer
+  // first, then created as a new one.
+  const manualCustomerName = guestName.trim()
+
+  const clearSelectedCustomer = () => {
+    setSelectedCustomerId(null)
+    setCustomerSearch('')
+  }
+
+  const resolveCustomerForCredit = async (): Promise<number | null> => {
+    if (selectedCustomerId && selectedCustomerId > 0) return selectedCustomerId
+    const name = manualCustomerName
+    if (!name) return null
+    const phone = guestPhone.trim() || undefined
+
+    try {
+      const res = await customersService.list({ per_page: 20, 'filter[search]': name } as any)
+      const rows: any[] = (res.data as any)?.data ?? []
+      const lower = name.toLowerCase()
+      const sameName = (c: any) => String(c?.name ?? '').trim().toLowerCase() === lower
+      const match =
+        (phone ? rows.find((c: any) => sameName(c) && String(c?.phone ?? '').trim() === phone) : null) ??
+        rows.find(sameName)
+      if (match?.id) {
+        setSelectedCustomerId(Number(match.id))
+        setCustomerSearch(String(match.name ?? name))
+        return Number(match.id)
+      }
+    } catch {
+      // no read access — fall through and try to create
+    }
+
+    try {
+      const created = await customersService.create({ name, phone } as any)
+      const id = Number((created.data as any)?.data?.id ?? 0)
+      if (id > 0) {
+        setSelectedCustomerId(id)
+        setCustomerSearch(name)
+        return id
+      }
+    } catch {
+      // e.g. missing customer.create — payload falls back to name/phone only
+    }
+    return null
+  }
+
+  // credit_type=user ⇒ customer_id must be null; non-credit keeps whatever the
+  // cart picked; customer credit resolves to a real id (picked or created).
+  const resolvePayloadCustomerId = async (
+    resolved: 'user' | 'customer' | null,
+  ): Promise<number | null> => {
+    if (resolved === 'user') return null
+    if (resolved === 'customer') return resolveCustomerForCredit()
+    return selectedCustomerId ?? null
+  }
+
+  const orderIdOf = (res: any): number | null => {
+    const body = res?.data ?? res
+    const id = body?.data?.id ?? body?.id
+    return Number(id) > 0 ? Number(id) : null
+  }
+
+  // Checkout only answers {message} (CheckoutSalesOrderResponse), so the id of
+  // the order just written falls back to the newest order of the same type —
+  // POS is the only screen creating type=online orders from here.
+  const resolveCreatedOrderId = async (
+    res: any,
+    explicitId: number | null,
+  ): Promise<number | null> => {
+    if (explicitId) return explicitId
+    const direct = orderIdOf(res)
+    if (direct) return direct
+    try {
+      const list = await salesOrdersService.list({
+        sort: '-id',
+        per_page: 1,
+        'filter[type]': orderType,
+      } as any)
+      const rows: any[] = (list.data as any)?.data ?? []
+      return rows[0]?.id ? Number(rows[0].id) : null
+    } catch {
+      return null
+    }
+  }
+
+  // Checkout derives settlement_status from the tenders it writes, so an online
+  // order is forced to 'credit' afterwards through the bulk endpoint.
+  const pushOnlineSettlement = async (res: any, explicitId: number | null = null) => {
+    if (orderType !== 'online') return
+    const orderId = await resolveCreatedOrderId(res, explicitId)
+    if (!orderId) {
+      toast.warning('Order created, but settlement could not be set to credit (order id not found)')
+      return
+    }
+    try {
+      await salesOrdersService.bulkUpdateSettlement({
+        items: [{ sales_order_id: orderId, settlement_status: 'credit' }],
+      })
+    } catch (err: any) {
+      toast.warning(
+        'Order saved, but settlement could not be set to credit: ' +
+          getApiErrorMessage(err, 'bulk settlement failed'),
+      )
+    }
   }
 
   const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
@@ -834,7 +949,8 @@ export function usePosLogic() {
         .post('/sales-orders', body, { headers: { 'Idempotency-Key': idemKeyFor('hold', body) } })
         .then((r) => r.data)
     },
-    onSuccess: () => {
+    onSuccess: async (res: any) => {
+      await pushOnlineSettlement(res, editingOrderId)
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       toast.success('Order held as pending')
       resetCart()
@@ -843,7 +959,7 @@ export function usePosLogic() {
       toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to hold order'))),
   })
 
-  const handleHold = () => {
+  const handleHold = async () => {
     if (cart.length === 0 && bundleCart.length === 0) {
       toast.error('Cart is empty')
       return
@@ -860,19 +976,23 @@ export function usePosLogic() {
       toast.error('Select a credit user')
       return
     }
-    if (resolvedCreditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)) {
-      toast.error('Select a customer for customer credit')
+    if (
+      resolvedCreditType === 'customer' &&
+      !(selectedCustomerId && selectedCustomerId > 0) &&
+      !manualCustomerName
+    ) {
+      toast.error('Select a customer or type a customer name for customer credit')
       return
     }
 
-    // credit_type=user ⇒ customer_id must be null
-    const payloadCustomerId =
-      resolvedCreditType === 'user' ? null : (selectedCustomerId ?? null)
+    const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
+    const fallbackCustomerName =
+      resolvedCreditType === 'customer' ? manualCustomerName : guestName
 
     const payload = {
       type: orderType,
       customer_id: payloadCustomerId,
-      customer_name: payloadCustomerId ? undefined : guestName || undefined,
+      customer_name: payloadCustomerId ? undefined : fallbackCustomerName || undefined,
       customer_phone: payloadCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: fulfillmentDate.slice(0, 10),
@@ -989,6 +1109,10 @@ export function usePosLogic() {
         }
       }
 
+      // Online orders must settle as 'credit' — enforce it right after creation
+      // (before resetCart, which flips orderType back to 'offline').
+      await pushOnlineSettlement(res, editingOrderId)
+
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       qc.invalidateQueries({ queryKey: ['pos-history'] })
       qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
@@ -1006,7 +1130,7 @@ export function usePosLogic() {
     },
   })
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (isSplitPayment ? splitPayments.length === 0 : !paymentMethodId) {
       toast.error('Select a payment method')
       return
@@ -1015,26 +1139,30 @@ export function usePosLogic() {
     const { creditById, settlementStatus, creditType: resolvedCreditType } = getSettlement()
 
     // credit_type guards (API): user ⇒ credit_by_id required + customer_id null;
-    // customer ⇒ customer_id required; non-credit ⇒ credit_by_id null.
+    // customer ⇒ a real customer_id (picked or created from a manual name).
     if (resolvedCreditType === 'user' && !creditById) {
       toast.error('Please select a credit user')
       return
     }
-    if (resolvedCreditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)) {
-      toast.error('Please select a customer for customer credit')
+    if (
+      resolvedCreditType === 'customer' &&
+      !(selectedCustomerId && selectedCustomerId > 0) &&
+      !manualCustomerName
+    ) {
+      toast.error('Please select a customer or type a customer name for customer credit')
       return
     }
 
-    // credit_type=user ⇒ customer_id must be null
-    const payloadCustomerId =
-      resolvedCreditType === 'user' ? null : (selectedCustomerId ?? null)
+    const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
+    const fallbackCustomerName =
+      resolvedCreditType === 'customer' ? manualCustomerName : guestName
 
     // subtotal_price / discount_price / total_price stay local (used for the
     // payment amount) and are stripped before anything is sent to the API.
     const payload = {
       type: orderType,
       customer_id: payloadCustomerId,
-      customer_name: payloadCustomerId ? undefined : guestName || undefined,
+      customer_name: payloadCustomerId ? undefined : fallbackCustomerName || undefined,
       customer_phone: payloadCustomerId ? undefined : guestPhone || undefined,
       date: transactionDate,
       fulfillment_date: fulfillmentDate.slice(0, 10),
@@ -1071,6 +1199,8 @@ export function usePosLogic() {
     orderType, setOrderType,
     customerSearch, setCustomerSearch,
     selectedCustomerId, setSelectedCustomerId,
+    manualCustomerName,
+    clearSelectedCustomer,
     salesChannelId, setSalesChannelId,
     guestName, setGuestName,
     guestPhone, setGuestPhone,

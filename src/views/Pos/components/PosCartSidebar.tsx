@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { ShoppingCart, ChevronUp, ChevronDown, Loader2 } from 'lucide-react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import useGetVoucherList from '@/hooks/voucher/useGetVoucherList'
@@ -75,20 +75,9 @@ interface PosCartSidebarProps {
   setVoucherCode: (val: number | '') => void
   voucherLoading: boolean
   handleApplyVoucher: (selectedVoucher?: any) => void
-  customerSearch: string
-  setCustomerSearch: (val: string) => void
-  selectedCustomerId: number | null
-  setSelectedCustomerId: (val: number | null) => void
   salesChannelId: number | null
   setSalesChannelId: (val: number | null) => void
   salesChannels: any[]
-  customers: any[]
-  showCustomerDropdown: boolean
-  setShowCustomerDropdown: (val: boolean) => void
-  guestName: string
-  setGuestName: (val: string) => void
-  guestPhone: string
-  setGuestPhone: (val: string) => void
   orderNote: string
   setOrderNote: (val: string) => void
   transactionDate: string
@@ -123,20 +112,9 @@ export default function PosCartSidebar({
   setVoucherCode,
   voucherLoading,
   handleApplyVoucher,
-  customerSearch,
-  setCustomerSearch,
-  selectedCustomerId,
-  setSelectedCustomerId,
   salesChannelId,
   setSalesChannelId,
   salesChannels,
-  customers,
-  showCustomerDropdown,
-  setShowCustomerDropdown,
-  guestName,
-  setGuestName,
-  guestPhone,
-  setGuestPhone,
   orderNote,
   setOrderNote,
   transactionDate,
@@ -156,7 +134,6 @@ export default function PosCartSidebar({
   useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const [orderDetailsOpen, setOrderDetailsOpen] = useState(false)
   const [lotPickerFor, setLotPickerFor] = useState<number | null>(null)
-  const customerDropdownRef = useRef<HTMLDivElement>(null)
 
   const { data: vouchersData, isLoading: vouchersLoadingQuery } = useGetVoucherList({
     per_page: 100,
@@ -170,20 +147,6 @@ export default function PosCartSidebar({
       sublabel: v.description || '',
     }))
   }, [vouchersData])
-
-  // Local effect to close customer dropdown
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (
-        customerDropdownRef.current &&
-        !customerDropdownRef.current.contains(e.target as Node)
-      ) {
-        setShowCustomerDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [setShowCustomerDropdown])
 
   const changeCartLot = (currentInventoryId: number, targetLot: any) => {
 
@@ -577,63 +540,6 @@ export default function PosCartSidebar({
             {formatCurrency(total)}
           </span>
         </div>
-      </div>
-
-      {/* Customer — always visible */}
-      <div
-        style={{
-          padding: '10px 16px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>Customer Name</span>
-        <input
-          type="text"
-          value={guestName}
-          onChange={(e) => {
-            setGuestName(e.target.value)
-            if (e.target.value) {
-              setSelectedCustomerId(null)
-              setCustomerSearch('')
-            }
-          }}
-          placeholder="Guest name (optional)..."
-          style={{
-            width: '100%',
-            padding: '8px 10px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--background)',
-            outline: 'none',
-            fontFamily: 'var(--font-sans)',
-            boxSizing: 'border-box',
-          }}
-        />
-        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }}>Customer Phone</span>
-        <input
-          type="text"
-          value={guestPhone}
-          onChange={(e) => setGuestPhone(e.target.value)}
-          placeholder="Phone (optional)..."
-          style={{
-            width: '100%',
-            padding: '8px 10px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--background)',
-            outline: 'none',
-            fontFamily: 'var(--font-sans)',
-            boxSizing: 'border-box',
-          }}
-        />
       </div>
 
       <button

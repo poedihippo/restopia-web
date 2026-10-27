@@ -48,6 +48,21 @@ interface PosModalsProps {
   creditType?: 'user' | 'customer'
   setCreditType?: (val: 'user' | 'customer') => void
   selectedCustomerId?: number | null
+  /** Picked customer OR typed name — both satisfy customer credit. */
+  manualCustomerName?: string
+  /** Manual customer fields — shared with the cart sidebar. */
+  guestName?: string
+  setGuestName?: (val: string) => void
+  guestPhone?: string
+  setGuestPhone?: (val: string) => void
+  /** Name of the customer picked in the cart sidebar. */
+  customerSearch?: string
+  setCustomerSearch?: (val: string) => void
+  clearSelectedCustomer?: () => void
+  setSelectedCustomerId?: (val: number | null) => void
+  customers?: any[]
+  showCustomerDropdown?: boolean
+  setShowCustomerDropdown?: (val: boolean) => void
   receiptData: any
   resetCart: () => void
   printReceipt: ReceiptData | null
@@ -123,6 +138,18 @@ export default function PosModals({
   creditType = 'user',
   setCreditType,
   selectedCustomerId = null,
+  manualCustomerName = '',
+  guestName = '',
+  setGuestName = () => {},
+  guestPhone = '',
+  setGuestPhone = () => {},
+  customerSearch = '',
+  setCustomerSearch = () => {},
+  clearSelectedCustomer,
+  setSelectedCustomerId = () => {},
+  customers = [],
+  showCustomerDropdown = false,
+  setShowCustomerDropdown = () => {},
   isPending,
   receiptData,
   resetCart,
@@ -163,6 +190,69 @@ export default function PosModals({
   useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const [splitMethodId, setSplitMethodId] = React.useState<number | null>(null)
   const [splitAmount, setSplitAmount] = React.useState<string>('')
+
+  const customerFieldLabel: React.CSSProperties = {
+    fontSize: 12,
+    color: 'var(--foreground-muted)',
+    display: 'block',
+    marginBottom: 6,
+  }
+  const customerFieldInput: React.CSSProperties = {
+    width: '100%',
+    padding: '9px 12px',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface-raised)',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+    boxSizing: 'border-box',
+  }
+  const customerDropdownBox: React.CSSProperties = {
+    position: 'absolute',
+    top: 'calc(100% + 4px)',
+    left: 0,
+    right: 0,
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    zIndex: 60,
+    padding: '9px 12px',
+    fontSize: 13,
+    color: 'var(--foreground-muted)',
+    boxShadow: 'var(--shadow-md)',
+  }
+  const customerDropdownItem: React.CSSProperties = {
+    padding: '9px 12px',
+    cursor: 'pointer',
+    borderBottom: '1px solid var(--border)',
+    fontSize: 13,
+    color: 'var(--foreground)',
+  }
+
+  // Registered-customer search lives in this modal (the cart sidebar no longer
+  // shows customer/guest fields).
+  const customerDropdownRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        customerDropdownRef.current &&
+        !customerDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowCustomerDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [setShowCustomerDropdown])
+
+  const pickRegisteredCustomer = (c: any) => {
+    setSelectedCustomerId(Number(c.id))
+    setCustomerSearch(String(c.name ?? ''))
+    setGuestName('')
+    setShowCustomerDropdown(false)
+  }
   
   const remainingSplitBalance = React.useMemo(() => {
     const paid = (splitPayments || []).reduce((sum, p) => sum + p.amount, 0)
@@ -175,12 +265,18 @@ export default function PosModals({
     }
   }, [remainingSplitBalance, splitAmount])
 
+  // Customer credit accepts a picked customer OR a manually typed name.
+  const hasCustomerForCredit = !!(
+    (selectedCustomerId && selectedCustomerId > 0) ||
+    manualCustomerName.trim()
+  )
+
   const canConfirm = isSplitPayment
     ? remainingSplitBalance === 0
     : (paymentMethodId !== null &&
        (!isCreditMethod ||
          (creditType === 'customer'
-           ? !!(selectedCustomerId && selectedCustomerId > 0)
+           ? hasCustomerForCredit
            : creditByUserId !== null)) &&
        (paymentMode !== 'partial' || (Number(partialAmount.replace(/\D/g, '')) > 0 && Number(partialAmount.replace(/\D/g, '')) < total)))
 
@@ -729,18 +825,127 @@ export default function PosModals({
                   </>
                 )}
                 {creditType === 'customer' && (
-                  <div
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: 'var(--radius-md)',
-                      background: selectedCustomerId ? 'var(--success-bg)' : 'var(--warning-bg)',
-                      color: selectedCustomerId ? 'var(--success)' : 'var(--warning)',
-                      fontSize: 12,
-                    }}
-                  >
-                    {selectedCustomerId
-                      ? 'Customer credit will be applied to the selected customer. No user balance is used.'
-                      : 'Select a customer in the cart sidebar before confirming customer credit.'}
+                  <div style={{ marginTop: 4 }}>
+                    {selectedCustomerId ? (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '10px 12px',
+                          borderRadius: 'var(--radius-md)',
+                          background: 'var(--success-bg)',
+                          color: 'var(--success)',
+                          fontSize: 12,
+                        }}
+                      >
+                        <span style={{ flex: 1 }}>
+                          ✓ {customerSearch?.trim() || 'Selected customer'} — customer credit applies to this customer.
+                        </span>
+                        {clearSelectedCustomer && (
+                          <button
+                            type="button"
+                            title="Clear customer"
+                            onClick={clearSelectedCustomer}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              fontSize: 16,
+                              color: 'inherit',
+                              padding: 0,
+                              lineHeight: 1,
+                            }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ position: 'relative' }} ref={customerDropdownRef}>
+                          <label style={customerFieldLabel}>
+                            Registered Customer <span style={{ color: 'var(--foreground-subtle)' }}>— optional</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={customerSearch}
+                            onChange={(e) => setCustomerSearch(e.target.value)}
+                            onFocus={() => setShowCustomerDropdown(true)}
+                            placeholder="Search registered customer (min. 2 characters)..."
+                            style={customerFieldInput}
+                          />
+                          {showCustomerDropdown &&
+                            customerSearch.trim().length >= 2 &&
+                            customers.length === 0 && (
+                              <div style={customerDropdownBox}>No customers found</div>
+                            )}
+                          {showCustomerDropdown && customers.length > 0 && (
+                            <div
+                              style={{
+                                ...customerDropdownBox,
+                                padding: 0,
+                                maxHeight: 180,
+                                overflowY: 'auto',
+                              }}
+                            >
+                              {customers.map((c: any) => (
+                                <div
+                                  key={c.id}
+                                  onClick={() => pickRegisteredCustomer(c)}
+                                  style={customerDropdownItem}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.background = 'var(--background)')
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.background = 'transparent')
+                                  }
+                                >
+                                  <div style={{ fontWeight: 500 }}>{c.name}</div>
+                                  {c.phone && (
+                                    <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                                      {c.phone}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <label style={{ ...customerFieldLabel, marginTop: 12 }}>
+                          Customer Name <span style={{ color: 'var(--destructive)' }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={guestName}
+                          onChange={(e) => setGuestName(e.target.value)}
+                          placeholder="e.g. Budi (GoFood order)"
+                          style={customerFieldInput}
+                        />
+                        <label style={{ ...customerFieldLabel, marginTop: 10 }}>
+                          Customer Phone <span style={{ color: 'var(--foreground-subtle)' }}>— optional</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={guestPhone}
+                          onChange={(e) => setGuestPhone(e.target.value)}
+                          placeholder="e.g. 081234567890"
+                          style={customerFieldInput}
+                        />
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--foreground-muted)',
+                            display: 'block',
+                            marginTop: 8,
+                          }}
+                        >
+                          Search a registered customer above, or type a name below — a customer
+                          with the same name is reused, otherwise a new one is created automatically.
+                        </span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -872,8 +1077,8 @@ export default function PosModals({
                     toast.error('Please select a credit user')
                     return
                   }
-                  if (isCreditMethod && creditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)) {
-                    toast.error('Please select a customer for customer credit')
+                  if (isCreditMethod && creditType === 'customer' && !hasCustomerForCredit) {
+                    toast.error('Please select a customer or type a customer name for customer credit')
                     return
                   }
                   if (paymentMode === 'partial') {
@@ -925,8 +1130,8 @@ export default function PosModals({
                 ? 'Processing...'
                 : !salesChannelId
                   ? 'Select Sales Channel'
-                  : isCreditMethod && creditType === 'customer' && !(selectedCustomerId && selectedCustomerId > 0)
-                    ? 'Select Customer First'
+                  : isCreditMethod && creditType === 'customer' && !hasCustomerForCredit
+                    ? 'Enter Customer First'
                     : isCreditMethod && creditType === 'user' && !creditByUserId
                       ? 'Select Credit User First'
                       : paymentMode === 'partial'

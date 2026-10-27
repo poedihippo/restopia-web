@@ -350,7 +350,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             }}
           >
             {defaultType === 'raw' ? 'Raw Material Inventory' :
-              defaultType === 'wip' ? 'Unfinish Inventory' :
+              defaultType === 'wip' ? 'WIP Inventory' :
                 defaultType === 'final' ? 'Finish Good Inventory' :
                   defaultType === 'supply' ? 'Supplies Inventory' :
                     'Product Inventory'}

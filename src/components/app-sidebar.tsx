@@ -94,7 +94,7 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Warehouse,
         children: [
           { label: 'Raw Material', href: '/products/product-inventory?type=raw', permission: ['product-inventory-raw', 'product-inventory.menu', 'product-inventory.read'] },
-          { label: 'Unfinish', href: '/products/product-inventory?type=wip', permission: ['product-inventory-wip', 'product-inventory.menu', 'product-inventory.read'] },
+          { label: 'WIP', href: '/products/product-inventory?type=wip', permission: ['product-inventory-wip', 'product-inventory.menu', 'product-inventory.read'] },
           { label: 'Finish Good', href: '/products/product-inventory?type=final', permission: ['product-inventory-final', 'product-inventory.menu', 'product-inventory.read'] },
           { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: ['product-inventory-supply', 'product-inventory.menu', 'product-inventory.read'] },
         ],
