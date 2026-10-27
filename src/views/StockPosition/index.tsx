@@ -50,7 +50,6 @@ function formatQty(n: number | null | undefined, mask = false): string {
 // ── Sticky table helpers ─────────────────────────────────────────────────────
 // The matrix scrolls on BOTH axes inside its scroll box:
 //   • <thead> sticks to the top     → branch names stay visible while scrolling rows
-//   • <tfoot> sticks to the bottom  → per-branch totals stay visible (also labels each column)
 //   • product-identity columns stick to the left → know which product while scrolling branches
 // Corner cells (sticky on two axes) get the highest z-index so a single-axis
 // cell can never paint over them.
@@ -67,13 +66,6 @@ const stickyTopTh: React.CSSProperties = {
   background: HEAD_BG,
 }
 
-const stickyBottomTf: React.CSSProperties = {
-  position: 'sticky',
-  bottom: 0,
-  zIndex: Z_AXIS,
-  background: HEAD_BG,
-}
-
 const stickyLeft = (left: number, background: string, z: number): React.CSSProperties => ({
   position: 'sticky',
   left,
@@ -82,17 +74,8 @@ const stickyLeft = (left: number, background: string, z: number): React.CSSPrope
   borderRight: '1px solid var(--border)',
 })
 
-const tfStyle: React.CSSProperties = {
-  padding: '10px 14px',
-  borderTop: '1px solid var(--border)',
-  verticalAlign: 'middle',
-  fontSize: 13,
-  fontWeight: 600,
-  color: 'var(--foreground)',
-}
-
 // Opaque accent tint. `--accent-light-bg` is rgba(...,0.12) — translucent, so on
-// a sticky header/footer cell the rows beneath bleed through and look broken.
+// a sticky header cell the rows beneath bleed through and look broken.
 // Layering the tint over a solid base via a gradient makes the cell opaque
 // while keeping the same accent look, and still uses only CSS variables.
 const ACCENT_CELL_BG =
@@ -205,27 +188,6 @@ export default function StockPositionView() {
     if (list.length === 0) return null
     return list.reduce((s, b) => s + (Number(b.total_stock) || 0), 0)
   }
-
-  // Column totals shown in the frozen footer. Aggregate columns sum their own
-  // value; each branch column sums that branch's stock across visible rows.
-  const totals = useMemo(() => {
-    let incoming = 0
-    let delivered = 0
-    let received = 0
-    let stock = 0
-    const perBranch = new Map<number, number>()
-    for (const item of items) {
-      incoming += Number(item.total_incoming_po) || 0
-      delivered += Number(item.total_delivered) || 0
-      received += Number(item.total_received) || 0
-      const rowTotal = totalAcrossBranches(item)
-      stock += Number(rowTotal ?? item.stock) || 0
-      for (const b of item.total_in_branches ?? []) {
-        perBranch.set(b.id, (perBranch.get(b.id) ?? 0) + (Number(b.total_stock) || 0))
-      }
-    }
-    return { incoming, delivered, received, stock, perBranch }
-  }, [items])
 
   const labelStyle: React.CSSProperties = {
     fontSize: 12,
@@ -369,11 +331,11 @@ export default function StockPositionView() {
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        {/* Fixed-height scroll box so the header can stick to the top and the
-            totals footer to the bottom while the body scrolls vertically, and
-            the whole matrix still scrolls horizontally. The .stock-scroll class
-            renders a prominent, always-visible horizontal scrollbar right below
-            the frozen footer so users can pan branches left/right. */}
+        {/* Fixed-height scroll box so the header can stick to the top while the
+            body scrolls vertically, and the whole matrix still scrolls
+            horizontally. The .stock-scroll class renders a prominent,
+            always-visible horizontal scrollbar so users can pan branches
+            left/right. */}
         <div className="stock-scroll" style={{ overflow: 'auto', maxHeight: 'calc(100vh - 260px)' }}>
           <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%', minWidth: 900 }}>
             <thead>
@@ -524,40 +486,6 @@ export default function StockPositionView() {
                   )
                 })}
             </tbody>
-            {/* Frozen totals footer — sticks to the bottom of the scroll box so
-                branch totals stay visible while scrolling long lists. */}
-            <tfoot>
-              <tr>
-                <td style={{ ...tfStyle, ...stickyBottomTf, ...stickyLeft(0, HEAD_BG, Z_CORNER), textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 12 }}>
-                  Σ
-                </td>
-                <td style={{ ...tfStyle, ...stickyBottomTf, ...stickyLeft(44, HEAD_BG, Z_CORNER) }}>
-                  Total ({items.length} product UOM)
-                </td>
-                <td style={{ ...tfStyle, ...stickyBottomTf }} />
-                <td style={{ ...tfStyle, ...stickyBottomTf }} />
-                <td style={{ ...tfStyle, ...stickyBottomTf, ...numStyle, color: 'var(--foreground-muted)' }}>
-                  {formatQty(totals.incoming, !canRead)}
-                </td>
-                <td style={{ ...tfStyle, ...stickyBottomTf, ...numStyle, color: 'var(--foreground-muted)' }}>
-                  {formatQty(totals.delivered, !canRead)}
-                </td>
-                <td style={{ ...tfStyle, ...stickyBottomTf, ...numStyle, color: 'var(--foreground-muted)' }}>
-                  {formatQty(totals.received, !canRead)}
-                </td>
-                <td style={{ ...tfStyle, ...stickyBottomTf, ...numStyle, background: ACCENT_CELL_BG, color: 'var(--accent)' }}>
-                  {formatQty(totals.stock, !canRead)}
-                </td>
-                {branchColumns.map((b) => (
-                  <td
-                    key={b.id}
-                    style={{ ...tfStyle, ...stickyBottomTf, ...numStyle }}
-                  >
-                    {formatQty(totals.perBranch.get(b.id) ?? 0, !canRead)}
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
           </table>
         </div>
 
