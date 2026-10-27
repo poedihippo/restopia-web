@@ -911,6 +911,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                         placeholder="Pilih owner..."
                         searchPlaceholder="Cari perusahaan..."
                         loading={companiesLoading}
+                        disabled
                         error={errors.source_owner_ref?.message as string | undefined}
                         onSearchChange={setCompanySearch}
                       />
@@ -966,6 +967,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                         placeholder="Pilih owner..."
                         searchPlaceholder="Cari perusahaan..."
                         loading={companiesLoading}
+                        disabled
                         error={errors.output_owner_ref?.message as string | undefined}
                         onSearchChange={setCompanySearch}
                       />
