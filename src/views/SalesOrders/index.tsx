@@ -46,10 +46,12 @@ const controlStyle: React.CSSProperties = {
 export default function SalesOrdersView() {
   const router = useRouter()
   const qc = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperadmin } = useAuth()
   const canRead = hasPermission('sales-order.read')
   const canCreate = hasPermission('sales-order.create')
   const canDelete = hasPermission('sales-order.delete')
+  const canBulkSettlement =
+    isSuperadmin || hasPermission('sales-order.bulk-update-settlement-status')
 
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
@@ -88,6 +90,17 @@ export default function SalesOrdersView() {
 
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
   const [isExporting, setIsExporting] = useState(false)
+
+  // Bulk settlement (POST /sales-orders/bulk-update-settlement-status)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [bulkSettlement, setBulkSettlement] = useState<
+    '' | 'pending' | 'credit' | 'settled' | 'cancelled'
+  >('')
+
+  const toggleSelected = (id: number) =>
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
 
   useEffect(() => {
     const t = setTimeout(() => setSearchDebounced(search), 400)
@@ -286,6 +299,56 @@ export default function SalesOrdersView() {
 
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const allOnPageSelected =
+    items.length > 0 && items.every((i: any) => selectedIds.includes(Number(i.id)))
+
+  const toggleSelectAllOnPage = () =>
+    setSelectedIds((prev) => {
+      const pageIds = items.map((i: any) => Number(i.id))
+      if (pageIds.length > 0 && pageIds.every((id) => prev.includes(id))) {
+        return prev.filter((id) => !pageIds.includes(id))
+      }
+      return Array.from(new Set([...prev, ...pageIds]))
+    })
+
+  // Selection is page-scoped — reset it whenever the list query changes.
+  useEffect(() => {
+    setSelectedIds([])
+    setBulkSettlement('')
+  }, [
+    page, perPage, searchDebounced, statusFilter, settlementFilter,
+    paymentStatusFilter, creditTypeFilter, typeFilter, dateGte, dateLte,
+    branchId, salesChannelId, customerId, creditById, voucherId, shiftId,
+    fulfillmentGte, fulfillmentLte, settlementAtGte, settlementAtLte,
+    hasInvoice, hasPurchaseOrder, hasDelivery,
+  ])
+
+  const { mutate: doBulkSettlement, isPending: bulkUpdating } = useMutation({
+    mutationFn: (payload: { sales_order_id: number; settlement_status: string }[]) =>
+      salesOrderService.bulkUpdateSettlement({ items: payload }),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success(`Settlement status updated for ${vars.length} order(s)`)
+      setSelectedIds([])
+      setBulkSettlement('')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to update settlement status'),
+  })
+
+  const handleBulkSettlement = () => {
+    if (selectedIds.length === 0) {
+      toast.error('Select at least one order')
+      return
+    }
+    if (!bulkSettlement) {
+      toast.error('Choose a settlement status first')
+      return
+    }
+    doBulkSettlement(
+      selectedIds.map((id) => ({ sales_order_id: id, settlement_status: bulkSettlement })),
+    )
+  }
 
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: (id: number) => salesOrderService.delete(id),
@@ -854,6 +917,83 @@ export default function SalesOrdersView() {
         </div>
       )}
 
+      {/* Bulk settlement bar */}
+      {canBulkSettlement && selectedIds.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            padding: '12px 16px',
+            background: 'var(--accent-light-bg)',
+            border: '1px solid var(--accent-light)',
+            borderRadius: 'var(--radius-lg)',
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+            {selectedIds.length} order{selectedIds.length > 1 ? 's' : ''} selected
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Set settlement to</span>
+            <select
+              value={bulkSettlement}
+              onChange={(e) => setBulkSettlement(e.target.value as any)}
+              style={controlStyle}
+            >
+              <option value="">Choose status…</option>
+              <option value="pending">Pending</option>
+              <option value="credit">Credit</option>
+              <option value="settled">Settled</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleBulkSettlement}
+              disabled={bulkUpdating || !bulkSettlement}
+              style={{
+                height: 36,
+                padding: '0 16px',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                background:
+                  bulkUpdating || !bulkSettlement ? 'var(--foreground-subtle)' : 'var(--accent)',
+                color: 'white',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: bulkUpdating || !bulkSettlement ? 'not-allowed' : 'pointer',
+                opacity: bulkUpdating || !bulkSettlement ? 0.7 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              {bulkUpdating && <Loader2 size={14} className="animate-spin" />}
+              {bulkUpdating ? 'Applying…' : 'Apply'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIds([])
+                setBulkSettlement('')
+              }}
+              style={{
+                height: 36,
+                padding: '0 14px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--surface)',
+                color: 'var(--foreground)',
+                fontSize: 13,
+                cursor: 'pointer',
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div
         style={{
@@ -866,6 +1006,17 @@ export default function SalesOrdersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              {canBulkSettlement && (
+                <th style={{ ...thStyle, width: 44 }}>
+                  <input
+                    type="checkbox"
+                    checked={allOnPageSelected}
+                    onChange={toggleSelectAllOnPage}
+                    aria-label="Select all orders on this page"
+                    style={{ cursor: 'pointer' }}
+                  />
+                </th>
+              )}
               <th style={thStyle}>Code</th>
               <th style={thStyle}>Type</th>
               <th style={thStyle}>Customer</th>
@@ -884,7 +1035,7 @@ export default function SalesOrdersView() {
             {isLoading &&
               Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 12 }).map((_, j) => (
+                  {Array.from({ length: canBulkSettlement ? 13 : 12 }).map((_, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -901,7 +1052,7 @@ export default function SalesOrdersView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={12}
+                  colSpan={canBulkSettlement ? 13 : 12}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -922,6 +1073,20 @@ export default function SalesOrdersView() {
                   style={{ cursor: 'pointer' }}
                   onClick={() => router.push(`/sales/sales-orders/${item.id}/detail`)}
                 >
+                  {canBulkSettlement && (
+                    <td
+                      style={{ ...tdStyle, width: 44 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(Number(item.id))}
+                        onChange={() => toggleSelected(Number(item.id))}
+                        aria-label={`Select order ${item.code}`}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </td>
+                  )}
                   <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--accent)' }}>
                     {canRead ? item.code : '***'}
                   </td>
