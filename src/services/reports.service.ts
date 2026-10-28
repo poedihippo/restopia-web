@@ -106,7 +106,7 @@ export const reportsService = {
   exportStockPositions: (params?: { as_of_date?: string; 'filter[category_id]'?: number; 'filter[branch_id]'?: number; 'filter[is_low_stock]'?: number }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/stock-positions/exports', { params, responseType: 'blob' }),
 
-  exportStockCards: (params: { product_id: number; start_date?: string; end_date?: string; 'filter[branch_id]'?: number }): Promise<AxiosResponse<Blob>> =>
+  exportStockCards: (params: { product_id: number; start_date?: string; end_date?: string; 'filter[branch_id]'?: number; 'filter[product_types]'?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/stock-cards/exports', { params, responseType: 'blob' }),
 
   exportSalesProducts: (params?: { start_date?: string; end_date?: string; 'filter[branch_id]'?: number; 'filter[category_id]'?: number }): Promise<AxiosResponse<Blob>> =>

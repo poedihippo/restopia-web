@@ -8,15 +8,16 @@ import { productsService } from '@/services/products.service'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
-import { withProductType } from '@/utils/productUomName'
+import { withProductType, productTypeLabel } from '@/utils/productUomName'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
-import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
+import { useActiveBranchProductTypes, useProductTypes } from '@/hooks/useProductTypes'
 import {
   convertUp,
   type ConversionEntry,
 } from '@/utils/unitDisplay'
 import SearchableSelect from '@/components/SearchableSelect'
+import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { LayoutList, Download, Loader2, ExternalLink } from 'lucide-react'
 
@@ -188,6 +189,8 @@ export default function StockCardView() {
   const [endDate, setEndDate] = useState(getToday)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(50)
+  // Filter tipe produk (multiple) → filter[product_types] (dipisah koma).
+  const [productTypeFilter, setProductTypeFilter] = useState<(number | string)[]>([])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -201,7 +204,7 @@ export default function StockCardView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, productId, startDate, endDate])
+  }, [debouncedSearch, productId, startDate, endDate, productTypeFilter])
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['stock-card-product-search', productSearchDebounced],
@@ -221,6 +224,23 @@ export default function StockCardView() {
     })),
   ]
 
+  // Opsi tipe produk: enum ProductType, dibatasi tipe yang dipakai company aktif
+  // (company.product_types null = semua tipe).
+  const { options: allProductTypeOptions, isLoading: isLoadingProductTypes } = useProductTypes()
+  const allowedProductTypes = new Set(
+    (activeProductTypes ?? '')
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+      .map((t) => (t === 'supplies' ? 'supply' : t)),
+  )
+  const productTypeOptions = (allProductTypeOptions as readonly string[])
+    .filter((t) => allowedProductTypes.size === 0 || allowedProductTypes.has(t.toLowerCase()))
+    .map((t) => ({ value: t, label: productTypeLabel(t) }))
+  // Kosong = semua tipe company (perilaku lama), terpilih = pilihan user.
+  const productTypesParam =
+    productTypeFilter.length > 0 ? productTypeFilter.join(',') : activeProductTypes
+
   const { data, isLoading, isError } = useQuery({
     queryKey: [
       'stock-card',
@@ -230,7 +250,7 @@ export default function StockCardView() {
       productId,
       startDate,
       endDate,
-      activeProductTypes,
+      productTypesParam,
     ],
     queryFn: () =>
       productUomsService
@@ -243,7 +263,7 @@ export default function StockCardView() {
           'filter[product_id]': productId > 0 ? productId : undefined,
           'filter[start_date]': startDate || undefined,
           'filter[end_date]': endDate || undefined,
-          'filter[product_types]': activeProductTypes,
+          'filter[product_types]': productTypesParam,
         } as any)
         .then((r) => r.data),
   })
@@ -257,6 +277,7 @@ export default function StockCardView() {
         product_id: productId,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
+        'filter[product_types]': productTypesParam || undefined,
       } as any),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `stock-card-product-${productId || 'all'}.xlsx`)
@@ -366,7 +387,7 @@ export default function StockCardView() {
           borderRadius: 'var(--radius-lg)',
           padding: 20,
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 16,
           boxShadow: 'var(--shadow-sm)',
         }}
@@ -392,6 +413,18 @@ export default function StockCardView() {
             searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
             loading={productsLoading}
             onSearchChange={setProductSearch}
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Tipe Produk</label>
+          <MultiSearchableSelect
+            value={productTypeFilter}
+            onChange={setProductTypeFilter}
+            options={productTypeOptions}
+            placeholder="Semua Tipe Produk"
+            searchPlaceholder="Cari tipe produk..."
+            loading={isLoadingProductTypes}
           />
         </div>
 

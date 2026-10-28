@@ -313,6 +313,39 @@ function QtyCell({ item }: { item: StockMovement }) {
   )
 }
 
+// Nilai stok dari response API (stock_before / stock_after), tampil dalam
+// satuan baris (uom dasar produk inventori). Null → dash.
+function StockValueCell({
+  value,
+  uomCode,
+  color,
+}: {
+  value?: number
+  uomCode?: string
+  color?: string
+}) {
+  if (value == null) {
+    return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, whiteSpace: 'nowrap' }}>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          fontVariantNumeric: 'tabular-nums',
+          color: color ?? 'var(--foreground)',
+        }}
+      >
+        {fmtNum(value)}
+      </span>
+      {uomCode && (
+        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{uomCode}</span>
+      )}
+    </div>
+  )
+}
+
 // Tanggal di baris atas, jam di baris bawah.
 function DateCell({ value }: { value?: string }) {
   if (!value) return <span>—</span>
@@ -367,8 +400,8 @@ export default function StockMovementView() {
   // warehouse & production menyembunyikannya.
   const branchType = ((user as any)?.branch?.type as string | undefined) ?? ''
   const hideDimensionCols = branchType.toLowerCase() === 'warehouse' || branchType.toLowerCase() === 'production'
-  // Tanggal, Dokumen, Produk, Cabang, (Inventori), Qty
-  const totalCols = hideDimensionCols ? 5 : 6
+  // Tanggal, Dokumen, Produk, Cabang, (Inventori), Qty, Stok Sebelum, Stok Sesudah
+  const totalCols = hideDimensionCols ? 7 : 8
 
   useEffect(() => {
     if (!router.isReady) return
@@ -455,6 +488,8 @@ export default function StockMovementView() {
     { label: 'Cabang', width: 170 },
     ...(hideDimensionCols ? [] : [{ label: 'Owner / Stage / Lokasi', width: 170 }]),
     { label: 'Qty', width: 260 },
+    { label: 'Stok Sebelum', width: 130 },
+    { label: 'Stok Sesudah', width: 130 },
   ]
 
   return (
@@ -621,7 +656,7 @@ export default function StockMovementView() {
         }}
       >
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1160 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
                 {columns.map(({ label, width }, i) => (
@@ -781,6 +816,28 @@ export default function StockMovementView() {
                       {/* Qty */}
                       <td style={{ padding: '14px 16px' }}>
                         <QtyCell item={item} />
+                      </td>
+
+                      {/* Stok Sebelum (stock_before dari API) */}
+                      <td style={{ padding: '14px 16px' }}>
+                        {canRead ? (
+                          <StockValueCell value={item.stock_before} uomCode={getBaseUomCode(item)} />
+                        ) : (
+                          '***'
+                        )}
+                      </td>
+
+                      {/* Stok Sesudah (stock_after dari API) */}
+                      <td style={{ padding: '14px 16px' }}>
+                        {canRead ? (
+                          <StockValueCell
+                            value={item.stock_after}
+                            uomCode={getBaseUomCode(item)}
+                            color={TYPE_META[item.direction as keyof typeof TYPE_META]?.color}
+                          />
+                        ) : (
+                          '***'
+                        )}
                       </td>
                     </tr>
                   )
