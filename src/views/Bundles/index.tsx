@@ -507,7 +507,7 @@ export default function BundlesView() {
                                 textAlign: 'right',
                               }}
                             >
-                              {(detail.qty ?? 0).toLocaleString('id-ID')}
+                              {(detail.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                             </span>
                           </div>
                         ))}

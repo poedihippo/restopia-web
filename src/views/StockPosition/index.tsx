@@ -10,7 +10,10 @@ import SearchableSelect from '@/components/SearchableSelect'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { withProductType, productTypeLabel } from '@/utils/productUomName'
-import { LayoutGrid, Search } from 'lucide-react'
+import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
+import type { ListParams } from '@/types/api'
+import { Download, LayoutGrid, Search } from 'lucide-react'
 
 interface BranchStock {
   id: number
@@ -45,7 +48,37 @@ const getMonthStart = () => {
 function formatQty(n: number | null | undefined, mask = false): string {
   if (mask) return '***'
   if (n == null || !Number.isFinite(n)) return '—'
-  return n.toLocaleString('id-ID', { maximumFractionDigits: 4 })
+  return (Math.round(n * 100) / 100).toLocaleString('id-ID', { maximumFractionDigits: 2 })
+}
+
+/** Angka mentah untuk sel Excel (null → sel kosong). */
+function excelQty(n: number | null | undefined): number | null {
+  if (n == null || !Number.isFinite(Number(n))) return null
+  return Number(n)
+}
+
+type BranchColumn = { id: number; label: string; type?: string }
+
+/** Union semua branch yang muncul pada baris yang diberikan, urut nama. */
+function collectBranchColumns(rows: StockPositionItem[]): BranchColumn[] {
+  const map = new Map<number, BranchColumn>()
+  for (const item of rows) {
+    for (const b of item.total_in_branches ?? []) {
+      if (!map.has(b.id)) {
+        map.set(b.id, {
+          id: b.id,
+          label: b.name || b.code || `Branch #${b.id}`,
+          type: b.type,
+        })
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label))
+}
+
+function branchStockAt(item: StockPositionItem, branchId: number): number | null {
+  const found = (item.total_in_branches ?? []).find((b) => b.id === branchId)
+  return found && found.total_stock != null ? found.total_stock : null
 }
 
 // ── Sticky table helpers ─────────────────────────────────────────────────────
@@ -175,25 +208,103 @@ export default function StockPositionView() {
   const meta = (data as any)?.meta
 
   // Union of every branch that appears on the current page, sorted by name.
-  const branchColumns = useMemo(() => {
-    const map = new Map<number, { id: number; label: string; type?: string }>()
-    for (const item of items) {
-      for (const b of item.total_in_branches ?? []) {
-        if (!map.has(b.id)) {
-          map.set(b.id, {
-            id: b.id,
-            label: b.name || b.code || `Branch #${b.id}`,
-            type: b.type,
-          })
-        }
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [items])
+  const branchColumns = useMemo(() => collectBranchColumns(items), [items])
 
-  const branchStockOf = (item: StockPositionItem, branchId: number): number | null => {
-    const found = (item.total_in_branches ?? []).find((b) => b.id === branchId)
-    return found && found.total_stock != null ? found.total_stock : null
+  const branchStockOf = (item: StockPositionItem, branchId: number): number | null =>
+    branchStockAt(item, branchId)
+
+  // ── Export Excel (dikerjakan penuh di frontend dengan paket `xlsx`) ──────
+  // Semua baris dengan filter yang sama diambil dulu (bukan cuma halaman ini)
+  // supaya hasil ekspor lengkap, lalu matriks cabangnya dibangun dari data itu.
+  const [isExporting, setIsExporting] = useState(false)
+
+  const buildExportParams = (): ListParams => ({
+    sort: 'name:product_uoms.name',
+    include: 'product,uom',
+    'filter[search]': debouncedSearch || undefined,
+    'filter[product_id]': productId > 0 ? productId : undefined,
+    'filter[start_date]': startDate,
+    'filter[end_date]': endDate,
+    'filter[product_types]': productTypesParam || undefined,
+  })
+
+  const fetchAllRows = async (): Promise<StockPositionItem[]> => {
+    const pageSize = 1000
+    const all: StockPositionItem[] = []
+    // Guard: jangan muter tak terbatas kalau backend mengembalikan meta aneh.
+    const maxPages = 50
+    for (let page = 1; page <= maxPages; page++) {
+      const res = await productUomsService
+        .stockPosition({ ...buildExportParams(), page, per_page: pageSize })
+        .then((r) => r.data)
+      all.push(...((res?.data?.data as StockPositionItem[] | undefined) ?? []))
+      const info = res?.data?.meta as
+        | { last_page?: number; total_pages?: number }
+        | undefined
+      const totalPages = Number(info?.last_page ?? info?.total_pages ?? 1)
+      if (page >= totalPages) break
+    }
+    return all
+  }
+
+  const handleExport = async () => {
+    if (!hasDateRange || isExporting) return
+    if (!canRead) {
+      toast.error('Anda tidak punya akses untuk mengekspor data ini')
+      return
+    }
+    setIsExporting(true)
+    try {
+      const rows = await fetchAllRows()
+      if (rows.length === 0) {
+        toast.error('Tidak ada data untuk diekspor')
+        return
+      }
+      const branchCols = collectBranchColumns(rows)
+      const header: (string | number)[] = [
+        '#',
+        'Produk',
+        'Kode Produk',
+        'UOM',
+        'Kode UOM',
+        'PO Masuk',
+        'Dikirim',
+        'Diterima',
+        ...branchCols.map((b) => (b.type ? `${b.label} (${b.type})` : b.label)),
+      ]
+      const body = rows.map((item, idx) => [
+        idx + 1,
+        item.product?.name ?? '',
+        item.product?.code ?? '',
+        item.name ?? '',
+        item.code ?? '',
+        excelQty(item.total_incoming_po),
+        excelQty(item.total_delivered),
+        excelQty(item.total_received),
+        ...branchCols.map((b) => excelQty(branchStockAt(item, b.id))),
+      ])
+      const ws = XLSX.utils.aoa_to_sheet([header, ...body])
+      ws['!cols'] = [
+        { wch: 6 },
+        { wch: 34 },
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+        ...branchCols.map(() => ({ wch: 18 })),
+      ]
+      const wb = XLSX.utils.book_new()
+      // Nama sheet tidak boleh memuat karakter terlarang ('/' dll).
+      XLSX.utils.book_append_sheet(wb, ws, 'SR-DN-Outlet')
+      XLSX.writeFile(wb, `stock-position_${startDate}_${endDate}.xlsx`)
+      toast.success('Export downloaded successfully')
+    } catch {
+      toast.error('Gagal mengekspor data')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const labelStyle: React.CSSProperties = {
@@ -259,6 +370,35 @@ export default function StockPositionView() {
             Sebaran stok product UOM per cabang pada rentang tanggal tertentu
           </p>
         </div>
+
+        {/* Export Excel — dibangun di frontend dari data yang sudah difilter */}
+        <button
+          onClick={handleExport}
+          disabled={!hasDateRange || isExporting}
+          title={
+            hasDateRange
+              ? 'Ekspor seluruh data sesuai filter ke Excel'
+              : 'Isi rentang tanggal terlebih dahulu'
+          }
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--accent)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            fontFamily: 'var(--font-sans)',
+            opacity: hasDateRange && !isExporting && canRead ? 1 : 0.6,
+            cursor: hasDateRange && !isExporting && canRead ? 'pointer' : 'not-allowed',
+          }}
+        >
+          <Download size={14} />
+          {isExporting ? 'Exporting...' : 'Export Excel'}
+        </button>
       </div>
 
       {/* Filters */}

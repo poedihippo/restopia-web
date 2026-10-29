@@ -1012,7 +1012,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                                       </span>
                                       <span>=</span>
                                       <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
-                                        {c.amount?.toLocaleString('id-ID') ?? '?'}
+                                        {c.amount?.toLocaleString('id-ID', { maximumFractionDigits: 2 }) ?? '?'}
                                       </span>
                                       <span>{c.target_uom_code ?? targetUom?.code ?? `UOM #${c.target_uom_id}`}</span>
                                     </div>

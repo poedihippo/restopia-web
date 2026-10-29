@@ -84,7 +84,7 @@ const summaryBoxStyle: React.CSSProperties = {
   gap: 6,
 }
 
-const num = (v?: number) => (v ?? 0).toLocaleString('id-ID')
+const num = (v?: number) => (v ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
 export default function ProductInventoryConvertSheet({
   open,
@@ -184,7 +184,7 @@ export default function ProductInventoryConvertSheet({
 
   const onSubmit = (values: FormValues) => {
     if (values.qty > sourceStock) {
-      toast.error(`Qty cannot exceed available stock (${sourceStock.toLocaleString('id-ID')})`)
+      toast.error(`Qty cannot exceed available stock (${sourceStock.toLocaleString('id-ID', { maximumFractionDigits: 2 })})`)
       return
     }
     convertMutation.mutate(values)

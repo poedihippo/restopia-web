@@ -10,7 +10,6 @@ import { stockMovementsService } from '@/services/stock-movements.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { productCategoriesService } from '@/services/product-categories.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { X, Loader2, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react'
@@ -30,14 +29,18 @@ const schema = z.object({
     .min(0.0001, 'Must be greater than 0'),
   direction: z.enum(['in', 'out']),
   description: z.string().optional(),
-  product_type: z.enum(['raw', 'wip', 'final', 'supply']).optional(),
-  product_category_id: z.coerce.number().optional(),
 })
 type FormValues = z.infer<typeof schema>
 
 interface StockMovementSheetProps {
   open: boolean
   onClose: () => void
+  /**
+   * Batch yang langsung terpilih saat sheet dibuka — dipakai tombol
+   * "Adjust Stock" di daftar Product Inventory agar product tidak
+   * perlu dicari lagi.
+   */
+  initialBatchId?: number | null
 }
 
 const TYPE_OPTIONS = [
@@ -61,7 +64,7 @@ const TYPE_OPTIONS = [
   },
 ]
 
-export default function StockMovementSheet({ open, onClose }: StockMovementSheetProps) {
+export default function StockMovementSheet({ open, onClose, initialBatchId }: StockMovementSheetProps) {
 
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
@@ -85,10 +88,20 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
       qty: 0,
       direction: 'in' as const,
       description: '',
-      product_type: undefined,
-      product_category_id: undefined,
     },
   })
+
+  // Form selalu dibuka dalam keadaan bersih, dan bila sheet dipanggil dari
+  // tombol "Adjust Stock" (Product Inventory) batch produk langsung terpilih.
+  useEffect(() => {
+    if (!open) return
+    reset({
+      product_uom_batch_id: initialBatchId ?? 0,
+      qty: 0,
+      direction: 'in' as const,
+      description: '',
+    })
+  }, [open, initialBatchId, reset])
 
   // Stock lives on product-inventories, not on the batch row. /product-uom-batches
   // reports a global cross-branch `stock` that doesn't match the active branch,
@@ -121,12 +134,6 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
     }
     return Array.from(byBatch.values())
   }, [inventoriesData])
-
-  const { data: categoriesData } = useQuery({
-    queryKey: ['product-categories-all'],
-    queryFn: () => productCategoriesService.list({ per_page: 100 }).then((r) => r.data),
-  })
-  const categories: any[] = (categoriesData as any)?.data ?? []
 
   const watchDirection = watch('direction')
   const watchQty = watch('qty')
@@ -199,8 +206,6 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
       direction: values.direction,
       description: values.description,
     }
-    if (values.product_type) payload.product_type = values.product_type
-    if (values.product_category_id) payload.product_category_id = values.product_category_id
 
     createMutation.mutate(payload as any)
   }
@@ -406,74 +411,6 @@ export default function StockMovementSheet({ open, onClose }: StockMovementSheet
                     )
                   })}
                 </div>
-              )}
-            />
-          </div>
-
-          {/* Product Type (optional) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-              }}
-            >
-              Product Type
-            </label>
-            <Controller
-              name="product_type"
-              control={control}
-              render={({ field }) => (
-                <select
-                  value={field.value ?? ''}
-                  onChange={(e) => field.onChange(e.target.value ? e.target.value : undefined)}
-                  style={{
-                    width: '100%',
-                    height: 40,
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '0 12px',
-                    fontSize: 14,
-                    color: 'var(--foreground)',
-                    background: 'var(--surface-raised)',
-                    boxSizing: 'border-box',
-                    fontFamily: 'var(--font-sans)',
-                  }}
-                >
-                  <option value="">— Optional —</option>
-                  <option value="raw">Raw</option>
-                  <option value="wip">WIP</option>
-                  <option value="final">Final</option>
-                  <option value="supply">Supply</option>
-                </select>
-              )}
-            />
-          </div>
-
-          {/* Product Category (optional) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-              }}
-            >
-              Product Category
-            </label>
-            <Controller
-              name="product_category_id"
-              control={control}
-              render={({ field }) => (
-                <SearchableSelect
-                  value={field.value ?? 0}
-                  onChange={(v) => field.onChange(v ? Number(v) : undefined)}
-                  options={categories.map((cat: any) => ({ value: cat.id as number, label: cat.name as string }))}
-                  placeholder="Select category (optional)"
-                  searchPlaceholder="Search categories..."
-                  onSearchChange={setDropdownSearch}
-                />
               )}
             />
           </div>

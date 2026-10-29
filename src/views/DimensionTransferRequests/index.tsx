@@ -983,7 +983,7 @@ export default function DimensionTransferRequestsView() {
                       {/* Qty */}
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
-                          {item.qty?.toLocaleString('id-ID')}
+                          {item.qty?.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                         </span>
                       </td>
 

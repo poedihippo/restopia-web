@@ -1,7 +1,8 @@
 'use client'
 import { formatDateTime } from '@/utils/date';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productInventoriesService } from '@/services/product-inventories.service'
@@ -16,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
 import ProductInventoryConvertSheet from './ConvertSheet'
+import StockMovementSheet from '../StockMovement/StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
@@ -41,6 +43,8 @@ import {
   Download,
   Loader2,
   ArrowLeftRight,
+  SlidersHorizontal,
+  History,
 } from 'lucide-react'
 
 interface ProductInventory {
@@ -95,6 +99,16 @@ interface ProductInventory {
   branch?: { id: number; name: string; code?: string }
 }
 
+// Product id untuk filter "Show Stock Movement" — product bisa datang dari
+// batch maupun product_uom biasa.
+function productIdOf(item: ProductInventory): number | null {
+  const id =
+    item.product_uom_batch?.product_uom?.product?.id ??
+    item.product_uom?.product?.id ??
+    null
+  return id ?? null
+}
+
 export default function ProductInventoriesView({ defaultType }: { defaultType?: string }) {
   const queryClient = useQueryClient()
   const { user, hasPermission } = useAuth()
@@ -122,6 +136,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const canCreate = hasPermission('product-inventory.create')
   const canEdit = hasPermission('product-inventory.update')
   const canDelete = hasPermission('product-inventory.delete')
+  // Adjust stock = membuat stock movement, jadi mengikuti izin stock-movement
+  const canAdjustStock = hasPermission('stock-movement.create')
+  const canViewStockMovement = hasPermission('stock-movement.read')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -151,6 +168,35 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [convertItem, setConvertItem] = useState<ProductInventory | null>(null)
+  // Baris yang sedang di-adjust — membuka Record Movement sheet dgn batch terpilih
+  const [adjustItem, setAdjustItem] = useState<ProductInventory | null>(null)
+
+  // Gaya tombol ikon di kolom aksi (seragam untuk semua tombol baris)
+  const actionBtnStyle: React.CSSProperties = {
+    padding: 6,
+    background: 'none',
+    border: 'none',
+    borderRadius: 'var(--radius-sm)',
+    cursor: 'pointer',
+    color: 'var(--foreground-muted)',
+    display: 'flex',
+  }
+
+  // Gaya kontrol filter (search, stock range, tanggal, select) supaya
+  // tinggi & bentuknya seragam dan tidak menyusut saat baris penuh.
+  const filterControl: React.CSSProperties = {
+    height: 36,
+    padding: '0 10px',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface-raised)',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+    boxSizing: 'border-box',
+    flexShrink: 0,
+  }
 
   const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
@@ -250,6 +296,20 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
         { value: 'NORMAL', label: 'Normal' },
       ]
 
+  // Tipe produk yang diizinkan branch/company aktif ("raw,wip,...").
+  const activeTypeList = (activeProductTypes ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+  // Nilai untuk filter[product_type] di API — hanya boleh SATU nilai
+  // (nilai berkoma menghasilkan 0 baris).
+  const requestedType =
+    typeFilter !== ''
+      ? String(typeFilter)
+      : activeTypeList.length === 1
+        ? activeTypeList[0]
+        : ''
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['product-inventories', page, perPage, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef],
     queryFn: () =>
@@ -264,7 +324,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-          'filter[product_type]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+          // Backend hanya menerima SATU nilai untuk filter[product_type] —
+          // nilai berkoma ("raw,wip,final,supply") menghasilkan 0 baris.
+          // Kirim hanya saat tipe tunggal; multi-tipe disaring di FE (lihat items).
+          'filter[product_type]': requestedType || undefined,
           'filter[owner_refs]': debouncedOwnerRef.length > 0 ? debouncedOwnerRef.join(',') : undefined,
           'filter[stages]': debouncedStage.length > 0 ? debouncedStage.join(',') : undefined,
           'filter[location_refs]': debouncedLocationRef.length > 0 ? debouncedLocationRef.join(',') : undefined,
@@ -272,8 +335,25 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
         .then((r) => r.data),
   })
 
-  const items: ProductInventory[] = (data as any)?.data ?? []
+  const rawItems: ProductInventory[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+  // Multi-tipe tidak bisa difilter di API (lihat requestedType), jadi baris
+  // halaman ini disaring di FE. Baris tanpa info tipe tetap ditampilkan.
+  const needsClientTypeFilter = typeFilter === '' && activeTypeList.length > 1
+  const activeTypeKey = activeTypeList.join(',')
+  const items = useMemo(() => {
+    if (!needsClientTypeFilter) return rawItems
+    const allowed = new Set(activeTypeKey.split(',').filter(Boolean))
+    return rawItems.filter((row) => {
+      const t = (
+        row.product_uom_batch?.product_uom?.product?.type ??
+        row.product_uom?.product?.type ??
+        ''
+      ).toLowerCase()
+      return t ? allowed.has(t) : true
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawItems, needsClientTypeFilter, activeTypeKey])
 
   const { data: puData } = useQuery({
     queryKey: ['product-uoms-all', activeProductTypes],
@@ -398,9 +478,17 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           </button>
         </div>
       </div>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
+      {/* Toolbar — flex-wrap supaya kontrol tidak saling dorong; pencarian
+            selalu dapat lebar minimal sehingga teks yang diketik terbaca. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            position: 'relative',
+            flex: '1 1 260px',
+            minWidth: 220,
+            maxWidth: 340,
+          }}
+        >
           <Search
             size={14}
             style={{
@@ -416,38 +504,17 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search inventory..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
+            style={{ ...filterControl, width: '100%', padding: '0 10px 0 32px' }}
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <input
             type="number"
             value={stockGte}
             onChange={(e) => setStockGte(e.target.value)}
             placeholder="Min stock"
-            style={{
-              width: 100,
-              padding: '8px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-            }}
+            style={{ ...filterControl, width: 96 }}
           />
           <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>-</span>
           <input
@@ -455,39 +522,19 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             value={stockLte}
             onChange={(e) => setStockLte(e.target.value)}
             placeholder="Max stock"
-            style={{
-              width: 100,
-              padding: '8px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-            }}
+            style={{ ...filterControl, width: 96 }}
           />
           <input
             type="date"
             value={expiryDateGte}
             onChange={(e) => setExpiryDateGte(e.target.value)}
-            placeholder="Min Expiry Date"
-            style={{
-              padding: '7px 10px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-            }}
+            style={{ ...filterControl, padding: '0 8px' }}
             title="Min Expiry Date"
           />
         </div>
 
         {/* Dimension Filters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <div style={{ width: 170 }}>
             <MultiSearchableSelect
               value={ownerRefFilter}
@@ -523,6 +570,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           aria-label="Unit display mode"
           style={{
             display: 'inline-flex',
+            flexShrink: 0,
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
             overflow: 'hidden',
@@ -548,6 +596,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                   color: active ? 'white' : 'var(--foreground-muted)',
                   fontSize: 12,
                   fontWeight: 600,
+                  whiteSpace: 'nowrap',
                   cursor: 'pointer',
                   fontFamily: 'var(--font-sans)',
                   transition: 'all 0.12s ease',
@@ -565,18 +614,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
             setPage(1)
           }}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-            maxWidth: 200,
-          }}
+          style={{ ...filterControl, maxWidth: 180, cursor: 'pointer' }}
         >
           <option value="">All Categories</option>
           {categories.map((c: any) => (
@@ -593,18 +631,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
               setTypeFilter(e.target.value)
               setPage(1)
             }}
-            style={{
-              padding: '8px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-sans)',
-              maxWidth: 160,
-            }}
+            style={{ ...filterControl, maxWidth: 160, cursor: 'pointer' }}
           >
             <option value="">All Types</option>
             {availableTypeOptions.map((opt) => (
@@ -622,7 +649,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            padding: '7px 12px',
+            height: 36,
+            padding: '0 12px',
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
             background: hideEmpty ? 'var(--accent-light-bg)' : 'var(--surface)',
             border: `1px solid ${hideEmpty ? 'var(--accent-light)' : 'var(--border)'}`,
             borderRadius: 'var(--radius-md)',
@@ -630,6 +660,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             fontWeight: 500,
             color: hideEmpty ? 'var(--accent)' : 'var(--foreground-muted)',
             cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
           }}
         >
           <Boxes size={13} />
@@ -826,7 +857,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 // `stockUnit`, so both cells always agree.
                 const stock = toDisplayUnit(baseQty)
                 const stockUnit = stock.unit
-                const stockDisplay = `${stock.qty.toLocaleString('id-ID')} ${stock.unit}`
+                const stockDisplay = `${stock.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${stock.unit}`
 
                 // A row is "low" when nothing is left to sell.
                 const isLow = availableStockOf(item) <= 0
@@ -1001,6 +1032,26 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                           >
                             <Eye size={14} />
                           </button>
+                          {/* Adjust stock — sheet Record Movement, product sudah terpilih */}
+                          {canAdjustStock && (
+                            <button
+                              title="Adjust Stock"
+                              onClick={() => setAdjustItem(item)}
+                              style={{ ...actionBtnStyle, color: 'var(--accent)' }}
+                            >
+                              <SlidersHorizontal size={14} />
+                            </button>
+                          )}
+                          {/* Show stock movement — redirect dgn filter product baris ini */}
+                          {canViewStockMovement && productIdOf(item) !== null && (
+                            <Link
+                              href={`/products/product-inventory/stock-movements?product_id=${productIdOf(item)}`}
+                              title="Show Stock Movement"
+                              style={{ ...actionBtnStyle, color: 'var(--info)' }}
+                            >
+                              <History size={14} />
+                            </Link>
+                          )}
                           {canEdit && (<button
                             onClick={() => {
                               setEditData(item)
@@ -1293,7 +1344,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                         }
                       }
                     }
-                    return `${bQty.toLocaleString('id-ID')} ${bUom}`
+                    return `${bQty.toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${bUom}`
                   })() },
                   { label: 'Status', value: selectedItem.status },
                   { label: 'Expiry Date', value: selectedItem.expiry_date },
@@ -1367,6 +1418,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
         onClose={() => setConvertItem(null)}
         inventory={convertItem}
       />
+      {/* Adjust stock — Record Movement sheet dengan batch produk terpilih.
+          Dirender hanya saat dibuka agar query inventori sheet tidak berjalan
+          di setiap kunjungan halaman Product Inventory. */}
+      {adjustItem && (
+        <StockMovementSheet
+          open
+          onClose={() => setAdjustItem(null)}
+          initialBatchId={adjustItem.product_uom_batch?.id ?? null}
+        />
+      )}
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; }

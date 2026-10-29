@@ -350,7 +350,7 @@ export default function SalesByProductReport() {
         <div style={statCardStyle}>
           <div style={labelStyle}>Total Qty</div>
           <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>
-            {grandQty.toLocaleString('id-ID')}
+            {grandQty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
           </div>
         </div>
         <div style={statCardStyle}>
@@ -452,7 +452,7 @@ export default function SalesByProductReport() {
                     fontWeight: 600,
                   }}
                 >
-                  {p.qty.toLocaleString('id-ID')}
+                  {p.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                 </td>
                 <td style={{ ...tdBase, textAlign: 'right' }}>
                   {p.qty > 0
@@ -490,7 +490,7 @@ export default function SalesByProductReport() {
                 <td
                   style={{ ...tdBase, textAlign: 'right', padding: '10px 12px' }}
                 >
-                  {grandQty.toLocaleString('id-ID')}
+                  {grandQty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                 </td>
                 <td style={tdBase}></td>
                 <td

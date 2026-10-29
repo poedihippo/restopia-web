@@ -557,7 +557,7 @@ export default function StockPositionReport() {
                       color: stockColor,
                     }}
                   >
-                    {stock.toLocaleString('id-ID')}
+                    {stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--foreground-muted)' }}>
                     {item.min_qty ?? '—'}

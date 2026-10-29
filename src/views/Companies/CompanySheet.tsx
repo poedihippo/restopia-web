@@ -17,6 +17,7 @@ import {
 
 const schema = z.object({
   name: z.string().min(1, 'Company name is required'),
+  address: z.string().optional(),
   credit_reset_cron: z.string().optional(),
   credit_reset_amount: z.coerce.number().min(0).optional(),
   product_types: z.array(z.string()).optional(),
@@ -29,6 +30,7 @@ interface CompanySheetProps {
   editData?: {
     id: number
     name: string
+    address?: string | null
     credit_reset_cron?: string
     credit_reset_amount?: number
     product_types?: string | null
@@ -64,6 +66,7 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
     resolver: zodResolver(schema) as any,
     defaultValues: {
       name: '',
+      address: '',
       credit_reset_cron: '',
       credit_reset_amount: 0,
       product_types: [],
@@ -86,6 +89,7 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
         productTypes.every((t) => parsed.includes(t))
       reset({
         name: editData.name,
+        address: editData.address ?? '',
         credit_reset_cron: editData.credit_reset_cron ?? '',
         credit_reset_amount: editData.credit_reset_amount ?? 0,
         product_types: isFullSet ? productTypes : parsed,
@@ -93,6 +97,7 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
     } else {
       reset({
         name: '',
+        address: '',
         credit_reset_cron: '',
         credit_reset_amount: 0,
         product_types: productTypes,
@@ -127,6 +132,7 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
       productTypes.every((t) => selected.includes(t))
     const payload = {
       name: data.name,
+      address: (data.address ?? '').trim(),
       credit_reset_cron: data.credit_reset_cron || undefined,
       credit_reset_amount: data.credit_reset_amount,
       product_types: allSelected ? null : selected.join(','),
@@ -261,6 +267,16 @@ export default function CompanySheet({ open, onClose, editData }: CompanySheetPr
                 style={errors.name ? inputErrorStyle : inputStyle}
               />
               {errors.name && <div style={errorStyle}>{errors.name.message}</div>}
+            </div>
+
+            <div>
+              <label style={labelStyle}>Address</label>
+              <textarea
+                {...register('address')}
+                rows={3}
+                placeholder="Street, district, city…"
+                style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
+              />
             </div>
 
             <div>

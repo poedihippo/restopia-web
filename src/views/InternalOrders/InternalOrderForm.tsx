@@ -710,7 +710,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                {Number(rowQty ?? 0).toLocaleString('id-ID')}
+                {Number(rowQty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
               </div>
 
               {/* Description */}

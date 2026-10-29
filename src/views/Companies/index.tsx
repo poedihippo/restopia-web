@@ -25,6 +25,7 @@ import {
 interface Company {
   id: number
   name: string
+  address?: string | null
   credit_reset_cron?: string
   credit_reset_amount?: number
   created_at?: string
@@ -540,6 +541,7 @@ export default function CompaniesView() {
               {[
                 { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
+                { label: 'Address', value: selectedItem.address || '—' },
                 {
                   label: 'Created At',
                   value: selectedItem.created_at

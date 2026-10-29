@@ -131,7 +131,7 @@ function resolveBranchUnit(
 
 function formatQty(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—'
-  return n.toLocaleString('id-ID', { maximumFractionDigits: 4 })
+  return (Math.round(n * 100) / 100).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 }
 
 /**

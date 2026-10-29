@@ -17,7 +17,7 @@ import { getProductUomName, withProductType } from '@/utils/productUomName'
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!getCanReadPrice()) return '***'
-  return Number(n).toLocaleString('id-ID')
+  return Number(n).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 }
 
 const itemSchema = z.object({

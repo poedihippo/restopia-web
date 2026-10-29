@@ -680,8 +680,8 @@ export default function DimensionTransferRequestSheet({
 
             {showTargetCaption && (
               <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 500 }}>
-                ℹ️ Stok dimensi tujuan saat ini: {targetCurrentStock.toLocaleString('id-ID')} → akan menjadi{' '}
-                {targetAfterStock.toLocaleString('id-ID')}
+                ℹ️ Stok dimensi tujuan saat ini: {targetCurrentStock.toLocaleString('id-ID', { maximumFractionDigits: 2 })} → akan menjadi{' '}
+                {targetAfterStock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
               </span>
             )}
           </div>

@@ -1118,7 +1118,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                 }}
               >
                 {watchType === 'branch'
-                  ? Number(rowQty ?? 0).toLocaleString('id-ID')
+                  ? Number(rowQty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })
                   : canReadPrice
                     ? `Rp ${rowSubtotal.toLocaleString('id-ID')}`
                     : 'Rp ***'}

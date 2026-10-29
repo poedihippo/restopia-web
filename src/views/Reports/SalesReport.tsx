@@ -540,7 +540,7 @@ export default function SalesReport() {
                       </td>
                       <td style={{ padding: '5px 8px' }}>{item.name}</td>
                       <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                        {item.qty.toLocaleString('id-ID')}
+                        {item.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                       </td>
                       <td style={{ padding: '5px 8px', textAlign: 'right' }}>
                         {formatCurrency(item.price)}

@@ -405,7 +405,7 @@ export default function RecipesView() {
                       <span
                         style={{ fontWeight: 500, color: 'var(--foreground)' }}
                       >
-                        {(item.qty ?? 0).toLocaleString('id-ID')}{' '}
+                        {(item.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}{' '}
                         {item.product_uom?.uom?.code ?? ''}
                       </span>
                     </span>
@@ -573,7 +573,7 @@ export default function RecipesView() {
                               textAlign: 'right',
                             }}
                           >
-                            {(mat.qty ?? 0).toLocaleString('id-ID')}
+                            {(mat.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                           </span>
                           <DeductionBadge value={mat.deduction_type} />
                         </div>

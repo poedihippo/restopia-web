@@ -682,7 +682,7 @@ export default function RequestedOrdersView() {
                                   textAlign: 'right',
                                 }}
                               >
-                                {(d.qty ?? 0).toLocaleString('id-ID')}
+                                {(d.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                               </span>
                               <span
                                 style={{

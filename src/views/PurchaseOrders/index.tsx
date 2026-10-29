@@ -571,7 +571,7 @@ export default function PurchaseOrdersView() {
                           >
                             {fullyReceived
                               ? 'Received'
-                              : `Partial · ${totalReceived.toLocaleString('id-ID')}/${totalOrdered.toLocaleString('id-ID')}`}
+                              : `Partial · ${totalReceived.toLocaleString('id-ID', { maximumFractionDigits: 2 })}/${totalOrdered.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`}
                           </span>
                         )}
                       </div>

@@ -242,16 +242,21 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
     queryKey: ['uoms', 'all'],
     queryFn: () => uomsService.list({ per_page: 200 }).then((r) => (r.data as any)?.data || []).catch(() => []),
   })
+  // Global product-UOMs (opsi multi-satuan). 200 baris tidak cukup — total
+  // 1055, jadi dinaikkan agar satuan branch-type jarang termuat tetap ada.
   const { data: productUomsData } = useQuery({
     queryKey: ['product-uoms', 'stock-opname'],
     queryFn: () =>
-      productUomsService.list({ per_page: 200, include: 'product,uom' }).then((r) => (r.data as any)?.data || []).catch(() => []),
+      productUomsService.list({ per_page: 1000, include: 'product,uom' }).then((r) => (r.data as any)?.data || []).catch(() => []),
   })
+  // Konversi global dipakai sebagai fallback saat nested product.conversions
+  // tidak ikut — total 302, jadi 200 baris membuat sebagian produk kehilangan
+  // konversi (dan satuan branch-type tidak tampil).
   const { data: productConversionsData } = useQuery({
     queryKey: ['product-conversions', 'stock-opname'],
     queryFn: () =>
       productConversionsService
-        .list({ per_page: 200, include: 'product,uom,target_uom' })
+        .list({ per_page: 1000, include: 'product,uom,target_uom' })
         .then((r) => (r.data as any)?.data || [])
         .catch(() => []),
   })
@@ -313,6 +318,9 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
 
   // Product-UOMs untuk produk opname dengan branch_type = branch.type user,
   // include product (nested conversions) untuk konversi tampilan.
+  // Catatan: filter[product_ids] TIDAK didukung backend (diabaikan), jadi
+  // yang menyaring adalah filter[branch_type] (terbukti bekerja) dengan
+  // per_page 1000 — jumlah baris per branch type jauh di bawah itu.
   const { data: branchPuomsData } = useQuery({
     queryKey: [
       'product-uoms',
@@ -325,9 +333,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
       productUomsService
         .list({
           per_page: 1000,
-          include: 'product,uom',
+          include: 'product,product.conversions,uom',
           'filter[branch_type]': userBranchType,
-          'filter[product_ids]': opnameProductIds.join(','),
           'filter[is_active]': true,
         } as any)
         .then((r) => (r.data as any)?.data || [])
@@ -522,8 +529,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   }
 
   const fmtQty = (n: number) => {
-    const rounded = Math.round(n * 10000) / 10000
-    return rounded.toLocaleString('id-ID', { maximumFractionDigits: 4 })
+    const rounded = Math.round(n * 100) / 100
+    return rounded.toLocaleString('id-ID', { maximumFractionDigits: 2 })
   }
 
   // Seed hitungan dari server — counted_qty backend dalam base unit, state

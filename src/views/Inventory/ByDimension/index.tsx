@@ -287,7 +287,7 @@ export default function InventoryByDimensionView() {
                           <td style={cellStyle}>{dimensionLabel}</td>
                           <td style={cellStyle}>{code}</td>
                           <td style={cellStyle}>{name}</td>
-                          <td style={amountCellStyle}>{totalStock.toLocaleString('id-ID')}{totalStockUom}</td>
+                          <td style={amountCellStyle}>{totalStock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}{totalStockUom}</td>
                           <td style={amountCellStyle}>
                             {reorderPoint === null || reorderPoint === undefined
                               ? '—'

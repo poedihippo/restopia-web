@@ -200,14 +200,14 @@ export default function ProductCutsView() {
                   </td>
                   <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, fontWeight: 600 }}>
-                      1 → {canRead ? Number(item.yield_qty).toLocaleString('id-ID') : '***'}
+                      1 → {canRead ? Number(item.yield_qty).toLocaleString('id-ID', { maximumFractionDigits: 2 }) : '***'}
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                     {canRead ? <ProductCell uom={item.child_product_uom} /> : '***'}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--accent)', fontFamily: 'var(--font-display)' }}>
-                    {canRead ? Number(item.yield_qty).toLocaleString('id-ID') : '***'}
+                    {canRead ? Number(item.yield_qty).toLocaleString('id-ID', { maximumFractionDigits: 2 }) : '***'}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {canRead ? (item.created_at ? String(item.created_at).slice(0, 10) : '—') : '***'}

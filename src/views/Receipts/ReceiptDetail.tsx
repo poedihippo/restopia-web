@@ -4,6 +4,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
 import { getProductUomName } from '@/utils/productUomName';
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -363,17 +364,21 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
             <span style={sectionLabelStyle}>Linked Delivery</span>
           </div>
           {receipt.delivery?.code ? (
-            <span
+            <Link
+              href={`/transfer/deliveries/${receipt.delivery.id}/detail`}
+              title="Buka detail delivery"
+              className="linked-delivery-link"
               style={{
                 ...pillStyle,
                 fontSize: 13,
                 fontWeight: 600,
                 color: 'var(--accent)',
                 alignSelf: 'flex-start',
+                textDecoration: 'none',
               }}
             >
               {receipt.delivery.code}
-            </span>
+            </Link>
           ) : (
             <div
               style={{
@@ -558,13 +563,13 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                       color: 'var(--foreground)',
                     }}
                   >
-                    {detail.qty.toLocaleString('id-ID')}
+                    {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {(() => {
                       const delivered = detail.delivery_detail?.qty
                       if (delivered == null) {
-                        return <span>{detail.qty.toLocaleString('id-ID')} / —</span>
+                        return <span>{detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })} / —</span>
                       }
                       const partial = detail.qty < delivered
                       return (
@@ -575,9 +580,9 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                               color: partial ? 'var(--warning)' : 'var(--success)',
                             }}
                           >
-                            {detail.qty.toLocaleString('id-ID')}
+                            {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                           </span>
-                          <span>{' / ' + delivered.toLocaleString('id-ID')}</span>
+                          <span>{' / ' + delivered.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</span>
                         </>
                       )
                     })()}
@@ -704,6 +709,14 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        .linked-delivery-link {
+          cursor: pointer;
+          transition: background 150ms ease, border-color 150ms ease;
+        }
+        .linked-delivery-link:hover {
+          background: var(--accent-bg);
+          border-color: var(--accent);
         }
       `}</style>
     </div>

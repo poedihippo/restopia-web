@@ -22,7 +22,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!getCanReadPrice()) return '***'
-  return Number(n).toLocaleString('id-ID')
+  return Number(n).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 }
 
 const detailSchema = z.object({
@@ -931,7 +931,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                                 : 'var(--foreground-subtle)',
                           }}
                         >
-                          Dikirim: {delivered.toLocaleString('id-ID')} · Diterima: {received.toLocaleString('id-ID')} · Sisa: {remaining.toLocaleString('id-ID')}
+                          Dikirim: {delivered.toLocaleString('id-ID', { maximumFractionDigits: 2 })} · Diterima: {received.toLocaleString('id-ID', { maximumFractionDigits: 2 })} · Sisa: {remaining.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                         </span>
                       )
                     })()}

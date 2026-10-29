@@ -45,7 +45,7 @@ const divider = '----------------------------------------'
 const thinDivider = '- - - - - - - - - - - - - - - - - -'
 
 export default function PosReceipt({ data }: Props) {
-  const fmt = (n: number) => n.toLocaleString('id-ID')
+  const fmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
   const paymentTotal = data.payments.reduce((s, p) => s + p.amount, 0)
 
   return (

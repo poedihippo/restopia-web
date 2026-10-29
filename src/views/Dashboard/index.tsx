@@ -29,7 +29,7 @@ const formatRp = (n: number | undefined | null): string => {
 }
 const formatNum = (n: number | undefined | null): string => {
   if (n === undefined || n === null) return '0'
-  return Number(n).toLocaleString('id-ID')
+  return Number(n).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 }
 
 type CardConfig = {
@@ -469,9 +469,9 @@ export default function DashboardView() {
                     }
                     const metricOf = (o: any): string | null => {
                       if (o == null || typeof o !== 'object') return null
-                      if (typeof o.qty === 'number') return o.qty.toLocaleString('id-ID')
+                      if (typeof o.qty === 'number') return o.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })
                       if (typeof o.stock === 'number')
-                        return `Stock ${o.stock.toLocaleString('id-ID')}`
+                        return `Stock ${o.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
                       if (typeof o.total_sold === 'number')
                         return `Sold ${formatCurrency(o.total_sold, '')}`
                       if (typeof o.total_price === 'number')

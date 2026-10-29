@@ -19,7 +19,7 @@ import { describeSuggestionReason, withProductType } from '@/utils/productUomNam
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!canReadPrice) return '***'
-  return Number(n).toLocaleString('id-ID')
+  return Number(n).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 }
 
 const schema = z.object({

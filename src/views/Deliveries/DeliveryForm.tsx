@@ -29,7 +29,7 @@ const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 const formatNumber = (n: number | undefined): string => {
   if (n === undefined || n === null || Number.isNaN(n)) return ''
   if (!getCanReadPrice()) return '***'
-  return Number(n).toLocaleString('id-ID')
+  return Number(n).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 }
 
 const detailSchema = z.object({
@@ -1003,7 +1003,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     const rawCode = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
     const shortCode = rawCode.length > 7 ? `${rawCode.substring(0, 7)}...` : rawCode
     if (b.stock !== undefined) {
-      return `${shortCode} (${b.stock.toLocaleString('id-ID')})`
+      return `${shortCode} (${b.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })})`
     }
     return shortCode
   }
@@ -1662,7 +1662,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                             </option>
                             {batchOptions.map((b: any) => {
                               const stockTitle = b.stock !== undefined
-                                ? ` | Stock: ${b.stock.toLocaleString('id-ID')}`
+                                ? ` | Stock: ${b.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
                                 : ''
                               return (
                                 <option

@@ -82,15 +82,12 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Product Categories', href: '/products/product-categories', permission: 'product-category.menu' },
           { label: 'Units of Measure', href: '/products/uom', permission: 'uom.menu' },
           { label: 'Stages', href: '/inventory/stages', permission: 'stage.menu' },
-          { label: 'Product UOMs', href: '/products/product-uoms', permission: 'product-uom.menu' },
-          { label: 'Product UOM Batches', href: '/products/product-uom-batches', permission: 'product-uom-batch.menu' },
-          { label: 'Product Conversions', href: '/products/product-conversions', permission: 'product-conversion.menu' },
           { label: 'Product Cuts', href: '/products/product-cuts', permission: ['product-cut.menu', 'product-cut.read', 'product.menu'] },
           { label: 'Price Lists', href: '/products/price-lists', permission: 'price-list.menu' },
         ],
       },
       {
-        label: 'Product Inventory',
+        label: 'Stock',
         icon: Warehouse,
         children: [
           { label: 'Raw Material', href: '/products/product-inventory?type=raw', permission: ['product-inventory-raw', 'product-inventory.menu', 'product-inventory.read'] },
@@ -108,9 +105,12 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Stock Operations',
         icon: Layers,
         children: [
-          { label: 'Stock Movements', href: '/products/product-inventory/stock-movements', permission: 'stock-movement.menu' },
+          // Menu "Stock Movements" (semua tipe) tidak ditampilkan — pakai Raw / WIP.
+          { label: 'Stock Movements Raw', href: '/products/product-inventory/stock-movements?product_types=raw', permission: 'stock-movement.menu' },
+          { label: 'Stock Movements WIP', href: '/products/product-inventory/stock-movements?product_types=wip', permission: 'stock-movement.menu' },
           { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
           { label: 'SR/DN/Outlet', href: '/products/stock-per-branch', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },
+          { label: 'Outlet Stock', href: '/products/outlet-stock', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },
           { label: 'Stock Opname', href: '/products/product-inventory/stock-opname', permission: ['stock-opname.menu', 'stock-opname.read', 'product-inventory.menu', 'product-inventory.read'] },
         ],

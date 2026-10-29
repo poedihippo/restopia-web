@@ -4,6 +4,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
 import { getProductUomName } from '@/utils/productUomName';
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -24,6 +25,7 @@ import {
   Truck,
   FileText,
   Printer,
+  Download,
   MapPin,
   ClipboardList,
 } from 'lucide-react'
@@ -59,6 +61,12 @@ interface DeliveryFull {
     description?: string
     product_uom_id?: number
     product_uom_batch_id?: number
+    // Batch untuk kolom BATCH / EXPIRED DATE di cetakan Delivery Note
+    product_uom_batch?: {
+      id?: number
+      batch_code?: string
+      expiry_date?: string | null
+    }
     purchase_order_detail_id?: number
     purchase_order_detail?: { id: number; qty: number }
     sales_order_detail_id?: number
@@ -102,7 +110,9 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
       deliveriesService
         .findById(id, {
           include:
-            'branch,target_branch,purchase_order,sales_order,created_by,delivery_details'
+            'branch,target_branch,purchase_order,sales_order,created_by,' +
+            'delivery_details,delivery_details.product_uom,' +
+            'delivery_details.product_uom_batch'
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -442,6 +452,31 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                 Print Surat Jalan
               </button>
             )}
+
+            {/* Download PDF — memakai dialog cetak browser, pilih "Save as PDF" */}
+            {canRead && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                title='Pilih "Save as PDF" pada dialog cetak untuk mengunduh PDF'
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--foreground)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Download size={13} />
+                Download PDF
+              </button>
+            )}
             <button
               type="button"
               onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
@@ -594,16 +629,20 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
             }}
           >
             <span style={sectionLabelStyle}>Linked Purchase Order</span>
-            <span
+            <Link
+              href={`/purchase/purchase-orders/${delivery.purchase_order.id}/detail`}
+              title="Buka detail purchase order"
+              className="linked-po-link"
               style={{
                 ...pillStyle,
                 fontSize: 13,
                 fontWeight: 600,
                 color: 'var(--accent)',
+                textDecoration: 'none',
               }}
             >
               {delivery.purchase_order.code}
-            </span>
+            </Link>
           </div>
         )}
 
@@ -689,13 +728,13 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                         color: 'var(--foreground)',
                       }}
                     >
-                      {detail.qty.toLocaleString('id-ID')}
+                      {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                     </td>
                     <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                       {(() => {
                         const ordered = detail.purchase_order_detail?.qty
                         if (ordered == null) {
-                          return <span>{detail.qty.toLocaleString('id-ID')} / —</span>
+                          return <span>{detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })} / —</span>
                         }
                         const partial = detail.qty < ordered
                         return (
@@ -706,9 +745,9 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                                 color: partial ? 'var(--warning)' : 'var(--success)',
                               }}
                             >
-                              {detail.qty.toLocaleString('id-ID')}
+                              {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                             </span>
-                            <span>{' / ' + ordered.toLocaleString('id-ID')}</span>
+                            <span>{' / ' + ordered.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</span>
                           </>
                         )
                       })()}
@@ -836,6 +875,14 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+        .linked-po-link {
+          cursor: pointer;
+          transition: background 150ms ease, border-color 150ms ease;
+        }
+        .linked-po-link:hover {
+          background: var(--accent-bg);
+          border-color: var(--accent);
+        }
       `}</style>
       </div>
 
@@ -888,8 +935,10 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left' }}>NAME</th>
               <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '18mm' }}>UNIT</th>
               <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>DEL</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right', width: '16mm' }}>RECV</th>
-              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '28mm' }}>REMARK</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '36mm' }}>BATCH</th>
+              <th style={{ border: '1px solid #000', padding: '2mm', textAlign: 'left', width: '22mm' }}>
+                EXPIRED DATE
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -910,11 +959,23 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                     {pu?.uom?.name ?? pu?.uom?.code ?? '-'}
                   </td>
                   <td style={{ border: '1px solid #000', padding: '2mm', textAlign: 'right' }}>
-                    {detail.qty.toLocaleString('id-ID')}
+                    {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                   </td>
-                  <td style={{ border: '1px solid #000', padding: '2mm' }} />
-                  <td style={{ border: '1px solid #000', padding: '2mm' }}>
-                    {(detail as any).description ?? ''}
+                  {/* Batch (kode batch dari backend) */}
+                  <td
+                    style={{
+                      border: '1px solid #000',
+                      padding: '2mm',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {detail.product_uom_batch?.batch_code ?? '-'}
+                  </td>
+                  {/* Expired date batch (jika ada) */}
+                  <td style={{ border: '1px solid #000', padding: '2mm', whiteSpace: 'nowrap' }}>
+                    {detail.product_uom_batch?.expiry_date
+                      ? formatDate(detail.product_uom_batch.expiry_date)
+                      : '-'}
                   </td>
                 </tr>
               )

@@ -205,13 +205,13 @@ export function formatQtyInMode(
 }
 
 /**
- * Indonesian-style thousands separator, fixed 4 decimals max (trim trailing zeros).
+ * Indonesian-style thousands separator, 2 decimals max (trim trailing zeros).
  */
 function formatNumber(n: number): string {
-  const rounded = Math.round(n * 10000) / 10000
+  const rounded = Math.round(n * 100) / 100
   return rounded.toLocaleString('id-ID', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
+    maximumFractionDigits: 2,
   })
 }
 

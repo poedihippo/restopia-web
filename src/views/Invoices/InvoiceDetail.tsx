@@ -500,7 +500,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                     {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {line.qty.toLocaleString('id-ID')}
+                    {line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {rp(line.price)}
@@ -855,7 +855,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                     ) || `Item #${line.id}`}
                     {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
                   </td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.qty.toLocaleString('id-ID')}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{rp(line.price)}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>
                     {rp(line.dpp ?? (line.qty * line.price))}

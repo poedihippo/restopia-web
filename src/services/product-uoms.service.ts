@@ -28,4 +28,8 @@ export const productUomsService = {
 
   stockPosition: (params?: ListParams) =>
     api.get<ApiResponse<PaginatedData<unknown>>>('/product-uoms/stock-position', { params }),
+
+  // Product UOM + stok tiap branch (total_in_branches) — layar Outlet Stock.
+  branchStock: (params?: ListParams) =>
+    api.get<ApiResponse<PaginatedData<unknown>>>('/product-uoms/branch-stock', { params }),
 }

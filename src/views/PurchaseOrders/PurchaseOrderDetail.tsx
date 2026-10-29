@@ -23,6 +23,7 @@ import {
   ChevronRight,
   ShoppingCart,
   Printer,
+  Download,
   Check,
   X,
 } from 'lucide-react'
@@ -44,7 +45,12 @@ interface PurchaseOrderFull {
   created_at?: string
   updated_at?: string
   additional_charges?: any[]
-  branch?: { id: number; name: string }
+  branch?: {
+    id: number
+    name: string
+    address?: string
+    company?: { id?: number; name?: string; address?: string | null }
+  }
   supplier?: { id: number; name: string }
   supplier_branch?: { id: number; name: string }
   created_by?: { id: number; name: string }
@@ -120,7 +126,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
       purchaseOrdersService
         .findById(id, {
           include:
-            'branch,supplier,supplier_branch,created_by,updated_by,' +
+            'branch,branch.company,supplier,supplier_branch,created_by,updated_by,' +
             'purchase_order_details,purchase_order_details.product_uom,additional_charges',
         })
         .then((r) => r.data),
@@ -174,6 +180,22 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
       : order?.type === 'branch'
         ? order?.supplier_branch?.name
         : order?.supplier?.name ?? order?.supplier_branch?.name
+
+  // Print header: Buyer memakai nama PT (company) dari API.
+  // Fallback: company milik branch aktif user → nama branch → '-'.
+  const userBranch = (
+    user as {
+      branch?: { company?: { name?: string; address?: string | null } }
+    } | null
+  )?.branch
+  const buyerName =
+    order?.branch?.company?.name ??
+    userBranch?.company?.name ??
+    order?.branch?.name ??
+    '-'
+  // Alamat buyer = alamat PT (company) dari API; bila kosong → '-'.
+  const buyerAddress =
+    order?.branch?.company?.address ?? userBranch?.company?.address ?? '-'
 
   // Fulfillment summary — only meaningful once goods start arriving on a final PO.
   const totalOrdered = details.reduce((s, d) => s + Number(d.qty ?? 0), 0)
@@ -414,6 +436,30 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             >
               <Printer size={13} />
               Print
+            </button>
+          )}
+          {/* Download PDF — memakai dialog cetak browser, pilih "Save as PDF" */}
+          {canRead && (
+            <button
+              type="button"
+              onClick={() => window.print()}
+              title='Pilih "Save as PDF" pada dialog cetak untuk mengunduh PDF'
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 14px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--foreground)',
+                cursor: 'pointer',
+              }}
+            >
+              <Download size={13} />
+              Download PDF
             </button>
           )}
           <button
@@ -782,7 +828,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             {showFulfillment && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  {`Fulfillment: ${totalReceived.toLocaleString('id-ID')} of ${totalOrdered.toLocaleString('id-ID')} received`}
+                  {`Fulfillment: ${totalReceived.toLocaleString('id-ID', { maximumFractionDigits: 2 })} of ${totalOrdered.toLocaleString('id-ID', { maximumFractionDigits: 2 })} received`}
                 </span>
                 <span
                   style={{
@@ -850,7 +896,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                     color: 'var(--foreground)',
                   }}
                 >
-                  {detail.qty.toLocaleString('id-ID')}
+                  {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                   <span
@@ -862,10 +908,10 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                           : 'var(--foreground)',
                     }}
                   >
-                    {Number(detail.received_qty ?? 0).toLocaleString('id-ID')}
+                    {Number(detail.received_qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                   </span>
                   <span style={{ color: 'var(--foreground-subtle)' }}>
-                    {' / ' + detail.qty.toLocaleString('id-ID')}
+                    {' / ' + detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                   </span>
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -1076,8 +1122,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             borderRadius: '8px 8px 0 0',
           }}
         >
-          <div style={{ fontSize: '24pt', fontWeight: 800, letterSpacing: '2px' }}>DAPUR COKLAT</div>
-          <div style={{ fontSize: '14pt', fontWeight: 600, marginTop: '2mm', letterSpacing: '1px', opacity: 0.9 }}>
+          <div style={{ fontSize: '24pt', fontWeight: 800, letterSpacing: '2px' }}>
             PURCHASE ORDER
           </div>
         </div>
@@ -1089,7 +1134,10 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               Buyer
             </div>
             <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>
-              {order.branch?.name || '-'}
+              {buyerName}
+            </div>
+            <div style={{ fontSize: '9.5pt', marginTop: '1.5mm', color: '#666' }}>
+              <span style={{ fontWeight: 700 }}>Alamat:</span> {buyerAddress}
             </div>
             <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase', marginTop: '4mm' }}>
               {sourceLabel}
@@ -1102,8 +1150,15 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             <div style={{ fontSize: '10pt', color: '#333' }}>
               <strong style={{ color: '#5c3a21' }}>PO No:</strong> {order.code || '-'}
             </div>
+            {/* Tanggal PO = saat PO dibuat (created_at) */}
             <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
-              <strong style={{ color: '#5c3a21' }}>Date:</strong> {order.date ? formatDate(order.date) : '-'}
+              <strong style={{ color: '#5c3a21' }}>PO Date:</strong>{' '}
+              {order.created_at ? formatDate(order.created_at) : '-'}
+            </div>
+            {/* Delivery PO = tanggal delivery yang diminta (field date) */}
+            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
+              <strong style={{ color: '#5c3a21' }}>Delivery PO:</strong>{' '}
+              {order.date ? formatDate(order.date) : '-'}
             </div>
           </div>
         </div>
@@ -1159,7 +1214,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
                     {d.is_taxable && <span style={{ fontSize: '8pt', color: '#666', marginLeft: 4 }}>(Taxable)</span>}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: '10pt', color: '#444' }}>
-                    {d.qty.toLocaleString('id-ID')}
+                    {d.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#444' }}>
                     {`Rp ${Number(d.price ?? 0).toLocaleString('id-ID')}`}

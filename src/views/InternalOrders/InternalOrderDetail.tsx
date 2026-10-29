@@ -714,7 +714,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
                     color: 'var(--foreground)',
                   }}
                 >
-                  {detail.qty.toLocaleString('id-ID')}
+                  {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   {detail.description || '—'}

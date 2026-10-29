@@ -49,10 +49,13 @@ export interface StockMovement {
     owner_company_name?: string
     stage?: string
     location_ref?: string
+    batch_code?: string
     product_uom_batch?: {
+      batch_code?: string
       product_uom?: {
         product?: {
           name: string
+          type?: string
           conversions?: {
             uom_name: string
             uom_code: string
@@ -67,6 +70,7 @@ export interface StockMovement {
     product_uom?: {
       product?: {
         name: string
+        type?: string
         conversions?: {
           uom_name: string
           uom_code: string
@@ -237,79 +241,81 @@ export function MovementDocumentLink({ item }: { item: StockMovement }) {
 /* Komponen tampilan baru (khusus view ini)                            */
 /* ------------------------------------------------------------------ */
 
-const fmtNum = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 4 })
+const fmtNum = (n: number) =>
+  (Math.round(n * 100) / 100).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
-// Dokumen: label jenis dokumen (kecil) + kode dokumen (link, tidak dipotong).
-function DocumentCell({ item }: { item: StockMovement }) {
-  const refType = item.reference_type
-  const refId = item.reference_id
-  if (!refType) {
-    return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
-  }
-  const typeLabel = REFERENCE_LABELS[refType] ?? refType.replace(/_/g, ' ')
-  const code = item.reference_code || item.reference?.code
-  const label = code || (refId != null ? `#${refId}` : '—')
-  const buildHref = REFERENCE_ROUTES[refType]
-  const codeStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 500,
-    wordBreak: 'break-all',
-    lineHeight: 1.35,
-    textDecoration: 'none',
-  }
+// Rantai konversi dirapikan dengan spasi, mis. "5 CRT = 100 KG = 100.000 GR"
+function buildChainText(item: StockMovement): string {
+  return getAllConversionQty(item)
+    .map((c) => `${fmtNum(c.qty)} ${c.uomCode}`.trim())
+    .join(' = ')
+}
+
+// Batch: kode batch + dimensi inventori (owner/stage/lokasi) dalam SATU kolom.
+function BatchCell({ item }: { item: StockMovement }) {
+  const inv = item.product_inventory
+  const batchCode =
+    inv?.product_uom_batch?.batch_code ?? inv?.batch_code ?? inv?.code ?? ''
+  const dims = [
+    inv?.owner_ref ? `Owner: ${inv.owner_ref}` : '',
+    inv?.stage ? `Stage: ${inv.stage}` : '',
+    inv?.location_ref ? `Loc: ${inv.location_ref}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{typeLabel}</span>
-      {typeof buildHref === 'function' && refId != null ? (
-        <Link href={buildHref(refId)} title={label} style={{ ...codeStyle, color: 'var(--accent)' }}>
-          {label}
-        </Link>
-      ) : (
-        <span title={label} style={{ ...codeStyle, color: 'var(--foreground)', fontWeight: 400 }}>
-          {label}
-        </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span
+        style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: batchCode ? 'var(--foreground)' : 'var(--foreground-subtle)',
+          fontFamily: 'monospace',
+          wordBreak: 'break-all',
+        }}
+      >
+        {batchCode || '—'}
+      </span>
+      {dims && (
+        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{dims}</span>
       )}
     </div>
   )
 }
 
-// Qty: ikon arah + rantai konversi satu baris, mis. +3PACK=0,5CRT=6KG=6000GR
-function QtyCell({ item }: { item: StockMovement }) {
-  const meta = TYPE_META[item.direction as keyof typeof TYPE_META] ?? TYPE_META['in']
-  const Icon = meta.icon
-  const chain = getAllConversionQty(item)
-  const sign = item.direction === 'out' ? '−' : '+'
-  const chainText = chain.map((c) => `${fmtNum(c.qty)}${c.uomCode}`).join('=')
+// Kolom In / Out: hanya satu yang terisi sesuai arah pergerakan,
+// dengan latar lembut (hijau untuk In, merah muda untuk Out) —
+// tanpa ikon. Kolom Out diberi tanda minus.
+function MovementChainCell({
+  item,
+  direction,
+}: {
+  item: StockMovement
+  direction: 'in' | 'out'
+}) {
+  if (item.direction !== direction) {
+    return <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+  }
+  const bg =
+    direction === 'in' ? 'var(--success-bg)' : 'var(--destructive-bg)'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span
-        title={meta.label}
-        style={{
-          flexShrink: 0,
-          width: 22,
-          height: 22,
-          borderRadius: 6,
-          background: meta.bg,
-          color: meta.color,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Icon size={12} />
-      </span>
-      <span
-        style={{
-          fontSize: 13,
-          fontWeight: 500,
-          fontVariantNumeric: 'tabular-nums',
-          color: 'var(--foreground)',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {sign}{chainText}
-      </span>
-    </div>
+    <span
+      style={{
+        display: 'inline-block',
+        padding: '4px 8px',
+        borderRadius: 'var(--radius-sm)',
+        background: bg,
+        fontSize: 13,
+        fontWeight: 500,
+        fontVariantNumeric: 'tabular-nums',
+        color: 'var(--foreground)',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {direction === 'out' ? '−' : ''}
+      {buildChainText(item)}
+    </span>
   )
 }
 
@@ -346,19 +352,51 @@ function StockValueCell({
   )
 }
 
-// Tanggal di baris atas, jam di baris bawah.
-function DateCell({ value }: { value?: string }) {
-  if (!value) return <span>—</span>
-  const formatted = formatDateTime(value)
-  const [datePart, timePart] = String(formatted).split(', ')
+// Satu kolom "Tanggal / Dokumen":
+//   29 Okt 2026 13:29
+//   DEL.W-KRG.1020260087   (link ke dokumen sumber)
+function DateTimeDocCell({ item }: { item: StockMovement }) {
+  const formatted = item.created_at ? String(formatDateTime(item.created_at)) : ''
+  const [datePart, timePart] = formatted ? formatted.split(', ') : []
+  // id-ID memisahkan jam dengan titik ("13.29") — tampilkan dengan ":".
+  const when = datePart ? (timePart ? `${datePart} ${timePart.replace(/\./g, ':')}` : datePart) : '—'
+
+  const refType = item.reference_type
+  const refId = item.reference_id
+  const code = item.reference_code || item.reference?.code
+  const label = code || (refId != null ? `#${refId}` : '')
+  const buildHref = refType ? REFERENCE_ROUTES[refType] : undefined
+  const docStyle: React.CSSProperties = {
+    fontSize: 13,
+    fontWeight: 500,
+    lineHeight: 1.35,
+    wordBreak: 'break-all',
+    textDecoration: 'none',
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, whiteSpace: 'nowrap' }}>
-      <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{datePart}</span>
-      {timePart && (
-        <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{timePart}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: 13, color: 'var(--foreground)' }}>{when}</span>
+      {!label ? (
+        <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+      ) : typeof buildHref === 'function' && refId != null ? (
+        <Link href={buildHref(refId)} title={label} style={{ ...docStyle, color: 'var(--accent)' }}>
+          {label}
+        </Link>
+      ) : (
+        <span title={label} style={{ ...docStyle, color: 'var(--foreground-muted)', fontWeight: 400 }}>
+          {label}
+        </span>
       )}
     </div>
   )
+}
+
+// Sel pemisah baris. Karena tabel memakai borderCollapse: separate,
+// garis pemisah harus menempel di <td>, bukan di <tr>.
+const cellBase: React.CSSProperties = {
+  padding: '14px 16px',
+  borderBottom: '1px solid var(--border)',
 }
 
 const controlBase: React.CSSProperties = {
@@ -379,9 +417,22 @@ const DIRECTION_TABS: { value: '' | 'in' | 'out'; label: string }[] = [
   { value: 'out', label: 'Keluar' },
 ]
 
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  raw: 'Raw Material',
+  wip: 'WIP',
+  final: 'Finish Good',
+  supply: 'Supplies',
+}
+
+// Opsi filter jenis dokumen sumber (untuk filter reference_type di API).
+const REFERENCE_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Semua Dokumen' },
+  ...Object.entries(REFERENCE_LABELS).map(([value, label]) => ({ value, label })),
+]
+
 export default function StockMovementView() {
   const router = useRouter()
-  const { hasPermission, user } = useAuth()
+  const { hasPermission } = useAuth()
   const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
@@ -389,27 +440,36 @@ export default function StockMovementView() {
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(20)
   const [directionFilter, setDirectionFilter] = useState<'' | 'in' | 'out'>('')
+  // Filter jenis dokumen sumber (Production/Delivery/Receipt/…) — dipakai
+  // terutama di menu Stock Movements Raw & WIP.
+  const [refTypeFilter, setRefTypeFilter] = useState('')
   const [productId, setProductId] = useState<number>(0)
   const [productSearch, setProductSearch] = useState('')
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  // Filter tipe produk — dipakai menu "Stock Movements Raw"/"WIP".
+  // Backend belum punya filter[product_types]; parameter sudah dikirim dari FE.
+  const [productTypes, setProductTypes] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
-  // Branch type menentukan kolom dimensi (owner/stage/location):
-  // warehouse & production menyembunyikannya.
-  const branchType = ((user as any)?.branch?.type as string | undefined) ?? ''
-  const hideDimensionCols = branchType.toLowerCase() === 'warehouse' || branchType.toLowerCase() === 'production'
-  // Tanggal, Dokumen, Produk, Cabang, (Inventori), Qty, Stok Sebelum, Stok Sesudah
-  const totalCols = hideDimensionCols ? 7 : 8
+  // Tanggal/Dokumen, Produk, Batch, In, Out, Balance
+  // (kolom dimensi Owner/Stage/Lokasi digabung ke dalam kolom Batch)
+  const totalCols = 6
 
   useEffect(() => {
     if (!router.isReady) return
     const qp = router.query
-    if (qp.product_id) setProductId(Number(qp.product_id) || 0)
+    // Sinkronkan filter dari URL setiap kali path/query berubah — supaya
+    // pindah antar menu (mis. Stock Movements → Stock Movements Raw)
+    // tanpa reload halaman tetap terbaca. Filter yang hanya diatur lewat UI
+    // tidak tersentuh karena URL-nya tidak berubah.
     if (qp.start_date) setStartDate(String(qp.start_date))
     if (qp.end_date) setEndDate(String(qp.end_date))
-  }, [router.isReady]) // eslint-disable-line react-hooks/exhaustive-deps
+    setProductId(qp.product_id ? Number(qp.product_id) || 0 : 0)
+    const types = qp.product_types ?? qp.type
+    setProductTypes(types ? String(types) : '')
+  }, [router.isReady, router.asPath]) // eslint-disable-line react-hooks/exhaustive-deps  react-hooks/set-state-in-effect
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -427,7 +487,7 @@ export default function StockMovementView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter, productId, startDate, endDate])
+  }, [debouncedSearch, directionFilter, refTypeFilter, productId, startDate, endDate])
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['stock-movements-product-search', productSearchDebounced],
@@ -437,17 +497,40 @@ export default function StockMovementView() {
         .list({ per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced } as any)
         .then((r) => r.data),
   })
+  // Product terpilih lewat URL (tombol "Show Stock Movement" di Product
+  // Inventory) belum tentu ada di opsi pencarian, jadi diambil sendiri agar
+  // chip filter menampilkan namanya — bukan "Semua Produk".
+  const { data: selectedProductData } = useQuery({
+    queryKey: ['stock-movements-selected-product', productId],
+    enabled: productId > 0,
+    queryFn: () => productsService.findById(productId).then((r) => r.data),
+  })
+  const searchProductList = ((productsData as any)?.data ?? []) as any[]
+  const selectedProduct = (selectedProductData as any)?.data
+  const selectedInList = searchProductList.some((p: any) => Number(p.id) === productId)
   const productOptions = [
     { value: 0, label: 'Semua Produk' },
-    ...((productsData as any)?.data ?? []).map((p: any) => ({
+    ...searchProductList.map((p: any) => ({
       value: p.id as number,
       label: withProductType((p.name as string) ?? `Product #${p.id}`, p.type),
       sublabel: p.code as string | undefined,
     })),
+    ...(productId > 0 && selectedProduct && !selectedInList
+      ? [
+          {
+            value: productId,
+            label: withProductType(
+              (selectedProduct.name as string) ?? `Product #${productId}`,
+              selectedProduct.type,
+            ),
+            sublabel: selectedProduct.code as string | undefined,
+          },
+        ]
+      : []),
   ]
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, productId],
+    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productTypes],
     queryFn: () =>
       stockMovementsService
         .list({
@@ -456,7 +539,11 @@ export default function StockMovementView() {
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
           'filter[direction]': directionFilter || undefined,
+          'filter[reference_type]': refTypeFilter || undefined,
           'filter[product_id]': productId || undefined,
+          // Filter tipe produk untuk menu Stock Movements Raw / WIP
+          // (filter[product_types] sudah didukung backend).
+          'filter[product_types]': productTypes || undefined,
           include:
             'branch,product_inventory,' +
             'product_inventory.product_uom_batch,' +
@@ -470,6 +557,16 @@ export default function StockMovementView() {
   const items: StockMovement[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
+  // Tipe produk dari menu "Stock Movements Raw / WIP". Backend kini mendukung
+  // filter[product_types] (nilai berkoma), jadi penyaringan cukup di API saja —
+  // daftar baris tidak perlu disaring ulang di FE.
+  const requestedTypes = productTypes
+    ? productTypes
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    : []
+
   // Client-side date filter — backend /v1/stock-movements doesn't support
   // filter[start_date]/filter[end_date], so we narrow the already-fetched page.
   const filteredItems = items.filter((item) => {
@@ -482,14 +579,12 @@ export default function StockMovementView() {
   })
 
   const columns: { label: string; width?: number }[] = [
-    { label: 'Tanggal', width: 130 },
-    { label: 'Dokumen', width: 230 },
+    { label: 'Tanggal / Dokumen', width: 220 },
     { label: 'Produk' },
-    { label: 'Cabang', width: 170 },
-    ...(hideDimensionCols ? [] : [{ label: 'Owner / Stage / Lokasi', width: 170 }]),
-    { label: 'Qty', width: 260 },
-    { label: 'Stok Sebelum', width: 130 },
-    { label: 'Stok Sesudah', width: 130 },
+    { label: 'Batch', width: 230 },
+    { label: 'In', width: 230 },
+    { label: 'Out', width: 230 },
+    { label: 'Balance', width: 140 },
   ]
 
   return (
@@ -520,6 +615,9 @@ export default function StockMovementView() {
             {startDate || endDate
               ? `Filter tanggal: ${startDate || '...'} s/d ${endDate || '...'}`
               : 'Riwayat semua pergerakan stok'}
+            {requestedTypes.length
+              ? ` · Tipe produk: ${requestedTypes.map((t) => PRODUCT_TYPE_LABELS[t] ?? t.toUpperCase()).join(', ')}`
+              : ''}
           </p>
         </div>
 
@@ -612,6 +710,20 @@ export default function StockMovementView() {
           })}
         </div>
 
+        {/* Filter jenis dokumen sumber (reference_type) */}
+        <select
+          value={refTypeFilter}
+          onChange={(e) => setRefTypeFilter(e.target.value)}
+          title="Filter jenis dokumen"
+          style={{ ...controlBase, padding: '0 10px', cursor: 'pointer' }}
+        >
+          {REFERENCE_TYPE_OPTIONS.map((o) => (
+            <option key={o.value || 'all'} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
         {/* Date range (client-side), satu kelompok */}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <input
@@ -655,14 +767,30 @@ export default function StockMovementView() {
           boxShadow: 'var(--shadow-sm)',
         }}
       >
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1160 }}>
+        {/* Kotak scroll inilah yang membuat <thead> bisa sticky (freeze)
+            — sama seperti view StockPosition. Baris isi discroll di dalam kartu. */}
+        <div style={{ overflow: 'auto', maxHeight: 'calc(100vh - 300px)' }}>
+          <table
+            style={{
+              width: '100%',
+              // borderCollapse: separate — border dipindah ke sel, karena
+              // border pada <tr>/<thead> tidak ikut ter-sticky saat scroll.
+              borderCollapse: 'separate',
+              borderSpacing: 0,
+              minWidth: 1240,
+            }}
+          >
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
+              <tr style={{ background: 'var(--background)' }}>
                 {columns.map(({ label, width }, i) => (
                   <th
                     key={i}
                     style={{
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 1,
+                      background: 'var(--background)',
+                      borderBottom: '1px solid var(--border)',
                       padding: '10px 16px',
                       textAlign: 'left',
                       fontSize: 12,
@@ -680,7 +808,10 @@ export default function StockMovementView() {
             <tbody>
               {isLoading && (
                 <tr>
-                  <td colSpan={totalCols} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                  <td
+                    colSpan={totalCols}
+                    style={{ textAlign: 'center', padding: '48px 16px', borderBottom: '1px solid var(--border)' }}
+                  >
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                       {[60, 40, 80, 50, 70].map((w, i) => (
                         <div
@@ -703,7 +834,13 @@ export default function StockMovementView() {
                 <tr>
                   <td
                     colSpan={totalCols}
-                    style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}
+                    style={{
+                      textAlign: 'center',
+                      padding: 48,
+                      fontSize: 13,
+                      color: 'var(--destructive)',
+                      borderBottom: '1px solid var(--border)',
+                    }}
                   >
                     Gagal memuat data stock movements
                   </td>
@@ -712,7 +849,7 @@ export default function StockMovementView() {
 
               {!isLoading && !isError && filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan={totalCols}>
+                  <td colSpan={totalCols} style={{ borderBottom: '1px solid var(--border)' }}>
                     <div
                       style={{
                         padding: 48,
@@ -745,11 +882,6 @@ export default function StockMovementView() {
                     ) ||
                     item.product_inventory?.code ||
                     `INV-${item.product_inventory_id ?? '?'}`
-                  const dims = [
-                    item.product_inventory?.owner_ref,
-                    item.product_inventory?.stage,
-                    item.product_inventory?.location_ref,
-                  ].filter(Boolean)
 
                   return (
                     <tr
@@ -757,23 +889,17 @@ export default function StockMovementView() {
                       onMouseEnter={() => setHoveredRow(item.id)}
                       onMouseLeave={() => setHoveredRow(null)}
                       style={{
-                        borderBottom: '1px solid var(--border)',
                         background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
                         verticalAlign: 'top',
                       }}
                     >
-                      {/* Tanggal */}
-                      <td style={{ padding: '14px 16px' }}>
-                        {canRead ? <DateCell value={item.created_at} /> : '***'}
-                      </td>
-
-                      {/* Dokumen */}
-                      <td style={{ padding: '14px 16px' }}>
-                        <DocumentCell item={item} />
+                      {/* Tanggal + Dokumen digabung */}
+                      <td style={cellBase}>
+                        {canRead ? <DateTimeDocCell item={item} /> : '***'}
                       </td>
 
                       {/* Produk (+ catatan jika ada) */}
-                      <td style={{ padding: '14px 16px' }}>
+                      <td style={cellBase}>
                         <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--foreground)' }}>
                           {productName}
                         </div>
@@ -801,40 +927,25 @@ export default function StockMovementView() {
                         )}
                       </td>
 
-                      {/* Cabang */}
-                      <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                        {canRead ? item.branch?.name ?? item.branch_id ?? '—' : '***'}
+                      {/* Batch (kode batch + owner/stage/lokasi) */}
+                      <td style={cellBase}>
+                        <BatchCell item={item} />
                       </td>
 
-                      {/* Owner / Stage / Lokasi */}
-                      {!hideDimensionCols && (
-                        <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                          {canRead ? (dims.length ? dims.join(' · ') : '—') : '***'}
-                        </td>
-                      )}
-
-                      {/* Qty */}
-                      <td style={{ padding: '14px 16px' }}>
-                        <QtyCell item={item} />
+                      {/* In */}
+                      <td style={cellBase}>
+                        <MovementChainCell item={item} direction="in" />
                       </td>
 
-                      {/* Stok Sebelum (stock_before dari API) */}
-                      <td style={{ padding: '14px 16px' }}>
+                      {/* Out */}
+                      <td style={cellBase}>
+                        <MovementChainCell item={item} direction="out" />
+                      </td>
+
+                      {/* Balance (stok sesudah pergerakan) */}
+                      <td style={cellBase}>
                         {canRead ? (
-                          <StockValueCell value={item.stock_before} uomCode={getBaseUomCode(item)} />
-                        ) : (
-                          '***'
-                        )}
-                      </td>
-
-                      {/* Stok Sesudah (stock_after dari API) */}
-                      <td style={{ padding: '14px 16px' }}>
-                        {canRead ? (
-                          <StockValueCell
-                            value={item.stock_after}
-                            uomCode={getBaseUomCode(item)}
-                            color={TYPE_META[item.direction as keyof typeof TYPE_META]?.color}
-                          />
+                          <StockValueCell value={item.stock_after} uomCode={getBaseUomCode(item)} />
                         ) : (
                           '***'
                         )}
