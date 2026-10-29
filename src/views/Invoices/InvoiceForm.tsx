@@ -1,14 +1,17 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Plus, X, Search, ChevronLeft, Loader2 } from 'lucide-react'
 import { invoicesService } from '@/services/invoices.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
+import { salesChannelsService } from '@/services/sales-channels.service'
+import { branchesService } from '@/services/branches.service'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import { getCanReadPrice } from '@/utils/price'
+import { formatDate } from '@/utils/date'
 import SearchableSelect from '@/components/SearchableSelect'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
@@ -56,6 +59,42 @@ interface DetailSelection {
   price: number
 }
 
+/** Baris Sales Order yang dipakai di halaman create invoice. */
+interface InvoiceSoLine {
+  id: number
+  qty?: number
+  price?: number
+  received_qty?: number
+  invoiced_qty?: number
+  billable_qty?: number
+  product_uom_snapshot?: { product?: { name?: string }; uom?: { name?: string } } | null
+  product_inventory_snapshot?: {
+    product_uom_batch?: { product_uom?: { product?: { name?: string } } }
+  } | null
+  bundle_snapshot?: { name?: string } | null
+}
+
+interface InvoiceSoRow {
+  id: number
+  branch_id?: number
+  buyer_branch_id?: number | null
+  code?: string
+  type?: string
+  date?: string
+  total_price?: number
+  branch?: { id?: number; name?: string; type?: string } | null
+  buyer_branch?: { id?: number; name?: string } | null
+  sales_channel?: { id?: number; name?: string } | null
+  sales_order_details?: InvoiceSoLine[]
+  additional_charges?: Array<{
+    id: number
+    name?: string
+    amount?: number
+    billed_amount?: number
+    description?: string
+  }>
+}
+
 interface AdditionalChargeSelection {
   sales_order_component_id?: number
   name: string
@@ -85,19 +124,112 @@ export default function InvoiceForm() {
   // SO Component charges tracking
   const [soCharges, setSoCharges] = useState<Record<number, AdditionalChargeSelection>>({})
 
-  // Fetch all final SOs
+  // ── Filter Sales Orders (disamakan dengan menu Sales Orders) ───────────────
+  const [soSearch, setSoSearch] = useState('')
+  const [soSearchDebounced, setSoSearchDebounced] = useState('')
+  const [soSettlement, setSoSettlement] = useState('')
+  const [soPayment, setSoPayment] = useState('')
+  const [soCreditType, setSoCreditType] = useState('')
+  const [soType, setSoType] = useState('')
+  const [soChannel, setSoChannel] = useState<string | number>('')
+  const [soDateGte, setSoDateGte] = useState('')
+  const [soDateLte, setSoDateLte] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setSoSearchDebounced(soSearch), 400)
+    return () => clearTimeout(t)
+  }, [soSearch])
+
+  const soFilterControl: React.CSSProperties = {
+    height: 36,
+    padding: '0 10px',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface-raised)',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+    boxSizing: 'border-box',
+  }
+  const soFilterLabel: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--foreground-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+  }
+  const soTh: React.CSSProperties = {
+    padding: '10px 12px',
+    textAlign: 'left',
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--foreground-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.4px',
+    whiteSpace: 'nowrap',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--background)',
+  }
+  const soTd: React.CSSProperties = {
+    padding: '10px 12px',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    borderBottom: '1px solid var(--border)',
+    verticalAlign: 'middle',
+  }
+
+  // Opsi filter & resolver outlet (untuk ditampilkan di kartu SO)
+  const { data: channelData } = useQuery({
+    queryKey: ['invoice-so-filter-channels'],
+    queryFn: () => salesChannelsService.list({ per_page: 100, sort: 'name' }).then((r) => r.data),
+  })
+  const channelOptions = ((channelData as unknown as { data?: { id: number; name?: string }[] } | undefined)?.data ?? [])
+
+  const { data: branchData } = useQuery({
+    queryKey: ['invoice-so-filter-branches'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name' }).then((r) => r.data),
+  })
+  const branchList = ((branchData as unknown as { data?: { id: number; name?: string }[] } | undefined)?.data ?? [])
+  // Outlet yang mau di-invoice: buyer_branch (SO dari production/warehouse ke
+  // outlet) → fallback resolve via branches endpoint (buyer_branch_id) → bila
+  // SO milik outlet, branch-nya sendiri yang menjadi outlet.
+  const outletNameOf = (so: {
+    buyer_branch?: { name?: string } | null
+    buyer_branch_id?: number | null
+    branch?: { name?: string; type?: string } | null
+  }): string =>
+    so?.buyer_branch?.name ??
+    branchList.find((b) => b.id === so?.buyer_branch_id)?.name ??
+    (String(so?.branch?.type ?? '').toLowerCase() === 'outlet' ? so?.branch?.name : undefined) ??
+    '—'
+
+  // Fetch final SOs yang belum di-invoice (filter status/has_invoice dikunci
+  // karena aturan bisnis invoice; filter lain menyusul seperti menu Sales Order)
   const { data: soData, isLoading: soLoading } = useQuery({
-    queryKey: ['sales-orders', 'final'],
+    queryKey: [
+      'sales-orders', 'final',
+      soSearchDebounced, soSettlement, soPayment, soCreditType, soType,
+      soChannel, soDateGte, soDateLte,
+    ],
     queryFn: () => salesOrdersService.list({
       per_page: 100,
       'filter[status]': 'final',
       'filter[has_invoice]': 'false',
-      include: 'branch,customer,sales_order_details,additional_charges',
+      'filter[search]': soSearchDebounced || undefined,
+      'filter[settlement_status]': soSettlement || undefined,
+      'filter[payment_status]': soPayment || undefined,
+      'filter[credit_type]': soCreditType || undefined,
+      'filter[type]': soType || undefined,
+      'filter[sales_channel_id]': soChannel === '' ? undefined : Number(soChannel),
+      'filter[date_gte]': soDateGte || undefined,
+      'filter[date_lte]': soDateLte || undefined,
+      include: 'branch,buyer_branch,customer,sales_channel,sales_order_details,additional_charges',
       sort: '-created_at'
     } as any).then(res => res.data),
   })
 
-  const availableSOs = (soData as any)?.data || []
+  const availableSOs = ((soData as unknown as { data?: InvoiceSoRow[] } | undefined)?.data ?? [])
 
   // Chart of accounts for standalone (custom) charges — required by the API.
   const { data: coaData, isLoading: coaLoading } = useQuery({
@@ -150,23 +282,38 @@ export default function InvoiceForm() {
           setDetails(d => {
             const copy = { ...d }
             newSo.sales_order_details?.forEach((line: any) => {
-              // billable_qty = received - already invoiced, from the SO
-              // detail response. remaining_qty/delivered_qty never existed
-              // on this payload, so that derivation always fell through to
-              // the full line qty. A line with billable_qty 0 (not yet
-              // received, or already fully invoiced) still shows up below,
-              // just disabled at qty 0 — it's not simply skipped.
-              const maxQty = Number(line.billable_qty ?? 0)
-              const productName = line.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name
+              // Kuantitas yang bisa ditagih:
+              // 1) pakai billable_qty backend (received - sudah ditagih) bila > 0;
+              // 2) bila backend kirim 0 karena penerimaan belum tercatat
+              //    (mis. SO franchise / auto-created dari PO), pakai
+              //    qty - invoiced_qty supaya qty yang dipesan tetap bisa ditagih;
+              // 3) baris yang sudah ditagih penuh tetap 0 → input disabled.
+              const orderedQty = Number(line.qty ?? 0)
+              const invoicedQty = Number(line.invoiced_qty ?? 0)
+              const receivedQty = Number(line.received_qty ?? 0)
+              const billableQty = Number(line.billable_qty ?? 0)
+              const maxQty =
+                billableQty > 0
+                  ? billableQty
+                  : invoicedQty === 0 && receivedQty === 0
+                    ? Math.max(0, orderedQty - invoicedQty)
+                    : billableQty
+              // Nama produk dari snapshot product-UOM (payload SO selalu
+              // membawanya); fallback ke snapshot inventory/bundle lama.
+              const productName =
+                line.product_uom_snapshot?.product?.name
+                || line.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name
                 || line.bundle_snapshot?.name
                 || `Item #${line.id}`
+              const uomName = line.product_uom_snapshot?.uom?.name
+              const displayName = uomName ? `${productName} (${uomName})` : productName
 
               copy[line.id] = {
                 sales_order_detail_id: line.id,
                 qty: maxQty,
                 max_qty: maxQty,
                 price: line.price,
-                product_name: productName,
+                product_name: displayName,
                 description: ''
               }
             })
@@ -350,6 +497,77 @@ export default function InvoiceForm() {
           {/* Sales Orders */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>Sales Orders</h3>
+
+            {/* Filter — disamakan dengan menu Sales Orders */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Search</span>
+                <input
+                  value={soSearch}
+                  onChange={(e) => setSoSearch(e.target.value)}
+                  placeholder="Code / customer..."
+                  style={{ ...soFilterControl, width: 200 }}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Settlement</span>
+                <select value={soSettlement} onChange={(e) => setSoSettlement(e.target.value)} style={soFilterControl}>
+                  <option value="">All Settlements</option>
+                  <option value="pending">Pending</option>
+                  <option value="credit">Credit</option>
+                  <option value="settled">Settled</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Payment</span>
+                <select value={soPayment} onChange={(e) => setSoPayment(e.target.value)} style={soFilterControl}>
+                  <option value="">All Payments</option>
+                  <option value="pending">Unpaid</option>
+                  <option value="partial">Partial</option>
+                  <option value="paid">Paid</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Credit Type</span>
+                <select value={soCreditType} onChange={(e) => setSoCreditType(e.target.value)} style={soFilterControl}>
+                  <option value="">All Credit Types</option>
+                  <option value="user">Staff (user)</option>
+                  <option value="customer">Customer</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Type</span>
+                <select value={soType} onChange={(e) => setSoType(e.target.value)} style={soFilterControl}>
+                  <option value="">All Types</option>
+                  <option value="offline">Offline</option>
+                  <option value="online">Online</option>
+                  <option value="franchise">Franchise</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Sales Channel</span>
+                <select
+                  value={soChannel === '' ? '' : String(soChannel)}
+                  onChange={(e) => setSoChannel(e.target.value ? Number(e.target.value) : '')}
+                  style={{ ...soFilterControl, minWidth: 150 }}
+                >
+                  <option value="">All Channels</option>
+                  {channelOptions.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Order Date</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input type="date" value={soDateGte} onChange={(e) => setSoDateGte(e.target.value)} style={soFilterControl} />
+                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>–</span>
+                  <input type="date" value={soDateLte} onChange={(e) => setSoDateLte(e.target.value)} style={soFilterControl} />
+                </div>
+              </div>
+            </div>
+
             {soLoading ? (
               <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading sales orders...</p>
             ) : availableSOs.length === 0 ? (
@@ -357,36 +575,54 @@ export default function InvoiceForm() {
                 No sales orders available to invoice.
               </p>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {availableSOs.map((so: any) => {
-                  const isSelected = selectedSoIds.includes(so.id)
-                  const branchMatched = selectedSoIds.length === 0 || availableSOs.find((s: any) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
-                  const disabled = !isSelected && !branchMatched
+              /* List SO berbentuk tabel (bukan kartu) */
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...soTh, width: 40 }} />
+                      <th style={soTh}>Code</th>
+                      <th style={soTh}>Branch</th>
+                      <th style={{ ...soTh, width: 210 }}>Outlet</th>
+                      <th style={soTh}>Order Date</th>
+                      <th style={{ ...soTh, textAlign: 'right' }}>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {availableSOs.map((so) => {
+                      const isSelected = selectedSoIds.includes(so.id)
+                      const branchMatched = selectedSoIds.length === 0 || availableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
+                      const disabled = !isSelected && !branchMatched
 
-                  return (
-                    <div
-                      key={so.id}
-                      onClick={() => !disabled && handleSoSelection(so.id)}
-                      style={{
-                        padding: 12,
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-md)',
-                        background: isSelected ? 'var(--accent-light-bg)' : disabled ? 'var(--background)' : 'var(--surface)',
-                        cursor: disabled ? 'not-allowed' : 'pointer',
-                        opacity: disabled ? 0.5 : 1,
-                        borderColor: isSelected ? 'var(--accent)' : 'var(--border)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, fontSize: 14, color: isSelected ? 'var(--accent)' : 'var(--foreground)' }}>{so.code}</span>
-                        <input type="checkbox" readOnly checked={isSelected} style={{ pointerEvents: 'none' }} />
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 4 }}>
-                        {so.branch?.name} · <PriceDisplay amount={so.total_price} />
-                      </div>
-                    </div>
-                  )
-                })}
+                      return (
+                        <tr
+                          key={so.id}
+                          onClick={() => !disabled && handleSoSelection(so.id)}
+                          style={{
+                            borderBottom: '1px solid var(--border)',
+                            background: isSelected ? 'var(--accent-light-bg)' : 'transparent',
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                            opacity: disabled ? 0.5 : 1,
+                          }}
+                        >
+                          <td style={{ ...soTd, textAlign: 'center' }}>
+                            <input type="checkbox" readOnly checked={isSelected} style={{ pointerEvents: 'none' }} />
+                          </td>
+                          <td style={{ ...soTd, fontWeight: 600, color: isSelected ? 'var(--accent)' : 'var(--foreground)' }}>
+                            {so.code}
+                          </td>
+                          <td style={{ ...soTd, color: 'var(--foreground-muted)' }}>{so.branch?.name ?? '—'}</td>
+                          {/* Outlet yang mau di-invoice — resolve dari buyer_branch_id */}
+                          <td style={{ ...soTd, fontWeight: 600 }}>{outletNameOf(so)}</td>
+                          <td style={{ ...soTd, whiteSpace: 'nowrap' }}>{so.date ? formatDate(so.date) : '—' }</td>
+                          <td style={{ ...soTd, textAlign: 'right' }}>
+                            <PriceDisplay amount={so.total_price} />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

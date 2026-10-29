@@ -50,6 +50,13 @@ interface InvoiceDetailLine {
         }
       }
     }
+    /** Snapshot product-UOM dari SO — sumber nama produk yang selalu terisi. */
+    product_uom_snapshot?: {
+      name?: string
+      product?: { name?: string }
+      uom?: { name?: string }
+    } | null
+    bundle_snapshot?: { name?: string } | null
   }
 }
 
@@ -64,6 +71,8 @@ interface InvoiceFull {
   total_price: number
   total_payment?: number
   status: 'issued' | 'paid' | 'void'
+  payment_status?: 'pending' | 'partial' | 'paid'
+  due_date?: string
   description?: string
   created_at?: string
   branch?: { id: number; name: string }
@@ -76,6 +85,32 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   issued: { label: 'Issued', color: 'var(--info)', bg: 'var(--info-bg)' },
   paid: { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' },
   void: { label: 'Void', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
+}
+
+const PAYMENT_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: 'Unpaid', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  partial: { label: 'Partial', color: 'var(--info)', bg: 'var(--info-bg)' },
+  paid: { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' },
+}
+
+/**
+ * Nama item baris invoice (dipakai tabel layar & tabel cetak).
+ * Payload Sales Order menyimpan nama produk di
+ * `sales_order_detail.product_uom_snapshot` — path itu yang diprioritaskan;
+ * snapshot inventory/bundle dipertahankan sebagai fallback, terakhir Item #id.
+ */
+function lineItemText(line: InvoiceDetailLine): string {
+  const soLine = line.sales_order_detail
+  const snap = soLine?.product_uom_snapshot
+  const invPu = soLine?.product_inventory_snapshot?.product_uom_batch?.product_uom
+  const name =
+    snap?.product?.name ||
+    invPu?.product?.name ||
+    soLine?.bundle_snapshot?.name ||
+    getProductUomName(invPu, invPu?.product?.name) ||
+    `Item #${line.id}`
+  const uom = snap?.uom?.name || invPu?.uom?.name
+  return uom ? `${name} (${uom})` : name
 }
 
 const rp = (n: number | string | null | undefined) =>
@@ -95,7 +130,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     queryFn: () =>
       invoicesService
         .get(id, {
-          include: 'updated_by,billed_branch,invoice_details,created_by,additional_charges',
+          include: 'updated_by,billed_branch,invoice_details,invoice_details.sales_order_detail,created_by,additional_charges',
         })
         .then((r) => r.data),
     enabled: canRead && !!id && !isNaN(id),
@@ -493,11 +528,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{index + 1}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {getProductUomName(
-                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom,
-                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name,
-                    ) || `Item #${line.id}`}
-                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
+                    {lineItemText(line)}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
@@ -849,11 +880,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {getProductUomName(
-                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom,
-                      line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name,
-                    ) || `Item #${line.id}`}
-                    {line.sales_order_detail?.product_inventory_snapshot?.product_uom_batch?.product_uom?.uom?.name ? ` (${line.sales_order_detail.product_inventory_snapshot.product_uom_batch.product_uom.uom.name})` : ''}
+                    {lineItemText(line)}
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{rp(line.price)}</td>

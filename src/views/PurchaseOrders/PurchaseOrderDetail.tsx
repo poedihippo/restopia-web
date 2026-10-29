@@ -1128,15 +1128,25 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         </div>
 
         {/* PO info */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8mm', padding: '0 4mm' }}>
-          <div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: '6mm',
+            marginBottom: '8mm',
+            padding: '0 4mm',
+          }}
+        >
+          {/* Kolom kiri dibatasi lebarnya supaya alamat membungkus ke bawah
+              (bukan memanjang ke kanan melewati kolom info PO). */}
+          <div style={{ maxWidth: '58%', wordBreak: 'break-word' }}>
             <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase' }}>
               Buyer
             </div>
             <div style={{ fontSize: '12pt', fontWeight: 600, marginTop: '2mm', color: '#333' }}>
               {buyerName}
             </div>
-            <div style={{ fontSize: '9.5pt', marginTop: '1.5mm', color: '#666' }}>
+            <div style={{ fontSize: '9.5pt', marginTop: '1.5mm', color: '#666', lineHeight: 1.5 }}>
               <span style={{ fontWeight: 700 }}>Alamat:</span> {buyerAddress}
             </div>
             <div style={{ fontSize: '10pt', fontWeight: 700, color: '#5c3a21', textTransform: 'uppercase', marginTop: '4mm' }}>

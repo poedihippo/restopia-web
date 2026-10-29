@@ -12,6 +12,7 @@ import { paymentsService } from '@/services/payments.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { formatDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
 import { ArrowLeft, Building2, FileText, AlertCircle, Loader2, ExternalLink, Wallet, X } from 'lucide-react'
@@ -249,20 +250,20 @@ function PayModal({
                       Sisa: {formatCurrency(t.outstanding)}
                     </div>
                   </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={amounts[t.id] ? Number(amounts[t.id]).toLocaleString('id-ID') : ''}
-                    onChange={(e) => {
-                      const digits = e.target.value.replace(/[^\d]/g, '')
-                      let v = digits === '' ? 0 : parseInt(digits, 10)
-                      if (v > t.outstanding) {
-                        v = t.outstanding
+                  <LocalizedNumberInput
+                    value={amounts[t.id] ?? 0}
+                    onChange={(v) => {
+                      let x = v
+                      if (x > t.outstanding) {
+                        x = t.outstanding
                         toast.warning('Jumlah dibatasi sampai sisa hutang')
                       }
-                      setAmounts((prev) => ({ ...prev, [t.id]: v }))
+                      setAmounts((prev) => ({ ...prev, [t.id]: x }))
                     }}
-                    style={{ ...inputStyle, width: 160, textAlign: 'right' }}
+                    decimals={2}
+                    padDecimals={false}
+                    placeholder="0"
+                    style={{ width: 160, background: 'var(--surface-raised)' }}
                   />
                 </div>
               ))}

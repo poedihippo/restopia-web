@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { formatNumberId, parseNumberId, sanitizeNumberInput } from '@/utils/numberFormat'
+import { formatNumberId, formatWhileTyping, parseNumberId } from '@/utils/numberFormat'
 
 interface LocalizedNumberInputProps {
   value?: number | string | null
@@ -57,7 +57,9 @@ export default function LocalizedNumberInput({
   }, [numeric, decimals, padDecimals, focused])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = sanitizeNumberInput(e.target.value, decimals)
+    // Saat mengetik: pemisah ribuan "." langsung tampil, bagian desimal
+    // dibiarkan (tidak dipotong) sampai blur.
+    const next = formatWhileTyping(e.target.value)
     setText(next)
     onChange?.(parseNumberId(next))
   }
@@ -65,6 +67,7 @@ export default function LocalizedNumberInput({
   const handleBlur = () => {
     setFocused(false)
     const n = parseNumberId(text)
+    // Saat blur: desimal dibatasi sesuai `decimals` dan dirapikan formatnya.
     setText(formatNumberId(n, decimals, formatOpts))
     onChange?.(n)
   }

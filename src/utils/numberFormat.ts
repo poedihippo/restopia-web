@@ -73,3 +73,31 @@ export function sanitizeNumberInput(raw: string, maxDecimals = 2): string {
   if (!intPart && decPart) return `,${decPart}`
   return `${intPart},${decPart}`
 }
+
+/**
+ * Format saat mengetik (live mask) — pemisah ribuan "." untuk bagian bulat,
+ * tanpa memotong bagian desimal yang sedang diketik ("biarkan dulu"):
+ *
+ *   "147153640"      → "147.153.640"
+ *   "147153640,567"  → "147.153.640,567"   (desimal dibiarkan saat mengetik)
+ *   ",50"            → ",50"
+ *
+ * Pemotongan jumlah desimal (maxDecimals) terjadi saat blur, bukan saat mengetik.
+ * Titik yang diketik user dianggap pemisah ribuan (dibuang lalu dirapikan ulang).
+ */
+export function formatWhileTyping(raw: string): string {
+  const s = raw.replace(/\s/g, '')
+  const negative = s.startsWith('-')
+  const body = negative ? s.slice(1) : s
+  const firstComma = body.indexOf(',')
+  const intRaw = (firstComma === -1 ? body : body.slice(0, firstComma)).replace(/[^\d]/g, '')
+  const decRaw = firstComma === -1 ? '' : body.slice(firstComma + 1).replace(/[^\d]/g, '')
+
+  const grouped = intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  const prefix = negative ? '-' : ''
+  if (firstComma === -1) return `${prefix}${grouped}`
+  // Koma sudah diketik tapi belum ada angka → biarkan koma-nya agar user
+  // bisa langsung mengetik desimal.
+  if (!grouped && !decRaw) return `${prefix},`
+  return `${prefix}${grouped},${decRaw}`
+}

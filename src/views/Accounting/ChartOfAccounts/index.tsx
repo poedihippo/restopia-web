@@ -239,7 +239,7 @@ export default function ChartOfAccountsView() {
               <th style={{ ...thStyle, width: 80 }}>Status</th>
                <th style={{ ...thStyle, width: 70 }}>Header</th>
                <th style={{ ...thStyle, width: 100 }}>Payment</th>
-               <th style={{ ...thStyle, width: 80 }} />
+               <th style={{ ...thStyle, width: 100 }} />
             </tr>
           </thead>
           <tbody>
@@ -264,7 +264,10 @@ export default function ChartOfAccountsView() {
                   <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
                     {(page - 1) * perPage + idx + 1}
                   </td>
-                  <td style={tdStyle}><span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--background)', border: '1px solid var(--border)', fontFamily: 'monospace', fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</span></td>
+                  <td style={tdStyle}>
+                    {/* nowrap: kode akun harus satu baris (11-01-000), jangan pecah di tanda "-" */}
+                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 'var(--radius-sm)', background: 'var(--background)', border: '1px solid var(--border)', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap', color: 'var(--foreground-muted)' }}>{item.code}</span>
+                  </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       {item.is_header && <GitBranch size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
@@ -302,8 +305,9 @@ export default function ChartOfAccountsView() {
                       <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>—</span>
                     )}
                   </td>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                  {/* Aksi: jarak kanan lebih lega supaya tidak menempel di tepi tabel */}
+                  <td style={{ ...tdStyle, paddingLeft: 8, paddingRight: 24 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
                       {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
                       {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
                     </div>
