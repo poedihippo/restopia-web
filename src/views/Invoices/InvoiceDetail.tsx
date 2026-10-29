@@ -14,6 +14,7 @@ import {
   FileText,
   Printer,
   PackageSearch,
+  Wallet,
   Loader2,
   Plus
 } from 'lucide-react'
@@ -203,6 +204,15 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const details = invoice?.invoice_details || []
 
   const statusMeta = STATUS_META[invoice?.status as keyof typeof STATUS_META] ?? STATUS_META.issued
+  // Payment status: pakai field backend; fallback turunan dari pembayaran.
+  const paymentStatusValue: string =
+    invoice?.payment_status ??
+    (Number(invoice?.total_payment ?? 0) <= 0
+      ? 'pending'
+      : Number(invoice?.total_payment ?? 0) >= Number(invoice?.total_price ?? 0)
+        ? 'paid'
+        : 'partial')
+  const paymentMeta = PAYMENT_STATUS_META[paymentStatusValue] ?? PAYMENT_STATUS_META.pending
 
   const backBtnStyle: React.CSSProperties = {
     display: 'flex',
@@ -429,6 +439,96 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         </div>
 
         {/* Delivery box removed */}
+
+        {/* Invoice Status */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                background: 'var(--accent-light-bg)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FileText size={15} style={{ color: 'var(--accent-light)' }} />
+            </div>
+            <span style={sectionLabelStyle}>Invoice Status</span>
+          </div>
+          <span
+            style={{
+              alignSelf: 'flex-start',
+              padding: '4px 12px',
+              borderRadius: 99,
+              fontSize: 13,
+              fontWeight: 600,
+              background: statusMeta.bg,
+              color: statusMeta.color,
+            }}
+          >
+            {statusMeta.label}
+          </span>
+        </div>
+
+        {/* Payment Status */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                background: 'var(--accent-light-bg)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Wallet size={15} style={{ color: 'var(--accent-light)' }} />
+            </div>
+            <span style={sectionLabelStyle}>Payment Status</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: 99,
+                fontSize: 13,
+                fontWeight: 600,
+                background: paymentMeta.bg,
+                color: paymentMeta.color,
+              }}
+            >
+              {paymentMeta.label}
+            </span>
+            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+              {rp(invoice.total_payment ?? 0)} / {rp(invoice.total_price)}
+            </span>
+          </div>
+        </div>
 
         {/* Date */}
         <div
