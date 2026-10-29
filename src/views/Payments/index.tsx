@@ -3,10 +3,11 @@ import { formatDateTime } from '@/utils/date';
 import { formatCurrency } from '@/utils/price';
 import Link from 'next/link';
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
+import { invoicesService } from '@/services/invoices.service'
 import { useAuth } from '@/hooks/useAuth'
 import {
   Search,
@@ -30,7 +31,7 @@ interface Payment {
   payment_method?: { id: number; name: string }
   branch?: { id: number; name: string }
   created_by?: { id: number; name: string }
-  allocations?: { sales_order_id?: number, purchase_order_id?: number, amount: number }[]
+  allocations?: { sales_order_id?: number, purchase_order_id?: number, invoice_id?: number, amount: number }[]
   is_reversed?: boolean
 }
 
@@ -78,6 +79,42 @@ export default function PaymentsView() {
   })
 
   const items: Payment[] = (data as any)?.data ?? []
+
+  // Lookup invoice untuk allocation bertipe invoice — payments API hanya
+  // mengirim `invoice_id`, jadi datanya diambil via GET /invoices/{id}.
+  const invoiceIds = useMemo(() => {
+    const ids = new Set<number>()
+    items.forEach((item) =>
+      (item.allocations ?? []).forEach((a) => {
+        if (a.invoice_id) ids.add(a.invoice_id)
+      }),
+    )
+    return Array.from(ids)
+  }, [items])
+
+  const { data: invoiceById } = useQuery({
+    queryKey: ['payments-invoice-lookup', invoiceIds.join(',')],
+    enabled: invoiceIds.length > 0,
+    queryFn: async () => {
+      const pairs = await Promise.all(
+        invoiceIds.map(async (invId) => {
+          try {
+            const res = await invoicesService.get(invId)
+            const body = res.data as { data?: { id: number; code?: string; status?: string } }
+            return [invId, body?.data] as const
+          } catch {
+            // Invoice tidak ditemukan/gagal diambil → tampilkan fallback INV-{id}
+            // (tanpa retry dari React Query).
+            return [invId, undefined] as const
+          }
+        }),
+      )
+      return Object.fromEntries(pairs) as Record<
+        number,
+        { id: number; code?: string; status?: string } | undefined
+      >
+    },
+  })
   const meta = (data as any)?.meta
 
   const deleteMutation = useMutation({
@@ -303,6 +340,17 @@ export default function PaymentsView() {
                                 onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                               >
                                 PO-{alloc.purchase_order_id} ({formatCurrency(alloc.amount || 0)})
+                              </Link>
+                            )}
+                            {alloc.invoice_id && (
+                              <Link 
+                                href={`/transfer/invoices/${alloc.invoice_id}/detail`}
+                                style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}
+                                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                              >
+                                {/* Kode invoice dari GET /invoices/{id}; fallback INV-{id} */}
+                                {invoiceById?.[alloc.invoice_id]?.code || `INV-${alloc.invoice_id}`} ({formatCurrency(alloc.amount || 0)})
                               </Link>
                             )}
                           </div>

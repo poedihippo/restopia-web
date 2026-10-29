@@ -1,10 +1,11 @@
 'use client'
 import { formatDate } from '@/utils/date'
 
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { invoicesService } from '@/services/invoices.service'
+import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
 import {
   ArrowLeft,
@@ -85,6 +86,8 @@ interface InvoiceFull {
   invoice_details?: InvoiceDetailLine[]
   /** Include `sales_order_details` — cadangan resolve nama bila nested tidak ikut. */
   sales_order_details?: SoDetailSnapshot[]
+  /** Relasi invoice → SO (dipakai untuk resolve nama produk baris). */
+  invoice_sales_orders?: Array<{ id?: number; invoice_id?: number; sales_order_id?: number }>
   additional_charges?: { id: number; name: string; amount: number; chart_of_account_id?: number | null }[]
 }
 
@@ -110,9 +113,16 @@ function lineItemText(
   line: InvoiceDetailLine,
   soLineMap?: Record<number, SoDetailSnapshot | undefined>,
 ): string {
-  const soLine =
-    line.sales_order_detail ??
-    (line.sales_order_detail_id != null ? soLineMap?.[line.sales_order_detail_id] : undefined)
+  const embedded = line.sales_order_detail
+  const fromSo =
+    line.sales_order_detail_id != null ? soLineMap?.[line.sales_order_detail_id] : undefined
+  // Snapshot dari SO asli lebih lengkap — nested invoice biasanya membawa
+  // object sales_order_detail dengan snapshot KOSONG, jadi jangan menang.
+  const soLine = fromSo?.product_uom_snapshot
+    ? fromSo
+    : embedded?.product_uom_snapshot
+      ? embedded
+      : (fromSo ?? embedded)
   const snap = soLine?.product_uom_snapshot
   const invPu = soLine?.product_inventory_snapshot?.product_uom_batch?.product_uom
   const name =
@@ -142,7 +152,9 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     queryFn: () =>
       invoicesService
         .get(id, {
-          include: 'updated_by,billed_branch,invoice_details,invoice_details.sales_order_detail,sales_order_details,created_by,additional_charges',
+          // Catatan: include `sales_order_details` (tercantum di doc list)
+          // membuat GET /invoices/{id} membalas 500 — jangan dipakai di sini.
+          include: 'updated_by,billed_branch,invoice_details,invoice_details.sales_order_detail,invoice_sales_orders,created_by,additional_charges',
         })
         .then((r) => r.data),
     enabled: canRead && !!id && !isNaN(id),
@@ -213,10 +225,52 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   })
 
   const details = invoice?.invoice_details || []
-  // Cadangan resolve nama produk: include `sales_order_details` (array terpisah).
+
+  // ── Resolve nama produk baris invoice ─────────────────────────────────────
+  // Nested `invoice_details.sales_order_detail` dari backend mengosongkan
+  // `product_uom_snapshot`-nya, jadi SO aslinya diambil lewat
+  // `invoice_sales_orders.sales_order_id` dan snapshot dari SO itu yang dipakai.
+  const soIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (invoice?.invoice_sales_orders ?? [])
+            .map((r) => r.sales_order_id)
+            .filter((v): v is number => !!v),
+        ),
+      ),
+    [invoice],
+  )
+
+  const { data: soDetailsById } = useQuery({
+    queryKey: ['invoice-so-details', soIds.join(',')],
+    enabled: soIds.length > 0,
+    queryFn: async () => {
+      const map: Record<number, SoDetailSnapshot> = {}
+      await Promise.all(
+        soIds.map(async (soId) => {
+          try {
+            const res = await salesOrdersService.findById(soId, { include: 'sales_order_details' })
+            const body = res.data as { data?: { sales_order_details?: SoDetailSnapshot[] } }
+            for (const sod of body?.data?.sales_order_details ?? []) {
+              if (sod.id != null) map[sod.id] = sod
+            }
+          } catch {
+            // SO gagal diambil → baris jatuh ke fallback nama lama (Item #id).
+          }
+        }),
+      )
+      return map
+    },
+  })
+
   const soLineMap: Record<number, SoDetailSnapshot | undefined> = {}
   for (const sod of invoice?.sales_order_details || []) {
     if (sod.id != null) soLineMap[sod.id] = sod
+  }
+  // Snapshot dari SO asli menimpa (nested invoice membawa snapshot kosong).
+  for (const [sodId, sod] of Object.entries(soDetailsById ?? {})) {
+    soLineMap[Number(sodId)] = sod
   }
 
   const statusMeta = STATUS_META[invoice?.status as keyof typeof STATUS_META] ?? STATUS_META.issued
