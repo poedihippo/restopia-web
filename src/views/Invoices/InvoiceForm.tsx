@@ -399,11 +399,13 @@ export default function InvoiceForm() {
 
       return invoicesService.create({
         sales_order_ids: selectedSoIds,
-        date: date || undefined,
-        due_date: dueDate || undefined,
+        // `date` wajib menurut CreateInvoiceRequest (openapi) — jangan pernah kosong
+        date: date || todayInputDate(),
         description: description || undefined,
         details: payloadDetails,
         additional_charges: payloadCharges.length > 0 ? payloadCharges : undefined
+        // Catatan: `due_date` TIDAK ada di CreateInvoiceRequest (openapi);
+        // backend menurunkannya sendiri (lihat field due_date di InvoiceResponse).
       })
     },
     onSuccess: (res: any) => {

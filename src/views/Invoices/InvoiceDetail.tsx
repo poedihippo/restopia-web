@@ -29,6 +29,27 @@ interface InvoiceDetailProps {
   id: number
 }
 
+/** Detail Sales Order yang dirujuk invoice — sumber nama produk baris. */
+interface SoDetailSnapshot {
+  id?: number
+  product_inventory_snapshot?: {
+    product_uom_batch?: {
+      product_uom?: {
+        name?: string | null
+        product?: { name: string }
+        uom?: { name: string }
+      }
+    }
+  }
+  /** Snapshot product-UOM dari SO — sumber nama produk yang selalu terisi. */
+  product_uom_snapshot?: {
+    name?: string
+    product?: { name?: string }
+    uom?: { name?: string }
+  } | null
+  bundle_snapshot?: { name?: string } | null
+}
+
 interface InvoiceDetailLine {
   id: number
   qty: number
@@ -40,25 +61,8 @@ interface InvoiceDetailLine {
   total_price?: number
   description?: string
   receipt_id?: number
-  sales_order_detail?: {
-    id: number
-    product_inventory_snapshot?: {
-      product_uom_batch?: {
-        product_uom?: {
-          name?: string | null
-          product?: { name: string }
-          uom?: { name: string }
-        }
-      }
-    }
-    /** Snapshot product-UOM dari SO — sumber nama produk yang selalu terisi. */
-    product_uom_snapshot?: {
-      name?: string
-      product?: { name?: string }
-      uom?: { name?: string }
-    } | null
-    bundle_snapshot?: { name?: string } | null
-  }
+  sales_order_detail_id?: number
+  sales_order_detail?: SoDetailSnapshot
 }
 
 interface InvoiceFull {
@@ -79,6 +83,8 @@ interface InvoiceFull {
   branch?: { id: number; name: string }
   billed_branch?: { id: number; name: string }
   invoice_details?: InvoiceDetailLine[]
+  /** Include `sales_order_details` — cadangan resolve nama bila nested tidak ikut. */
+  sales_order_details?: SoDetailSnapshot[]
   additional_charges?: { id: number; name: string; amount: number; chart_of_account_id?: number | null }[]
 }
 
@@ -100,8 +106,13 @@ const PAYMENT_STATUS_META: Record<string, { label: string; color: string; bg: st
  * `sales_order_detail.product_uom_snapshot` — path itu yang diprioritaskan;
  * snapshot inventory/bundle dipertahankan sebagai fallback, terakhir Item #id.
  */
-function lineItemText(line: InvoiceDetailLine): string {
-  const soLine = line.sales_order_detail
+function lineItemText(
+  line: InvoiceDetailLine,
+  soLineMap?: Record<number, SoDetailSnapshot | undefined>,
+): string {
+  const soLine =
+    line.sales_order_detail ??
+    (line.sales_order_detail_id != null ? soLineMap?.[line.sales_order_detail_id] : undefined)
   const snap = soLine?.product_uom_snapshot
   const invPu = soLine?.product_inventory_snapshot?.product_uom_batch?.product_uom
   const name =
@@ -131,7 +142,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     queryFn: () =>
       invoicesService
         .get(id, {
-          include: 'updated_by,billed_branch,invoice_details,invoice_details.sales_order_detail,created_by,additional_charges',
+          include: 'updated_by,billed_branch,invoice_details,invoice_details.sales_order_detail,sales_order_details,created_by,additional_charges',
         })
         .then((r) => r.data),
     enabled: canRead && !!id && !isNaN(id),
@@ -202,6 +213,11 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   })
 
   const details = invoice?.invoice_details || []
+  // Cadangan resolve nama produk: include `sales_order_details` (array terpisah).
+  const soLineMap: Record<number, SoDetailSnapshot | undefined> = {}
+  for (const sod of invoice?.sales_order_details || []) {
+    if (sod.id != null) soLineMap[sod.id] = sod
+  }
 
   const statusMeta = STATUS_META[invoice?.status as keyof typeof STATUS_META] ?? STATUS_META.issued
   // Payment status: pakai field backend; fallback turunan dari pembayaran.
@@ -628,7 +644,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{index + 1}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {lineItemText(line)}
+                    {lineItemText(line, soLineMap)}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
@@ -980,7 +996,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <tr key={line.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {lineItemText(line)}
+                    {lineItemText(line, soLineMap)}
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{rp(line.price)}</td>
