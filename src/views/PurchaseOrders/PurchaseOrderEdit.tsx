@@ -21,7 +21,7 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
       purchaseOrdersService
         .findById(id, {
           include:
-            'branch,supplier,supplier_branch,created_by,updated_by,' +
+            'branch,supplier,supplier_branch,buyer,created_by,updated_by,' +
             'purchase_order_details,additional_charges'
         })
         .then((r) => r.data),

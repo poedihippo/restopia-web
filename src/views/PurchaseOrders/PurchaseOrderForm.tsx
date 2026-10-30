@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { suppliersService } from '@/services/suppliers.service'
+import { buyersService } from '@/services/buyers.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { taxesService } from '@/services/taxes.service'
@@ -56,6 +57,8 @@ const schema = z.object({
   // at the schema level.
   supplier_id: z.coerce.number().optional(),
   supplier_branch_id: z.coerce.number().optional(),
+  // Buyer (opsional) — hanya untuk PO external (type = supplier).
+  buyer_id: z.coerce.number().min(0).optional(),
   date: z.string().min(1, 'Date is required'),
   fulfillment_date: z.string().min(1, 'Fulfillment Date is required'),
   status: z.enum(['pending', 'final']),
@@ -113,6 +116,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     defaultValues: {
       supplier_id: 0,
       supplier_branch_id: undefined,
+      buyer_id: 0,
       date: new Date().toISOString().split('T')[0],
       fulfillment_date: new Date().toISOString().split('T')[0],
       status: 'final',
@@ -202,6 +206,17 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     queryFn: () => suppliersService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
   })
   const suppliers = (suppliersData as any)?.data ?? []
+
+  // Buyer punya search sendiri supaya tidak ikut tersaring oleh ketikan
+  // di dropdown supplier/branch (yang berbagi dropdownSearch).
+  const [buyerSearch, setBuyerSearch] = useState('')
+  const [debouncedBuyerSearch, setDebouncedBuyerSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedBuyerSearch(buyerSearch), 400); return () => clearTimeout(t) }, [buyerSearch])
+  const { data: buyersData, isLoading: buyersLoading } = useQuery({
+    queryKey: ['buyers-all', debouncedBuyerSearch],
+    queryFn: () => buyersService.list({ 'filter[search]': debouncedBuyerSearch || undefined, per_page: 100, sort: 'name' } as any).then((r) => r.data),
+  })
+  const buyers = (buyersData as any)?.data ?? []
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all', debouncedDropdownSearch],
@@ -353,6 +368,22 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     label: (s.name as string) ?? `Supplier #${s.id}`,
     sublabel: s.code as string | undefined,
   }))
+  const buyerOptions = [
+    { value: 0, label: 'Tanpa Buyer' },
+    ...buyers.map((b: any) => ({
+      value: b.id as number,
+      label: (b.name as string) ?? `Buyer #${b.id}`,
+      sublabel: b.code as string | undefined,
+    })),
+  ]
+  // Saat edit, buyer terpilih mungkin tidak ada di 100 hasil pertama.
+  if (initialData?.buyer?.id && !buyerOptions.some((o) => o.value === initialData.buyer.id)) {
+    buyerOptions.push({
+      value: initialData.buyer.id,
+      label: initialData.buyer.name ?? `Buyer #${initialData.buyer.id}`,
+      sublabel: initialData.buyer.code,
+    })
+  }
   // Internal-source branches: every branch except our own.
   const sourceBranchOptions = branches
     .filter((b: any) => b.id !== currentBranchId)
@@ -402,6 +433,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       values.type === 'supplier' ? values.supplier_id || undefined : undefined,
     supplier_branch_id:
       values.type === 'branch' ? values.supplier_branch_id || undefined : undefined,
+    buyer_id:
+      values.type === 'supplier' ? values.buyer_id || undefined : undefined,
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
@@ -683,6 +716,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       setValue('type', key)
                       setValue('supplier_id', undefined)
                       setValue('supplier_branch_id', undefined)
+                      setValue('buyer_id', 0)
                     }}
                     style={{
                       padding: '6px 16px',
@@ -724,6 +758,29 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       error={errors.supplier_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
 />
+                  )}
+                />
+              </div>
+            )}
+
+            {/* Buyer (external) — opsional, hanya saat source "supplier" */}
+            {watchType === 'supplier' && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={labelStyle}>Buyer</label>
+                <Controller
+                  name="buyer_id"
+                  control={control}
+                  render={({ field }) => (
+                    <SearchableSelect
+                      value={field.value ?? 0}
+                      onChange={field.onChange}
+                      options={buyerOptions}
+                      placeholder="Select buyer..."
+                      searchPlaceholder="Search buyers..."
+                      loading={buyersLoading}
+                      error={errors.buyer_id?.message as string | undefined}
+                      onSearchChange={setBuyerSearch}
+                    />
                   )}
                 />
               </div>

@@ -95,6 +95,16 @@ interface InvoiceSoRow {
   }>
 }
 
+/**
+ * Qty yang boleh ditagih = sudah diterima − sudah ditagih. Utamakan
+ * billable_qty dari backend; bila tidak dikirim, hitung dari
+ * received_qty − invoiced_qty. Qty pesanan TIDAK dipakai sebagai cadangan.
+ */
+function billableQtyOf(line: InvoiceSoLine): number {
+  if (line.billable_qty != null) return Math.max(0, Number(line.billable_qty))
+  return Math.max(0, Number(line.received_qty ?? 0) - Number(line.invoiced_qty ?? 0))
+}
+
 interface AdditionalChargeSelection {
   sales_order_component_id?: number
   name: string
@@ -229,7 +239,13 @@ export default function InvoiceForm() {
     } as any).then(res => res.data),
   })
 
-  const availableSOs = ((soData as unknown as { data?: InvoiceSoRow[] } | undefined)?.data ?? [])
+  // SO tanpa satu pun baris yang bisa ditagih (belum diterima / sudah
+  // ditagih penuh) disembunyikan — memilihnya hanya memicu 422 dari backend.
+  const fetchedSOs = ((soData as unknown as { data?: InvoiceSoRow[] } | undefined)?.data ?? [])
+  const availableSOs = fetchedSOs.filter((so) =>
+    (so.sales_order_details ?? []).some((line) => billableQtyOf(line) > 0),
+  )
+  const hiddenSoCount = fetchedSOs.length - availableSOs.length
 
   // Chart of accounts for standalone (custom) charges — required by the API.
   const { data: coaData, isLoading: coaLoading } = useQuery({
@@ -282,22 +298,11 @@ export default function InvoiceForm() {
           setDetails(d => {
             const copy = { ...d }
             newSo.sales_order_details?.forEach((line: any) => {
-              // Kuantitas yang bisa ditagih:
-              // 1) pakai billable_qty backend (received - sudah ditagih) bila > 0;
-              // 2) bila backend kirim 0 karena penerimaan belum tercatat
-              //    (mis. SO franchise / auto-created dari PO), pakai
-              //    qty - invoiced_qty supaya qty yang dipesan tetap bisa ditagih;
-              // 3) baris yang sudah ditagih penuh tetap 0 → input disabled.
-              const orderedQty = Number(line.qty ?? 0)
-              const invoicedQty = Number(line.invoiced_qty ?? 0)
-              const receivedQty = Number(line.received_qty ?? 0)
-              const billableQty = Number(line.billable_qty ?? 0)
-              const maxQty =
-                billableQty > 0
-                  ? billableQty
-                  : invoicedQty === 0 && receivedQty === 0
-                    ? Math.max(0, orderedQty - invoicedQty)
-                    : billableQty
+              // Hanya qty yang sudah diterima & belum ditagih yang boleh
+              // ditagih — backend menolak baris yang belum diterima
+              // ("has not been received yet — nothing to bill").
+              // Baris dengan 0 → input disabled & tidak ikut payload.
+              const maxQty = billableQtyOf(line)
               // Nama produk dari snapshot product-UOM (payload SO selalu
               // membawanya); fallback ke snapshot inventory/bundle lama.
               const productName =
@@ -570,6 +575,11 @@ export default function InvoiceForm() {
               </div>
             </div>
 
+            {!soLoading && hiddenSoCount > 0 && (
+              <p style={{ fontSize: 12, color: 'var(--warning)', margin: '0 0 8px' }}>
+                {hiddenSoCount} sales order disembunyikan karena barangnya belum diterima atau sudah ditagih penuh.
+              </p>
+            )}
             {soLoading ? (
               <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading sales orders...</p>
             ) : availableSOs.length === 0 ? (

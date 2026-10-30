@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { useBuyerNames } from '@/hooks/useBuyerNames'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
@@ -114,7 +115,7 @@ export default function PurchaseOrdersView() {
         .list({
           page,
           per_page: perPage,
-          include: 'supplier,supplier_branch,supplier_branch.company,branch,purchase_order_details',
+          include: 'supplier,supplier_branch,supplier_branch.company,branch,branch.company,purchase_order_details',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
@@ -127,6 +128,16 @@ export default function PurchaseOrdersView() {
 
   const items: PurchaseOrder[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  // Buyer: nama dari GET /buyers/{buyer_id} (satu request per buyer unik).
+  // Fallback: nama company branch PO → company branch aktif user.
+  const buyerNames = useBuyerNames(items.map((po: any) => po?.buyer_id))
+  const userCompanyName = (user as any)?.branch?.company?.name as string | undefined
+  const buyerLabelOf = (po: any): string =>
+    (po?.buyer_id ? buyerNames[po.buyer_id] : undefined) ??
+    po?.branch?.company?.name ??
+    userCompanyName ??
+    '—'
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => purchaseOrdersService.delete(id),
@@ -359,6 +370,7 @@ export default function PurchaseOrdersView() {
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 160 }}>Code</th>
               <th style={thStyle}>Order From</th>
+              <th style={{ ...thStyle, width: 180 }}>Buyer</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 130 }}>Date</th>
               <th style={{ ...thStyle, width: 150 }}>Total</th>
@@ -370,7 +382,7 @@ export default function PurchaseOrdersView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 8 }).map((__, j) => (
+                  {Array.from({ length: 9 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -388,7 +400,7 @@ export default function PurchaseOrdersView() {
             ) : isError ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
@@ -399,7 +411,7 @@ export default function PurchaseOrdersView() {
             ) : items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}
                 >
                   <div
@@ -502,6 +514,11 @@ export default function PurchaseOrdersView() {
                           </span>
                         ) : null}
                         {orderFromLabel}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: 13, color: 'var(--foreground)' }}>
+                        {buyerLabelOf(po)}
                       </span>
                     </td>
                     <td style={tdStyle}>

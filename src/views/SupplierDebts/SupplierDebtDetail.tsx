@@ -327,6 +327,8 @@ function PayModal({
 export default function SupplierDebtDetailView() {
   const router = useRouter()
   const supplierId = Number(router.query.id)
+  // Filter buyer dari halaman Kartu Hutang (?buyer_id=).
+  const buyerId = Number(router.query.buyer_id) || 0
   const [payTargets, setPayTargets] = useState<PayTarget[] | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -341,7 +343,7 @@ export default function SupplierDebtDetailView() {
   })
 
   const { data: posData, isLoading: posLoading } = useQuery({
-    queryKey: ['supplier-debt-detail-pos', supplierId],
+    queryKey: ['supplier-debt-detail-pos', supplierId, buyerId],
     enabled: canRead && !!supplierId,
     queryFn: () =>
       purchaseOrdersService
@@ -350,6 +352,7 @@ export default function SupplierDebtDetailView() {
           sort: '-created_at',
           'filter[type]': 'supplier',
           'filter[supplier_id]': supplierId,
+          'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
           include: 'supplier,purchase_order_details',
         } as any)
         .then((r) => r.data),
@@ -436,7 +439,7 @@ export default function SupplierDebtDetailView() {
     <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
       {/* Back link */}
       <Link
-        href="/accounting/reports/supplier-debts"
+        href={{ pathname: '/accounting/reports/supplier-debts', query: buyerId > 0 ? { buyer_id: buyerId } : {} }}
         style={{
           display: 'inline-flex',
           alignItems: 'center',

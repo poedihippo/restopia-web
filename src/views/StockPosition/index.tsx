@@ -218,10 +218,12 @@ export default function StockPositionView() {
   // supaya hasil ekspor lengkap, lalu matriks cabangnya dibangun dari data itu.
   const [isExporting, setIsExporting] = useState(false)
 
+  // Filter sama persis dengan tabel; search pakai nilai input langsung supaya
+  // ketikan terakhir (yang belum lewat debounce) tetap ikut terfilter.
   const buildExportParams = (): ListParams => ({
     sort: 'name:product_uoms.name',
     include: 'product,uom',
-    'filter[search]': debouncedSearch || undefined,
+    'filter[search]': search.trim() || undefined,
     'filter[product_id]': productId > 0 ? productId : undefined,
     'filter[start_date]': startDate,
     'filter[end_date]': endDate,
@@ -234,13 +236,18 @@ export default function StockPositionView() {
     // Guard: jangan muter tak terbatas kalau backend mengembalikan meta aneh.
     const maxPages = 50
     for (let page = 1; page <= maxPages; page++) {
-      const res = await productUomsService
+      const res: any = await productUomsService
         .stockPosition({ ...buildExportParams(), page, per_page: pageSize })
         .then((r) => r.data)
-      all.push(...((res?.data?.data as StockPositionItem[] | undefined) ?? []))
-      const info = res?.data?.meta as
+      // Body stock-position: { data: [...], meta } (sama dengan tabel di atas).
+      // Tetap terima bentuk envelope { data: { data, meta } } kalau backend berubah.
+      const payload = Array.isArray(res?.data) ? res : res?.data
+      const rows = (payload?.data as StockPositionItem[] | undefined) ?? []
+      all.push(...rows)
+      const info = payload?.meta as
         | { last_page?: number; total_pages?: number }
         | undefined
+      if (rows.length === 0) break
       const totalPages = Number(info?.last_page ?? info?.total_pages ?? 1)
       if (page >= totalPages) break
     }

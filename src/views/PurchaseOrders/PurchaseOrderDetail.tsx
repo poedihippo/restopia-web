@@ -26,7 +26,9 @@ import {
   Download,
   Check,
   X,
+  UserRound,
 } from 'lucide-react'
+import { useBuyerNames } from '@/hooks/useBuyerNames'
 import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
 
 interface PurchaseOrderDetailProps {
@@ -53,6 +55,7 @@ interface PurchaseOrderFull {
   }
   supplier?: { id: number; name: string }
   supplier_branch?: { id: number; name: string }
+  buyer_id?: number | null
   created_by?: { id: number; name: string }
   updated_by?: { id: number; name: string }
   purchase_order_details?: Array<{
@@ -181,14 +184,16 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         ? order?.supplier_branch?.name
         : order?.supplier?.name ?? order?.supplier_branch?.name
 
-  // Print header: Buyer memakai nama PT (company) dari API.
-  // Fallback: company milik branch aktif user → nama branch → '-'.
+  // Buyer: nama dari GET /buyers/{buyer_id}. Fallback: nama PT (company)
+  // dari API → company milik branch aktif user → nama branch → '-'.
   const userBranch = (
     user as {
       branch?: { company?: { name?: string; address?: string | null } }
     } | null
   )?.branch
+  const buyerNames = useBuyerNames([order?.buyer_id])
   const buyerName =
+    (order?.buyer_id ? buyerNames[order.buyer_id] : undefined) ??
     order?.branch?.company?.name ??
     userBranch?.company?.name ??
     order?.branch?.name ??
@@ -601,6 +606,46 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             }}
           >
             {order.supplier?.name ?? '—'}
+          </div>
+        </div>
+
+        {/* Buyer — nama buyer (GET /buyers/{id}), fallback nama company */}
+        <div
+          style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                background: 'var(--accent-light-bg)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <UserRound size={15} style={{ color: 'var(--accent-light)' }} />
+            </div>
+            <span style={sectionLabelStyle}>Buyer</span>
+          </div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 600,
+              color: 'var(--foreground)',
+              fontFamily: 'var(--font-display)',
+            }}
+          >
+            {buyerName}
           </div>
         </div>
 

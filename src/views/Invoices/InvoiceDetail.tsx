@@ -5,7 +5,6 @@ import React, { useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { invoicesService } from '@/services/invoices.service'
-import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
 import {
   ArrowLeft,
@@ -24,46 +23,43 @@ import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { getProductUomName } from '@/utils/productUomName'
+import Link from 'next/link'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
+import { formatNumberId } from '@/utils/numberFormat'
 
 interface InvoiceDetailProps {
   id: number
 }
 
-/** Detail Sales Order yang dirujuk invoice — sumber nama produk baris. */
-interface SoDetailSnapshot {
-  id?: number
-  product_inventory_snapshot?: {
-    product_uom_batch?: {
-      product_uom?: {
-        name?: string | null
-        product?: { name: string }
-        uom?: { name: string }
-      }
-    }
-  }
-  /** Snapshot product-UOM dari SO — sumber nama produk yang selalu terisi. */
-  product_uom_snapshot?: {
-    name?: string
-    product?: { name?: string }
-    uom?: { name?: string }
-  } | null
-  bundle_snapshot?: { name?: string } | null
+interface PartyRef {
+  id: number
+  code?: string
+  name?: string
 }
 
-interface InvoiceDetailLine {
+/** PO asal SO yang ditagihkan — nested di invoice_sales_orders.sales_order. */
+interface InvoicePurchaseOrder {
   id: number
-  qty: number
-  price: number
-  dpp: number
-  is_taxable: boolean
-  tax_rate: number
-  tax_amount: number
+  code?: string
+  date?: string
+  type?: string
   total_price?: number
-  description?: string
-  receipt_id?: number
-  sales_order_detail_id?: number
-  sales_order_detail?: SoDetailSnapshot
+  supplier?: PartyRef | null
+  supplier_branch?: PartyRef | null
+  buyer?: PartyRef | null
+}
+
+interface InvoiceSalesOrderRef {
+  id?: number
+  invoice_id?: number
+  sales_order_id?: number
+  sales_order?: {
+    id: number
+    code?: string
+    date?: string
+    total_price?: number
+    purchase_order?: InvoicePurchaseOrder | null
+  } | null
 }
 
 interface InvoiceFull {
@@ -83,11 +79,8 @@ interface InvoiceFull {
   created_at?: string
   branch?: { id: number; name: string }
   billed_branch?: { id: number; name: string }
-  invoice_details?: InvoiceDetailLine[]
-  /** Include `sales_order_details` — cadangan resolve nama bila nested tidak ikut. */
-  sales_order_details?: SoDetailSnapshot[]
-  /** Relasi invoice → SO (dipakai untuk resolve nama produk baris). */
-  invoice_sales_orders?: Array<{ id?: number; invoice_id?: number; sales_order_id?: number }>
+  /** Relasi invoice → SO → PO (sumber kode PO, supplier, buyer). */
+  invoice_sales_orders?: InvoiceSalesOrderRef[]
   additional_charges?: { id: number; name: string; amount: number; chart_of_account_id?: number | null }[]
 }
 
@@ -103,36 +96,40 @@ const PAYMENT_STATUS_META: Record<string, { label: string; color: string; bg: st
   paid: { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' },
 }
 
-/**
- * Nama item baris invoice (dipakai tabel layar & tabel cetak).
- * Payload Sales Order menyimpan nama produk di
- * `sales_order_detail.product_uom_snapshot` — path itu yang diprioritaskan;
- * snapshot inventory/bundle dipertahankan sebagai fallback, terakhir Item #id.
- */
-function lineItemText(
-  line: InvoiceDetailLine,
-  soLineMap?: Record<number, SoDetailSnapshot | undefined>,
-): string {
-  const embedded = line.sales_order_detail
-  const fromSo =
-    line.sales_order_detail_id != null ? soLineMap?.[line.sales_order_detail_id] : undefined
-  // Snapshot dari SO asli lebih lengkap — nested invoice biasanya membawa
-  // object sales_order_detail dengan snapshot KOSONG, jadi jangan menang.
-  const soLine = fromSo?.product_uom_snapshot
-    ? fromSo
-    : embedded?.product_uom_snapshot
-      ? embedded
-      : (fromSo ?? embedded)
-  const snap = soLine?.product_uom_snapshot
-  const invPu = soLine?.product_inventory_snapshot?.product_uom_batch?.product_uom
-  const name =
-    snap?.product?.name ||
-    invPu?.product?.name ||
-    soLine?.bundle_snapshot?.name ||
-    getProductUomName(invPu, invPu?.product?.name) ||
-    `Item #${line.id}`
-  const uom = snap?.uom?.name || invPu?.uom?.name
-  return uom ? `${name} (${uom})` : name
+interface OrderRow {
+  key: string
+  poId?: number
+  poCode: string
+  soCode: string
+  date?: string
+  /** Supplier (PO external) atau branch supplier (PO internal). */
+  source: string
+  sourceKind: 'Supplier' | 'Branch' | ''
+  buyer: string
+  total: number
+}
+
+const partyLabel = (p?: PartyRef | null) => (p ? p.name || p.code || `#${p.id}` : '')
+
+/** Satu baris per SO yang ditagihkan, dengan data PO asalnya. */
+function buildOrderRows(refs: InvoiceSalesOrderRef[] | undefined): OrderRow[] {
+  return (refs ?? []).map((ref, i) => {
+    const so = ref.sales_order
+    const po = so?.purchase_order
+    const supplier = partyLabel(po?.supplier)
+    const supplierBranch = partyLabel(po?.supplier_branch)
+    return {
+      key: String(ref.id ?? ref.sales_order_id ?? i),
+      poId: po?.id,
+      poCode: po?.code || '—',
+      soCode: so?.code || (ref.sales_order_id ? `SO #${ref.sales_order_id}` : '—'),
+      date: po?.date ?? so?.date,
+      source: supplier || supplierBranch || '—',
+      sourceKind: supplier ? 'Supplier' : supplierBranch ? 'Branch' : '',
+      buyer: partyLabel(po?.buyer) || '—',
+      total: Number(so?.total_price ?? po?.total_price ?? 0),
+    }
+  })
 }
 
 const rp = (n: number | string | null | undefined) =>
@@ -152,9 +149,11 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     queryFn: () =>
       invoicesService
         .get(id, {
-          // Catatan: include `sales_order_details` (tercantum di doc list)
-          // membuat GET /invoices/{id} membalas 500 — jangan dipakai di sini.
-          include: 'updated_by,billed_branch,invoice_details,invoice_details.sales_order_detail,invoice_sales_orders,created_by,additional_charges',
+          // Detail item tidak diambil — PO/SO cukup dari invoice_sales_orders
+          // (sales_order.purchase_order ikut ter-nest di response).
+          // Catatan: include `sales_order_details` membuat GET /invoices/{id}
+          // membalas 500 — jangan dipakai di sini.
+          include: 'updated_by,billed_branch,invoice_sales_orders,created_by,additional_charges',
         })
         .then((r) => r.data),
     enabled: canRead && !!id && !isNaN(id),
@@ -166,8 +165,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const [paymentMethodId, setPaymentMethodId] = React.useState<number>(0)
   const [paymentAmount, setPaymentAmount] = React.useState<number>(0)
   const [paymentDescription, setPaymentDescription] = React.useState<string>('')
-
-  const invoiceReceiptIds = invoice?.invoice_details?.map(d => d.receipt_id).filter(Boolean) || []
 
   const { data: paymentsData } = useQuery({
     queryKey: ['invoice-payments', id],
@@ -184,10 +181,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
 
   const allPayments = (paymentsData as any)?.data ?? []
   const payments = allPayments.filter((p: any) =>
-    p.allocations?.some((a: any) =>
-      a.invoice_id === Number(id) ||
-      (a.receipt_id && invoiceReceiptIds.includes(a.receipt_id))
-    )
+    p.allocations?.some((a: any) => a.invoice_id === Number(id))
   )
 
   const { data: pmData } = useQuery({
@@ -224,54 +218,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     onError: (err: any) => toastMutationApiError(err, 'Failed to record payment'),
   })
 
-  const details = invoice?.invoice_details || []
-
-  // ── Resolve nama produk baris invoice ─────────────────────────────────────
-  // Nested `invoice_details.sales_order_detail` dari backend mengosongkan
-  // `product_uom_snapshot`-nya, jadi SO aslinya diambil lewat
-  // `invoice_sales_orders.sales_order_id` dan snapshot dari SO itu yang dipakai.
-  const soIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (invoice?.invoice_sales_orders ?? [])
-            .map((r) => r.sales_order_id)
-            .filter((v): v is number => !!v),
-        ),
-      ),
-    [invoice],
-  )
-
-  const { data: soDetailsById } = useQuery({
-    queryKey: ['invoice-so-details', soIds.join(',')],
-    enabled: soIds.length > 0,
-    queryFn: async () => {
-      const map: Record<number, SoDetailSnapshot> = {}
-      await Promise.all(
-        soIds.map(async (soId) => {
-          try {
-            const res = await salesOrdersService.findById(soId, { include: 'sales_order_details' })
-            const body = res.data as { data?: { sales_order_details?: SoDetailSnapshot[] } }
-            for (const sod of body?.data?.sales_order_details ?? []) {
-              if (sod.id != null) map[sod.id] = sod
-            }
-          } catch {
-            // SO gagal diambil → baris jatuh ke fallback nama lama (Item #id).
-          }
-        }),
-      )
-      return map
-    },
-  })
-
-  const soLineMap: Record<number, SoDetailSnapshot | undefined> = {}
-  for (const sod of invoice?.sales_order_details || []) {
-    if (sod.id != null) soLineMap[sod.id] = sod
-  }
-  // Snapshot dari SO asli menimpa (nested invoice membawa snapshot kosong).
-  for (const [sodId, sod] of Object.entries(soDetailsById ?? {})) {
-    soLineMap[Number(sodId)] = sod
-  }
+  const orderRows = useMemo(() => buildOrderRows(invoice?.invoice_sales_orders), [invoice])
 
   const statusMeta = STATUS_META[invoice?.status as keyof typeof STATUS_META] ?? STATUS_META.issued
   // Payment status: pakai field backend; fallback turunan dari pembayaran.
@@ -672,42 +619,58 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             justifyContent: 'space-between',
           }}
         >
-          <span style={sectionLabelStyle}>Line Items</span>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{details.length} item(s)</span>
+          <span style={sectionLabelStyle}>Purchase Orders</span>
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{orderRows.length} order(s)</span>
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
               <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>Product</th>
-              <th style={thStyle}>Qty</th>
-              <th style={thStyle}>Unit Price</th>
-              <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Subtotal</th>
+              <th style={thStyle}>PO / SO</th>
+              <th style={thStyle}>Supplier</th>
+              <th style={thStyle}>Buyer</th>
+              <th style={thStyle}>Date</th>
+              <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Total</th>
             </tr>
           </thead>
           <tbody>
-            {details.length === 0 ? (
+            {orderRows.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
-                  No items found
+                <td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
+                  No orders found
                 </td>
               </tr>
             ) : (
-              details.map((line, index) => (
-                <tr key={line.id} style={{ borderBottom: '1px solid var(--border)' }}>
+              orderRows.map((row, index) => (
+                <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{index + 1}</td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {lineItemText(line, soLineMap)}
+                  <td style={{ padding: '12px 16px', fontSize: 13 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {row.poId ? (
+                        <Link href={`/purchase/purchase-orders/${row.poId}/detail`} style={{ fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
+                          {row.poCode}
+                        </Link>
+                      ) : (
+                        <span style={{ fontWeight: 600, color: 'var(--foreground)', fontFamily: 'monospace' }}>{row.poCode}</span>
+                      )}
+                      <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>{row.soCode}</span>
+                    </div>
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontWeight: 500 }}>{row.source}</span>
+                      {row.sourceKind && (
+                        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>{row.sourceKind}</span>
+                      )}
+                    </div>
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {rp(line.price)}
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>{row.buyer}</td>
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                    {row.date ? formatDate(row.date) : '—'}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--foreground)', textAlign: 'right' }}>
-                    {rp(line.dpp ?? (line.qty * line.price))}
+                    {rp(row.total)}
                   </td>
                 </tr>
               ))
@@ -715,16 +678,16 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
 
             {/* Totals */}
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-              <td colSpan={4} style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+              <td colSpan={5} style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                 Subtotal
               </td>
               <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
-                {rp(invoice.subtotal_price ?? details.reduce((sum, d) => sum + (d.dpp ?? 0), 0))}
+                {rp(invoice.subtotal_price ?? 0)}
               </td>
             </tr>
             {(invoice.discount_price ?? 0) > 0 && (
               <tr style={{ background: 'var(--background)' }}>
-                <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   Discount
                 </td>
                 <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -735,7 +698,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             {invoice.additional_charges?.length ? (
               invoice.additional_charges.map((ac) => (
                 <tr key={`ac-${ac.id}`} style={{ background: 'var(--background)' }}>
-                  <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {ac.name || 'Additional Charges'}
                   </td>
                   <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -745,7 +708,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
               ))
             ) : (invoice.additional_charge_price ?? 0) !== 0 ? (
               <tr style={{ background: 'var(--background)' }}>
-                <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   Additional Charges
                 </td>
                 <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -754,7 +717,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
               </tr>
             ) : null}
             <tr style={{ background: 'var(--background)' }}>
-              <td colSpan={4} style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+              <td colSpan={5} style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                 Tax
               </td>
               <td style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -762,7 +725,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
               </td>
             </tr>
             <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-              <td colSpan={4} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+              <td colSpan={5} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)' }}>
                 Grand Total
               </td>
               <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -774,7 +737,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             {invoice.total_payment ? (
               <>
                 <tr style={{ background: 'var(--surface)' }}>
-                  <td colSpan={4} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--success)' }}>
+                  <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--success)' }}>
                     Total Paid
                   </td>
                   <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>
@@ -782,7 +745,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                   </td>
                 </tr>
                 <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-                  <td colSpan={4} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
+                  <td colSpan={5} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
                     Balance Due
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -857,12 +820,14 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)', marginBottom: 6 }}>
                   Amount
                 </label>
-                <input
-                  type="number"
-                  value={paymentAmount || ''}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
-                  placeholder={`Max: ${invoice.total_price}`}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)' }}
+                {/* Pemisah ribuan otomatis saat mengetik (1000 → 1.000) */}
+                <LocalizedNumberInput
+                  value={paymentAmount || null}
+                  onChange={setPaymentAmount}
+                  decimals={2}
+                  padDecimals={false}
+                  placeholder={`Max: ${formatNumberId(invoice.total_price, 2, { pad: false })}`}
+                  style={{ textAlign: 'left' }}
                 />
               </div>
             </div>
@@ -1023,39 +988,34 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           </div>
         </div>
 
-        {/* Line items */}
+        {/* Purchase orders */}
         <div style={{ padding: '0 4mm', marginBottom: '8mm' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
             <thead>
               <tr style={{ backgroundColor: '#f0e6d2', color: '#5c3a21' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  No
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Product
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Qty
-                </th>
-                <th style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Unit Price
-                </th>
+                {['No', 'PO / SO', 'Supplier', 'Buyer', 'Date'].map((h) => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
+                    {h}
+                  </th>
+                ))}
                 <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
-                  Subtotal
+                  Total
                 </th>
               </tr>
             </thead>
             <tbody>
-              {details.map((line, i) => (
-                <tr key={line.id} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+              {orderRows.map((row, i) => (
+                <tr key={row.key} style={{ borderBottom: '1px solid #e5e5e5', backgroundColor: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{i + 1}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#222', fontWeight: 500 }}>
-                    {lineItemText(line, soLineMap)}
+                    {row.poCode}
+                    <div style={{ fontSize: '8pt', color: '#777', fontWeight: 400 }}>{row.soCode}</div>
                   </td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{line.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{rp(line.price)}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{row.source}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{row.buyer}</td>
+                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{row.date ? formatDate(row.date) : '-'}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>
-                    {rp(line.dpp ?? (line.qty * line.price))}
+                    {rp(row.total)}
                   </td>
                 </tr>
               ))}
@@ -1073,7 +1033,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                     Subtotal
                   </td>
                   <td style={{ padding: '6px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21', borderTop: '2px dashed #d4c4a8' }}>
-                    {rp(invoice.subtotal_price ?? details.reduce((sum, d) => sum + (d.dpp ?? 0), 0))}
+                    {rp(invoice.subtotal_price ?? 0)}
                   </td>
                 </tr>
                 {(invoice.discount_price ?? 0) > 0 && (

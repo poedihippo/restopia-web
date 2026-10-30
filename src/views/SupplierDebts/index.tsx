@@ -2,9 +2,12 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/hooks/useAuth'
+import SearchableSelect from '@/components/SearchableSelect'
 import { suppliersService } from '@/services/suppliers.service'
+import { buyersService } from '@/services/buyers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { paymentsService } from '@/services/payments.service'
 import { formatDate } from '@/utils/date'
@@ -66,6 +69,14 @@ export default function SupplierDebtsView() {
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Filter buyer ikut di URL (?buyer_id=) supaya terbawa ke halaman detail
+  // dan tetap ada saat kembali.
+  const router = useRouter()
+  const buyerId = Number(router.query.buyer_id) || 0
+  const setBuyerId = (id: number) => {
+    const { buyer_id: _omit, ...rest } = router.query
+    router.replace({ pathname: router.pathname, query: id > 0 ? { ...rest, buyer_id: id } : rest }, undefined, { shallow: true })
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -81,8 +92,22 @@ export default function SupplierDebtsView() {
         .then((r) => r.data),
   })
 
+  const { data: buyersData, isLoading: buyersLoading } = useQuery({
+    queryKey: ['buyers-all'],
+    enabled: canRead,
+    queryFn: () => buyersService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
+  })
+  const buyerOptions = [
+    { value: 0, label: 'Semua Buyer' },
+    ...(((buyersData as any)?.data ?? []) as any[]).map((b) => ({
+      value: b.id as number,
+      label: (b.name as string) ?? `Buyer #${b.id}`,
+      sublabel: b.code as string | undefined,
+    })),
+  ]
+
   const { data: posData, isLoading: posLoading } = useQuery({
-    queryKey: ['supplier-debts-pos'],
+    queryKey: ['supplier-debts-pos', buyerId],
     enabled: canRead,
     queryFn: () =>
       purchaseOrdersService
@@ -90,6 +115,7 @@ export default function SupplierDebtsView() {
           per_page: 1000,
           sort: '-created_at',
           'filter[type]': 'supplier',
+          'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
           include: 'supplier,purchase_order_details',
         } as any)
         .then((r) => r.data),
@@ -261,8 +287,18 @@ export default function SupplierDebtsView() {
         </div>
       </div>
 
-      {/* Search */}
-      <div style={{ marginBottom: 20 }}>
+      {/* Search + Buyer filter */}
+      <div style={{ marginBottom: 20, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ width: 280 }}>
+          <SearchableSelect
+            value={buyerId}
+            onChange={(val) => setBuyerId(Number(val) || 0)}
+            options={buyerOptions}
+            placeholder="Semua Buyer"
+            searchPlaceholder="Cari buyer..."
+            loading={buyersLoading}
+          />
+        </div>
         <div style={{ position: 'relative', width: 320 }}>
           <Search
             size={15}
@@ -324,7 +360,10 @@ export default function SupplierDebtsView() {
           {filteredDebts.map((debt) => (
             <Link
               key={debt.supplier.id}
-              href={`/accounting/reports/supplier-debts/${debt.supplier.id}`}
+              href={{
+                pathname: `/accounting/reports/supplier-debts/${debt.supplier.id}`,
+                query: buyerId > 0 ? { buyer_id: buyerId } : {},
+              }}
               style={{ textDecoration: 'none' }}
             >
               <div
