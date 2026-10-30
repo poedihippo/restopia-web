@@ -616,6 +616,7 @@ export default function PaymentMethodsView() {
                           Edit
                         </button>
                       )}
+                      {/* trigger */}
                       {canDelete && (
                         <button
                           type="button"
