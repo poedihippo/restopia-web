@@ -61,6 +61,44 @@ export interface GeneralLedgerEnvelope {
   }
 }
 
+// GET /v1/reports/ar-aging — piutang invoice + penjualan kredit POS.
+// Request YYYY-MM-DD; tanggal di response DD-MM-YYYY.
+export interface ArAgingParams {
+  start_date?: string
+  end_date?: string
+  as_of_date?: string
+}
+
+export type AgingBucket = '0_30' | '31_60' | '61_90' | '90_plus'
+
+export interface ArAgingLine {
+  source_type: 'invoice' | 'sales_order' | string
+  source_id: number
+  code: string
+  date: string
+  due_date: string | null
+  customer_id: number | null
+  customer_name: string | null
+  total_price: number
+  total_payment: number
+  outstanding: number
+  age_days: number
+  bucket: AgingBucket | string
+}
+
+export interface ArAgingResponse {
+  start_date: string | null
+  end_date: string
+  lines: ArAgingLine[]
+  buckets: {
+    bucket_0_30: number
+    bucket_31_60: number
+    bucket_61_90: number
+    bucket_90_plus: number
+  }
+  grand_total_outstanding: number
+}
+
 export const reportsService = {
   // Core Financial Statements
   exportIncomeStatement: (params: { start_date: string; end_date: string }): Promise<AxiosResponse<Blob>> =>
@@ -119,7 +157,10 @@ export const reportsService = {
     api.get('/reports/outlet-transactions/exports', { params, responseType: 'blob' }),
 
   // Aging & Statements
-  exportArAging: (params?: { as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
+  getArAging: (params?: ArAgingParams): Promise<AxiosResponse<{ success: boolean; message: string; data: ArAgingResponse }>> =>
+    api.get('/reports/ar-aging', { params }),
+
+  exportArAging: (params?: ArAgingParams): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/ar-aging/exports', { params, responseType: 'blob' }),
 
   exportApAging: (params?: { as_of_date?: string }): Promise<AxiosResponse<Blob>> =>

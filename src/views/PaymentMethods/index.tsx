@@ -10,6 +10,7 @@ import { paymentMethodsService as paymentMethodService } from "@/services/paymen
 import { chartOfAccountsService } from "@/services/accounting.service";
 import SearchableSelect from "@/components/SearchableSelect";
 import { useAuth } from "@/hooks/useAuth";
+import PaymentMethodBranchAccounts from "./PaymentMethodBranchAccounts";
 
 export default function PaymentMethodsView() {
   const router = useRouter();
@@ -910,7 +911,8 @@ export default function PaymentMethodsView() {
             style={{
               position: "relative",
               zIndex: 50,
-              width: 420,
+              width: 480,
+              maxWidth: "100vw",
               height: "100%",
               background: "var(--surface)",
               borderLeft: "1px solid var(--border)",
@@ -1007,6 +1009,17 @@ export default function PaymentMethodsView() {
                   </span>
                 </div>
               ))}
+              <div
+                style={{
+                  borderTop: "1px solid var(--border)",
+                  paddingTop: 16,
+                }}
+              >
+                <PaymentMethodBranchAccounts
+                  paymentMethodId={Number(selectedItem.id)}
+                  canEdit={canEdit}
+                />
+              </div>
             </div>
           </div>
         </div>

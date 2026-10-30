@@ -274,6 +274,10 @@ export default function ApAgingView() {
                 />
               </div>
             </div>
+            <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '10px 0 0' }}>
+              Mencakup semua PO yang belum lunas sampai tanggal ini, termasuk dari periode sebelumnya. Pembayaran
+              setelah tanggal ini tidak mengurangi saldo. Kolom bucket adalah rincian total berdasarkan umur, bukan filter.
+            </p>
           </div>
 
           {/* Bucket summary strip */}
