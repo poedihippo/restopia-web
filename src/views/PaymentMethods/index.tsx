@@ -614,7 +614,7 @@ export default function PaymentMethodsView() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          Edit
+                        Edit
                         </button>
                       )}
                       {canDelete && (
