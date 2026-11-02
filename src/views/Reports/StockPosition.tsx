@@ -2,15 +2,14 @@
 
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { ArrowLeft, Printer, Search, Download, Loader2 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft, Printer, Search, Download } from 'lucide-react'
 import { productInventoriesService } from '@/services/product-inventories.service'
-import { reportsService } from '@/services/reports.service'
-import { downloadFileFromResponse } from '@/utils/file'
-import { toastMutationApiError } from '@/utils/apiError'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { getProductUomName } from '@/utils/productUomName'
+import { downloadExcel, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
 
 const inputStyle: React.CSSProperties = {
   padding: '7px 10px',
@@ -61,7 +60,7 @@ const statCardStyle: React.CSSProperties = {
 
 export default function StockPositionReport() {
   const router = useRouter()
-  const { user, isSuperadmin } = useAuth()
+  const { user } = useAuth()
 
   const [branchFilter, setBranchFilter] = useState('')
   const [hasSetDefault, setHasSetDefault] = useState(false)
@@ -70,6 +69,7 @@ export default function StockPositionReport() {
   >('')
   const [searchText, setSearchText] = useState('')
   const [enabled, setEnabled] = useState(false)
+  const branchName = useReportBranchName(branchFilter)
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {
@@ -132,22 +132,59 @@ export default function StockPositionReport() {
     return [...stats.outOfStock, ...stats.lowStock, ...okRows]
   }, [filtered, stats])
 
+  const itemName = (item: any) =>
+    getProductUomName(item.product_uom_batch?.product_uom, item.product_uom_batch?.product_uom?.product?.name)
+    || getProductUomName(item.product_uom, item.product_uom?.product?.name)
+    || '—'
+  const itemUom = (item: any) =>
+    item.display_uom_code
+    ?? item.product_uom_batch?.product_uom?.uom?.name
+    ?? item.product_uom_batch?.product_uom?.uom?.code
+    ?? item.product_uom?.uom?.name
+    ?? item.product_uom?.uom?.code
+    ?? '—'
+
+  const handleExport = () => {
+    if (!enabled || isLoading || sortedRows.length === 0) {
+      toast.error('Generate the report first')
+      return
+    }
+    const rows: ExcelRow[] = [
+      ...reportHeader({
+        title: 'Stock Position Report',
+        branch: branchName,
+        extra: [
+          ...(productTypeFilter ? [`Product Type : ${productTypeFilter.toUpperCase()}`] : []),
+          ...(searchText ? [`Search : ${searchText}`] : []),
+        ],
+      }),
+      ['No', 'Product Code', 'Product Name', 'UOM', 'Branch', 'Current Stock', 'Min Qty', 'Status', 'Alert'],
+      ...sortedRows.map((item: any, idx: number) => {
+        const stock = Number(item.display_qty ?? item.stock ?? 0)
+        const minQty = Number(item.min_qty ?? 5)
+        return [
+          idx + 1,
+          item.code,
+          itemName(item),
+          itemUom(item),
+          item.branch?.name ?? '—',
+          stock,
+          item.min_qty ?? '—',
+          item.status === 'active' ? 'Active' : 'Inactive',
+          stock <= 0 ? 'OUT OF STOCK' : stock <= minQty ? 'LOW STOCK' : '',
+        ]
+      }),
+    ]
+    downloadExcel('stock-positions.xlsx', [
+      { name: 'Stock Position', rows, cols: [6, 16, 40, 10, 22, 14, 10, 10, 14] },
+    ])
+  }
+
   const onGenerate = () => {
     setEnabled(true)
     refetch()
   }
 
-  const exportMutation = useMutation({
-    mutationFn: () =>
-      reportsService.exportStockPositions({
-        'filter[branch_id]': branchFilter ? Number(branchFilter) : undefined,
-      }),
-    onSuccess: (res) => {
-      downloadFileFromResponse(res, 'stock-positions.xlsx')
-      toast.success('Stock positions exported')
-    },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to export stock positions'),
-  })
 
   return (
     <div
@@ -199,8 +236,7 @@ export default function StockPositionReport() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
-            onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isPending}
+            onClick={handleExport}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -212,15 +248,10 @@ export default function StockPositionReport() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: exportMutation.isPending ? 'not-allowed' : 'pointer',
-              opacity: exportMutation.isPending ? 0.7 : 1,
+              cursor: 'pointer',
             }}
           >
-            {exportMutation.isPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
+            <Download size={14} />
             Export Excel
           </button>
           <button
@@ -273,7 +304,7 @@ export default function StockPositionReport() {
             marginTop: 2,
           }}
         >
-          {(user as any)?.branch?.name ?? 'All Branches'}
+          {branchName}
         </span>
         <span
           style={{
@@ -364,18 +395,14 @@ export default function StockPositionReport() {
               <option value="final">Final</option>
             </select>
           </div>
-          {isSuperadmin && (
-            <div>
-              <label style={labelStyle}>Branch ID</label>
-              <input
-                type="text"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="All branches"
-                style={{ ...inputStyle, width: 120 }}
-              />
-            </div>
-          )}
+          <div>
+            <label style={labelStyle}>Branch</label>
+            <ReportBranchSelect
+              value={branchFilter}
+              onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
           <button
             type="button"
             onClick={onGenerate}
@@ -536,17 +563,10 @@ export default function StockPositionReport() {
                     {item.code}
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>
-                    {getProductUomName(item.product_uom_batch?.product_uom, item.product_uom_batch?.product_uom?.product?.name)
-                      || getProductUomName(item.product_uom, item.product_uom?.product?.name)
-                      || '—'}
+                    {itemName(item)}
                   </td>
                   <td style={{ ...tdStyle, fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {item.display_uom_code
-                      ?? item.product_uom_batch?.product_uom?.uom?.name
-                      ?? item.product_uom_batch?.product_uom?.uom?.code
-                      ?? item.product_uom?.uom?.name
-                      ?? item.product_uom?.uom?.code
-                      ?? '—'}
+                    {itemUom(item)}
                   </td>
                   <td style={tdStyle}>{item.branch?.name ?? '—'}</td>
                   <td

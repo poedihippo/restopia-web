@@ -3,14 +3,13 @@ import { formatCurrency } from '@/utils/price';
 
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react'
-import { salesOrdersService } from '@/services/sales-orders.service'
-import { reportsService } from '@/services/reports.service'
-import { downloadFileFromResponse } from '@/utils/file'
-import { toastMutationApiError } from '@/utils/apiError'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import { fetchFinalSalesOrders, resolveDetailItem } from '@/utils/salesReport'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
 const firstOfMonth = () =>
   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     .toISOString()
@@ -89,11 +88,12 @@ const ghostBtnStyle: React.CSSProperties = {
 
 export default function SalesByProductReport() {
   const router = useRouter()
-  const { user, isSuperadmin } = useAuth()
+  const { user } = useAuth()
   const [dateFrom, setDateFrom] = useState<string>(firstOfMonth())
   const [dateTo, setDateTo] = useState<string>(today())
   const [branchFilter, setBranchFilter] = useState<string>('')
   const [hasSetDefault, setHasSetDefault] = useState(false)
+  const branchName = useReportBranchName(branchFilter)
   const [enabled, setEnabled] = useState<boolean>(false)
 
   useEffect(() => {
@@ -106,41 +106,32 @@ export default function SalesByProductReport() {
   const { data, isLoading } = useQuery({
     queryKey: ['report-sales-product', dateFrom, dateTo, branchFilter],
     queryFn: () =>
-      salesOrdersService
-        .list({
-          per_page: 500,
-          include: 'sales_order_details,branch',
-          'filter[status]': 'final',
-          'filter[date_gte]': dateFrom,
-          'filter[date_lte]': dateTo,
-          'filter[branch_id]': branchFilter || undefined,
-        } as any)
-        .then((r) => r.data),
+      fetchFinalSalesOrders({ dateFrom, dateTo, branchId: branchFilter }),
     enabled,
   })
-  const orders = (data as any)?.data ?? []
+  const orders: any[] = useMemo(() => data ?? [], [data])
 
   const productMap = useMemo(() => {
     const map: Record<
       string,
-      { code: string; name: string; qty: number; totalAmount: number }
+      { code: string; name: string; category: string; qty: number; totalAmount: number }
     > = {}
 
     orders.forEach((order: any) => {
       ;(order.sales_order_details ?? []).forEach((d: any) => {
-        const snap = d.product_inventory_snapshot
-        const code =
-          snap?.code ?? String(d.product_inventory_id ?? 'UNKNOWN')
-        const name =
-          snap?.product_uom?.product?.name ??
-          snap?.name ??
-          `Item #${d.product_inventory_id}`
-
-        if (!map[code]) {
-          map[code] = { code, name, qty: 0, totalAmount: 0 }
+        const item = resolveDetailItem(d)
+        const key = `${item.code}|${item.name}`
+        if (!map[key]) {
+          map[key] = {
+            code: item.code,
+            name: item.name,
+            category: item.category,
+            qty: 0,
+            totalAmount: 0,
+          }
         }
-        map[code].qty += d.qty ?? 0
-        map[code].totalAmount += (d.qty ?? 0) * (d.price ?? 0)
+        map[key].qty += item.qty
+        map[key].totalAmount += item.amount
       })
     })
 
@@ -152,19 +143,34 @@ export default function SalesByProductReport() {
   const grandTotal = productMap.reduce((s, p) => s + p.totalAmount, 0)
   const grandQty = productMap.reduce((s, p) => s + p.qty, 0)
 
-  const exportMutation = useMutation({
-    mutationFn: () =>
-      reportsService.exportSalesProducts({
-        start_date: dateFrom || undefined,
-        end_date: dateTo || undefined,
-        'filter[branch_id]': branchFilter ? Number(branchFilter) : undefined,
+
+  const handleExport = () => {
+    if (!enabled || isLoading || productMap.length === 0) {
+      toast.error('Generate the report first')
+      return
+    }
+    const rows: ExcelRow[] = [
+      ...reportHeader({
+        title: 'Sales by Product Report',
+        branch: branchName,
+        period: `${dateFrom} s/d ${dateTo}`,
       }),
-    onSuccess: (res) => {
-      downloadFileFromResponse(res, `sales-by-product-${dateFrom}_${dateTo}.xlsx`)
-      toast.success('Sales by product report exported')
-    },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to export sales by product'),
-  })
+      ['No.', 'Item Code', 'Product Name', 'Category', 'Qty', 'Avg Price', 'Total Amount'],
+      ...productMap.map((p, idx) => [
+        idx + 1,
+        p.code,
+        p.name,
+        p.category,
+        p.qty,
+        money(p.qty > 0 ? Math.round(p.totalAmount / p.qty) : 0),
+        money(p.totalAmount),
+      ]),
+      ['', '', '', 'TOTAL', grandQty, '', money(grandTotal)],
+    ]
+    downloadExcel(`sales-by-product-${dateFrom}_${dateTo}.xlsx`, [
+      { name: 'Sales by Product', rows, cols: [6, 14, 40, 22, 10, 14, 18] },
+    ])
+  }
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
@@ -191,17 +197,8 @@ export default function SalesByProductReport() {
           Back
         </button>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isPending}
-            style={ghostBtnStyle}
-          >
-            {exportMutation.isPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Download size={14} />
-            )}
+          <button type="button" onClick={handleExport} style={ghostBtnStyle}>
+            <Download size={14} />
             Export Excel
           </button>
           <button
@@ -241,7 +238,7 @@ export default function SalesByProductReport() {
             marginTop: 2,
           }}
         >
-          {(user as any)?.branch?.name ?? 'All Branches'}
+          {branchName}
         </span>
         <span
           style={{
@@ -310,18 +307,14 @@ export default function SalesByProductReport() {
               style={inputStyle}
             />
           </div>
-          {isSuperadmin && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={labelStyle}>BRANCH ID</label>
-              <input
-                type="text"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="All branches"
-                style={{ ...inputStyle, width: 140 }}
-              />
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={labelStyle}>BRANCH</label>
+            <ReportBranchSelect
+              value={branchFilter}
+              onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
           <button
             type="button"
             onClick={() => setEnabled(true)}
@@ -381,6 +374,7 @@ export default function SalesByProductReport() {
               <th style={{ ...thStyle, width: 40 }}>No.</th>
               <th style={{ ...thStyle, width: 120 }}>Item Code</th>
               <th style={thStyle}>Product Name</th>
+              <th style={thStyle}>Category</th>
               <th style={{ ...thStyle, width: 80, textAlign: 'right' }}>Qty</th>
               <th style={{ ...thStyle, width: 130, textAlign: 'right' }}>
                 Avg Price
@@ -394,7 +388,7 @@ export default function SalesByProductReport() {
             {isLoading && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{ ...tdBase, textAlign: 'center', padding: 32 }}
                 >
                   Loading...
@@ -404,7 +398,7 @@ export default function SalesByProductReport() {
             {!enabled && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{
                     ...tdBase,
                     textAlign: 'center',
@@ -419,7 +413,7 @@ export default function SalesByProductReport() {
             {enabled && !isLoading && productMap.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{
                     ...tdBase,
                     textAlign: 'center',
@@ -433,7 +427,7 @@ export default function SalesByProductReport() {
             )}
             {productMap.map((p, idx) => (
               <tr
-                key={p.code}
+                key={`${p.code}|${p.name}`}
                 style={{
                   background: idx % 2 === 0 ? 'transparent' : 'var(--background)',
                 }}
@@ -445,6 +439,7 @@ export default function SalesByProductReport() {
                   </span>
                 </td>
                 <td style={{ ...tdBase, fontWeight: 500 }}>{p.name}</td>
+                <td style={{ ...tdBase, color: 'var(--foreground-muted)' }}>{p.category}</td>
                 <td
                   style={{
                     ...tdBase,
@@ -482,7 +477,7 @@ export default function SalesByProductReport() {
                 }}
               >
                 <td
-                  colSpan={3}
+                  colSpan={4}
                   style={{ ...tdBase, textAlign: 'right', padding: '10px 12px' }}
                 >
                   TOTAL

@@ -7,12 +7,20 @@ import { useRouter } from 'next/router'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Printer, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
-import { reportsService } from '@/services/reports.service'
-import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
-import { CustomPagination } from '@/components/ui/CustomPagination'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
+import {
+  fetchAllPages,
+  fetchPeriodPayments,
+  flattenSalesOrderAllocations,
+  resolveDetailItem,
+  voucherCode,
+  type OrderAllocation,
+  type DetailItem,
+} from '@/utils/salesReport'
 const firstOfMonth = () =>
   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
     .toISOString()
@@ -136,14 +144,16 @@ const Badge: React.FC<{ meta: { label: string; color: string; bg: string } }> = 
 
 export default function SalesByInvoiceReport() {
   const router = useRouter()
-  const { user, isSuperadmin } = useAuth()
+  const { user } = useAuth()
   const [dateFrom, setDateFrom] = useState<string>(firstOfMonth())
   const [dateTo, setDateTo] = useState<string>(today())
   const [branchFilter, setBranchFilter] = useState<string>('')
   const [hasSetDefault, setHasSetDefault] = useState(false)
+  const branchName = useReportBranchName(branchFilter)
   const [enabled, setEnabled] = useState<boolean>(false)
   const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(20)
+  const [perPage] = useState<number>(20)
+  const [view, setView] = useState<'detail' | 'list'>('detail')
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {
@@ -165,7 +175,7 @@ export default function SalesByInvoiceReport() {
         .list({
           page,
           per_page: perPage,
-          include: 'branch,customer,credit_by',
+          include: 'branch,customer,credit_by,created_by,sales_order_details',
           'filter[status]': 'final',
           'filter[date_gte]': dateFrom,
           'filter[date_lte]': dateTo,
@@ -175,7 +185,7 @@ export default function SalesByInvoiceReport() {
         .then((r) => r.data),
     enabled,
   })
-  const orders = (data as any)?.data ?? []
+  const orders: any[] = useMemo(() => (data as any)?.data ?? [], [data])
   const meta = (data as any)?.meta
 
   const pageTotals = useMemo(
@@ -198,15 +208,106 @@ export default function SalesByInvoiceReport() {
 
   const lastPage = meta?.last_page ?? 1
 
+  const { data: paymentsData } = useQuery({
+    queryKey: ['report-sales-invoice-payments', dateFrom, dateTo, branchFilter],
+    queryFn: () => fetchPeriodPayments({ dateFrom, dateTo, branchId: branchFilter }),
+    enabled,
+  })
+  const allocByOrder = useMemo(() => {
+    const map = new Map<number, OrderAllocation[]>()
+    flattenSalesOrderAllocations(paymentsData ?? []).forEach((a) => {
+      const list = map.get(a.salesOrderId) ?? []
+      list.push(a)
+      map.set(a.salesOrderId, list)
+    })
+    return map
+  }, [paymentsData])
+
+  const methodsLabel = (orderId: number) => {
+    const names = Array.from(
+      new Set((allocByOrder.get(Number(orderId)) ?? []).map((a) => a.methodName)),
+    )
+    return names.length ? names.join(', ') : '—'
+  }
+
+  // Export covers the whole period (the screen is paginated), with the same
+  // per-transaction detail and summary columns as the two on-screen views.
   const exportMutation = useMutation({
     mutationFn: () =>
-      reportsService.exportSalesInvoices({
-        start_date: dateFrom || undefined,
-        end_date: dateTo || undefined,
-        'filter[branch_id]': branchFilter ? Number(branchFilter) : undefined,
-      }),
-    onSuccess: (res) => {
-      downloadFileFromResponse(res, `sales-by-invoice-${dateFrom}_${dateTo}.xlsx`)
+      fetchAllPages((p) =>
+        salesOrdersService
+          .list({
+            page: p,
+            per_page: 500,
+            include: 'branch,customer,credit_by,created_by,sales_order_details',
+            'filter[status]': 'final',
+            'filter[date_gte]': dateFrom,
+            'filter[date_lte]': dateTo,
+            'filter[branch_id]': branchFilter || undefined,
+            sort: 'date',
+          } as any)
+          .then((r) => r.data),
+      ),
+    onSuccess: (allOrders: any[]) => {
+      const header = reportHeader({
+        title: 'Sales by Invoice',
+        branch: branchName,
+        period: `${dateFrom} s/d ${dateTo}`,
+        extra: [`Jumlah Transaksi = ${allOrders.length}`],
+      })
+
+      const detail: ExcelRow[] = [...header]
+      allOrders.forEach((order: any, idx: number) => {
+        const v = buildInvoiceView(order, allocByOrder.get(Number(order.id)) ?? [])
+        detail.push(
+          [`Transaksi Ke = ${idx + 1}`],
+          ['Waktu', v.waktu, '', 'No Trx', order.code],
+          ['Customer', v.customer, '', 'Phone', v.phone],
+          ['Jenis', v.jenis, '', 'Status', v.status],
+          ['Kasir', v.kasir, '', 'Kode Promo', v.promo],
+          ['Remark', v.remark],
+          ['No.', 'Kode', 'Nama', 'Unit', 'Harga', 'Qty', 'Total'],
+          ...v.items.map((it, i) => [i + 1, it.code, it.name, it.unit, money(it.price), it.qty, money(it.amount)]),
+        )
+        for (let i = 0; i < Math.max(v.summaryLeft.length, v.summaryRight.length); i++) {
+          const l = v.summaryLeft[i]
+          const r = v.summaryRight[i]
+          detail.push([l?.[0] ?? '', l ? money(l[1]) : '', '', r?.[0] ?? '', r ? money(r[1]) : ''])
+        }
+        detail.push([])
+      })
+
+      const summary: ExcelRow[] = [
+        ...header,
+        ['No.', 'Outlet', 'Date', 'Time', 'Invoice No', 'Customer', 'Bruto', 'Discount', 'Netto', 'Payment Method', 'Payment Status', 'Settlement'],
+      ]
+      const totals = { bruto: 0, discount: 0, netto: 0 }
+      allOrders.forEach((order: any, idx: number) => {
+        const dt = parseApiDate(order.created_at ?? order.date)
+        totals.bruto += Number(order.subtotal_price ?? 0)
+        totals.discount += Number(order.discount_price ?? 0)
+        totals.netto += Number(order.total_price ?? 0)
+        summary.push([
+          idx + 1,
+          order.branch?.name ?? '',
+          order.date ? formatDateShort(order.date) : '',
+          dt ? dt.toLocaleTimeString('id-ID') : '',
+          order.code,
+          order.customer?.name ?? order.customer_name ?? '',
+          money(order.subtotal_price),
+          money(order.discount_price),
+          money(order.total_price),
+          methodsLabel(order.id),
+          PAYMENT_META[order.payment_status]?.label ?? order.payment_status ?? '',
+          SETTLEMENT_META[order.settlement_status]?.label ?? order.settlement_status ?? '',
+        ])
+      })
+      summary.push(['', '', '', '', '', 'TOTAL', money(totals.bruto), money(totals.discount), money(totals.netto)])
+
+      downloadExcel(`sales-by-invoice-${dateFrom}_${dateTo}.xlsx`, [
+        { name: 'Detail per Transaksi', rows: detail, cols: [24, 16, 40, 16, 18, 8, 16] },
+        { name: 'Ringkasan', rows: summary, cols: [6, 20, 12, 10, 30, 26, 14, 14, 14, 24, 14, 12] },
+      ])
       toast.success('Sales by invoice report exported')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to export sales by invoice'),
@@ -239,7 +340,13 @@ export default function SalesByInvoiceReport() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
-            onClick={() => exportMutation.mutate()}
+            onClick={() => {
+              if (!enabled) {
+                toast.error('Generate the report first')
+                return
+              }
+              exportMutation.mutate()
+            }}
             disabled={exportMutation.isPending}
             style={ghostBtnStyle}
           >
@@ -287,7 +394,7 @@ export default function SalesByInvoiceReport() {
             marginTop: 2,
           }}
         >
-          {(user as any)?.branch?.name ?? 'All Branches'}
+          {branchName}
         </span>
         <span
           style={{
@@ -356,18 +463,14 @@ export default function SalesByInvoiceReport() {
               style={inputStyle}
             />
           </div>
-          {isSuperadmin && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={labelStyle}>BRANCH ID</label>
-              <input
-                type="text"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="All branches"
-                style={{ ...inputStyle, width: 140 }}
-              />
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={labelStyle}>BRANCH</label>
+            <ReportBranchSelect
+              value={branchFilter}
+              onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
           <button
             type="button"
             onClick={() => {
@@ -397,13 +500,13 @@ export default function SalesByInvoiceReport() {
           </div>
         </div>
         <div style={statCardStyle}>
-          <div style={labelStyle}>Total Bruto</div>
+          <div style={labelStyle}>Bruto (halaman ini)</div>
           <div style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
             {formatCurrency(pageTotals.bruto)}
           </div>
         </div>
         <div style={statCardStyle}>
-          <div style={labelStyle}>Total Discount</div>
+          <div style={labelStyle}>Discount (halaman ini)</div>
           <div
             style={{
               fontSize: 18,
@@ -416,7 +519,7 @@ export default function SalesByInvoiceReport() {
           </div>
         </div>
         <div style={statCardStyle}>
-          <div style={labelStyle}>Total Netto</div>
+          <div style={labelStyle}>Netto (halaman ini)</div>
           <div
             style={{
               fontSize: 18,
@@ -430,6 +533,64 @@ export default function SalesByInvoiceReport() {
         </div>
       </div>
 
+      <div
+        className="no-print"
+        style={{ display: 'flex', gap: 8, marginBottom: 12 }}
+      >
+        {(
+          [
+            ['detail', 'Detail per Transaksi'],
+            ['list', 'Ringkasan'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setView(key)}
+            style={{
+              ...ghostBtnStyle,
+              background: view === key ? 'var(--accent)' : 'var(--surface)',
+              color: view === key ? 'white' : 'var(--foreground)',
+              borderColor: view === key ? 'var(--accent)' : 'var(--border)',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'detail' && (
+        <div>
+          {!enabled && (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+              Set date range and click Generate
+            </div>
+          )}
+          {enabled && isLoading && (
+            <div style={{ padding: 32, textAlign: 'center' }}>Loading...</div>
+          )}
+          {enabled && !isLoading && orders.length === 0 && (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+              No invoices for selected period
+            </div>
+          )}
+          {enabled && !isLoading && orders.length > 0 && (
+            <div style={{ fontSize: 12, marginBottom: 8, color: 'var(--foreground-muted)' }}>
+              Jumlah Transaksi = <b style={{ color: 'var(--foreground)' }}>{meta?.total ?? orders.length}</b>
+            </div>
+          )}
+          {orders.map((order: any, idx: number) => (
+            <InvoiceCard
+              key={order.id ?? `${order.code}-${idx}`}
+              order={order}
+              index={(page - 1) * perPage + idx + 1}
+              allocations={allocByOrder.get(Number(order.id)) ?? []}
+            />
+          ))}
+        </div>
+      )}
+
+      {view === 'list' && (
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
@@ -449,6 +610,7 @@ export default function SalesByInvoiceReport() {
               <th style={{ ...thStyle, textAlign: 'right' }}>Bruto</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Discount</th>
               <th style={{ ...thStyle, textAlign: 'right' }}>Netto</th>
+              <th style={thStyle}>Payment Method</th>
               <th style={{ ...thStyle, textAlign: 'center' }}>Payment Status</th>
               <th style={{ ...thStyle, textAlign: 'center' }}>Settlement</th>
             </tr>
@@ -457,7 +619,7 @@ export default function SalesByInvoiceReport() {
             {isLoading && (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   style={{ ...tdBase, textAlign: 'center', padding: 32 }}
                 >
                   Loading...
@@ -467,7 +629,7 @@ export default function SalesByInvoiceReport() {
             {!enabled && (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   style={{
                     ...tdBase,
                     textAlign: 'center',
@@ -482,7 +644,7 @@ export default function SalesByInvoiceReport() {
             {enabled && !isLoading && orders.length === 0 && (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   style={{
                     ...tdBase,
                     textAlign: 'center',
@@ -515,7 +677,7 @@ export default function SalesByInvoiceReport() {
                       idx % 2 === 0 ? 'transparent' : 'var(--background)',
                   }}
                 >
-                  <td style={tdBase}>{(page - 1) * 50 + idx + 1}</td>
+                  <td style={tdBase}>{(page - 1) * perPage + idx + 1}</td>
                   <td style={tdBase}>{order.branch?.name ?? '—'}</td>
                   <td style={{ ...tdBase, whiteSpace: 'nowrap' }}>
                     {order.date
@@ -563,6 +725,7 @@ export default function SalesByInvoiceReport() {
                   >
                     {formatCurrency(order.total_price ?? 0)}
                   </td>
+                  <td style={{ ...tdBase, fontSize: 11 }}>{methodsLabel(order.id)}</td>
                   <td style={{ ...tdBase, textAlign: 'center' }}>
                     <Badge meta={paymentMeta} />
                   </td>
@@ -607,12 +770,13 @@ export default function SalesByInvoiceReport() {
                 >
                   {formatCurrency(pageTotals.netto)}
                 </td>
-                <td colSpan={2} style={tdBase}></td>
+                <td colSpan={3} style={tdBase}></td>
               </tr>
             </tfoot>
           )}
         </table>
       </div>
+      )}
 
       {enabled && lastPage > 1 && (
         <div
@@ -656,6 +820,206 @@ export default function SalesByInvoiceReport() {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+const cardCell: React.CSSProperties = {
+  padding: '4px 8px',
+  fontSize: 12,
+  borderBottom: '1px solid var(--border)',
+}
+const cardLabel: React.CSSProperties = {
+  ...cardCell,
+  color: 'var(--foreground-muted)',
+  width: 110,
+  whiteSpace: 'nowrap',
+}
+
+/** Everything a transaction card shows — used by the card and by the Excel export. */
+function buildInvoiceView(order: any, allocations: OrderAllocation[]) {
+  const items: DetailItem[] = (order.sales_order_details ?? []).map(resolveDetailItem)
+  const bruto = Number(order.subtotal_price ?? 0)
+  const discount = Number(order.discount_price ?? 0)
+  const paidInPeriod = allocations.reduce((s, a) => s + a.amount, 0)
+  const paidOutside = Math.max(0, Number(order.total_payment ?? paidInPeriod) - paidInPeriod)
+  const remaining = Math.max(0, Number(order.remaining_payment ?? 0))
+  const byMethod = allocations.reduce<Record<string, number>>((m, a) => {
+    m[a.methodName] = (m[a.methodName] ?? 0) + a.amount
+    return m
+  }, {})
+  const dt = parseApiDate(order.created_at ?? order.date)
+
+  const summaryLeft: [string, number][] = [
+    ['Bruto', bruto],
+    ['Diskon', discount],
+    ['Netto', bruto - discount],
+    ['Tax', Number(order.tax_amount ?? 0)],
+    ['Delivery / Add. Charge', Number(order.additional_charge_price ?? 0)],
+    ['Total', Number(order.total_price ?? 0)],
+  ]
+  const summaryRight: [string, number][] = [
+    ...Object.entries(byMethod),
+    ...(paidOutside > 0 ? [['DP / Dibayar di luar periode', paidOutside] as [string, number]] : []),
+    ...(remaining > 0 ? [['Belum Dibayar', remaining] as [string, number]] : []),
+    ['Payment', paidInPeriod + paidOutside],
+  ]
+
+  return {
+    items,
+    summaryLeft,
+    summaryRight,
+    waktu: `${order.date ? formatDateShort(order.date) : '—'}${dt ? ` ${dt.toLocaleTimeString('id-ID')}` : ''}`,
+    customer: order.customer?.name ?? order.customer_name ?? '—',
+    phone: order.customer?.phone ?? order.customer_phone ?? '—',
+    jenis: `${order.type === 'online' ? 'Online' : 'Offline'}${
+      order.credit_type ? ` · Credit ${order.credit_type === 'user' ? 'Karyawan' : 'Customer'}` : ''
+    }`,
+    status: `${PAYMENT_META[order.payment_status]?.label ?? order.payment_status ?? '—'} / ${
+      SETTLEMENT_META[order.settlement_status]?.label ?? order.settlement_status ?? '—'
+    }`,
+    kasir: order.created_by?.name ?? '—',
+    promo: voucherCode(order) || '—',
+    remark: order.description || '—',
+  }
+}
+
+const InvoiceCard: React.FC<{
+  order: any
+  index: number
+  allocations: OrderAllocation[]
+}> = ({ order, index, allocations }) => {
+  const v = buildInvoiceView(order, allocations)
+  const { items, summaryLeft, summaryRight } = v
+  const rp = (val: number) => formatCurrency(val, '')
+  const rows = Math.max(summaryLeft.length, summaryRight.length)
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--surface)',
+        marginBottom: 16,
+        overflow: 'hidden',
+        breakInside: 'avoid',
+      }}
+    >
+      <div
+        style={{
+          padding: '6px 10px',
+          background: 'var(--background)',
+          fontSize: 12,
+          fontWeight: 700,
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        Transaksi Ke = {index}
+      </div>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <tbody>
+          <tr>
+            <td style={cardLabel}>Waktu</td>
+            <td style={cardCell}>{v.waktu}</td>
+            <td style={cardLabel}>No Trx</td>
+            <td style={{ ...cardCell, fontFamily: 'monospace', fontSize: 11 }}>{order.code}</td>
+          </tr>
+          <tr>
+            <td style={cardLabel}>Customer</td>
+            <td style={cardCell}>{v.customer}</td>
+            <td style={cardLabel}>Phone</td>
+            <td style={cardCell}>{v.phone}</td>
+          </tr>
+          <tr>
+            <td style={cardLabel}>Jenis</td>
+            <td style={cardCell}>{v.jenis}</td>
+            <td style={cardLabel}>Status</td>
+            <td style={cardCell}>{v.status}</td>
+          </tr>
+          <tr>
+            <td style={cardLabel}>Kasir</td>
+            <td style={cardCell}>{v.kasir}</td>
+            <td style={cardLabel}>Kode Promo</td>
+            <td style={cardCell}>{v.promo}</td>
+          </tr>
+          <tr>
+            <td style={cardLabel}>Remark</td>
+            <td style={cardCell} colSpan={3}>{v.remark}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 4 }}>
+        <thead>
+          <tr>
+            <th style={{ ...thStyle, width: 36 }}>No.</th>
+            <th style={{ ...thStyle, width: 100 }}>Kode</th>
+            <th style={thStyle}>Nama</th>
+            <th style={{ ...thStyle, width: 60 }}>Unit</th>
+            <th style={{ ...thStyle, textAlign: 'right', width: 100 }}>Harga</th>
+            <th style={{ ...thStyle, textAlign: 'right', width: 50 }}>Qty</th>
+            <th style={{ ...thStyle, textAlign: 'right', width: 110 }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.length === 0 && (
+            <tr>
+              <td colSpan={7} style={{ ...cardCell, color: 'var(--foreground-muted)' }}>
+                No line items
+              </td>
+            </tr>
+          )}
+          {items.map((it: any, i: number) => (
+            <tr key={i}>
+              <td style={cardCell}>{i + 1}</td>
+              <td style={{ ...cardCell, fontFamily: 'monospace', fontSize: 11 }}>{it.code}</td>
+              <td style={cardCell}>{it.name}</td>
+              <td style={cardCell}>{it.unit}</td>
+              <td style={{ ...cardCell, textAlign: 'right' }}>{rp(it.price)}</td>
+              <td style={{ ...cardCell, textAlign: 'right' }}>
+                {it.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+              </td>
+              <td style={{ ...cardCell, textAlign: 'right' }}>{rp(it.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 4 }}>
+        <tbody>
+          {Array.from({ length: rows }).map((_, i) => {
+            const l = summaryLeft[i]
+            const r = summaryRight[i]
+            const isTotalRow = (row?: [string, number]) =>
+              row && (row[0] === 'Total' || row[0] === 'Payment')
+            return (
+              <tr key={i}>
+                <td style={cardLabel}>{l?.[0] ?? ''}</td>
+                <td
+                  style={{
+                    ...cardCell,
+                    textAlign: 'right',
+                    fontWeight: isTotalRow(l) ? 700 : 400,
+                  }}
+                >
+                  {l ? rp(l[1]) : ''}
+                </td>
+                <td style={cardLabel}>{r?.[0] ?? ''}</td>
+                <td
+                  style={{
+                    ...cardCell,
+                    textAlign: 'right',
+                    fontWeight: isTotalRow(r) ? 700 : 400,
+                  }}
+                >
+                  {r ? rp(r[1]) : ''}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

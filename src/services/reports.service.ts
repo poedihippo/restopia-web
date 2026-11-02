@@ -159,9 +159,7 @@ export const reportsService = {
   // Aging & Statements
   getArAging: (params?: ArAgingParams): Promise<AxiosResponse<{ success: boolean; message: string; data: ArAgingResponse }>> =>
     api.get('/reports/ar-aging', { params }),
-
-  exportArAging: (params?: ArAgingParams): Promise<AxiosResponse<Blob>> =>
-    api.get('/reports/ar-aging/exports', { params, responseType: 'blob' }),
+  // No AR aging export endpoint any more — the view builds the Excel file from getArAging's JSON.
 
   exportApAging: (params?: { as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/ap-aging/exports', { params, responseType: 'blob' }),

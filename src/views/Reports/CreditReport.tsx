@@ -5,9 +5,13 @@ import { formatDateShort } from '@/utils/date';
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Printer } from 'lucide-react'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+import { toast } from 'sonner'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
 import { salesOrdersService } from '@/services/sales-orders.service'
+import { fetchAllPages, isEmployeeCredit } from '@/utils/salesReport'
 import { useAuth } from '@/hooks/useAuth'
+import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
 const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
   credit: { label: 'Credit', color: 'var(--warning)', bg: 'var(--warning-bg)' },
@@ -72,6 +76,18 @@ const statCardStyle: React.CSSProperties = {
   padding: '14px 16px',
 }
 
+/** Outstanding credit: the API's remaining_payment, falling back to the total while still on credit. */
+const getBalance = (o: any) => {
+  if (o.remaining_payment != null) return Math.max(0, Number(o.remaining_payment))
+  return o.settlement_status === 'credit' ? Number(o.total_price ?? 0) : 0
+}
+
+/** Who owes the credit: the employee for staff credit, otherwise the customer. */
+const creditorName = (o: any) =>
+  isEmployeeCredit(o)
+    ? o.credit_by?.name ?? o.customer_name ?? '—'
+    : o.customer?.name ?? o.customer_name ?? '—'
+
 const getAging = (dateStr: string) => {
   const days = Math.floor(
     (Date.now() - new Date(dateStr).getTime()) / 86400000,
@@ -84,7 +100,7 @@ const getAging = (dateStr: string) => {
 
 export default function CreditReport() {
   const router = useRouter()
-  const { user, isSuperadmin } = useAuth()
+  const { user } = useAuth()
   const fmtRp = (v: number | null | undefined) => formatCurrency(v ?? 0)
 
   const [dateFrom, setDateFrom] = useState(firstOfMonth())
@@ -94,6 +110,7 @@ export default function CreditReport() {
   const [settlementFilter, setSettlementFilter] = useState<
     '' | 'credit' | 'settled' | 'cancelled'
   >('credit')
+  const branchName = useReportBranchName(branchFilter)
   const [enabled, setEnabled] = useState(false)
 
   useEffect(() => {
@@ -112,32 +129,94 @@ export default function CreditReport() {
       settlementFilter,
     ],
     queryFn: () =>
-      salesOrdersService
-        .list({
-          per_page: 500,
-          include: 'branch,customer,credit_by',
-          'filter[settlement_status]': settlementFilter || 'credit',
-          'filter[date_gte]': dateFrom,
-          'filter[date_lte]': dateTo,
-          'filter[branch_id]': branchFilter || undefined,
-          sort: 'date',
-        } as any)
-        .then((r) => r.data),
+      fetchAllPages((page) =>
+        salesOrdersService
+          .list({
+            page,
+            per_page: 500,
+            include: 'branch,customer,credit_by',
+            // "All" = every credit sale regardless of settlement state.
+            ...(settlementFilter
+              ? { 'filter[settlement_status]': settlementFilter }
+              : { 'filter[is_credit]': '1' }),
+            'filter[date_gte]': dateFrom,
+            'filter[date_lte]': dateTo,
+            'filter[branch_id]': branchFilter || undefined,
+            sort: 'date',
+          } as any)
+          .then((r) => r.data),
+      ),
     enabled,
   })
 
-  const orders: any[] = (data as any)?.data ?? []
+  const orders: any[] = useMemo(() => data ?? [], [data])
 
   const totals = useMemo(() => {
     const buckets = [0, 0, 0, 0]
     let total = 0
     orders.forEach((o: any) => {
       const { bucket } = getAging(o.date)
-      buckets[bucket] += Number(o.total_price ?? 0)
-      total += Number(o.total_price ?? 0)
+      const balance = getBalance(o)
+      buckets[bucket] += balance
+      total += balance
     })
     return { buckets, total }
   }, [orders])
+
+  const SETTLEMENT_FILTER_LABEL: Record<string, string> = {
+    credit: 'Credit (unpaid)',
+    settled: 'Settled',
+    cancelled: 'Cancelled',
+    '': 'All',
+  }
+
+  const handleExport = () => {
+    if (!enabled || isLoading || orders.length === 0) {
+      toast.error('Generate the report first')
+      return
+    }
+    const rows: ExcelRow[] = [
+      ...reportHeader({
+        title: `CREDIT PER TRANSAKSI (${orders.length})`,
+        branch: branchName,
+        period: `${dateFrom} s/d ${dateTo}`,
+        extra: [`Status Creditlist : ${SETTLEMENT_FILTER_LABEL[settlementFilter]}`],
+      }),
+      [
+        'No', 'No Trx', 'Waktu Trx', 'Nama Customer / Karyawan', 'Remark', 'Phone', 'Jenis',
+        'Balance', 'P1 (0-30)', 'P2 (31-60)', 'P3 (61-90)', 'P4 (>90)', 'Status',
+      ],
+    ]
+    orders.forEach((order: any, idx: number) => {
+      const balance = getBalance(order)
+      const buckets = [0, 0, 0, 0]
+      buckets[getAging(order.date).bucket] = balance
+      const dt = order.created_at ? new Date(order.created_at) : null
+      rows.push([
+        idx + 1,
+        order.code,
+        `${order.date ? formatDateShort(order.date) : ''}${dt ? ' ' + dt.toLocaleTimeString('id-ID') : ''}`,
+        creditorName(order),
+        order.description ?? '',
+        order.customer?.phone ?? order.customer_phone ?? '',
+        isEmployeeCredit(order) ? 'Karyawan' : 'Customer',
+        money(balance),
+        ...buckets.map(money),
+        balance <= 0
+          ? 'Paid'
+          : SETTLEMENT_META[order.settlement_status]?.label ?? order.settlement_status ?? '',
+      ])
+    })
+    rows.push([
+      '', '', '', '', '', '', 'TOTAL',
+      money(totals.total),
+      ...totals.buckets.map(money),
+      '',
+    ])
+    downloadExcel(`credit-report-${dateFrom}_${dateTo}.xlsx`, [
+      { name: 'Credit Report', rows, cols: [6, 30, 20, 30, 26, 16, 12, 16, 14, 14, 14, 14, 12] },
+    ])
+  }
 
   const onGenerate = () => {
     setEnabled(true)
@@ -191,6 +270,27 @@ export default function CreditReport() {
           <ArrowLeft size={14} />
           Back
         </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={handleExport}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 16px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--foreground)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          <Download size={14} />
+          Export Excel
+        </button>
         <button
           type="button"
           onClick={() => window.print()}
@@ -211,6 +311,7 @@ export default function CreditReport() {
           <Printer size={14} />
           Print
         </button>
+        </div>
       </div>
 
       <div
@@ -240,7 +341,7 @@ export default function CreditReport() {
             marginTop: 2,
           }}
         >
-          {(user as any)?.branch?.name ?? 'All Branches'}
+          {branchName}
         </span>
         <span
           style={{
@@ -321,18 +422,14 @@ export default function CreditReport() {
               <option value="">All</option>
             </select>
           </div>
-          {isSuperadmin && (
-            <div>
-              <label style={labelStyle}>Branch ID</label>
-              <input
-                type="text"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="All branches"
-                style={{ ...inputStyle, width: 120 }}
-              />
-            </div>
-          )}
+          <div>
+            <label style={labelStyle}>Branch</label>
+            <ReportBranchSelect
+              value={branchFilter}
+              onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
           <button
             type="button"
             onClick={onGenerate}
@@ -439,7 +536,7 @@ export default function CreditReport() {
               <th style={thStyle}>No</th>
               <th style={thStyle}>No Trx</th>
               <th style={thStyle}>Tanggal</th>
-              <th style={thStyle}>Nama</th>
+              <th style={thStyle}>Nama Customer / Karyawan</th>
               <th style={thStyle}>Remark</th>
               <th style={thStyle}>Phone</th>
               <th style={thStyle}>Jenis</th>
@@ -475,10 +572,13 @@ export default function CreditReport() {
             )}
             {orders.map((order: any, idx: number) => {
               const aging = getAging(order.date)
+              const balance = getBalance(order)
               const bucketAmounts = [0, 0, 0, 0]
-              bucketAmounts[aging.bucket] = Number(order.total_price ?? 0)
+              bucketAmounts[aging.bucket] = balance
               const settle =
-                SETTLEMENT_META[order.settlement_status] ?? SETTLEMENT_META.pending
+                balance <= 0
+                  ? { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' }
+                  : SETTLEMENT_META[order.settlement_status] ?? SETTLEMENT_META.pending
               const dt = order.created_at ? new Date(order.created_at) : null
               return (
                 <tr key={order.id}>
@@ -497,7 +597,7 @@ export default function CreditReport() {
                     )}
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 500 }}>
-                    {order.customer?.name ?? order.customer_name ?? '—'}
+                    {creditorName(order)}
                   </td>
                   <td style={{ ...tdStyle, fontSize: 11 }}>
                     {order.description ?? '—'}
@@ -505,9 +605,9 @@ export default function CreditReport() {
                   <td style={tdStyle}>
                     {order.customer?.phone ?? order.customer_phone ?? '—'}
                   </td>
-                  <td style={tdStyle}>{order.credit_by?.name ?? 'Customer'}</td>
+                  <td style={tdStyle}>{isEmployeeCredit(order) ? 'Karyawan' : 'Customer'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
-                    {fmtRp(order.total_price)}
+                    {fmtRp(balance)}
                   </td>
                   {bucketAmounts.map((amt, i) => (
                     <td

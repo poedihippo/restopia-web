@@ -5,9 +5,12 @@ import { formatDateShort } from '@/utils/date';
 import React, { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Printer } from 'lucide-react'
-import { salesOrdersService } from '@/services/sales-orders.service'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+import { toast } from 'sonner'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import { fetchFinalSalesOrders } from '@/utils/salesReport'
 import { useAuth } from '@/hooks/useAuth'
+import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
 const firstOfMonth = () => {
   const d = new Date()
   return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
@@ -72,7 +75,7 @@ const parseVoucher = (snap: any) => {
 
 export default function DiscountVoucherReport() {
   const router = useRouter()
-  const { user, isSuperadmin } = useAuth()
+  const { user } = useAuth()
   const fmtRp = (v: number | null | undefined) => formatCurrency(v ?? 0)
 
   const [dateFrom, setDateFrom] = useState(firstOfMonth())
@@ -80,6 +83,7 @@ export default function DiscountVoucherReport() {
   const [branchFilter, setBranchFilter] = useState('')
   const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState(false)
+  const branchName = useReportBranchName(branchFilter)
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {
@@ -91,22 +95,17 @@ export default function DiscountVoucherReport() {
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['report-discount-voucher', dateFrom, dateTo, branchFilter],
     queryFn: () =>
-      salesOrdersService
-        .list({
-          per_page: 500,
-          include: 'branch,customer',
-          'filter[status]': 'final',
-          'filter[date_gte]': dateFrom,
-          'filter[date_lte]': dateTo,
-          'filter[branch_id]': branchFilter || undefined,
-          sort: 'date',
-        } as any)
-        .then((r) => r.data),
+      fetchFinalSalesOrders({
+        dateFrom,
+        dateTo,
+        branchId: branchFilter,
+        include: 'branch,customer',
+      }),
     enabled,
   })
 
   const filtered = useMemo(() => {
-    const rows: any[] = (data as any)?.data ?? []
+    const rows: any[] = data ?? []
     return rows.filter(
       (o: any) => Number(o.discount_price ?? 0) > 0 || o.voucher_id,
     )
@@ -122,6 +121,58 @@ export default function DiscountVoucherReport() {
     (s: number, o: any) => s + Number(o.total_price ?? 0),
     0,
   )
+
+  const voucherTypeLabel = (v: any) =>
+    v?.discount_type === 'percent' ? '%' : v?.discount_type === 'fixed' ? 'Fixed' : '—'
+
+  const handleExport = () => {
+    if (!enabled || isLoading || filtered.length === 0) {
+      toast.error('Generate the report first')
+      return
+    }
+    const rows: ExcelRow[] = [
+      ...reportHeader({
+        title: 'Discount & Voucher Report',
+        branch: branchName,
+        period: `${dateFrom} s/d ${dateTo}`,
+        extra: [
+          `Transactions w/ Discount : ${filtered.length}`,
+          `Orders with Voucher : ${ordersWithVoucher}`,
+          `Discount Only : ${ordersWithDiscountOnly}`,
+        ],
+      }),
+      [
+        'No', 'Outlet', 'Tanggal', 'Waktu', 'No Trx', 'Customer', 'Total', 'Discount Rp',
+        'Voucher Code', 'Voucher Type', 'Voucher Value', 'Remark',
+      ],
+      ...filtered.map((order: any, idx: number) => {
+        const vSnap = parseVoucher(order.voucher_snapshot)
+        const dt = order.created_at ? new Date(order.created_at) : null
+        return [
+          idx + 1,
+          order.branch?.name ?? '',
+          order.date ? formatDateShort(order.date) : '',
+          dt ? dt.toLocaleTimeString('id-ID') : '',
+          order.code,
+          order.customer?.name ?? order.customer_name ?? '',
+          money(order.total_price),
+          money(order.discount_price),
+          vSnap?.code ?? '',
+          voucherTypeLabel(vSnap),
+          vSnap?.discount_type === 'percent'
+            ? `${vSnap.discount_value}%`
+            : vSnap?.discount_value
+              ? money(vSnap.discount_value)
+              : '',
+          order.description ?? '',
+        ]
+      }),
+      ['', '', '', '', '', 'TOTAL', money(totalOrders), money(totalDiscount)],
+    ]
+    downloadExcel(`discount-voucher-${dateFrom}_${dateTo}.xlsx`, [
+      { name: 'Discount & Voucher', rows, cols: [6, 20, 12, 10, 30, 24, 14, 14, 16, 12, 14, 30] },
+    ])
+  }
 
   const onGenerate = () => {
     setEnabled(true)
@@ -175,6 +226,28 @@ export default function DiscountVoucherReport() {
           <ArrowLeft size={14} />
           Back
         </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={false}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 16px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--foreground)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          <Download size={14} />
+          Export Excel
+        </button>
         <button
           type="button"
           onClick={() => window.print()}
@@ -195,6 +268,7 @@ export default function DiscountVoucherReport() {
           <Printer size={14} />
           Print
         </button>
+        </div>
       </div>
 
       <div
@@ -224,7 +298,7 @@ export default function DiscountVoucherReport() {
             marginTop: 2,
           }}
         >
-          {(user as any)?.branch?.name ?? 'All Branches'}
+          {branchName}
         </span>
         <span
           style={{
@@ -290,18 +364,14 @@ export default function DiscountVoucherReport() {
               style={inputStyle}
             />
           </div>
-          {isSuperadmin && (
-            <div>
-              <label style={labelStyle}>Branch ID</label>
-              <input
-                type="text"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="All branches"
-                style={{ ...inputStyle, width: 120 }}
-              />
-            </div>
-          )}
+          <div>
+            <label style={labelStyle}>Branch</label>
+            <ReportBranchSelect
+              value={branchFilter}
+              onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
           <button
             type="button"
             onClick={onGenerate}
@@ -487,11 +557,7 @@ export default function DiscountVoucherReport() {
                     {vSnap?.code ?? '—'}
                   </td>
                   <td style={tdStyle}>
-                    {vSnap?.discount_type === 'percent'
-                      ? '%'
-                      : vSnap?.discount_type === 'fixed'
-                        ? 'Fixed'
-                        : '—'}
+                    {voucherTypeLabel(vSnap)}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>{valueDisplay}</td>
                   <td style={{ ...tdStyle, fontSize: 11, color: 'var(--foreground-muted)' }}>

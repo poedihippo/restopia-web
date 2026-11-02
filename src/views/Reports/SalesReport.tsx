@@ -2,20 +2,53 @@
 import { formatCurrency } from '@/utils/price';
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { useAuth } from '@/hooks/useAuth'
+import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
 import { salesOrdersService } from '@/services/sales-orders.service'
-import { paymentsService } from '@/services/payments.service'
-import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react'
-import { reportsService } from '@/services/reports.service'
-import { downloadFileFromResponse } from '@/utils/file'
-import { toastMutationApiError } from '@/utils/apiError'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
 import { toast } from 'sonner'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import {
+  fetchFinalSalesOrders,
+  fetchPeriodPayments,
+  flattenSalesOrderAllocations,
+  resolveDetailItem,
+  isEmployeeCredit,
+  PAYMENT_BUCKET_LABEL,
+  type PaymentBucket,
+} from '@/utils/salesReport'
 const today = () => new Date().toISOString().split('T')[0]
 
+// Non-cash buckets deducted from the sub total to arrive at the cash deposit.
+const NON_CASH_BUCKETS: PaymentBucket[] = ['voucher', 'transfer', 'debit', 'card', 'other']
+const ALL_BUCKETS: PaymentBucket[] = ['cash', 'debit', 'card', 'transfer', 'voucher', 'other']
+
+type BucketTotals = Record<PaymentBucket, number>
+
+/** One line of the SALES / SETORAN summaries — rendered on screen and exported as-is. */
+interface SummaryLine {
+  label: string
+  value: number
+  sign?: string
+  bold?: boolean
+  topBorder?: boolean
+  /** Sub-heading row without a value. */
+  heading?: boolean
+}
+const emptyBuckets = (): BucketTotals => ({
+  cash: 0,
+  debit: 0,
+  card: 0,
+  transfer: 0,
+  credit: 0,
+  voucher: 0,
+  other: 0,
+})
+
 export default function SalesReport() {
-  const { user, isSuperadmin } = useAuth()
+  const { user } = useAuth()
   const router = useRouter()
 
   const [dateFrom, setDateFrom] = useState<string>(today())
@@ -31,163 +64,316 @@ export default function SalesReport() {
     }
   }, [user, hasSetDefault])
 
-  const { data, isLoading } = useQuery({
+  const { data: ordersData, isLoading } = useQuery({
     queryKey: ['report-sales', dateFrom, dateTo, branchFilter],
     queryFn: () =>
-      salesOrdersService
-        .list({
-          per_page: 500,
-          include: 'sales_order_details,branch',
-          'filter[status]': 'final',
-          'filter[date_gte]': dateFrom,
-          'filter[date_lte]': dateTo,
-          'filter[branch_id]': branchFilter || undefined,
-          sort: 'date',
-        } as any)
-        .then((r) => r.data),
-    enabled,
-  })
-  const orders: any[] = (data as any)?.data ?? []
-
-  const { data: allocationsData } = useQuery({
-    queryKey: ['report-sales-allocations', dateFrom, dateTo, branchFilter],
-    queryFn: () =>
-      paymentsService
-        .listAllocations({
-          per_page: 1000,
-          include: 'payment',
-          'filter[is_reversed]': 'false',
-        } as any)
-        .then((r) => r.data),
-    enabled,
-  })
-  const allocations: any[] = (allocationsData as any)?.data ?? []
-
-  const exportMutation = useMutation({
-    mutationFn: () =>
-      reportsService.exportOutletTransactions({
-        start_date: dateFrom || undefined,
-        end_date: dateTo || undefined,
-        'filter[branch_id]': branchFilter ? Number(branchFilter) : undefined,
+      fetchFinalSalesOrders({
+        dateFrom,
+        dateTo,
+        branchId: branchFilter,
+        include: 'sales_order_details,branch',
       }),
-    onSuccess: (res) => {
-      downloadFileFromResponse(res, `outlet-transactions-${dateFrom}_${dateTo}.xlsx`)
-      toast.success('Outlet transactions report exported')
-    },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to export outlet transactions'),
+    enabled,
+  })
+  const orders: any[] = useMemo(() => ordersData ?? [], [ordersData])
+
+  const { data: paymentsData, isLoading: isPaymentsLoading } = useQuery({
+    queryKey: ['report-sales-payments', dateFrom, dateTo, branchFilter],
+    queryFn: () => fetchPeriodPayments({ dateFrom, dateTo, branchId: branchFilter }),
+    enabled,
+  })
+  const allocations = useMemo(
+    () => flattenSalesOrderAllocations(paymentsData ?? []),
+    [paymentsData],
+  )
+
+  // Payments in the period can settle orders outside it: older credit
+  // (credit payment) or not-yet-final pre-orders (down payment +).
+  const outsideOrderIds = useMemo(() => {
+    const inPeriod = new Set(orders.map((o: any) => Number(o.id)))
+    return Array.from(
+      new Set(
+        allocations
+          .map((a) => a.salesOrderId)
+          .filter((id) => !inPeriod.has(id)),
+      ),
+    ).sort((a, b) => a - b)
+  }, [orders, allocations])
+
+  const { data: outsideOrdersData, isLoading: isOutsideLoading } = useQuery({
+    queryKey: ['report-sales-outside-orders', outsideOrderIds],
+    queryFn: () =>
+      Promise.all(
+        outsideOrderIds.map((id) =>
+          salesOrdersService
+            .findById(id)
+            .then((r) => (r.data as any)?.data)
+            .catch(() => null),
+        ),
+      ),
+    enabled: enabled && !!ordersData && outsideOrderIds.length > 0,
   })
 
   // ── Aggregation (all client-side) ─────────────────────────────────────────
   const aggregated = useMemo(() => {
+    // Category → items grouped by (code, price), like the legacy report.
     const catMap: Record<
       string,
       {
-        items: Array<{
-          code: string
-          name: string
-          qty: number
-          price: number
-          amount: number
-        }>
+        items: Record<string, { code: string; name: string; qty: number; price: number; amount: number }>
         totalQty: number
         totalAmount: number
+        minCode: string
       }
     > = {}
 
     let grossSales = 0
     let totalDiscount = 0
-    let totalCash = 0
-    let totalDebit = 0
-    let totalCard = 0
-    let totalTransfer = 0
-    let totalCreditCustomer = 0
-    let totalCreditKaryawan = 0
-    let totalVoucher = 0
+    let totalTax = 0
+    let totalCharge = 0
+    let paidOutsidePeriod = 0
+    let unpaid = 0
 
     const orderMap = new Map<number, any>()
+    const paidInPeriod = new Map<number, number>()
+
     orders.forEach((order: any) => {
       orderMap.set(Number(order.id), order)
-      grossSales += order.subtotal_price ?? 0
-      totalDiscount += order.discount_price ?? 0
+      grossSales += Number(order.subtotal_price ?? 0)
+      totalDiscount += Number(order.discount_price ?? 0)
+      totalTax += Number(order.tax_amount ?? 0)
+      totalCharge += Number(order.additional_charge_price ?? 0)
 
-      // Line items → group by category
       ;(order.sales_order_details ?? []).forEach((d: any) => {
-        // Snapshots are already-parsed JSON columns captured at sale time.
-        const pis = d.product_inventory_snapshot
-        const bs = d.bundle_snapshot
-        const prod = pis?.product_uom_batch?.product_uom?.product
-        const code = prod?.code ?? bs?.code ?? '-'
-        const name = prod?.name ?? bs?.name ?? '-'
-        const catName = prod?.product_category?.name ?? 'OTHER'
-        const qty = d.qty ?? 0
-        const price = d.price ?? 0
-        const amount = qty * price
-
-        if (!catMap[catName]) {
-          catMap[catName] = { items: [], totalQty: 0, totalAmount: 0 }
-        }
-        catMap[catName].items.push({ code, name, qty, price, amount })
-        catMap[catName].totalQty += qty
-        catMap[catName].totalAmount += amount
+        const item = resolveDetailItem(d)
+        const cat = (catMap[item.category] ??= {
+          items: {},
+          totalQty: 0,
+          totalAmount: 0,
+          minCode: item.code,
+        })
+        const key = `${item.code}|${item.price}`
+        const row = (cat.items[key] ??= {
+          code: item.code,
+          name: item.name,
+          qty: 0,
+          price: item.price,
+          amount: 0,
+        })
+        row.qty += item.qty
+        row.amount += item.amount
+        cat.totalQty += item.qty
+        cat.totalAmount += item.amount
+        if (item.code < cat.minCode) cat.minCode = item.code
       })
     })
 
-    // Payment breakdown from allocations allocated to these sales orders
-    allocations.forEach((a: any) => {
-      const order = orderMap.get(Number(a.sales_order_id))
-      if (!order) return
-      const method = (a.payment?.payment_method?.name ?? '').toLowerCase()
-      const amt = Number(a.amount ?? 0)
-      if (method.includes('cash')) {
-        totalCash += amt
-      } else if (method.includes('debit') || method.includes('bca')) {
-        totalDebit += amt
-      } else if (
-        method.includes('visa') ||
-        method.includes('master') ||
-        method.includes('card')
-      ) {
-        totalCard += amt
-      } else if (method.includes('transfer')) {
-        totalTransfer += amt
-      } else if (method.includes('credit')) {
-        if (order.credit_by_id) {
-          totalCreditKaryawan += amt
-        } else {
-          totalCreditCustomer += amt
+    // Sales payments (orders in period) vs DP+ / credit payments (orders outside).
+    const sales = emptyBuckets()
+    let creditCustomer = 0
+    let creditKaryawan = 0
+    const dpPlus = emptyBuckets()
+    const creditPayment = emptyBuckets()
+    const byMethod: Record<string, number> = {}
+
+    const outsideMap = new Map<number, any>()
+    ;(outsideOrdersData ?? []).forEach((o: any) => o && outsideMap.set(Number(o.id), o))
+
+    allocations.forEach((a) => {
+      const order = orderMap.get(a.salesOrderId)
+      if (order) {
+        paidInPeriod.set(a.salesOrderId, (paidInPeriod.get(a.salesOrderId) ?? 0) + a.amount)
+        // Marketplace (online) orders are customer credit regardless of method.
+        if (a.bucket === 'credit' || order.type === 'online') {
+          if (isEmployeeCredit(order)) creditKaryawan += a.amount
+          else creditCustomer += a.amount
+          return
         }
-      } else if (method.includes('voucher')) {
-        totalVoucher += amt
-      } else {
-        totalCash += amt
+        sales[a.bucket] += a.amount
+        byMethod[a.methodName] = (byMethod[a.methodName] ?? 0) + a.amount
+        return
       }
+
+      if (a.bucket === 'credit') return
+      byMethod[a.methodName] = (byMethod[a.methodName] ?? 0) + a.amount
+      const outside = outsideMap.get(a.salesOrderId)
+      const isOlderFinal =
+        outside && outside.status === 'final' && String(outside.date ?? '') < dateFrom
+      if (isOlderFinal) creditPayment[a.bucket] += a.amount
+      else dpPlus[a.bucket] += a.amount
     })
 
+    orders.forEach((order: any) => {
+      const inPeriod = paidInPeriod.get(Number(order.id)) ?? 0
+      const totalPayment = Number(order.total_payment ?? inPeriod)
+      paidOutsidePeriod += Math.max(0, totalPayment - inPeriod)
+      unpaid += Math.max(0, Number(order.remaining_payment ?? 0))
+    })
+
+    const sumBuckets = (b: BucketTotals) => ALL_BUCKETS.reduce((s, k) => s + b[k], 0)
     const netSales = grossSales - totalDiscount
-    const totalGrossQty = Object.values(catMap).reduce(
-      (s, c) => s + c.totalQty,
-      0,
-    )
-    const totalBanking = totalCash + totalDebit + totalCard + totalTransfer
+    const totalSales = netSales + totalTax + totalCharge
+    const totalCredit = creditCustomer + creditKaryawan
+    const dpPlusTotal = sumBuckets(dpPlus)
+    const creditPaymentTotal = sumBuckets(creditPayment)
+    const subTotal =
+      totalSales - paidOutsidePeriod - unpaid - totalCredit + dpPlusTotal + creditPaymentTotal
+
+    const received = emptyBuckets()
+    ALL_BUCKETS.forEach((k) => {
+      received[k] = sales[k] + dpPlus[k] + creditPayment[k]
+    })
+    const cashDeposit = subTotal - NON_CASH_BUCKETS.reduce((s, k) => s + received[k], 0)
+
+    const categories = Object.entries(catMap)
+      .sort(([, a], [, b]) => a.minCode.localeCompare(b.minCode))
+      .map(([name, cat]) => ({
+        name,
+        totalQty: cat.totalQty,
+        totalAmount: cat.totalAmount,
+        items: Object.values(cat.items).sort(
+          (a, b) => a.code.localeCompare(b.code) || a.price - b.price,
+        ),
+      }))
 
     return {
-      catMap,
+      categories,
       grossSales,
       totalDiscount,
       netSales,
+      totalTax,
+      totalCharge,
+      totalSales,
       totalTransactions: orders.length,
-      totalGrossQty,
-      totalCash,
-      totalDebit,
-      totalCard,
-      totalTransfer,
-      totalCreditCustomer,
-      totalCreditKaryawan,
-      totalVoucher,
-      totalBanking,
-      grandTotal: grossSales,
+      totalGrossQty: categories.reduce((s, c) => s + c.totalQty, 0),
+      sales,
+      creditCustomer,
+      creditKaryawan,
+      totalCredit,
+      paidOutsidePeriod,
+      unpaid,
+      dpPlus,
+      dpPlusTotal,
+      creditPayment,
+      creditPaymentTotal,
+      subTotal,
+      received,
+      cashDeposit,
+      byMethod: Object.entries(byMethod).sort(([a], [b]) => a.localeCompare(b)),
     }
-  }, [orders, allocations])
+  }, [orders, allocations, outsideOrdersData, dateFrom])
+
+  const branchName = useReportBranchName(branchFilter)
+  const loading =
+    isLoading || isPaymentsLoading || (outsideOrderIds.length > 0 && isOutsideLoading)
+  const a = aggregated
+
+  const salesLines: SummaryLine[] = [
+    { label: 'GROSS SALES', value: a.grossSales },
+    { label: 'DISCOUNT', value: a.totalDiscount, sign: '(-)' },
+    { label: 'NET SALES', value: a.netSales, bold: true, topBorder: true },
+    { label: 'TAX', value: a.totalTax, sign: '(+)' },
+    { label: 'DELIVERY / ADD. CHARGE', value: a.totalCharge, sign: '(+)' },
+    { label: 'TOTAL SALES', value: a.totalSales, bold: true, topBorder: true },
+    { label: 'TOTAL SALES DIBAYAR DENGAN', value: 0, heading: true },
+    { label: 'CREDIT Customer', value: a.creditCustomer },
+    { label: 'CREDIT Karyawan', value: a.creditKaryawan },
+    { label: 'CASH SALES', value: a.sales.cash },
+    { label: 'DEBIT/BCA CARD', value: a.sales.debit },
+    { label: 'VISA/MASTER', value: a.sales.card },
+    { label: 'TRANSFER', value: a.sales.transfer },
+    { label: 'VOUCHER', value: a.sales.voucher },
+    ...(a.sales.other > 0 ? [{ label: 'LAINNYA', value: a.sales.other }] : []),
+    { label: 'DP / DIBAYAR DI LUAR PERIODE', value: a.paidOutsidePeriod },
+    ...(a.unpaid > 0 ? [{ label: 'BELUM DIBAYAR', value: a.unpaid }] : []),
+  ]
+
+  const setoranLines: SummaryLine[] = [
+    { label: 'TOTAL SALES', value: a.totalSales },
+    { label: 'DOWN PAYMENT −', value: a.paidOutsidePeriod, sign: '(-)' },
+    ...(a.unpaid > 0 ? [{ label: 'BELUM DIBAYAR', value: a.unpaid, sign: '(-)' }] : []),
+    { label: 'DOWN PAYMENT +', value: a.dpPlusTotal, sign: '(+)' },
+    { label: 'CREDIT', value: a.totalCredit, sign: '(-)' },
+    { label: 'CREDIT PAYMENT', value: a.creditPaymentTotal, sign: '(+)' },
+    { label: 'SUB TOTAL', value: a.subTotal, bold: true, topBorder: true },
+    { label: 'VOUCHER', value: a.received.voucher, sign: '(-)' },
+    { label: 'TRANSFER', value: a.received.transfer, sign: '(-)' },
+    { label: 'DEBIT/BCA CARD', value: a.received.debit, sign: '(-)' },
+    { label: 'VISA/MASTER', value: a.received.card, sign: '(-)' },
+    ...(a.received.other > 0
+      ? [{ label: 'LAINNYA', value: a.received.other, sign: '(-)' }]
+      : []),
+    { label: 'TOTAL CASH (SETORAN)', value: a.cashDeposit, bold: true, topBorder: true },
+  ]
+
+  const bucketSum = (b: BucketTotals) => ALL_BUCKETS.reduce((sum, k) => sum + b[k], 0)
+
+  const handleExport = () => {
+    if (!enabled || loading || orders.length === 0) {
+      toast.error('Generate the report first')
+      return
+    }
+    const rows: ExcelRow[] = [
+      ...reportHeader({
+        title: 'SALES F REPORT',
+        branch: branchName,
+        period: `${dateFrom} s/d ${dateTo}`,
+        extra: [`User : ${(user as any)?.name ?? '-'}`],
+      }),
+      ['Item Code', 'Name', 'Qty', 'Price', 'Amount'],
+    ]
+    a.categories.forEach((cat) => {
+      cat.items.forEach((item) => {
+        rows.push([item.code, item.name, item.qty, money(item.price), money(item.amount)])
+      })
+      rows.push([`TOTAL ${cat.name.toUpperCase()}`, '', cat.totalQty, '', money(cat.totalAmount)])
+    })
+
+    rows.push([], ['KATEGORI', '', 'QTY', '', 'AMOUNT'])
+    a.categories.forEach((cat) => {
+      rows.push([`TOTAL ${cat.name.toUpperCase()}`, '', cat.totalQty, '', money(cat.totalAmount)])
+    })
+    rows.push(['TOTAL GROSS SALES', '', a.totalGrossQty, '', money(a.grossSales)])
+
+    // SALES (cols A-C) and SETORAN (cols E-G) side by side, as on screen.
+    rows.push([], [`Jml Transaksi Sales : ${a.totalTransactions}`], ['SALES', '', '', '', 'SETORAN'])
+    const lineCells = (l?: SummaryLine): ExcelRow =>
+      !l ? ['', '', ''] : l.heading ? [l.label, '', ''] : [l.label, money(l.value), l.sign ?? '']
+    for (let i = 0; i < Math.max(salesLines.length, setoranLines.length); i++) {
+      rows.push([...lineCells(salesLines[i]), '', ...lineCells(setoranLines[i])])
+    }
+
+    rows.push(
+      [],
+      ['NOTE : PENERIMAAN PER METODE'],
+      ['Metode', 'Sales', 'DP Plus', 'Credit Payment', 'Total'],
+    )
+    ALL_BUCKETS.forEach((k) => {
+      rows.push([
+        PAYMENT_BUCKET_LABEL[k],
+        money(a.sales[k]),
+        money(a.dpPlus[k]),
+        money(a.creditPayment[k]),
+        money(a.received[k]),
+      ])
+    })
+    rows.push([
+      'TOTAL',
+      money(bucketSum(a.sales)),
+      money(a.dpPlusTotal),
+      money(a.creditPaymentTotal),
+      money(bucketSum(a.received)),
+    ])
+
+    if (a.byMethod.length > 0) {
+      rows.push([], ['RINCIAN METODE PEMBAYARAN'])
+      a.byMethod.forEach(([name, amount]) => rows.push([name, money(amount)]))
+    }
+
+    downloadExcel(`sales-report-${dateFrom}_${dateTo}.xlsx`, [
+      { name: 'Sales Report', rows, cols: [32, 36, 10, 16, 18, 16, 6] },
+    ])
+  }
 
   // ── Shared styles ─────────────────────────────────────────────────────────
   const inputStyle: React.CSSProperties = {
@@ -231,25 +417,17 @@ export default function SalesReport() {
     color: 'var(--foreground-muted)',
   }
 
-  const catHeaderStyle: React.CSSProperties = {
-    background: 'var(--background)',
-    padding: '6px 12px',
-    borderTop: '2px solid var(--border)',
-    borderBottom: '1px solid var(--border)',
-  }
-
-  const catHeaderTextStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  }
-
   const thStyle: React.CSSProperties = {
     padding: '6px 8px',
     fontSize: 11,
     fontWeight: 600,
     color: 'var(--foreground-muted)',
+    borderBottom: '1px solid var(--border)',
+    background: 'var(--background)',
+  }
+
+  const tdStyle: React.CSSProperties = {
+    padding: '4px 8px',
     borderBottom: '1px solid var(--border)',
   }
 
@@ -274,50 +452,40 @@ export default function SalesReport() {
     </div>
   )
 
-  // Sales Summary row helper
-  const SummaryRow = (
-    label: string,
-    value: number,
-    highlight = false,
-    negative = false,
-  ) => (
-    <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
-      <td
+  // Summary row: label | amount | sign (e.g. "(+)", "(-)")
+  const Row = (line: SummaryLine) =>
+    line.heading ? (
+      <tr key={line.label}>
+        <td colSpan={3} style={{ padding: '10px 8px 4px', fontWeight: 600, fontSize: 11 }}>
+          {line.label}
+        </td>
+      </tr>
+    ) : (
+      <tr
+        key={line.label}
         style={{
-          padding: '5px 8px',
-          color: negative ? 'var(--destructive)' : 'inherit',
+          borderBottom: '1px solid var(--border)',
+          borderTop: line.topBorder ? '2px solid var(--border)' : undefined,
+          fontWeight: line.bold ? 700 : 400,
         }}
       >
-        {label}
-      </td>
-      <td
-        style={{
-          padding: '5px 8px',
-          textAlign: 'right',
-          fontWeight: highlight ? 700 : 400,
-          color: highlight
-            ? 'var(--accent)'
-            : negative
-              ? 'var(--destructive)'
-              : 'inherit',
-        }}
-      >
-        {formatCurrency(value)}
-      </td>
-    </tr>
-  )
+        <td style={{ padding: '5px 8px' }}>{line.label}</td>
+        <td
+          style={{
+            padding: '5px 8px',
+            textAlign: 'right',
+            color: line.bold ? 'var(--accent)' : 'inherit',
+          }}
+        >
+          {formatCurrency(line.value)}
+        </td>
+        <td style={{ padding: '5px 8px', width: 32, color: 'var(--foreground-muted)' }}>
+          {line.sign ?? ''}
+        </td>
+      </tr>
+    )
 
-  // Payment Breakdown row helper
-  const PayRow = (label: string, value: number) => (
-    <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
-      <td style={{ padding: '5px 8px' }}>{label}</td>
-      <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-        {formatCurrency(value)}
-      </td>
-    </tr>
-  )
-
-  const catEntries = Object.entries(aggregated.catMap)
+  const fmtQty = (v: number) => v.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
   return (
     <div
@@ -351,13 +519,8 @@ export default function SalesReport() {
           <ArrowLeft size={14} /> Reports
         </button>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isPending}
-            style={topBtnStyle}
-          >
-            {exportMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          <button type="button" onClick={handleExport} style={topBtnStyle}>
+            <Download size={14} />
             Export Excel
           </button>
           <button type="button" onClick={() => window.print()} style={topBtnStyle}>
@@ -387,16 +550,14 @@ export default function SalesReport() {
         <div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>
           Dapur Cokelat Indonesia
         </div>
-        <div style={{ fontSize: 14, marginTop: 2 }}>
-          {(user as any)?.branch?.name ?? 'All Branches'}
-        </div>
+        <div style={{ fontSize: 14, marginTop: 2 }}>{branchName}</div>
         <div
           style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 4 }}
         >
           {`Period: ${dateFrom} s/d ${dateTo}`}
         </div>
         <div style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-          {`Printed: ${new Date().toLocaleString('id-ID')}`}
+          {`User: ${(user as any)?.name ?? '-'} · Printed: ${new Date().toLocaleString('id-ID')}`}
         </div>
       </div>
 
@@ -439,18 +600,14 @@ export default function SalesReport() {
             />
           </div>
 
-          {isSuperadmin && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <label style={fieldLabelStyle}>BRANCH ID</label>
-              <input
-                type="text"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="All branches"
-                style={inputStyle}
-              />
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={fieldLabelStyle}>BRANCH</label>
+            <ReportBranchSelect
+              value={branchFilter}
+              onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
 
           <button
             type="button"
@@ -478,7 +635,7 @@ export default function SalesReport() {
       )}
 
       {/* Loading */}
-      {enabled && isLoading && (
+      {enabled && loading && (
         <div
           style={{
             padding: 48,
@@ -490,295 +647,190 @@ export default function SalesReport() {
         </div>
       )}
 
+      {/* Empty state */}
+      {enabled && !loading && orders.length === 0 && (
+        <div
+          style={{
+            padding: 48,
+            textAlign: 'center',
+            color: 'var(--foreground-muted)',
+          }}
+        >
+          No sales data for the selected period
+        </div>
+      )}
+
       {/* Report content */}
-      {enabled && !isLoading && (
+      {enabled && !loading && orders.length > 0 && (
         <>
-          {/* ── SECTION 1: Items by Category ── */}
-          {catEntries.map(([catName, cat]) => (
-            <div key={catName} style={{ marginBottom: 24 }}>
-              <div style={catHeaderStyle}>
-                <span style={catHeaderTextStyle}>{catName}</span>
-              </div>
-
-              <table style={tableStyle}>
-                <thead style={{ background: 'var(--background)' }}>
-                  <tr>
-                    <th style={{ ...thStyle, textAlign: 'left', width: 120 }}>
-                      Item Code
-                    </th>
-                    <th style={{ ...thStyle, textAlign: 'left' }}>Name</th>
-                    <th style={{ ...thStyle, textAlign: 'right', width: 60 }}>
-                      Qty
-                    </th>
-                    <th style={{ ...thStyle, textAlign: 'right', width: 100 }}>
-                      Price
-                    </th>
-                    <th style={{ ...thStyle, textAlign: 'right', width: 120 }}>
-                      Amount
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {cat.items.map((item, idx) => (
-                    <tr
-                      key={idx}
-                      style={{
-                        borderBottom: '1px solid var(--border)',
-                        background:
-                          idx % 2 === 0 ? 'transparent' : 'var(--background)',
-                      }}
-                    >
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          fontFamily: 'monospace',
-                          fontSize: 11,
-                        }}
-                      >
+          {/* ── SECTION 1: Items by category (one table, subtotal row per category) ── */}
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, textAlign: 'left', width: 110 }}>Item Code</th>
+                <th style={{ ...thStyle, textAlign: 'left' }}>Name</th>
+                <th style={{ ...thStyle, textAlign: 'right', width: 60 }}>Qty</th>
+                <th style={{ ...thStyle, textAlign: 'right', width: 110 }}>Price</th>
+                <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {a.categories.map((cat) => (
+                <React.Fragment key={cat.name}>
+                  {cat.items.map((item) => (
+                    <tr key={`${cat.name}-${item.code}-${item.price}`}>
+                      <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11 }}>
                         {item.code}
                       </td>
-                      <td style={{ padding: '5px 8px' }}>{item.name}</td>
-                      <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                        {item.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                      <td style={tdStyle}>{item.name}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtQty(item.qty)}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                        {formatCurrency(item.price, '')}
                       </td>
-                      <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                        {formatCurrency(item.price)}
-                      </td>
-                      <td
-                        style={{
-                          padding: '5px 8px',
-                          textAlign: 'right',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {formatCurrency(item.amount)}
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                        {formatCurrency(item.amount, '')}
                       </td>
                     </tr>
                   ))}
-                </tbody>
-
-                <tfoot>
-                  <tr style={{ background: 'var(--surface)', fontWeight: 700 }}>
-                    <td
-                      colSpan={2}
-                      style={{
-                        textAlign: 'right',
-                        padding: '6px 8px',
-                        fontSize: 12,
-                      }}
-                    >
-                      {'TOTAL ' + catName.toUpperCase()}
+                  <tr style={{ background: 'var(--background)', fontWeight: 700 }}>
+                    <td colSpan={2} style={tdStyle}>
+                      {'TOTAL ' + cat.name.toUpperCase()}
                     </td>
-                    <td style={{ textAlign: 'right', padding: '6px 8px' }}>
-                      {formatCurrency(cat.totalQty, '')}
-                    </td>
-                    <td></td>
-                    <td
-                      style={{
-                        textAlign: 'right',
-                        padding: '6px 8px',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {formatCurrency(cat.totalAmount)}
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtQty(cat.totalQty)}</td>
+                    <td colSpan={2} style={{ ...tdStyle, textAlign: 'right' }}>
+                      {formatCurrency(cat.totalAmount, '')}
                     </td>
                   </tr>
-                </tfoot>
-              </table>
-            </div>
-          ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
 
-          {/* ── SECTION 2: Category Summary ── */}
+          {/* ── SECTION 2: Category summary ── */}
           <div style={{ marginTop: 32 }}>
             {sectionHeaderBlock('KATEGORI')}
-
             <table style={tableStyle}>
-              <thead style={{ background: 'var(--background)' }}>
+              <thead>
                 <tr>
-                  <th
-                    style={{
-                      padding: '6px 8px',
-                      textAlign: 'left',
-                      fontSize: 11,
-                      fontWeight: 600,
-                    }}
-                  >
-                    KATEGORI
-                  </th>
-                  <th
-                    style={{
-                      padding: '6px 8px',
-                      textAlign: 'right',
-                      fontSize: 11,
-                      fontWeight: 600,
-                    }}
-                  >
-                    QTY
-                  </th>
-                  <th
-                    style={{
-                      padding: '6px 8px',
-                      textAlign: 'right',
-                      fontSize: 11,
-                      fontWeight: 600,
-                    }}
-                  >
-                    AMOUNT
-                  </th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>KATEGORI</th>
+                  <th style={{ ...thStyle, textAlign: 'right', width: 80 }}>QTY</th>
+                  <th style={{ ...thStyle, textAlign: 'right', width: 150 }}>AMOUNT</th>
                 </tr>
               </thead>
-
               <tbody>
-                {catEntries.map(([catName, cat]) => (
-                  <tr
-                    key={catName}
-                    style={{ borderBottom: '1px solid var(--border)' }}
-                  >
-                    <td style={{ padding: '5px 8px', fontWeight: 600 }}>
-                      {'TOTAL ' + catName.toUpperCase()}
-                    </td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                      {formatCurrency(cat.totalQty, '')}
-                    </td>
-                    <td style={{ padding: '5px 8px', textAlign: 'right' }}>
-                      {formatCurrency(cat.totalAmount)}
+                {a.categories.map((cat) => (
+                  <tr key={cat.name}>
+                    <td style={tdStyle}>{'TOTAL ' + cat.name.toUpperCase()}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtQty(cat.totalQty)}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {formatCurrency(cat.totalAmount, '')}
                     </td>
                   </tr>
                 ))}
               </tbody>
-
-              <tfoot style={{ fontWeight: 700 }}>
-                <tr
-                  style={{
-                    background: 'var(--surface)',
-                    borderTop: '2px solid var(--border)',
-                  }}
-                >
-                  <td style={{ padding: 8, fontSize: 13 }}>TOTAL GROSS SALES</td>
-                  <td style={{ padding: 8, textAlign: 'right', fontSize: 13 }}>
-                    {formatCurrency(aggregated.totalGrossQty, '')}
-                  </td>
-                  <td
-                    style={{
-                      padding: 8,
-                      textAlign: 'right',
-                      fontSize: 13,
-                      color: 'var(--accent)',
-                    }}
-                  >
-                    {formatCurrency(aggregated.grossSales)}
-                  </td>
-                </tr>
-                <tr>
-                  <td
-                    colSpan={2}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: 12,
-                      color: 'var(--foreground-muted)',
-                    }}
-                  >
-                    Jml Transaksi Sales
-                  </td>
-                  <td
-                    style={{
-                      padding: '4px 8px',
-                      textAlign: 'right',
-                      fontWeight: 600,
-                      fontSize: 12,
-                    }}
-                  >
-                    {aggregated.totalTransactions}
+              <tfoot>
+                <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
+                  <td style={{ padding: 8 }}>TOTAL GROSS SALES</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{fmtQty(a.totalGrossQty)}</td>
+                  <td style={{ padding: 8, textAlign: 'right', color: 'var(--accent)' }}>
+                    {formatCurrency(a.grossSales, '')}
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
-          {/* ── SECTION 3: Financial + Payment Summary ── */}
+          {/* ── SECTION 3: Sales summary (left) + cash reconciliation (right) ── */}
+          <div style={{ marginTop: 24, fontSize: 12, color: 'var(--foreground-muted)' }}>
+            Jml Transaksi Sales : <b style={{ color: 'var(--foreground)' }}>{a.totalTransactions}</b>
+          </div>
           <div
             style={{
-              marginTop: 24,
+              marginTop: 8,
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
               gap: 24,
+              alignItems: 'start',
             }}
           >
-            {/* Left: Sales Summary */}
             <div>
-              {sectionHeaderBlock('SALES SUMMARY')}
+              {sectionHeaderBlock('SALES')}
               <table style={tableStyle}>
                 <tbody>
-                  {SummaryRow('GROSS SALES', aggregated.grossSales)}
-                  {SummaryRow('DISCOUNT', aggregated.totalDiscount, false, true)}
-                  <tr
-                    style={{
-                      borderTop: '2px solid var(--border)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <td style={{ padding: '6px 8px' }}>NET SALES</td>
-                    <td
-                      style={{
-                        padding: '6px 8px',
-                        textAlign: 'right',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {formatCurrency(aggregated.netSales)}
-                    </td>
-                  </tr>
+                  {salesLines.map(Row)}
                 </tbody>
               </table>
             </div>
 
-            {/* Right: Payment Breakdown */}
             <div>
-              {sectionHeaderBlock('PAYMENT BREAKDOWN')}
+              {sectionHeaderBlock('SETORAN')}
               <table style={tableStyle}>
                 <tbody>
-                  {PayRow('CASH', aggregated.totalCash)}
-                  {PayRow('DEBIT/BCA CARD', aggregated.totalDebit)}
-                  {PayRow('VISA/MASTER', aggregated.totalCard)}
-                  {PayRow('TRANSFER', aggregated.totalTransfer)}
-                  {PayRow('CREDIT Customer', aggregated.totalCreditCustomer)}
-                  {PayRow('CREDIT Karyawan', aggregated.totalCreditKaryawan)}
-                  {PayRow('VOUCHER', aggregated.totalVoucher)}
+                  {setoranLines.map(Row)}
                 </tbody>
-                <tfoot>
-                  <tr
-                    style={{
-                      borderTop: '2px solid var(--border)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <td style={{ padding: '6px 8px' }}>TOTAL BANKING</td>
-                    <td
-                      style={{
-                        padding: '6px 8px',
-                        textAlign: 'right',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {formatCurrency(aggregated.totalBanking)}
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           </div>
 
-          {/* Empty state */}
-          {orders.length === 0 && (
-            <div
-              style={{
-                padding: 48,
-                textAlign: 'center',
-                color: 'var(--foreground-muted)',
-              }}
-            >
-              No sales data for the selected period
+          {/* ── SECTION 4: Notes — receipts by method and source ── */}
+          <div style={{ marginTop: 32 }}>
+            {sectionHeaderBlock('NOTE : PENERIMAAN PER METODE')}
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>Metode</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Sales</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>DP Plus</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Credit Payment</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ALL_BUCKETS.map((k) => (
+                  <tr key={k}>
+                    <td style={tdStyle}>{PAYMENT_BUCKET_LABEL[k]}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(a.sales[k], '')}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(a.dpPlus[k], '')}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {formatCurrency(a.creditPayment[k], '')}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
+                      {formatCurrency(a.received[k], '')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ fontWeight: 700, borderTop: '2px solid var(--border)' }}>
+                  <td style={{ padding: 8 }}>TOTAL</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>
+                    {formatCurrency(bucketSum(a.sales), '')}
+                  </td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>{formatCurrency(a.dpPlusTotal, '')}</td>
+                  <td style={{ padding: 8, textAlign: 'right' }}>
+                    {formatCurrency(a.creditPaymentTotal, '')}
+                  </td>
+                  <td style={{ padding: 8, textAlign: 'right', color: 'var(--accent)' }}>
+                    {formatCurrency(bucketSum(a.received), '')}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {a.byMethod.length > 0 && (
+            <div style={{ marginTop: 24, maxWidth: 480 }}>
+              {sectionHeaderBlock('RINCIAN METODE PEMBAYARAN')}
+              <table style={tableStyle}>
+                <tbody>
+                  {a.byMethod.map(([name, amount]) => (
+                    <tr key={name}>
+                      <td style={tdStyle}>{name}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>{formatCurrency(amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </>

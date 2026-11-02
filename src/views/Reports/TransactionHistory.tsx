@@ -4,10 +4,15 @@ import { formatDateShort, parseApiDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Printer } from 'lucide-react'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { ArrowLeft, Printer, Download, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { toastMutationApiError } from '@/utils/apiError'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import { fetchAllPages, resolveDetailItem } from '@/utils/salesReport'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { useAuth } from '@/hooks/useAuth'
+import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
@@ -86,7 +91,7 @@ const statCardStyle: React.CSSProperties = {
 
 export default function TransactionHistoryReport() {
   const router = useRouter()
-  const { user, isSuperadmin } = useAuth()
+  const { user } = useAuth()
   const fmtRp = (v: number | null | undefined) => formatCurrency(v ?? 0)
 
   const [dateFrom, setDateFrom] = useState(firstOfMonth())
@@ -97,6 +102,7 @@ export default function TransactionHistoryReport() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [enabled, setEnabled] = useState(false)
+  const branchName = useReportBranchName(branchFilter)
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {
@@ -104,6 +110,19 @@ export default function TransactionHistoryReport() {
       setHasSetDefault(true)
     }
   }, [user, hasSetDefault])
+
+  const listParams = (p: number, pp: number) =>
+    ({
+      page: p,
+      per_page: pp,
+      include: 'branch,customer,credit_by,created_by,sales_order_details,sales_channel',
+      'filter[status]': 'final',
+      'filter[date_gte]': dateFrom,
+      'filter[date_lte]': dateTo,
+      'filter[branch_id]': branchFilter || undefined,
+      'filter[type]': typeFilter || undefined,
+      sort: 'date',
+    }) as any
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: [
@@ -115,19 +134,7 @@ export default function TransactionHistoryReport() {
       page, perPage,
     ],
     queryFn: () =>
-      salesOrdersService
-        .list({
-          page,
-          per_page: perPage,
-          include: 'branch,customer,credit_by,created_by,sales_order_details,sales_channel',
-          'filter[status]': 'final',
-          'filter[date_gte]': dateFrom,
-          'filter[date_lte]': dateTo,
-          'filter[branch_id]': branchFilter || undefined,
-          'filter[type]': typeFilter || undefined,
-          sort: 'date',
-        } as any)
-        .then((r) => r.data),
+      salesOrdersService.list(listParams(page, perPage)).then((r) => r.data),
     enabled,
   })
 
@@ -144,6 +151,82 @@ export default function TransactionHistoryReport() {
     },
     { bruto: 0, disc: 0, netto: 0, payment: 0 },
   )
+
+  // Export covers every page of the period, one row per line item like the table.
+  const exportMutation = useMutation({
+    mutationFn: () =>
+      fetchAllPages((p) =>
+        salesOrdersService.list(listParams(p, 500)).then((r) => r.data),
+      ),
+    onSuccess: (allOrders: any[]) => {
+      const rows: ExcelRow[] = [
+        ...reportHeader({
+          title: 'History Transaksi (Transaction History)',
+          branch: branchName,
+          period: `${dateFrom} s/d ${dateTo}`,
+          extra: typeFilter ? [`Type : ${typeFilter}`] : [],
+        }),
+        [
+          'No', 'Outlet', 'Tanggal', 'Waktu', 'No Trx', 'Bruto', 'Disc', 'Netto', 'Bayar',
+          'Customer', 'Sales Channel', 'Type', 'Status', 'Kasir', 'Item Code', 'Produk', 'Harga', 'Qty',
+        ],
+      ]
+      const sum = { bruto: 0, disc: 0, netto: 0, payment: 0 }
+      allOrders.forEach((order: any, idx: number) => {
+        sum.bruto += Number(order.subtotal_price ?? 0)
+        sum.disc += Number(order.discount_price ?? 0)
+        sum.netto += Number(order.total_price ?? 0)
+        sum.payment += Number(order.total_payment ?? 0)
+        const dt = parseApiDate(order.created_at)
+        const head: ExcelRow = [
+          idx + 1,
+          order.branch?.name ?? '',
+          order.date ? formatDateShort(order.date) : '',
+          dt ? dt.toLocaleTimeString('id-ID') : '',
+          order.code,
+          money(order.subtotal_price),
+          money(order.discount_price),
+          money(order.total_price),
+          money(order.total_payment),
+          order.customer?.name ?? order.customer_name ?? '',
+          order.sales_channel?.name ?? '',
+          order.type ?? '',
+          (STATUS_META[order.status] ?? STATUS_META.draft).label,
+          order.created_by?.name ?? '',
+        ]
+        const details: any[] = order.sales_order_details ?? []
+        if (details.length === 0) rows.push(head)
+        details.forEach((d: any, i: number) => {
+          const item = resolveDetailItem(d)
+          rows.push([
+            ...(i === 0 ? head : head.map(() => '')),
+            item.code,
+            item.name,
+            money(item.price),
+            item.qty,
+          ])
+        })
+      })
+      rows.push(['', '', '', '', 'TOTAL', money(sum.bruto), money(sum.disc), money(sum.netto), money(sum.payment)])
+      downloadExcel(`transaction-history-${dateFrom}_${dateTo}.xlsx`, [
+        {
+          name: 'Transaction History',
+          rows,
+          cols: [6, 20, 12, 10, 30, 14, 12, 14, 14, 24, 18, 10, 10, 18, 14, 36, 14, 8],
+        },
+      ])
+      toast.success('Transaction history exported')
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to export transaction history'),
+  })
+
+  const onExport = () => {
+    if (!enabled) {
+      toast.error('Generate the report first')
+      return
+    }
+    exportMutation.mutate()
+  }
 
   const onGenerate = () => {
     setPage(1)
@@ -198,6 +281,32 @@ export default function TransactionHistoryReport() {
           <ArrowLeft size={14} />
           Back
         </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={exportMutation.isPending}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 16px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: 'var(--foreground)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          {exportMutation.isPending ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Download size={14} />
+          )}
+          Export Excel
+        </button>
         <button
           type="button"
           onClick={() => window.print()}
@@ -218,6 +327,7 @@ export default function TransactionHistoryReport() {
           <Printer size={14} />
           Print
         </button>
+        </div>
       </div>
 
       <div
@@ -247,7 +357,7 @@ export default function TransactionHistoryReport() {
             marginTop: 2,
           }}
         >
-          {(user as any)?.branch?.name ?? 'All Branches'}
+          {branchName}
         </span>
         <span
           style={{
@@ -317,18 +427,14 @@ export default function TransactionHistoryReport() {
               style={inputStyle}
             />
           </div>
-          {isSuperadmin && (
-            <div>
-              <label style={labelStyle}>Branch ID</label>
-              <input
-                type="text"
-                value={branchFilter}
-                onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="All branches"
-                style={{ ...inputStyle, width: 120 }}
-              />
-            </div>
-          )}
+          <div>
+            <label style={labelStyle}>Branch</label>
+            <ReportBranchSelect
+              value={branchFilter}
+              onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
           <div>
             <label style={labelStyle}>Type</label>
             <select
@@ -497,21 +603,11 @@ export default function TransactionHistoryReport() {
 
               return Array.from({ length: rowCount }).map((_, rowIdx) => {
                 const d = details[rowIdx]
-                const pis = d?.product_inventory_snapshot
-                const bs = d?.bundle_snapshot
-                const prod = pis?.product_uom_batch?.product_uom?.product
-                const itemName =
-                  prod?.name ??
-                  bs?.name ??
-                  pis?.name ??
-                  (d?.bundle_id
-                    ? `Bundle #${d.bundle_id}`
-                    : d
-                      ? `Item #${d.product_inventory_id ?? '-'}`
-                      : '')
-                const itemCode = prod?.code ?? bs?.code ?? pis?.code ?? ''
-                const qty = Number(d?.qty ?? 0)
-                const price = Number(d?.price ?? 0)
+                const item = d ? resolveDetailItem(d) : null
+                const itemName = item?.name ?? ''
+                const itemCode = item?.code ?? ''
+                const qty = item?.qty ?? 0
+                const price = item?.price ?? 0
                 const isFirst = rowIdx === 0
                 const cellTop: React.CSSProperties = { ...tdStyle, verticalAlign: 'top' }
                 const cellRight: React.CSSProperties = {
@@ -560,7 +656,7 @@ export default function TransactionHistoryReport() {
                     </td>
                      <td style={cellTop}>
                       {isFirst
-                        ? order.sales_channel?.name ?? order.sales_channel.name ?? '—'
+                        ? order.sales_channel?.name ?? '—'
                         : ''}
                     </td>
                     <td style={{ ...cellTop, textAlign: 'center' }}>

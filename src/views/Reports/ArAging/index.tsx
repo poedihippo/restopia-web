@@ -2,14 +2,14 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Download, FileSpreadsheet, FileText } from 'lucide-react'
 import { reportsService, type ArAgingLine, type ArAgingParams, type ArAgingResponse } from '@/services/reports.service'
-import { downloadFileFromResponse } from '@/utils/file'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/price'
 import { formatDate } from '@/utils/date'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
 
 const sectionStyle: React.CSSProperties = {
   background: 'var(--surface)',
@@ -251,6 +251,45 @@ function printArAgingPdf(report: ArAgingResponse) {
   }, 250)
 }
 
+/**
+ * Excel dibangun di FE dari JSON yang sama dengan tabel di layar
+ * (backend tidak lagi punya endpoint export AR Aging).
+ */
+function exportArAgingExcel(report: ArAgingResponse, filename: string) {
+  const period = report.start_date
+    ? `${formatDate(report.start_date)} s/d ${formatDate(report.end_date)}`
+    : `Semua piutang terbuka s/d ${formatDate(report.end_date)}`
+  const totalPrice = report.lines.reduce((s, l) => s + Number(l.total_price ?? 0), 0)
+  const totalPayment = report.lines.reduce((s, l) => s + Number(l.total_payment ?? 0), 0)
+
+  const rows: ExcelRow[] = [
+    ...reportHeader({ title: 'Accounts Receivable Aging', period }),
+    ['Bucket', 'Outstanding'],
+    ...BUCKET_CARDS.map((b) => [b.label, money(report.buckets?.[b.key] ?? 0)]),
+    ['Grand Total Outstanding', money(report.grand_total_outstanding)],
+    [],
+    ['No', 'Sumber', 'No. Dokumen', 'Customer', 'Tanggal', 'Jatuh Tempo', 'Total', 'Dibayar', 'Outstanding', 'Umur (hari)', 'Bucket'],
+    ...report.lines.map((ln, i) => [
+      i + 1,
+      sourceLabel(ln.source_type),
+      ln.code,
+      ln.customer_name || '',
+      ln.date ? formatDate(ln.date) : '',
+      ln.due_date ? formatDate(ln.due_date) : '',
+      money(ln.total_price),
+      money(ln.total_payment),
+      money(ln.outstanding),
+      ln.age_days ?? 0,
+      bucketDisplayLabel(ln.bucket),
+    ]),
+    ['', '', '', '', '', 'Grand Total', money(totalPrice), money(totalPayment), money(report.grand_total_outstanding)],
+  ]
+
+  downloadExcel(filename, [
+    { name: 'AR Aging', rows, cols: [24, 14, 28, 30, 12, 12, 16, 16, 16, 11, 8] },
+  ])
+}
+
 export default function ArAgingView() {
   const { hasPermission, isSuperadmin } = useAuth()
   const canRead = isSuperadmin || hasPermission('report.read')
@@ -280,13 +319,14 @@ export default function ArAgingView() {
   const hasReport = !isLoading && !isError && !!report
   const errorMessage = (error as any)?.response?.data?.message ?? 'Gagal memuat laporan AR Aging'
 
-  const { mutate: exportExcel, isPending: isExporting } = useMutation({
-    mutationFn: () => reportsService.exportArAging(params),
-    onSuccess: (res) => {
-      downloadFileFromResponse(res, `ar-aging-${startDate ? `${startDate}_` : ''}${endDate || today()}.xlsx`)
-    },
-    onError: () => toast.error('Gagal mengekspor data.'),
-  })
+  const exportExcel = () => {
+    if (!report) return
+    try {
+      exportArAgingExcel(report, `ar-aging-${startDate ? `${startDate}_` : ''}${endDate || today()}.xlsx`)
+    } catch {
+      toast.error('Gagal mengekspor data.')
+    }
+  }
 
   const periodText = report
     ? report.start_date
@@ -316,16 +356,12 @@ export default function ArAgingView() {
           </button>
           <button
             type="button"
-            onClick={() => exportExcel()}
-            disabled={!canRead || rangeInvalid || isExporting}
-            style={{
-              ...btnStyle,
-              opacity: canRead && !rangeInvalid && !isExporting ? 1 : 0.6,
-              cursor: canRead && !rangeInvalid && !isExporting ? 'pointer' : 'not-allowed',
-            }}
+            onClick={exportExcel}
+            disabled={!hasReport}
+            style={{ ...btnStyle, opacity: hasReport ? 1 : 0.6, cursor: hasReport ? 'pointer' : 'not-allowed' }}
           >
             <Download size={14} />
-            {isExporting ? 'Exporting...' : 'Export Excel'}
+            Export Excel
           </button>
         </div>
       </div>
