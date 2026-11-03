@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2 } from 'lucide-react'
+import { Pencil, Search, Trash2, CheckCircle2, AlertCircle, Store } from 'lucide-react'
 import {
   salesChannelsService,
   type SalesChannelBranchAccount,
@@ -13,17 +13,22 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { toastMutationApiError } from '@/utils/apiError'
 
-interface Row {
-  key: number
-  branch_id: number
-  receivable_chart_of_account_id: number
-  fee_chart_of_account_id: number
-}
-
 interface Props {
   salesChannelId: number
   canEdit: boolean
 }
+
+/** One line per outlet: its saved accounts (if any) merged with branch info. */
+interface OutletRow {
+  branch_id: number
+  name: string
+  code?: string
+  isPickup: boolean
+  parentName?: string
+  saved?: SalesChannelBranchAccount
+}
+
+type StatusFilter = 'all' | 'set' | 'unset'
 
 const selectTriggerStyle = {
   height: 36,
@@ -32,31 +37,93 @@ const selectTriggerStyle = {
   borderRadius: 'var(--radius-sm)',
 }
 
-const fieldCaptionStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: 'var(--foreground-muted)',
+const controlStyle: React.CSSProperties = {
+  height: 34,
+  padding: '0 10px',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--surface-raised)',
+  fontSize: 13,
+  color: 'var(--foreground)',
+  outline: 'none',
+  fontFamily: 'var(--font-sans)',
+  boxSizing: 'border-box',
 }
 
-let rowSeq = 0
-const nextKey = () => ++rowSeq
+const thStyle: React.CSSProperties = {
+  padding: '8px 12px',
+  fontSize: 11,
+  fontWeight: 600,
+  color: 'var(--foreground-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  textAlign: 'left',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--background)',
+}
 
-const toRows = (accounts: SalesChannelBranchAccount[]): Row[] =>
-  accounts.map((a) => ({
-    key: nextKey(),
-    branch_id: Number(a.branch_id),
-    receivable_chart_of_account_id: Number(a.receivable_chart_of_account_id ?? 0),
-    fee_chart_of_account_id: Number(a.fee_chart_of_account_id ?? 0),
-  }))
+const tdStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  fontSize: 13,
+  color: 'var(--foreground)',
+  borderBottom: '1px solid var(--border)',
+  verticalAlign: 'top',
+}
+
+const captionStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: 'var(--foreground-muted)',
+  marginBottom: 4,
+  display: 'block',
+}
+
+const smallBtn: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  height: 28,
+  padding: '0 10px',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)',
+  background: 'var(--surface)',
+  fontSize: 12,
+  color: 'var(--foreground)',
+  cursor: 'pointer',
+}
+
+const isConfigured = (row: OutletRow) =>
+  !!(row.saved && (row.saved.receivable_chart_of_account_id || row.saved.fee_chart_of_account_id))
+
+function AccountCell({ code, name, id }: { code?: string | null; name?: string | null; id?: number | null }) {
+  if (!id) return <span style={{ color: 'var(--foreground-subtle)' }}>Belum diatur</span>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <span>{name ?? `COA #${id}`}</span>
+      {code && (
+        <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {code}
+        </span>
+      )}
+    </div>
+  )
+}
 
 /**
  * "Akun per Outlet" untuk sales channel online: akun piutang marketplace dan
  * akun fee per cabang. Pickup point hanya boleh mengisi akun fee (piutang
  * mengikuti outlet induknya). Disimpan via PUT (full replace).
+ *
+ * Semua outlet ditampilkan sebagai tabel baca; satu baris bisa diedit
+ * sekaligus, lalu seluruh daftar dikirim ulang.
  */
 export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: Props) {
   const qc = useQueryClient()
-  const [rows, setRows] = useState<Row[]>([])
-  const [dirty, setDirty] = useState(false)
+  const [search, setSearch] = useState('')
+  const [branchFilter, setBranchFilter] = useState<number>(0)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [draft, setDraft] = useState({ receivable: 0, fee: 0 })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const { data: accountsData, isLoading } = useQuery({
@@ -68,20 +135,11 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
     return Array.isArray(d) ? d : (d?.data ?? [])
   }, [accountsData])
 
-  useEffect(() => {
-    setRows(toRows(savedAccounts))
-    setDirty(false)
-    setFieldErrors({})
-  }, [savedAccounts])
-
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all', 'sc-branch-accounts'],
     queryFn: () => branchesService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
-    enabled: canEdit,
   })
-  const branches: any[] = (branchesData as any)?.data ?? []
-  const isPickupPoint = (branchId: number) =>
-    branches.find((b) => Number(b.id) === branchId)?.format === 'pickup_point'
+  const branches: any[] = useMemo(() => (branchesData as any)?.data ?? [], [branchesData])
 
   // Receivable and fee accounts must both be active, non-header, debit-normal.
   const { data: coaData, isLoading: coaLoading } = useQuery({
@@ -100,34 +158,49 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
   })
   const coas: any[] = coaData ?? []
 
-  const savedById = useMemo(() => {
-    const m = new Map<number, SalesChannelBranchAccount>()
-    savedAccounts.forEach((a) => m.set(Number(a.branch_id), a))
-    return m
-  }, [savedAccounts])
+  // Outlets and pickup points, plus any branch that already has a setting.
+  const outletRows: OutletRow[] = useMemo(() => {
+    const savedById = new Map(savedAccounts.map((a) => [Number(a.branch_id), a]))
+    const byId = new Map(branches.map((b) => [Number(b.id), b]))
+    const ids = new Set<number>()
+    branches.forEach((b) => {
+      if (!b.type || b.type === 'outlet' || b.format === 'pickup_point') ids.add(Number(b.id))
+    })
+    savedById.forEach((_a, id) => ids.add(id))
+    return Array.from(ids)
+      .map((id) => {
+        const b = byId.get(id)
+        const saved = savedById.get(id)
+        return {
+          branch_id: id,
+          name: b?.name ?? saved?.branch_name ?? `Branch #${id}`,
+          code: b?.code ?? saved?.branch_code,
+          isPickup: b?.format === 'pickup_point',
+          parentName: b?.parent_id ? byId.get(Number(b.parent_id))?.name : undefined,
+          saved,
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [branches, savedAccounts])
 
-  const branchOptionsFor = (row: Row) => {
-    const usedElsewhere = new Set(rows.filter((r) => r.key !== row.key).map((r) => r.branch_id))
-    const opts = branches
-      .filter((b) => !usedElsewhere.has(Number(b.id)))
-      .map((b) => ({
-        value: Number(b.id),
-        label: b.name ?? `Branch #${b.id}`,
-        sublabel: [b.code, b.format === 'pickup_point' ? 'Pickup point' : null].filter(Boolean).join(' · ') || undefined,
-      }))
-    const saved = savedById.get(row.branch_id)
-    if (row.branch_id > 0 && !opts.some((o) => o.value === row.branch_id)) {
-      opts.unshift({ value: row.branch_id, label: saved?.branch_name ?? `Branch #${row.branch_id}`, sublabel: saved?.branch_code })
-    }
-    return opts
-  }
+  const configuredCount = outletRows.filter(isConfigured).length
 
-  const coaOptionsFor = (selectedId: number, kind: 'receivable' | 'fee') => {
+  const visibleRows = outletRows.filter((r) => {
+    if (branchFilter && r.branch_id !== branchFilter) return false
+    if (statusFilter === 'set' && !isConfigured(r)) return false
+    if (statusFilter === 'unset' && isConfigured(r)) return false
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    const s = r.saved
+    return [r.name, r.code, s?.receivable_chart_of_account_name, s?.receivable_chart_of_account_code,
+      s?.fee_chart_of_account_name, s?.fee_chart_of_account_code]
+      .some((v) => String(v ?? '').toLowerCase().includes(q))
+  })
+
+  const coaOptions = (selectedId: number, kind: 'receivable' | 'fee') => {
     const opts = coas.map((c) => ({ value: Number(c.id), label: c.name ?? `COA #${c.id}`, sublabel: c.code ?? undefined }))
     if (selectedId > 0 && !opts.some((o) => o.value === selectedId)) {
-      const saved: any = savedAccounts.find(
-        (a: any) => Number(a[`${kind}_chart_of_account_id`]) === selectedId,
-      )
+      const saved: any = savedAccounts.find((a: any) => Number(a[`${kind}_chart_of_account_id`]) === selectedId)
       opts.unshift({
         value: selectedId,
         label: saved?.[`${kind}_chart_of_account_name`] ?? `COA #${selectedId}`,
@@ -137,289 +210,333 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
     return opts
   }
 
-  const updateRow = (key: number, patch: Partial<Row>) => {
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)))
-    setDirty(true)
-  }
-
   const { mutate: save, isPending: saving } = useMutation({
-    mutationFn: () =>
-      salesChannelsService.replaceBranchAccounts(
-        salesChannelId,
-        rows.map((r) => ({
-          branch_id: r.branch_id,
-          receivable_chart_of_account_id:
-            !isPickupPoint(r.branch_id) && r.receivable_chart_of_account_id > 0
-              ? r.receivable_chart_of_account_id
-              : undefined,
-          fee_chart_of_account_id: r.fee_chart_of_account_id > 0 ? r.fee_chart_of_account_id : undefined,
-        })),
-      ),
+    mutationFn: (accounts: { branch_id: number; receivable_chart_of_account_id?: number; fee_chart_of_account_id?: number }[]) =>
+      salesChannelsService.replaceBranchAccounts(salesChannelId, accounts),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sales-channel-branch-accounts', salesChannelId] })
-      toast.success('Akun per outlet disimpan')
-      setDirty(false)
+      toast.success('Akun outlet disimpan')
+      setEditingId(null)
       setFieldErrors({})
     },
     onError: (err: any) => {
-      // 422 keys: accounts.{i}.receivable_chart_of_account_id / fee_chart_of_account_id / branch_id
+      // 422 keys: accounts.{i}.receivable_chart_of_account_id / fee_chart_of_account_id
       const errors = err?.response?.data?.errors
       if (errors && typeof errors === 'object') {
         const mapped: Record<string, string> = {}
         Object.entries(errors).forEach(([k, v]) => {
-          mapped[k.replace(/\[(\d+)\]/g, '.$1')] = String(Array.isArray(v) ? v[0] : v)
+          const field = k.replace(/\[(\d+)\]/g, '.$1').replace(/^accounts\.\d+\./, '')
+          mapped[field] = String(Array.isArray(v) ? v[0] : v)
         })
         setFieldErrors(mapped)
       }
-      toastMutationApiError(err, 'Gagal menyimpan akun per outlet')
+      toastMutationApiError(err, 'Gagal menyimpan akun outlet')
     },
   })
 
-  const handleSave = () => {
-    if (rows.some((r) => !r.branch_id)) {
-      toast.error('Pilih outlet di setiap baris, atau hapus baris yang kosong.')
-      return
-    }
-    const missing = rows.find((r) => {
-      const receivable = !isPickupPoint(r.branch_id) && r.receivable_chart_of_account_id > 0
-      return !receivable && !(r.fee_chart_of_account_id > 0)
-    })
-    if (missing) {
-      toast.error('Setiap baris butuh akun piutang, akun fee, atau keduanya.')
-      return
-    }
-    save()
+  // PUT is a full replace: send every saved row, with the edited one swapped in.
+  const submitWith = (branchId: number, next: { receivable: number; fee: number } | null) => {
+    const others = savedAccounts
+      .filter((a) => Number(a.branch_id) !== branchId)
+      .map((a) => ({
+        branch_id: Number(a.branch_id),
+        receivable_chart_of_account_id: a.receivable_chart_of_account_id || undefined,
+        fee_chart_of_account_id: a.fee_chart_of_account_id || undefined,
+      }))
+    const isPickup = outletRows.find((r) => r.branch_id === branchId)?.isPickup
+    const edited = next
+      ? [{
+          branch_id: branchId,
+          receivable_chart_of_account_id: !isPickup && next.receivable > 0 ? next.receivable : undefined,
+          fee_chart_of_account_id: next.fee > 0 ? next.fee : undefined,
+        }]
+      : []
+    save([...others, ...edited])
   }
 
-  const handleReset = () => {
-    setRows(toRows(savedAccounts))
-    setDirty(false)
+  const startEdit = (row: OutletRow) => {
+    setEditingId(row.branch_id)
+    setDraft({
+      receivable: Number(row.saved?.receivable_chart_of_account_id ?? 0),
+      fee: Number(row.saved?.fee_chart_of_account_id ?? 0),
+    })
     setFieldErrors({})
   }
 
-  const errorText = (idx: number, field: keyof Omit<Row, 'key'>) =>
-    fieldErrors[`accounts.${idx}.${field}`]
+  const handleSave = (row: OutletRow) => {
+    const hasReceivable = !row.isPickup && draft.receivable > 0
+    if (!hasReceivable && !(draft.fee > 0)) {
+      toast.error(row.isPickup ? 'Pilih akun fee.' : 'Pilih akun piutang, akun fee, atau keduanya.')
+      return
+    }
+    submitWith(row.branch_id, draft)
+  }
 
-  const accountLabel = (code?: string | null, name?: string | null, id?: number | null) =>
-    id ? `${code ? `${code} — ` : ''}${name ?? `COA #${id}`}` : '—'
+  const handleClear = (row: OutletRow) => {
+    if (!window.confirm(`Hapus pengaturan akun untuk ${row.name}?`)) return
+    submitWith(row.branch_id, null)
+  }
+
+  const branchFilterOptions = [
+    { value: 0, label: 'Semua outlet' },
+    ...outletRows.map((r) => ({ value: r.branch_id, label: r.name, sublabel: r.code })),
+  ]
+
+  const statusChip = (value: StatusFilter, label: string) => {
+    const active = statusFilter === value
+    return (
+      <button
+        type="button"
+        onClick={() => setStatusFilter(value)}
+        style={{
+          height: 30,
+          padding: '0 12px',
+          borderRadius: 99,
+          border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+          background: active ? 'var(--accent-light-bg)' : 'var(--surface)',
+          color: active ? 'var(--accent)' : 'var(--foreground-muted)',
+          fontSize: 12,
+          fontWeight: active ? 600 : 500,
+          cursor: 'pointer',
+        }}
+      >
+        {label}
+      </button>
+    )
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div>
-        <span
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'var(--foreground-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.6px',
-          }}
-        >
-          Akun per Outlet
-        </span>
-        <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0', lineHeight: 1.5 }}>
-          Akun piutang marketplace dan akun fee per outlet. Pickup point hanya mengisi akun fee; piutangnya
-          mengikuti outlet induk.
-        </p>
-      </div>
-
-      {isLoading ? (
-        <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading...</div>
-      ) : !canEdit ? (
-        savedAccounts.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Belum ada pengaturan per outlet.</div>
-        ) : (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-            {savedAccounts.map((a, i) => (
-              <div
-                key={a.branch_id}
-                style={{
-                  padding: '10px 12px',
-                  borderTop: i === 0 ? 'none' : '1px solid var(--border)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                  {a.branch_name ?? `Branch #${a.branch_id}`}
-                  {a.branch_code ? <span style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}> · {a.branch_code}</span> : null}
-                </span>
-                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  Piutang: {accountLabel(a.receivable_chart_of_account_code, a.receivable_chart_of_account_name, a.receivable_chart_of_account_id)}
-                </span>
-                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  Fee: {accountLabel(a.fee_chart_of_account_code, a.fee_chart_of_account_name, a.fee_chart_of_account_id)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )
-      ) : (
-        <>
-          {rows.length === 0 && (
-            <div
-              style={{
-                fontSize: 13,
-                color: 'var(--foreground-muted)',
-                padding: '12px',
-                border: '1px dashed var(--border)',
-                borderRadius: 'var(--radius-md)',
-                textAlign: 'center',
-              }}
-            >
-              Belum ada pengaturan per outlet.
-            </div>
-          )}
-
-          {rows.map((row, idx) => {
-            const pickup = isPickupPoint(row.branch_id)
-            return (
-              <div
-                key={row.key}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 6,
-                  padding: 10,
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--background)',
-                }}
-              >
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <SearchableSelect
-                      value={row.branch_id}
-                      onChange={(val: any) => updateRow(row.key, { branch_id: Number(val) || 0 })}
-                      options={branchOptionsFor(row)}
-                      placeholder="Pilih outlet"
-                      searchPlaceholder="Cari outlet..."
-                      loading={branchesLoading}
-                      error={errorText(idx, 'branch_id')}
-                      triggerStyle={selectTriggerStyle}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Hapus baris"
-                    onClick={() => {
-                      setRows((prev) => prev.filter((r) => r.key !== row.key))
-                      setDirty(true)
-                    }}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--surface)',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Trash2 size={14} color="var(--destructive)" />
-                  </button>
-                </div>
-                {!pickup && (
-                  <>
-                    <span style={fieldCaptionStyle}>Akun piutang</span>
-                    <SearchableSelect
-                      value={row.receivable_chart_of_account_id}
-                      onChange={(val: any) => updateRow(row.key, { receivable_chart_of_account_id: Number(val) || 0 })}
-                      options={coaOptionsFor(row.receivable_chart_of_account_id, 'receivable')}
-                      placeholder="Pilih akun piutang"
-                      searchPlaceholder="Cari nama atau kode akun..."
-                      loading={coaLoading}
-                      error={errorText(idx, 'receivable_chart_of_account_id')}
-                      triggerStyle={selectTriggerStyle}
-                    />
-                  </>
-                )}
-                <span style={fieldCaptionStyle}>Akun fee</span>
-                <SearchableSelect
-                  value={row.fee_chart_of_account_id}
-                  onChange={(val: any) => updateRow(row.key, { fee_chart_of_account_id: Number(val) || 0 })}
-                  options={coaOptionsFor(row.fee_chart_of_account_id, 'fee')}
-                  placeholder="Pilih akun fee"
-                  searchPlaceholder="Cari nama atau kode akun..."
-                  loading={coaLoading}
-                  error={errorText(idx, 'fee_chart_of_account_id')}
-                  triggerStyle={selectTriggerStyle}
-                />
-              </div>
-            )
-          })}
-
-          <button
-            type="button"
-            onClick={() => {
-              setRows((prev) => [
-                ...prev,
-                { key: nextKey(), branch_id: 0, receivable_chart_of_account_id: 0, fee_chart_of_account_id: 0 },
-              ])
-              setDirty(true)
-            }}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Akun per Outlet</div>
+          <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '2px 0 0', lineHeight: 1.5 }}>
+            Akun piutang marketplace dan akun fee yang dipakai saat payout tiap outlet.
+          </p>
+        </div>
+        {!isLoading && !branchesLoading && (
+          <span
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              height: 36,
-              border: '1px dashed var(--border-strong)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--surface)',
-              color: 'var(--foreground)',
-              fontSize: 13,
-              cursor: 'pointer',
+              flexShrink: 0,
+              padding: '4px 10px',
+              borderRadius: 99,
+              fontSize: 12,
+              fontWeight: 600,
+              background: configuredCount === outletRows.length ? 'var(--success-bg)' : 'var(--warning-bg)',
+              color: configuredCount === outletRows.length ? 'var(--success)' : 'var(--warning)',
             }}
           >
-            <Plus size={14} /> Tambah Outlet
-          </button>
+            {configuredCount}/{outletRows.length} outlet diatur
+          </span>
+        )}
+      </div>
 
-          {dirty && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={handleReset}
-                disabled={saving}
-                style={{
-                  flex: 1,
-                  height: 36,
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--surface)',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                }}
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  flex: 1,
-                  height: 36,
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--accent)',
-                  color: 'white',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  opacity: saving ? 0.7 : 1,
-                }}
-              >
-                {saving ? 'Menyimpan...' : 'Simpan Akun Outlet'}
-              </button>
-            </div>
-          )}
-        </>
-      )}
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: '1 1 180px' }}>
+          <Search
+            size={14}
+            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-subtle)' }}
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari outlet atau akun..."
+            style={{ ...controlStyle, width: '100%', paddingLeft: 30 }}
+          />
+        </div>
+        <div style={{ flex: '1 1 180px' }}>
+          <SearchableSelect
+            value={branchFilter}
+            onChange={(val: any) => setBranchFilter(Number(val) || 0)}
+            options={branchFilterOptions}
+            placeholder="Semua outlet"
+            searchPlaceholder="Cari outlet..."
+            loading={branchesLoading}
+            triggerStyle={{ ...selectTriggerStyle, height: 34 }}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {statusChip('all', 'Semua')}
+        {statusChip('set', 'Sudah diatur')}
+        {statusChip('unset', 'Belum diatur')}
+      </div>
+
+      {/* Table */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <thead>
+            <tr>
+              <th style={{ ...thStyle, width: '30%' }}>Outlet</th>
+              <th style={thStyle}>Akun Piutang</th>
+              <th style={thStyle}>Akun Fee</th>
+              {canEdit && <th style={{ ...thStyle, width: 64 }} />}
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading || branchesLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: canEdit ? 4 : 3 }).map((__, j) => (
+                    <td key={j} style={tdStyle}>
+                      <div style={{ height: 12, borderRadius: 4, background: 'var(--border)', width: j === 0 ? '70%' : '85%' }} />
+                    </td>
+                  ))}
+                </tr>
+              ))
+            ) : visibleRows.length === 0 ? (
+              <tr>
+                <td colSpan={canEdit ? 4 : 3} style={{ ...tdStyle, borderBottom: 'none', padding: '28px 12px', textAlign: 'center' }}>
+                  <Store size={22} style={{ color: 'var(--foreground-subtle)', marginBottom: 6 }} />
+                  <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Tidak ada outlet yang cocok.</div>
+                </td>
+              </tr>
+            ) : (
+              visibleRows.map((row) => {
+                const editing = editingId === row.branch_id
+                const configured = isConfigured(row)
+                const s = row.saved
+                return editing ? (
+                  <tr key={row.branch_id} style={{ background: 'var(--accent-light-bg)' }}>
+                    <td colSpan={canEdit ? 4 : 3} style={tdStyle}>
+                      <div style={{ fontWeight: 600, marginBottom: 10 }}>
+                        {row.name}
+                        {row.code && <span style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}> · {row.code}</span>}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                        <div>
+                          <span style={captionStyle}>Akun piutang</span>
+                          {row.isPickup ? (
+                            <div style={{ ...controlStyle, height: 36, display: 'flex', alignItems: 'center', color: 'var(--foreground-muted)' }}>
+                              Ikut {row.parentName ?? 'outlet induk'}
+                            </div>
+                          ) : (
+                            <SearchableSelect
+                              value={draft.receivable}
+                              onChange={(val: any) => setDraft((d) => ({ ...d, receivable: Number(val) || 0 }))}
+                              options={coaOptions(draft.receivable, 'receivable')}
+                              placeholder="Pilih akun piutang"
+                              searchPlaceholder="Cari nama atau kode akun..."
+                              loading={coaLoading}
+                              error={fieldErrors.receivable_chart_of_account_id}
+                              triggerStyle={selectTriggerStyle}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <span style={captionStyle}>Akun fee</span>
+                          <SearchableSelect
+                            value={draft.fee}
+                            onChange={(val: any) => setDraft((d) => ({ ...d, fee: Number(val) || 0 }))}
+                            options={coaOptions(draft.fee, 'fee')}
+                            placeholder="Pilih akun fee"
+                            searchPlaceholder="Cari nama atau kode akun..."
+                            loading={coaLoading}
+                            error={fieldErrors.fee_chart_of_account_id}
+                            triggerStyle={selectTriggerStyle}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                        {configured && (
+                          <button
+                            type="button"
+                            onClick={() => handleClear(row)}
+                            disabled={saving}
+                            style={{ ...smallBtn, color: 'var(--destructive)', marginRight: 'auto' }}
+                          >
+                            <Trash2 size={12} /> Hapus pengaturan
+                          </button>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                          <button type="button" onClick={() => setEditingId(null)} disabled={saving} style={{ ...smallBtn, height: 32 }}>
+                            Batal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSave(row)}
+                            disabled={saving}
+                            style={{
+                              ...smallBtn,
+                              height: 32,
+                              border: 'none',
+                              background: 'var(--accent)',
+                              color: 'white',
+                              fontWeight: 600,
+                              cursor: saving ? 'not-allowed' : 'pointer',
+                              opacity: saving ? 0.7 : 1,
+                            }}
+                          >
+                            {saving ? 'Menyimpan...' : 'Simpan'}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={row.branch_id}>
+                    <td style={tdStyle}>
+                      <div style={{ fontWeight: 600 }}>{row.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                        {row.code && <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{row.code}</span>}
+                        {row.isPickup && (
+                          <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: 'var(--info-bg)', color: 'var(--info)' }}>
+                            Pickup point
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          marginTop: 6,
+                          fontSize: 11,
+                          color: configured ? 'var(--success)' : 'var(--warning)',
+                        }}
+                      >
+                        {configured ? <CheckCircle2 size={12} /> : <AlertCircle size={12} />}
+                        {configured ? 'Sudah diatur' : 'Belum diatur'}
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      {row.isPickup ? (
+                        <span style={{ color: 'var(--foreground-muted)' }}>Ikut {row.parentName ?? 'outlet induk'}</span>
+                      ) : (
+                        <AccountCell
+                          id={s?.receivable_chart_of_account_id}
+                          code={s?.receivable_chart_of_account_code}
+                          name={s?.receivable_chart_of_account_name}
+                        />
+                      )}
+                    </td>
+                    <td style={tdStyle}>
+                      <AccountCell
+                        id={s?.fee_chart_of_account_id}
+                        code={s?.fee_chart_of_account_code}
+                        name={s?.fee_chart_of_account_name}
+                      />
+                    </td>
+                    {canEdit && (
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(row)}
+                          disabled={saving || (editingId !== null && editingId !== row.branch_id)}
+                          style={smallBtn}
+                        >
+                          <Pencil size={12} /> {configured ? 'Edit' : 'Atur'}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

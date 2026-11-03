@@ -469,7 +469,7 @@ export default function SalesChannelsView() {
             style={{
               position: 'relative',
               zIndex: 50,
-              width: 420,
+              width: 'min(760px, 100vw)',
               height: '100%',
               background: 'var(--surface)',
               borderLeft: '1px solid var(--border)',
@@ -488,17 +488,38 @@ export default function SalesChannelsView() {
                 justifyContent: 'space-between',
               }}
             >
-              <h2
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 18,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: 'var(--foreground)',
-                }}
-              >
-                Sales Channel Detail
-              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <h2
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: 20,
+                      fontWeight: 500,
+                      margin: 0,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    {selectedItem.name}
+                  </h2>
+                  <span
+                    style={{
+                      padding: '2px 10px',
+                      borderRadius: 99,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      textTransform: 'capitalize',
+                      background: selectedItem.sales_order_type === 'online' ? 'var(--info-bg)' : 'var(--accent-light-bg)',
+                      color: selectedItem.sales_order_type === 'online' ? 'var(--info)' : 'var(--accent)',
+                    }}
+                  >
+                    {selectedItem.sales_order_type ?? '—'}
+                  </span>
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  ID {selectedItem.id}
+                  {selectedItem.created_at ? ` · Dibuat ${formatDateTime(selectedItem.created_at)}` : ''}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedItem(null)}
@@ -521,44 +542,16 @@ export default function SalesChannelsView() {
                 gap: 16,
               }}
             >
-              {[
-                { label: 'ID', value: selectedItem.id },
-                { label: 'Name', value: selectedItem.name },
-                { label: 'Sales Order Type', value: selectedItem.sales_order_type },
-                {
-                  label: 'Created At',
-                  value: selectedItem.created_at
-                    ? formatDateTime(selectedItem.created_at)
-                    : '—',
-                },
-              ].map((f) => (
-                <div
-                  key={f.label}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--foreground-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.6px',
-                    }}
-                  >
-                    {f.label}
-                  </span>
-                  <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
-                    {f.value ?? '—'}
-                  </span>
-                </div>
-              ))}
               {/* Only online channels carry receivable / fee accounts. */}
               {selectedItem.sales_order_type === 'online' && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                  <SalesChannelBranchAccounts
-                    salesChannelId={Number(selectedItem.id)}
-                    canEdit={canEdit}
-                  />
+                <SalesChannelBranchAccounts
+                  salesChannelId={Number(selectedItem.id)}
+                  canEdit={canEdit}
+                />
+              )}
+              {selectedItem.sales_order_type !== 'online' && (
+                <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  Channel offline tidak memerlukan akun piutang atau fee per outlet.
                 </div>
               )}
             </div>
