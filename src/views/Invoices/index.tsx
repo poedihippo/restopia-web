@@ -322,6 +322,9 @@ export default function InvoicesView() {
                       (e.currentTarget.style.background = 'transparent')
                     }
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
                     <td style={tdStyle}>
                       <span
                         style={{

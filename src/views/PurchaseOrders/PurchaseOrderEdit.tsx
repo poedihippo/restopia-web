@@ -37,8 +37,14 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
     ? {
       code: order.code,
       supplier_id: order.supplier?.id ?? order.supplier_id ?? 0,
+      supplier_branch_id:
+        order.supplier_branch?.id ?? order.supplier_branch_id ?? undefined,
+      supplier_branch: order.supplier_branch ?? undefined,
+      buyer_id: order.buyer?.id ?? order.buyer_id ?? 0,
+      buyer: order.buyer ?? undefined,
       branch_id: order.branch?.id ?? order.branch_id ?? 0,
       date: parseDate(order.date),
+      fulfillment_date: order.fulfillment_date ? parseDate(order.fulfillment_date) : undefined,
       type: order.type ?? '',
       status: order.status,
       description: order.description ?? '',

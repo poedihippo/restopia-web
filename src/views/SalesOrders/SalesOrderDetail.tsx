@@ -579,6 +579,32 @@ export default function SalesOrderDetail() {
                 <Check size={13} />
                 Fully Paid
               </span>
+            ) : order?.type === 'online' && order?.settlement_status === 'pending' ? (
+              // Marketplace orders are paid by a payout — recording a payment here
+              // would mark them paid while settlement stays pending.
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    `/sales/settle-payout?search=${encodeURIComponent(order.code ?? '')}`,
+                  )
+                }
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '6px 12px',
+                  background: 'var(--accent-light-bg)',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Settle via Payout
+              </button>
             ) : (
               <button
                 type="button"

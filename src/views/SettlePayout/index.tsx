@@ -609,6 +609,29 @@ export default function SettlePayoutView() {
                 error={!!fieldErrors.received_amount}
               />
               {fieldErrors.received_amount && <div style={fieldErrorStyle}>{fieldErrors.received_amount}</div>}
+              {totalOutstanding > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Quick fill:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReceivedAmount(totalOutstanding)
+                      setFieldErrors((e) => ({ ...e, received_amount: '' }))
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      color: 'var(--foreground-muted)',
+                    }}
+                  >
+                    Outstanding (Rp {totalOutstanding.toLocaleString('id-ID')})
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>

@@ -5,6 +5,8 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { dashboardService } from '@/services/dashboard.service'
+import { productInventoriesService } from '@/services/product-inventories.service'
+import { getProductUomName } from '@/utils/productUomName'
 import {
   TrendingUp,
   ShoppingBag,
@@ -17,11 +19,13 @@ import {
   ShieldOff,
 } from 'lucide-react'
 
+// Local dates (en-CA = YYYY-MM-DD). toISOString() is UTC, which in WIB shifts
+// "1 Nov 00:00" back to "31 Oct".
 const firstOfMonth = () => {
   const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
+  return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA')
 }
-const todayStr = () => new Date().toISOString().split('T')[0]
+const todayStr = () => new Date().toLocaleDateString('en-CA')
 
 const formatRp = (n: number | undefined | null): string => {
   if (n === undefined || n === null) return 'Rp 0'
@@ -58,8 +62,10 @@ export default function DashboardView() {
     queryFn: () =>
       dashboardService
         .metrics({
-          'filter[created_at_gte]': dateFrom,
-          'filter[created_at_lte]': dateTo,
+          // created_at is a datetime: a bare date as the upper bound would
+          // stop at 00:00 and drop everything from the last day.
+          'filter[created_at_gte]': `${dateFrom} 00:00:00`,
+          'filter[created_at_lte]': `${dateTo} 23:59:59`,
         } as any)
         .then((r) => r.data),
     retry: false,
@@ -83,58 +89,76 @@ export default function DashboardView() {
   const metricsData: any = (metricsQueryData as any)?.data ?? {}
   const insightsData: any = (insightsQueryData as any)?.data ?? {}
 
+  // Insight inventory rows may arrive without their batch → product; look the
+  // names up by batch id so rows read "Almond Pebbles", not "#692".
+  const inventoryInsightKeys = [
+    'low_stock_product_inventories',
+    'top_sold_product_inventories',
+    'expiring_product_inventories',
+    'expired_product_inventories',
+  ]
+  const unnamedBatchIds: number[] = Array.from(
+    new Set(
+      inventoryInsightKeys
+        .flatMap((k) => (Array.isArray(insightsData?.[k]) ? insightsData[k] : []))
+        .filter((r: any) => !r?.product_uom_batch?.product_uom && r?.product_uom_batch_id)
+        .map((r: any) => Number(r.product_uom_batch_id))
+    )
+  ).sort((a, b) => a - b)
+
+  const { data: batchLookupData } = useQuery({
+    queryKey: ['dashboard-insight-batches', unnamedBatchIds],
+    enabled: unnamedBatchIds.length > 0,
+    queryFn: () =>
+      productInventoriesService
+        .list({
+          per_page: 100,
+          include: 'product_uom_batch,product_uom_batch.product_uom',
+          'filter[product_uom_batch_ids]': unnamedBatchIds.join(','),
+        } as any)
+        .then((r) => r.data),
+  })
+  const batchById = new Map<number, any>()
+  for (const inv of ((batchLookupData as any)?.data?.data ?? []) as any[]) {
+    if (inv?.product_uom_batch) batchById.set(Number(inv.product_uom_batch_id), inv.product_uom_batch)
+  }
+
   const cards: CardConfig[] = [
     {
-      label: 'Total Sales',
+      label: 'Sales Orders',
       icon: ShoppingBag,
-      value: formatRp(
-        metricsData?.total_sales ??
-          metricsData?.sales_total ??
-          metricsData?.total_revenue ??
-          0
-      ),
+      value: formatNum(metricsData?.count_final_sales_orders ?? 0),
       deltaIcon: ArrowUpRight,
       deltaColor: 'var(--success)',
-      deltaValue:
-        formatNum(metricsData?.total_orders ?? metricsData?.sales_count ?? 0) +
-        ' orders',
+      deltaValue: 'completed',
       description: 'in selected period',
     },
     {
       label: 'Productions',
       icon: Factory,
-      value: formatNum(
-        metricsData?.total_productions ?? metricsData?.productions_count ?? 0
-      ),
+      value: formatNum(metricsData?.count_final_production_details ?? 0),
       deltaIcon: ArrowUpRight,
       deltaColor: 'var(--foreground-muted)',
-      deltaValue: formatNum(metricsData?.pending_productions ?? 0) + ' pending',
-      description: 'batches this period',
+      deltaValue: 'final',
+      description: 'production items this period',
     },
     {
       label: 'Purchase Orders',
       icon: PackageSearch,
-      value: formatNum(
-        metricsData?.total_purchase_orders ??
-          metricsData?.purchase_orders_count ??
-          0
-      ),
-      deltaIcon: ArrowDownRight,
-      deltaColor: 'var(--warning)',
-      deltaValue:
-        formatNum(metricsData?.pending_purchase_orders ?? 0) + ' pending',
-      description: 'awaiting fulfillment',
+      value: formatNum(metricsData?.count_final_purchase_orders ?? 0),
+      deltaIcon: ArrowUpRight,
+      deltaColor: 'var(--foreground-muted)',
+      deltaValue: 'final',
+      description: 'in selected period',
     },
     {
       label: 'Total Payments',
       icon: CreditCard,
-      value: formatRp(
-        metricsData?.total_payments ?? metricsData?.payments_total ?? 0
-      ),
-      deltaIcon: ArrowUpRight,
-      deltaColor: 'var(--foreground-muted)',
-      deltaValue: formatNum(metricsData?.payments_count ?? 0) + ' transactions',
-      description: 'received this period',
+      value: formatRp(metricsData?.sum_payments ?? 0),
+      deltaIcon: ArrowDownRight,
+      deltaColor: 'var(--warning)',
+      deltaValue: formatRp(metricsData?.calculate_pending_payments ?? 0),
+      description: 'still pending',
     },
   ]
 
@@ -456,6 +480,18 @@ export default function DashboardView() {
                     const labelOf = (o: any): string => {
                       if (o == null) return '—'
                       if (typeof o !== 'object') return String(o)
+                      // Product inventory rows: name comes from batch → product UOM.
+                      const batch = o.product_uom_batch?.product_uom
+                        ? o.product_uom_batch
+                        : batchById.get(Number(o.product_uom_batch_id))
+                      if (batch?.product_uom) {
+                        const name = getProductUomName(batch.product_uom)
+                        if (name) return batch.batch_code ? `${name} · ${batch.batch_code}` : name
+                      }
+                      // Sales order rows: code + customer.
+                      if (o.code && (o.customer_name || o.customer?.name)) {
+                        return `${o.code} · ${o.customer_name || o.customer.name}`
+                      }
                       return (
                         o.name ??
                         o.code ??
@@ -469,6 +505,13 @@ export default function DashboardView() {
                     }
                     const metricOf = (o: any): string | null => {
                       if (o == null || typeof o !== 'object') return null
+                      if (key === 'top_sold_product_inventories' && o.total_sold != null)
+                        return `Sold ${formatNum(o.total_sold)}`
+                      if (key.includes('expir')) {
+                        const exp = o.expiry_date ?? o.product_uom_batch?.expiry_date
+                          ?? batchById.get(Number(o.product_uom_batch_id))?.expiry_date
+                        if (exp) return `Exp ${String(exp).slice(0, 10)} · Stock ${formatNum(o.stock)}`
+                      }
                       if (typeof o.qty === 'number') return o.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })
                       if (typeof o.stock === 'number')
                         return `Stock ${o.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
@@ -480,7 +523,8 @@ export default function DashboardView() {
                         return formatCurrency(o.amount)
                       if (typeof o.count === 'number')
                         return o.count.toLocaleString('id-ID')
-                      if (o.expiry_date) return `Exp ${String(o.expiry_date).slice(0, 10)}`
+                      const expiry = o.expiry_date ?? o.product_uom_batch?.expiry_date
+                      if (expiry) return `Exp ${String(expiry).slice(0, 10)}`
                       return null
                     }
 
