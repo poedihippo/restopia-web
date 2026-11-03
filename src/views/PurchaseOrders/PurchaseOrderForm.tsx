@@ -392,6 +392,16 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       label: (b.name as string) ?? `Branch #${b.id}`,
       sublabel: b.code as string | undefined,
     }))
+  if (
+    initialData?.supplier_branch?.id &&
+    !sourceBranchOptions.some((o: any) => o.value === initialData.supplier_branch.id)
+  ) {
+    sourceBranchOptions.push({
+      value: initialData.supplier_branch.id,
+      label: initialData.supplier_branch.name ?? `Branch #${initialData.supplier_branch.id}`,
+      sublabel: initialData.supplier_branch.code,
+    })
+  }
   const productUomOptions = mergedProductUoms.map((pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name), pu.product?.type),

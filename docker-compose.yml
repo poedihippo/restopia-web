@@ -4,8 +4,13 @@ services:
       context: .
       args:
         # Read from .env in this folder (Compose loads it automatically).
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL in .env}
+        # Inside the container `localhost` is the container itself, so an API
+        # running on this machine is reached via host.docker.internal.
+        # DOCKER_API_URL overrides it (e.g. https://dcdev.albatech.id/v1/).
+        NEXT_PUBLIC_API_URL: ${DOCKER_API_URL:-http://host.docker.internal:8080/v1/}
     image: dapur-coklat-web:local
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped

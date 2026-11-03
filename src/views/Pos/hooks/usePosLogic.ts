@@ -765,13 +765,17 @@ export function usePosLogic() {
   ]
 
   // ── Settlement rules (POS) ────────────────────────────────────────────────
-  // Every ONLINE order settles as 'credit' (the marketplace pays later);
-  // OFFLINE is 'settled' unless a credit method is picked. No POS order leaves
-  // as 'pending' — Hold and DP included.
-  const baseSettlementStatus = (): 'credit' | 'settled' =>
-    orderType === 'online' ? 'credit' : 'settled'
+  // ONLINE orders take no tenders and stay 'pending' until the marketplace
+  // payout is settled (Settle payout screen). OFFLINE is 'settled' unless a
+  // credit method is picked. The backend derives settlement_status itself; the
+  // field is still required, so we keep sending the expected value.
+  const baseSettlementStatus = (): 'pending' | 'settled' =>
+    orderType === 'online' ? 'pending' : 'settled'
 
   const getSettlement = () => {
+    if (orderType === 'online') {
+      return { creditType: null, creditById: null, settlementStatus: 'pending' as const }
+    }
     const splitCreditUser = isSplitPayment
       ? splitPayments.find((sp) => sp.creditByUserId)?.creditByUserId
       : null
@@ -849,56 +853,6 @@ export function usePosLogic() {
     return selectedCustomerId ?? null
   }
 
-  const orderIdOf = (res: any): number | null => {
-    const body = res?.data ?? res
-    const id = body?.data?.id ?? body?.id
-    return Number(id) > 0 ? Number(id) : null
-  }
-
-  // Checkout only answers {message} (CheckoutSalesOrderResponse), so the id of
-  // the order just written falls back to the newest order of the same type —
-  // POS is the only screen creating type=online orders from here.
-  const resolveCreatedOrderId = async (
-    res: any,
-    explicitId: number | null,
-  ): Promise<number | null> => {
-    if (explicitId) return explicitId
-    const direct = orderIdOf(res)
-    if (direct) return direct
-    try {
-      const list = await salesOrdersService.list({
-        sort: '-id',
-        per_page: 1,
-        'filter[type]': orderType,
-      } as any)
-      const rows: any[] = (list.data as any)?.data ?? []
-      return rows[0]?.id ? Number(rows[0].id) : null
-    } catch {
-      return null
-    }
-  }
-
-  // Checkout derives settlement_status from the tenders it writes, so an online
-  // order is forced to 'credit' afterwards through the bulk endpoint.
-  const pushOnlineSettlement = async (res: any, explicitId: number | null = null) => {
-    if (orderType !== 'online') return
-    const orderId = await resolveCreatedOrderId(res, explicitId)
-    if (!orderId) {
-      toast.warning('Order created, but settlement could not be set to credit (order id not found)')
-      return
-    }
-    try {
-      await salesOrdersService.bulkUpdateSettlement({
-        items: [{ sales_order_id: orderId, settlement_status: 'credit' }],
-      })
-    } catch (err: any) {
-      toast.warning(
-        'Order saved, but settlement could not be set to credit: ' +
-          getApiErrorMessage(err, 'bulk settlement failed'),
-      )
-    }
-  }
-
   const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
     if (!selectedVoucher) return
     setVoucherLoading(true)
@@ -959,8 +913,7 @@ export function usePosLogic() {
         .post('/sales-orders', body, { headers: { 'Idempotency-Key': idemKeyFor('hold', body) } })
         .then((r) => r.data)
     },
-    onSuccess: async (res: any) => {
-      await pushOnlineSettlement(res, editingOrderId)
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       toast.success('Order held as pending')
       resetCart()
@@ -1032,13 +985,17 @@ export function usePosLogic() {
       const paidAmount = paymentMode === 'partial'
         ? Number(partialAmount.replace(/\D/g, '')) || 0
         : payload.total_price
-      const paymentStatus = paymentMode === 'partial' ? 'partial' : 'paid'
+      const isOnline = payload.type === 'online'
+      const paymentStatus = isOnline ? 'pending' : paymentMode === 'partial' ? 'partial' : 'paid'
       let checkoutPayments: {
         payment_method_id: number
         amount: number
         description?: string
       }[] = []
-      if (isSplitPayment) {
+      if (isOnline) {
+        // An online order is paid to the marketplace — the API refuses tenders.
+        checkoutPayments = []
+      } else if (isSplitPayment) {
         checkoutPayments = splitPayments.map((sp) => ({
           payment_method_id: sp.paymentMethodId,
           amount: sp.amount,
@@ -1071,10 +1028,11 @@ export function usePosLogic() {
       }
       return salesOrdersService.checkout(body, idemKeyFor('checkout', body))
     },
-    onSuccess: async (res: any, variables: any) => {
+    onSuccess: async (_res: any, variables: any) => {
       // Checkout is atomic — payment already created by the backend.
-      // Only create payments separately for edited (held) orders.
-      if (editingOrderId) {
+      // Only create payments separately for edited (held) orders. Online
+      // orders never get a payment here: the marketplace payout settles them.
+      if (editingOrderId && variables.type !== 'online') {
         const salesOrderId = editingOrderId
         const paidAmount = paymentMode === 'partial'
           ? Number(partialAmount.replace(/\D/g, '')) || 0
@@ -1119,10 +1077,6 @@ export function usePosLogic() {
         }
       }
 
-      // Online orders must settle as 'credit' — enforce it right after creation
-      // (before resetCart, which flips orderType back to 'offline').
-      await pushOnlineSettlement(res, editingOrderId)
-
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
       qc.invalidateQueries({ queryKey: ['pos-history'] })
       qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
@@ -1141,7 +1095,7 @@ export function usePosLogic() {
   })
 
   const handleConfirmPayment = async () => {
-    if (isSplitPayment ? splitPayments.length === 0 : !paymentMethodId) {
+    if (orderType !== 'online' && (isSplitPayment ? splitPayments.length === 0 : !paymentMethodId)) {
       toast.error('Select a payment method')
       return
     }

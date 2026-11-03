@@ -1,6 +1,25 @@
 import api from '@/hooks/useApi'
 import type { ApiResponse, PaginatedData, ListParams, SalesOrderRequest } from '@/types/api'
 
+export interface BulkSettlementItem {
+  sales_order_id: number
+  settlement_status: 'pending' | 'credit' | 'settled' | 'cancelled' | string
+}
+
+export interface SettlementPayout {
+  sales_order_ids: number[]
+  payment_method_id: number
+  received_amount: number
+  /** YYYY-MM-DD, not earlier than any order's date. */
+  date: string
+  description?: string
+}
+
+export interface BulkSettlementRequest {
+  items?: BulkSettlementItem[]
+  payouts?: SettlementPayout[]
+}
+
 export const salesOrdersService = {
   list: (params?: ListParams) =>
     api.get<ApiResponse<PaginatedData<unknown>>>('/sales-orders', { params }),
@@ -55,7 +74,10 @@ export const salesOrdersService = {
       headers: { 'Idempotency-Key': crypto.randomUUID() },
     }),
 
-  bulkUpdateSettlement: (data: any) =>
+  // At least one of items / payouts; an order may appear only once across both.
+  // payouts[]: one marketplace transfer settling unpaid ONLINE orders of one
+  // channel + one outlet (fee = outstanding total − received_amount).
+  bulkUpdateSettlement: (data: BulkSettlementRequest) =>
     api.post<ApiResponse<unknown>>('/sales-orders/bulk-update-settlement-status', data),
 
   applyVoucher: (data: any) =>

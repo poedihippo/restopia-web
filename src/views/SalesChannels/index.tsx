@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Eye, X, Search } from 'lucide-react'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { useAuth } from '@/hooks/useAuth'
+import SalesChannelBranchAccounts from './SalesChannelBranchAccounts'
 
 export default function SalesChannelsView() {
   const qc = useQueryClient()
@@ -551,6 +552,15 @@ export default function SalesChannelsView() {
                   </span>
                 </div>
               ))}
+              {/* Only online channels carry receivable / fee accounts. */}
+              {selectedItem.sales_order_type === 'online' && (
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                  <SalesChannelBranchAccounts
+                    salesChannelId={Number(selectedItem.id)}
+                    canEdit={canEdit}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -161,6 +161,11 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Customers', href: '/sales/customers', permission: 'customer.menu' },
           { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.menu' },
           { label: 'Payments', href: '/sales/payments', permission: 'payment.menu' },
+          {
+            label: 'Settle Payout',
+            href: '/sales/settle-payout',
+            permission: ['sales-order.bulk-update-settlement-status', 'payment.create'],
+          },
         ],
       },
       { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.menu' },
