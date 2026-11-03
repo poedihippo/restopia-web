@@ -4,7 +4,7 @@ import { formatDateShort, formatDateTime } from '@/utils/date';
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, X, Search } from 'lucide-react'
+import { Eye, X, Search, Globe, Store } from 'lucide-react'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { useAuth } from '@/hooks/useAuth'
 import SalesChannelBranchAccounts from './SalesChannelBranchAccounts'
@@ -29,6 +29,7 @@ export default function SalesChannelsView() {
   } | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'' | 'online' | 'offline'>('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -36,17 +37,20 @@ export default function SalesChannelsView() {
   }, [search])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['sales-channels', debouncedSearch],
+    queryKey: ['sales-channels', debouncedSearch, typeFilter],
     queryFn: () =>
       salesChannelsService
         .list({
           per_page: 1000,
           sort: 'id',
           'filter[search]': debouncedSearch || undefined,
+          'filter[sales_order_type]': typeFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
-  const items = (data as any)?.data ?? []
+  const items = ((data as any)?.data ?? []).filter(
+    (c: any) => !typeFilter || c.sales_order_type === typeFilter,
+  )
 
   const { mutate: save, isPending: saving } = useMutation({
     mutationFn: () =>
@@ -147,7 +151,8 @@ export default function SalesChannelsView() {
           }}>+ Add Channel
         </button>)}
       </div>
-      <div style={{ marginBottom: 16, position: 'relative', maxWidth: 280 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ position: 'relative', width: 280, maxWidth: '100%' }}>
         <Search
           size={15}
           style={{
@@ -177,29 +182,50 @@ export default function SalesChannelsView() {
           }}
         />
       </div>
+      <select
+        value={typeFilter}
+        onChange={(e) => setTypeFilter(e.target.value as '' | 'online' | 'offline')}
+        style={{
+          height: 36,
+          padding: '0 12px',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: 13,
+          color: 'var(--foreground)',
+          background: 'var(--surface-raised)',
+          outline: 'none',
+          fontFamily: 'var(--font-sans)',
+          cursor: 'pointer',
+        }}
+      >
+        <option value="">Semua tipe</option>
+        <option value="online">Online</option>
+        <option value="offline">Offline</option>
+      </select>
+      </div>
       <div
         style={{
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
           overflow: 'hidden',
-          maxWidth: 600,
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 56, textAlign: 'center' }}>#</th>
               <th style={thStyle}>Name</th>
-              <th style={thStyle}>Sales Order Type</th>
-              <th style={thStyle}>Created</th>
-              <th style={{ ...thStyle, width: 120 }}>Actions</th>
+              <th style={{ ...thStyle, width: 180 }}>Sales Order Type</th>
+              <th style={{ ...thStyle, width: 160 }}>Created</th>
+              <th style={{ ...thStyle, width: 200, textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3, 4].map((j) => (
+                  {[1, 2, 3, 4, 5].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -216,7 +242,7 @@ export default function SalesChannelsView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={5}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -230,18 +256,37 @@ export default function SalesChannelsView() {
             )}
             {items.map((item: any, idx: number) => (
               <tr key={item.id}>
-                <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
                   {idx + 1}
                 </td>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
-                <td style={tdStyle}>{canRead ? (item.sales_order_type || '—') : "***"}</td>
+                <td style={tdStyle}>
+                  {!canRead ? '***' : item.sales_order_type ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '3px 10px',
+                        borderRadius: 99,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        background: item.sales_order_type === 'online' ? 'var(--info-bg)' : 'var(--accent-light-bg)',
+                        color: item.sales_order_type === 'online' ? 'var(--info)' : 'var(--accent)',
+                      }}
+                    >
+                      {item.sales_order_type === 'online' ? <Globe size={12} /> : <Store size={12} />}
+                      {item.sales_order_type === 'online' ? 'Online' : 'Offline'}
+                    </span>
+                  ) : '—'}
+                </td>
                 <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
                   {canRead ? item.created_at
                     ? formatDateShort(item.created_at)
                     : '—' : "***"}
                 </td>
                 <td style={tdStyle}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
                     <button
                       type="button"
                       onClick={() => setSelectedItem(item)}
@@ -469,7 +514,7 @@ export default function SalesChannelsView() {
             style={{
               position: 'relative',
               zIndex: 50,
-              width: 420,
+              width: 'min(760px, 100vw)',
               height: '100%',
               background: 'var(--surface)',
               borderLeft: '1px solid var(--border)',
@@ -488,17 +533,38 @@ export default function SalesChannelsView() {
                 justifyContent: 'space-between',
               }}
             >
-              <h2
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 18,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: 'var(--foreground)',
-                }}
-              >
-                Sales Channel Detail
-              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <h2
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: 20,
+                      fontWeight: 500,
+                      margin: 0,
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    {selectedItem.name}
+                  </h2>
+                  <span
+                    style={{
+                      padding: '2px 10px',
+                      borderRadius: 99,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      textTransform: 'capitalize',
+                      background: selectedItem.sales_order_type === 'online' ? 'var(--info-bg)' : 'var(--accent-light-bg)',
+                      color: selectedItem.sales_order_type === 'online' ? 'var(--info)' : 'var(--accent)',
+                    }}
+                  >
+                    {selectedItem.sales_order_type ?? '—'}
+                  </span>
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  ID {selectedItem.id}
+                  {selectedItem.created_at ? ` · Dibuat ${formatDateTime(selectedItem.created_at)}` : ''}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedItem(null)}
@@ -521,44 +587,16 @@ export default function SalesChannelsView() {
                 gap: 16,
               }}
             >
-              {[
-                { label: 'ID', value: selectedItem.id },
-                { label: 'Name', value: selectedItem.name },
-                { label: 'Sales Order Type', value: selectedItem.sales_order_type },
-                {
-                  label: 'Created At',
-                  value: selectedItem.created_at
-                    ? formatDateTime(selectedItem.created_at)
-                    : '—',
-                },
-              ].map((f) => (
-                <div
-                  key={f.label}
-                  style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--foreground-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.6px',
-                    }}
-                  >
-                    {f.label}
-                  </span>
-                  <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
-                    {f.value ?? '—'}
-                  </span>
-                </div>
-              ))}
               {/* Only online channels carry receivable / fee accounts. */}
               {selectedItem.sales_order_type === 'online' && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                  <SalesChannelBranchAccounts
-                    salesChannelId={Number(selectedItem.id)}
-                    canEdit={canEdit}
-                  />
+                <SalesChannelBranchAccounts
+                  salesChannelId={Number(selectedItem.id)}
+                  canEdit={canEdit}
+                />
+              )}
+              {selectedItem.sales_order_type !== 'online' && (
+                <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                  Channel offline tidak memerlukan akun piutang atau fee per outlet.
                 </div>
               )}
             </div>
