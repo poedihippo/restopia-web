@@ -670,6 +670,8 @@ export interface PosCartBundle {
    * details. Undefined for lines restored from a held order.
    */
   maxQty?: number
+  /** The item(s) whose stock sets maxQty, e.g. "Almond Pebbles (sisa 2)". */
+  limitedBy?: string
   bundle_details: { bundle_detail_item_id: number; product_inventory_id: number }[]
 }
 
