@@ -12,7 +12,10 @@ import { X, Loader2 } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError';
 
 const schema = z.object({
-  code: z.string().min(1, 'Code is required'),
+  code: z
+    .string()
+    .min(1, 'Code is required')
+    .refine((v) => !v.includes('/'), 'Code cannot contain "/"'),
   name: z.string().min(1, 'Name is required'),
   type: z.enum(['warehouse', 'production', 'outlet', 'other']).default('outlet'),
   timezone: z.string().optional(),
@@ -61,6 +64,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
     reset,
     control,
     watch,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -91,6 +95,17 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
     }
   }, [editData, open, reset])
 
+  // 422 (code contains "/") and 409 (code already used by an active branch)
+  // are shown under the Code field as well as in the toast.
+  const showCodeError = (err: any) => {
+    const codeErr = err?.response?.data?.errors?.code
+    if (codeErr) {
+      setError('code', { message: String(Array.isArray(codeErr) ? codeErr[0] : codeErr) })
+    } else if (err?.response?.status === 409) {
+      setError('code', { message: err?.response?.data?.message ?? 'Code is already used by another branch' })
+    }
+  }
+
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => branchesService.create(data as any),
     onSuccess: () => {
@@ -98,7 +113,10 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
       toast.success('Branch created')
       onClose()
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to create branch'),
+    onError: (err: any) => {
+      showCodeError(err)
+      toastMutationApiError(err, 'Failed to create branch')
+    },
   })
 
   const updateMutation = useMutation({
@@ -108,7 +126,10 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
       toast.success('Branch updated')
       onClose()
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to update branch'),
+    onError: (err: any) => {
+      showCodeError(err)
+      toastMutationApiError(err, 'Failed to update branch')
+    },
   })
 
   const onSubmit = (data: FormValues) => {

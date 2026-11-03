@@ -23,7 +23,8 @@ export function downloadBlob(blob: Blob, filename: string) {
   const a = document.createElement('a');
   a.style.display = 'none';
   a.href = url;
-  a.download = filename;
+  // Document codes contain "/" (0019/CB/10/2026) — not allowed in file names.
+  a.download = filename.replace(/[\/\\]/g, '-');
   
   document.body.appendChild(a);
   a.click();
