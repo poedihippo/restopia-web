@@ -682,19 +682,28 @@ export function usePosLogic() {
       // allows. A detail without a resolved inventory row doesn't cap anything
       // client-side — the server still validates at checkout.
       let maxQty: number | undefined
+      const fitsByItem: { name: string; available: number; fits: number }[] = []
       for (const d of processedDetails) {
         const perBundle = Number(d.qty) || 1
         const available = availableStockOf(d._inventory)
         if (perBundle <= 0 || available <= 0) continue
         const fits = Math.floor(available / perBundle)
+        fitsByItem.push({ name: d.product_name, available, fits })
         maxQty = maxQty === undefined ? fits : Math.min(maxQty, fits)
       }
+      // Name the scarcest ingredient(s) so the cashier knows what ran out.
+      const limitedBy = maxQty === undefined
+        ? undefined
+        : fitsByItem
+            .filter((f) => f.fits === maxQty)
+            .map((f) => `${f.name} (sisa ${formatQty(f.available)})`)
+            .join(', ')
 
       setBundleCart((prev: any[]) => {
         const existing = prev.find((b: any) => b.bundle_id === bundle.id)
         if (existing) {
           if (maxQty !== undefined && existing.qty + 1 > maxQty) {
-            toast.error(`Stok tidak mencukupi — maksimal ${formatQty(maxQty)} bundle`)
+            toast.error(`Stok ${limitedBy} tidak mencukupi — maksimal ${formatQty(maxQty)} bundle`)
             return prev
           }
           return prev.map((b: any) =>
@@ -710,6 +719,7 @@ export function usePosLogic() {
             price: bundle.price ?? 0,
             qty: 1,
             maxQty,
+            limitedBy,
             bundle_details: processedDetails,
           },
         ]

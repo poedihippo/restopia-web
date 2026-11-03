@@ -19,6 +19,12 @@ const bundleQtyLimitOf = (item: PosCartBundle): number | undefined =>
 const formatQty = (v: number): string =>
   v.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
+/** Stock warning for a capped bundle line, naming the scarce item when known. */
+const bundleStockMessage = (item: PosCartBundle, max: number): string =>
+  item.limitedBy
+    ? `Stok ${item.limitedBy} tidak mencukupi — maksimal ${formatQty(max)} bundle`
+    : `Stok tidak mencukupi — maksimal ${formatQty(max)} bundle`
+
 // Some styling constants for the sidebar
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -460,7 +466,7 @@ export default function PosCartSidebar({
                     let next = Math.max(0.001, val)
                     const max = bundleQtyLimitOf(item)
                     if (max !== undefined && next > max) {
-                      toast.error(`Stok tidak mencukupi — maksimal ${formatQty(max)} bundle`)
+                      toast.error(bundleStockMessage(item, max))
                       next = max
                     }
                     setBundleCart((prev: any) =>
@@ -489,7 +495,7 @@ export default function PosCartSidebar({
                   onClick={() => {
                     const max = bundleQtyLimitOf(item)
                     if (max !== undefined && item.qty + 1 > max) {
-                      toast.error(`Stok tidak mencukupi — maksimal ${formatQty(max)} bundle`)
+                      toast.error(bundleStockMessage(item, max))
                       return
                     }
                     setBundleCart((prev: any) =>
