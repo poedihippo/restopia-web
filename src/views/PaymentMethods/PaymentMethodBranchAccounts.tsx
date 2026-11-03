@@ -85,6 +85,7 @@ const smallBtn: React.CSSProperties = {
   fontSize: 12,
   color: 'var(--foreground)',
   cursor: 'pointer',
+  whiteSpace: 'nowrap',
 }
 
 function AccountText({ code, name, muted }: { code?: string | null; name?: string | null; muted?: boolean }) {

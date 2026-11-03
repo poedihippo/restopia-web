@@ -90,6 +90,7 @@ const smallBtn: React.CSSProperties = {
   fontSize: 12,
   color: 'var(--foreground)',
   cursor: 'pointer',
+  whiteSpace: 'nowrap',
 }
 
 const isConfigured = (row: OutletRow) =>
@@ -371,7 +372,7 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
               <th style={{ ...thStyle, width: '30%' }}>Outlet</th>
               <th style={thStyle}>Akun Piutang</th>
               <th style={thStyle}>Akun Fee</th>
-              {canEdit && <th style={{ ...thStyle, width: 64 }} />}
+              {canEdit && <th style={{ ...thStyle, width: 88 }} />}
             </tr>
           </thead>
           <tbody>
