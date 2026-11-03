@@ -1,0 +1,11 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        # Read from .env in this folder (Compose loads it automatically).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL in .env}
+    image: dapur-coklat-web:local
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

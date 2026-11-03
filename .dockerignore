@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+build
+.git
+.vercel
+.env*
+*.tsbuildinfo
+npm-debug.log*
+Dockerfile
+.dockerignore
+docker-compose.yml
+tmp_ss
+scratch
+docs

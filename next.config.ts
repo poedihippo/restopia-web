@@ -9,6 +9,8 @@ import type { NextConfig } from "next";
 // exact path.
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Self-contained server bundle for the Docker image (ignored by Vercel).
+  output: 'standalone',
   // Let the backend own trailing-slash redirects on /v1/* itself, since
   // Next's own trailing-slash redirect would otherwise fight it.
   skipTrailingSlashRedirect: true,
