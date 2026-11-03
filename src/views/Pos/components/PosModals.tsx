@@ -69,6 +69,8 @@ interface PosModalsProps {
   triggerPrint: (receipt: ReceiptData) => void
 
   salesChannelId: number | null
+  /** Online (marketplace) orders are paid out later — no tenders at checkout. */
+  orderType?: 'offline' | 'online'
   setSalesChannelId: (val: number | null) => void
   salesChannels: any[]
 
@@ -158,6 +160,7 @@ export default function PosModals({
   salesChannelId,
   setSalesChannelId,
   salesChannels,
+  orderType = 'offline',
 
   preorderSearch,
   setPreorderSearch,
@@ -271,7 +274,13 @@ export default function PosModals({
     manualCustomerName.trim()
   )
 
-  const canConfirm = isSplitPayment
+  const isOnline = orderType === 'online'
+  const selectedChannelName =
+    salesChannels.find((c: any) => c.id === salesChannelId)?.name ?? 'marketplace'
+
+  const canConfirm = isOnline
+    ? true
+    : isSplitPayment
     ? remainingSplitBalance === 0
     : (paymentMethodId !== null &&
        (!isCreditMethod ||
@@ -406,6 +415,7 @@ export default function PosModals({
             )}
 
             {/* Payment Mode: Full vs Partial (DP) */}
+            {!isOnline && (
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
                 Payment Mode
@@ -461,6 +471,7 @@ export default function PosModals({
                 </div>
               )}
             </div>
+            )}
 
             {/* Sales Channel (Required) */}
             <div style={{ marginBottom: 20 }}>
@@ -487,6 +498,23 @@ export default function PosModals({
               </select>
             </div>
 
+            {isOnline ? (
+              <div
+                style={{
+                  background: 'var(--info-bg)',
+                  color: 'var(--info)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '12px 16px',
+                  marginBottom: 20,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                Dibayar via {selectedChannelName}, menunggu pencairan. Pembayaran dicatat saat
+                payout marketplace di-settle.
+              </div>
+            ) : (
+            <>
             {/* Split Payment Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
               <input
@@ -1052,6 +1080,8 @@ export default function PosModals({
             )}
               </>
             )}
+            </>
+            )}
 
             {/* Confirm button */}
             <button
@@ -1062,8 +1092,10 @@ export default function PosModals({
                   toast.error('Please select a sales channel')
                   return
                 }
-                
-                if (isSplitPayment) {
+
+                if (isOnline) {
+                  // no tenders for marketplace orders
+                } else if (isSplitPayment) {
                   if (remainingSplitBalance > 0) {
                     toast.error('Payment does not cover total due')
                     return
@@ -1130,6 +1162,8 @@ export default function PosModals({
                 ? 'Processing...'
                 : !salesChannelId
                   ? 'Select Sales Channel'
+                  : isOnline
+                    ? 'Place Online Order'
                   : isCreditMethod && creditType === 'customer' && !hasCustomerForCredit
                     ? 'Enter Customer First'
                     : isCreditMethod && creditType === 'user' && !creditByUserId

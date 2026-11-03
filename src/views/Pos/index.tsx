@@ -166,6 +166,7 @@ export default function PosView() {
         salesChannelId={logic.salesChannelId}
         setSalesChannelId={logic.setSalesChannelId}
         salesChannels={logic.salesChannels}
+        orderType={logic.orderType}
 
         preorderSearch={logic.preorderSearch}
         setPreorderSearch={logic.setPreorderSearch}

@@ -46,13 +46,34 @@ export default function PosHistoryModal({
   const qc = useQueryClient()
 
   const returnOrderMutation = useMutation({
-    mutationFn: (orderId: number) => salesOrdersService.returnOrder(orderId),
+    mutationFn: (order: { id: number; code?: string }) => salesOrdersService.returnOrder(order.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-history'] })
       qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
       toast.success('Order returned successfully')
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to return order'),
+    onError: (err: any, order) => {
+      // A paid-out online order sharing its payout with other orders can't be
+      // returned until that payout is moved back to pending.
+      const message: string = err?.response?.data?.message ?? ''
+      const fieldMessages = Object.values(err?.response?.data?.errors ?? {}).flat().map(String)
+      const shared = [message, ...fieldMessages].find((m) => /paid out together/i.test(m))
+      if (err?.response?.status === 422 && shared) {
+        toast.error(shared, {
+          duration: 10000,
+          action: {
+            label: 'Undo payout',
+            onClick: () =>
+              window.open(
+                `/sales/settle-payout?tab=settled&search=${encodeURIComponent(order.code ?? '')}`,
+                '_blank',
+              ),
+          },
+        })
+        return
+      }
+      toastMutationApiError(err, 'Failed to return order')
+    },
   })
 
   if (!showHistory) return null
@@ -253,7 +274,7 @@ export default function PosHistoryModal({
                   type="button"
                   onClick={() => {
                     if (window.confirm(`Return order ${order.code}? This will reverse all payments and restore stock.`)) {
-                      returnOrderMutation.mutate(order.id)
+                      returnOrderMutation.mutate({ id: order.id, code: order.code })
                     }
                   }}
                   disabled={returnOrderMutation.isPending}

@@ -255,6 +255,16 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     queryFn: () => salesChannelsService.list({ per_page: 100, sort: 'name' } as any).then((r) => r.data),
   })
   const salesChannels = (salesChannelsData as any)?.data ?? []
+  // A channel's sales_order_type must match the order type (422 otherwise).
+  const channelsForType = salesChannels.filter(
+    (sc: any) => !sc.sales_order_type || sc.sales_order_type === type,
+  )
+
+  // Online orders: settlement is owned by the marketplace payout, and a
+  // settled online order is read-only until its payout is undone.
+  const isOnline = type === 'online'
+  const isLockedOnline =
+    isEdit && editingOrder?.type === 'online' && editingOrder?.settlement_status === 'settled'
 
   const { data: paymentMethodsData } = useQuery({
     queryKey: ['so-payment-methods'],
@@ -702,6 +712,45 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         </button>
       </div>
 
+      {isLockedOnline && (
+        <div
+          style={{
+            background: 'var(--warning-bg)',
+            color: 'var(--warning)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 16px',
+            marginBottom: 16,
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          This online order is settled by a marketplace payout and can&apos;t be edited.{' '}
+          <button
+            type="button"
+            onClick={() =>
+              router.push(`/sales/settle-payout?tab=settled&search=${encodeURIComponent(editingOrder.code ?? '')}`)
+            }
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: 'var(--accent)',
+              fontWeight: 600,
+              fontSize: 13,
+              textDecoration: 'underline',
+              cursor: 'pointer',
+            }}
+          >
+            Undo its payout first
+          </button>
+        </div>
+      )}
+
+      <fieldset
+        disabled={isLockedOnline}
+        style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}
+      >
       {/* ── Section 1: Order Info ── */}
       <div style={sectionStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12, fontSize: 11, color: 'var(--foreground-subtle)' }}>
@@ -734,8 +783,16 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             </label>
             <select
               value={type}
-              onChange={(e) => setType(e.target.value as 'offline' | 'online')}
-              style={fieldStyle}
+              onChange={(e) => {
+                const next = e.target.value as 'offline' | 'online'
+                setType(next)
+                const ch = salesChannels.find((sc: any) => sc.id === salesChannelId)
+                if (ch?.sales_order_type && ch.sales_order_type !== next) setSalesChannelId(undefined)
+                if (next === 'online') setSettlementStatus('pending')
+              }}
+              disabled={isEdit}
+              title={isEdit ? 'Type cannot be changed — void and recreate the order instead' : undefined}
+              style={{ ...fieldStyle, opacity: isEdit ? 0.7 : 1, cursor: isEdit ? 'not-allowed' : undefined }}
             >
               <option value="offline">Offline</option>
               <option value="online">Online</option>
@@ -754,7 +811,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               style={fieldStyle}
             >
               <option value={0}>No Sales Channel</option>
-              {salesChannels.map((sc: any) => (
+              {channelsForType.map((sc: any) => (
                 <option key={sc.id} value={sc.id}>
                   {sc.name}
                 </option>
@@ -779,6 +836,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             <label style={labelStyle}>Settlement Status</label>
             <select
               value={settlementStatus}
+              disabled={isOnline}
+              title={isOnline ? 'Online orders are settled from the Settle Payout screen' : undefined}
               onChange={(e) =>
                 setSettlementStatus(
                   e.target.value as 'pending' | 'credit' | 'settled' | 'cancelled'
@@ -1773,6 +1832,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         </button>
       </div>
 
+      </fieldset>
+
       {/* ── Section 4: Totals + Submit ── */}
       <div style={{ ...sectionStyle, display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ width: 320 }}>
@@ -1898,7 +1959,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 }
                 mutate()
               }}
-              disabled={isPending || items.length === 0}
+              disabled={isPending || items.length === 0 || isLockedOnline}
               style={{
                 flex: 1,
                 height: 44,
@@ -1906,10 +1967,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 borderRadius: 'var(--radius-md)',
                 background: 'var(--accent)',
                 color: 'white',
-                cursor: isPending || items.length === 0 ? 'not-allowed' : 'pointer',
+                cursor: isPending || items.length === 0 || isLockedOnline ? 'not-allowed' : 'pointer',
                 fontSize: 14,
                 fontWeight: 600,
-                opacity: isPending || items.length === 0 ? 0.7 : 1,
+                opacity: isPending || items.length === 0 || isLockedOnline ? 0.7 : 1,
               }}
             >
               {isPending ? 'Saving...' : isEdit ? 'Update Order' : 'Create Order'}

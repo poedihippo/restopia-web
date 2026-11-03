@@ -345,6 +345,24 @@ export default function SalesOrdersView() {
       toast.error('Choose a settlement status first')
       return
     }
+    // Online orders are settled by their marketplace payout and cancelled via
+    // void/return — the API refuses both through `items`.
+    const onlineSelected = items.filter(
+      (i: any) => selectedIds.includes(Number(i.id)) && i.type === 'online',
+    )
+    if (onlineSelected.length > 0 && bulkSettlement === 'settled') {
+      toast.error(
+        `${onlineSelected.map((o: any) => o.code).join(', ')}: online orders are settled from the Settle Payout screen.`,
+        { action: { label: 'Settle Payout', onClick: () => router.push('/sales/settle-payout') } },
+      )
+      return
+    }
+    if (onlineSelected.length > 0 && bulkSettlement === 'cancelled') {
+      toast.error(
+        `${onlineSelected.map((o: any) => o.code).join(', ')}: cancel online orders with void or return.`,
+      )
+      return
+    }
     doBulkSettlement(
       selectedIds.map((id) => ({ sales_order_id: id, settlement_status: bulkSettlement })),
     )

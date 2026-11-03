@@ -25,13 +25,22 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 interface Payment {
   id: number
   amount: number
+  /** Marketplace fee kept on an online payout; 0 for normal payments. */
+  fee_amount?: number
   description?: string
   created_at?: string
   sales_order?: { id: number; code?: string }
   payment_method?: { id: number; name: string }
   branch?: { id: number; name: string }
   created_by?: { id: number; name: string }
-  allocations?: { sales_order_id?: number, purchase_order_id?: number, invoice_id?: number, amount: number }[]
+  allocations?: {
+    sales_order_id?: number
+    purchase_order_id?: number
+    invoice_id?: number
+    amount: number
+    fee_amount?: number
+    fee_chart_of_account_id?: number | null
+  }[]
   is_reversed?: boolean
 }
 
@@ -397,6 +406,19 @@ export default function PaymentsView() {
                     >
                       Rp {(item.amount ?? 0).toLocaleString('id-ID')}
                     </span>
+                    {Number(item.fee_amount ?? 0) > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 12 }}>
+                        <span style={{ color: 'var(--foreground-muted)' }}>
+                          Gross {formatCurrency(item.amount ?? 0)}
+                        </span>
+                        <span style={{ color: 'var(--warning)' }}>
+                          Fee −{formatCurrency(item.fee_amount ?? 0)}
+                        </span>
+                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>
+                          Received in bank {formatCurrency(Number(item.amount ?? 0) - Number(item.fee_amount ?? 0))}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
