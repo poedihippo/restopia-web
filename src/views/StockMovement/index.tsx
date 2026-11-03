@@ -354,7 +354,7 @@ function StockValueCell({
 
 // Satu kolom "Tanggal / Dokumen":
 //   29 Okt 2026 13:29
-//   DEL.W-KRG.1020260087   (link ke dokumen sumber)
+//   0087/KR/10/2026        (link ke dokumen sumber)
 function DateTimeDocCell({ item }: { item: StockMovement }) {
   const formatted = item.created_at ? String(formatDateTime(item.created_at)) : ''
   const [datePart, timePart] = formatted ? formatted.split(', ') : []
