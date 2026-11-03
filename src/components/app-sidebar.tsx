@@ -102,6 +102,7 @@ export const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
+  
   {
     title: 'INVENTORY',
     items: [
