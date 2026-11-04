@@ -23,6 +23,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
+import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import { convertUp, convertDown, type ConversionEntry } from '@/utils/unitDisplay'
 
 const fmtQty = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
@@ -103,12 +104,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // "type in product dropdown → /v1/companies & /v1/branches get hit"
   // cross-fire that happens when one global search state is shared by all
   // SearchableSelect components and all queries.
-  const [productSearch, setProductSearch] = useState('')
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setProductSearchDebounced(productSearch), 400)
-    return () => clearTimeout(t)
-  }, [productSearch])
+  const productSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleProductSearchChange = React.useCallback((value: string) => {
+    if (productSearchTimer.current) clearTimeout(productSearchTimer.current)
+    productSearchTimer.current = setTimeout(() => setProductSearchDebounced(value.trim()), 400)
+  }, [])
+  useEffect(() => () => {
+    if (productSearchTimer.current) clearTimeout(productSearchTimer.current)
+  }, [])
 
   const [branchSearch, setBranchSearch] = useState('')
   const [branchSearchDebounced, setBranchSearchDebounced] = useState('')
@@ -298,6 +302,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const { data: linePuomsData } = useQuery({
     queryKey: ['line-product-uoms-for-inv', lineProductUomIds.slice().sort((a, b) => a - b).join(',')],
     enabled: lineProductUomIds.length > 0,
+    placeholderData: (prev: any) => prev,
+    staleTime: 60_000,
     queryFn: () =>
       productUomsService
         .list({
@@ -320,6 +326,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
     queryKey: ['source-branch-inventory', sourceBranchId, lineProductIds.slice().sort((a, b) => a - b).join(','), watchSourceOwnerRef, watchSourceStage],
     enabled: !!sourceBranchId && lineProductIds.length > 0,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       productInventoriesService
         .list({
@@ -605,7 +612,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const dropdownProductUoms: any[] = useMemo(() => (dropdownProductUomsData as any)?.data ?? [], [dropdownProductUomsData])
   // Loading = either query is still resolving. Both run in parallel.
   const productUomsLoading =
-    linkedProductUomsData === undefined || dropdownProductUomsData === undefined
+    (linkedProductUomIds.length > 0 && linkedProductUomsData === undefined) ||
+    dropdownProductUomsData === undefined
 
   // Merge for the puomToProduct lookup + dropdown options
   const lineProductUoms: any[] = useMemo(() => (linePuomsData as any)?.data ?? [], [linePuomsData])
@@ -1056,6 +1064,28 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     setTimeout(() => el.focus({ preventScroll: true }), 300)
   }
+
+  // Add Item button + Ctrl+B / Cmd+B shortcut: append a row and bring it into view.
+  const handleAddItem = () => {
+    const newIndex = fields.length
+    append({
+      product_uom_id: 0,
+      product_uom_batch_id: undefined,
+      purchase_order_detail_id: undefined,
+      sales_order_detail_id: undefined,
+      qty: 1,
+      price: 0,
+      status: 'packed',
+      description: '',
+    })
+    setTimeout(() => {
+      document
+        .querySelector<HTMLElement>(`[data-qty-row="${newIndex}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
+  }
+
+  useFormKeyboardNavigation({ onAddItem: handleAddItem })
 
   const onInvalid = (errs: any) => {
     const detailErrs: any[] = Array.isArray(errs?.details) ? errs.details : []
@@ -1609,18 +1639,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             <span style={sectionLabelStyle}>Delivery Items</span>
             <button
               type="button"
-              onClick={() =>
-                append({
-                  product_uom_id: 0,
-                  product_uom_batch_id: undefined,
-                  purchase_order_detail_id: undefined,
-                  sales_order_detail_id: undefined,
-                  qty: 1,
-                  price: 0,
-                  status: 'packed',
-                  description: '',
-                })
-              }
+              onClick={handleAddItem}
+              title="Add Item (Ctrl+B)"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1741,7 +1761,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         | string
                         | undefined
                       }
-                      onSearchChange={setProductSearch}
+                      onSearchChange={handleProductSearchChange}
                     />
                   )}
                 />
@@ -1768,8 +1788,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     // 3. productUoms not yet loaded (puomToProduct map not ready)
                     // 4. linked order form data not yet applied to form (PO/SO useEffect replace() pending)
                     const sourceBranchPending = showLinkedPO && poSourceBranchLoading
-                    const inventoryPending = !inventoryFetched || inventoryFetching
-                    const showBatchLoading = sourceBranchPending || inventoryPending || productUomsLoading || !linkedOrderFormReady
+                    const rowHasProduct = Number(watchDetails[index]?.product_uom_id) > 0
+                    const inventoryPending =
+                      (!inventoryFetched && inventoryData === undefined) ||
+                      (inventoryFetching && rowHasProduct && batches.length === 0)
+                    const showBatchLoading =
+                      sourceBranchPending ||
+                      inventoryPending ||
+                      (productUomsLoading && rowHasProduct && batches.length === 0) ||
+                      !linkedOrderFormReady
                     return (
                       <div
                         style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}
