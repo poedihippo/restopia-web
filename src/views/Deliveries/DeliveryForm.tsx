@@ -1037,6 +1037,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       })
       const rows = Array.from(shortages.keys()).map((i) => i + 1).join(', ')
       toast.error(`Stok tidak cukup pada baris ${rows}. Kurangi qty atau pilih batch lain.`)
+      scrollToRowField('qty', Math.min(...Array.from(shortages.keys())))
       return
     }
     console.log('DeliveryForm onSubmit called', { ...values, total_price: totalPrice })
@@ -1047,9 +1048,29 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     }
   }
 
-  const onInvalid = (errs: any) => {
+  // Bring a problem row into view and focus its control, so the user sees
+  // why the delivery can't be created (rows can be far down a long list).
+  const scrollToRowField = (field: 'batch' | 'qty', index: number) => {
+    const el = document.querySelector<HTMLElement>(`[data-${field}-row="${index}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => el.focus({ preventScroll: true }), 300)
+  }
 
-    console.log('DeliveryForm validation errors:', errs)
+  const onInvalid = (errs: any) => {
+    const detailErrs: any[] = Array.isArray(errs?.details) ? errs.details : []
+    const missingBatchRows = detailErrs
+      .map((e, i) => (e?.product_uom_batch_id ? i : -1))
+      .filter((i) => i >= 0)
+    if (missingBatchRows.length > 0) {
+      toast.error(
+        `Batch belum dipilih pada baris ${missingBatchRows.map((i) => i + 1).join(', ')}`,
+      )
+      scrollToRowField('batch', missingBatchRows[0])
+      return
+    }
+    const qtyRow = detailErrs.findIndex((e) => e?.qty)
+    if (qtyRow >= 0) scrollToRowField('qty', qtyRow)
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -1779,6 +1800,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                           </div>
                         ) : (
                           <select
+                            data-batch-row={index}
                             value={f.value ?? 0}
                             onChange={(e) => {
                               const v = Number(e.target.value) || undefined
@@ -1787,7 +1809,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                             }}
                             style={{
                               ...lineInputStyle,
-                              border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'}`,
+                              ...(batchError || (!f.value && Number(watchDetails[index]?.product_uom_id) > 0)
+                                ? {
+                                    border: '1px solid var(--destructive)',
+                                    background: 'var(--destructive-bg)',
+                                    color: 'var(--destructive)',
+                                  }
+                                : { border: '1px solid var(--border)' }),
                               cursor: 'pointer',
                             }}
                           >
@@ -1838,6 +1866,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       type="number"
                       min={0.001}
                       step={0.001}
+                      data-qty-row={index}
                       {...register(`details.${index}.qty`, { valueAsNumber: true })}
                       style={{
                         ...lineInputStyle,
