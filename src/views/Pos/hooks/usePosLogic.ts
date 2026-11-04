@@ -157,6 +157,10 @@ export function usePosLogic() {
     discount_amount: number
     voucher_id: number | null
     subtotal_at_apply: number
+    // Server figures from the voucher preview: PPN is charged after the
+    // discount, so never recompute it on the screen.
+    tax_amount?: number
+    total_price?: number
   } | null>(null)
   const [voucherLoading, setVoucherLoading] = useState(false)
   const discountAmount = appliedVoucher?.discount_amount ?? 0
@@ -345,6 +349,8 @@ export function usePosLogic() {
         discount_amount: Number(order.discount_price ?? 0),
         voucher_id: order.voucher_id,
         subtotal_at_apply: loadedSubtotal,
+        tax_amount: order.tax_amount != null ? Number(order.tax_amount) : undefined,
+        total_price: order.total_price != null ? Number(order.total_price) : undefined,
       })
     } else {
       setVoucherCode('')
@@ -588,7 +594,15 @@ export function usePosLogic() {
   // 4. COMPUTED VALUES
   // ---------------------------------------------------------------------------
   const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0) + bundleCart.reduce((s: number, c: any) => s + c.price * c.qty, 0)
-  const total = Math.max(0, subtotal - (discountAmount ?? 0))
+  // With a voucher, PPN and total come from the server preview (PPN is charged
+  // on the price after the voucher discount).
+  const taxAmount = appliedVoucher?.tax_amount ?? 0
+  const total =
+    appliedVoucher?.total_price != null && Number.isFinite(appliedVoucher.total_price)
+      ? Math.max(0, appliedVoucher.total_price)
+      : Math.max(0, subtotal - (discountAmount ?? 0))
+  // PPN either sits inside the prices (total = subtotal − discount) or is added on top.
+  const taxIncluded = taxAmount > 0 && Math.abs(subtotal - discountAmount + taxAmount - total) > 1
 
   const selectedMethod = paymentMethods.find((pm) => pm.id === paymentMethodId)
   const isCashMethod = selectedMethod?.name?.toLowerCase().includes('cash') ?? false;
@@ -934,6 +948,8 @@ export function usePosLogic() {
           discount_amount: Number(data.discount_price),
           voucher_id: voucher.id,
           subtotal_at_apply: subtotal,
+          tax_amount: data.tax_amount != null ? Number(data.tax_amount) : undefined,
+          total_price: data.total_price != null ? Number(data.total_price) : undefined,
         })
         toast.success('Voucher applied')
       } else {
@@ -1248,6 +1264,7 @@ export function usePosLogic() {
       const serverTotal = num(order.total_price, variables.total_price)
       const serverSubtotal = num(order.subtotal_price, variables.subtotal_price)
       const serverDiscount = num(order.discount_price, variables.discount_price)
+      const serverTax = num(order.tax_amount, taxAmount)
       const isPartial = !isOnline && paymentMode === 'partial'
       const dueNow = isPartial ? Number(partialAmount.replace(/\D/g, '')) || 0 : serverTotal
       const methodName = (id: number | null | undefined) =>
@@ -1288,6 +1305,9 @@ export function usePosLogic() {
           ],
           grossAmount: serverSubtotal,
           discountAmount: serverDiscount,
+          taxAmount: serverTax,
+          taxIncluded:
+            serverTax > 0 && Math.abs(serverSubtotal - serverDiscount + serverTax - serverTotal) > 1,
           totalAmount: serverTotal,
           payments,
           changeAmount: change,
@@ -1410,6 +1430,8 @@ export function usePosLogic() {
     appliedVoucher,
     voucherLoading,
     discountAmount,
+    taxAmount,
+    taxIncluded,
     showPayment, setShowPayment,
     paymentMethodId, setPaymentMethodId,
     cashTendered, setCashTendered,

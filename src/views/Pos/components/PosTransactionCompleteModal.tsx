@@ -140,6 +140,8 @@ export default function PosTransactionCompleteModal({
         <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           {row('Total', formatCurrency(receipt.totalAmount), true)}
           {receipt.discountAmount > 0 && row('Diskon', `- ${formatCurrency(receipt.discountAmount)}`)}
+          {(receipt.taxAmount ?? 0) > 0 &&
+            row(receipt.taxIncluded ? 'PPN (termasuk)' : 'PPN', formatCurrency(receipt.taxAmount ?? 0))}
           {!isOnline &&
             receipt.payments.map((p, i) => (
               <React.Fragment key={`${p.method}-${i}`}>{row(p.method, formatCurrency(p.amount))}</React.Fragment>

@@ -53,6 +53,9 @@ interface PosCartSidebarProps {
   subtotal: number
   total: number
   discountAmount: number
+  /** Server PPN (after the voucher discount); 0 hides the line. */
+  taxAmount?: number
+  taxIncluded?: boolean
   appliedVoucher: any
   voucherCode: number | ''
   setVoucherCode: (val: number | '') => void
@@ -90,6 +93,8 @@ export default function PosCartSidebar({
   subtotal,
   total,
   discountAmount,
+  taxAmount,
+  taxIncluded,
   appliedVoucher,
   // voucher / sales channel / note / dates props are still accepted but now
   // edited in the review step and payment modal, not in the sidebar.
@@ -488,6 +493,13 @@ export default function PosCartSidebar({
               <span>Diskon ({appliedVoucher.code})</span>
               <span>- {formatCurrency(discountAmount)}</span>
             </span>
+        )}
+
+        {(taxAmount ?? 0) > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
+            <span>{taxIncluded ? 'PPN (termasuk)' : 'PPN'}</span>
+            <span>{formatCurrency(taxAmount ?? 0)}</span>
+          </div>
         )}
 
         <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />

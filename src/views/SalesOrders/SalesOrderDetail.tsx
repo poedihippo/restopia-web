@@ -12,6 +12,8 @@ import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
 import SalesOrdersDetail from './Detail/SalesOrdersDetail';
+import ReturnOrderModal from './ReturnOrderModal';
+import { useAuth } from '@/hooks/useAuth';
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { formatNumberId } from '@/utils/numberFormat'
 
@@ -94,15 +96,35 @@ export default function SalesOrderDetail() {
         date: a.payment?.date,
         payment_method: a.payment?.payment_method,
         is_reversed: a.payment?.is_reversed,
+        // `refund` = money paid back for a partial return (outgoing).
+        type: a.payment?.type,
       })),
     [allocations],
   )
-  const totalPaid = useMemo(
-    () => allocations.reduce((s: number, a: any) => s + Number(a.amount ?? 0), 0),
+  // Partial returns: the order is worth total − returned_amount, and the
+  // server's total_payment is already net of refunds.
+  const returnedAmount = Number(order?.returned_amount ?? 0)
+  const refundedAmount = Number(order?.refunded_amount ?? 0)
+  const hasPartialReturns = returnedAmount > 0
+  const effectiveTotal = total - returnedAmount
+  const allocatedPaid = useMemo(
+    () =>
+      allocations.reduce(
+        (s: number, a: any) =>
+          s + (a.payment?.type === 'refund' ? -1 : 1) * Number(a.amount ?? 0),
+        0,
+      ),
     [allocations],
   )
-  const remaining = Number(order?.total_price ?? 0) - totalPaid
-  const isFullyPaid = remaining <= 0 && Number(order?.total_price ?? 0) > 0
+  const totalPaid =
+    order?.total_payment != null ? Number(order.total_payment) : allocatedPaid
+  const remaining =
+    order?.remaining_payment != null
+      ? Number(order.remaining_payment)
+      : effectiveTotal - totalPaid
+  const isFullyPaid = order?.payment_status
+    ? order.payment_status === 'paid'
+    : remaining <= 0 && effectiveTotal > 0
 
   let paymentStatus = 'UNPAID'
   let paymentStatusColor = 'var(--destructive)' // red
@@ -113,6 +135,10 @@ export default function SalesOrderDetail() {
     paymentStatus = 'PARTIAL'
     paymentStatusColor = 'var(--warning)' // orange
   }
+
+  const { hasPermission } = useAuth()
+  const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
+  const [showReturn, setShowReturn] = useState(false)
 
   const { data: paymentMethodsData } = useQuery({
     queryKey: ['payment-methods-all'],
@@ -219,6 +245,31 @@ export default function SalesOrderDetail() {
           <Printer size={15} />
           Download Invoice
         </button>
+        {canReturn &&
+          order?.status === 'final' &&
+          order?.settlement_status !== 'cancelled' &&
+          !order?.has_delivery &&
+          !order?.has_invoice && (
+          <button
+            type="button"
+            onClick={() => setShowReturn(true)}
+            style={{
+              height: 38,
+              padding: '0 16px',
+              border: '1px solid var(--destructive)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--destructive-bg)',
+              color: 'var(--destructive)',
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 500,
+            }}
+          >
+            {hasPartialReturns ? '↩ Return Remaining Items' : '↩ Return'}
+          </button>
+        )}
+        {/* An order with partial returns can no longer be edited or voided. */}
+        {!hasPartialReturns && (<>
         <button
           type="button"
           onClick={() => router.push(`/sales/sales-orders/${id}/edit`)}
@@ -253,6 +304,7 @@ export default function SalesOrderDetail() {
         >
           Delete
         </button>
+        </>)}
       </div>
 
       {(order?.purchase_order_id || order?.buyer_branch_id || order?.sales_channel_id || order?.credit_by_id) && (
@@ -526,9 +578,25 @@ export default function SalesOrderDetail() {
                   color: 'var(--foreground)',
                 }}
               >
-                Rp {Number(order?.total_price ?? 0).toLocaleString('id-ID')}
+                Rp {effectiveTotal.toLocaleString('id-ID')}
               </span>
+              {hasPartialReturns && (
+                <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                  of Rp {total.toLocaleString('id-ID')} · returned Rp {returnedAmount.toLocaleString('id-ID')}
+                </span>
+              )}
             </div>
+
+            {refundedAmount > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                  Refunded
+                </span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
+                  Rp {refundedAmount.toLocaleString('id-ID')}
+                </span>
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
@@ -933,18 +1001,29 @@ export default function SalesOrderDetail() {
                         }}
                       >
                         {p.payment_method?.name ?? '—'}
+                        {p.type === 'refund' && (
+                          <span
+                            style={{
+                              marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px',
+                              borderRadius: 'var(--radius-sm)',
+                              background: 'var(--destructive-bg)', color: 'var(--destructive)',
+                            }}
+                          >
+                            Refund
+                          </span>
+                        )}
                       </td>
                       <td
                         style={{
                           padding: '10px 14px',
                           fontSize: 13,
                           fontWeight: 600,
-                          color: 'var(--foreground)',
+                          color: p.type === 'refund' ? 'var(--destructive)' : 'var(--foreground)',
                           textAlign: 'right',
                           fontFamily: 'var(--font-display)',
                         }}
                       >
-                        Rp {Number(p.amount ?? 0).toLocaleString('id-ID')}
+                        {p.type === 'refund' ? '− ' : ''}Rp {Number(p.amount ?? 0).toLocaleString('id-ID')}
                         {p.fee_amount > 0 && (
                           <div
                             style={{
@@ -970,6 +1049,8 @@ export default function SalesOrderDetail() {
                         {p.description || '—'}
                       </td>
                       <td style={{ padding: '8px 14px', textAlign: 'right' }}>
+                        {/* A refund, or a payment of an order that was refunded, can't be deleted. */}
+                        {p.type !== 'refund' && refundedAmount <= 0 && (
                         <button
                           type="button"
                           onClick={() => deletePaymentMutation.mutate(p.id)}
@@ -996,6 +1077,7 @@ export default function SalesOrderDetail() {
                             <Trash2 size={14} />
                           )}
                         </button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -1259,7 +1341,27 @@ export default function SalesOrderDetail() {
                             borderBottom: '1px solid var(--border)',
                           }}
                         >
-                          Rp {(Number(d.price) * Number(d.qty)).toLocaleString('id-ID')}
+                          {(() => {
+                            // Line total = dpp − discount_amount (voucher share) + tax_amount (PPN after discount).
+                            const dpp = Number(d.dpp ?? Number(d.price) * Number(d.qty))
+                            const lineDiscount = Number(d.discount_amount ?? 0)
+                            const lineTax = Number(d.tax_amount ?? 0)
+                            const lineTotal =
+                              d.total_price != null ? Number(d.total_price) : dpp - lineDiscount + lineTax
+                            if (lineDiscount <= 0 && lineTax <= 0) {
+                              return <>Rp {dpp.toLocaleString('id-ID')}</>
+                            }
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <span>Rp {lineTotal.toLocaleString('id-ID')}</span>
+                                <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)' }}>
+                                  DPP Rp {dpp.toLocaleString('id-ID')}
+                                  {lineDiscount > 0 && <> · Disc −Rp {lineDiscount.toLocaleString('id-ID')}</>}
+                                  {lineTax > 0 && <> · PPN Rp {lineTax.toLocaleString('id-ID')}</>}
+                                </span>
+                              </div>
+                            )
+                          })()}
                         </td>
                       </tr>
                     )
@@ -1336,11 +1438,48 @@ export default function SalesOrderDetail() {
                     Rp {total.toLocaleString('id-ID')}
                   </span>
                 </div>
+                {hasPartialReturns && (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 14 }}>
+                      <span style={{ color: 'var(--foreground-muted)' }}>Returned</span>
+                      <span style={{ color: 'var(--warning)' }}>
+                        - Rp {returnedAmount.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                    {refundedAmount > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 13 }}>
+                        <span style={{ color: 'var(--foreground-muted)' }}>Refunded to customer</span>
+                        <span style={{ color: 'var(--destructive)' }}>
+                          Rp {refundedAmount.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8,
+                        display: 'flex', justifyContent: 'space-between',
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>Net Total</span>
+                      <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--accent)' }}>
+                        Rp {effectiveTotal.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
         }
       />
+
+      {showReturn && (
+        <ReturnOrderModal
+          orderId={id}
+          orderCode={order?.code}
+          onClose={() => setShowReturn(false)}
+        />
+      )}
 
       {showDelete && (
         <div

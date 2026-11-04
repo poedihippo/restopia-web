@@ -90,6 +90,8 @@ export default function PosView() {
         subtotal={logic.subtotal}
         total={logic.total}
         discountAmount={logic.discountAmount}
+        taxAmount={logic.taxAmount}
+        taxIncluded={logic.taxIncluded}
         appliedVoucher={logic.appliedVoucher}
         voucherCode={logic.voucherCode}
         setVoucherCode={logic.setVoucherCode}
@@ -207,6 +209,8 @@ export default function PosView() {
         bundleCart={logic.bundleCart}
         subtotal={logic.subtotal}
         discountAmount={logic.discountAmount}
+        taxAmount={logic.taxAmount}
+        taxIncluded={logic.taxIncluded}
         total={logic.total}
         orderType={logic.orderType}
         salesChannelName={

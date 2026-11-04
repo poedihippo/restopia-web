@@ -478,7 +478,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
   const additionalChargesTotal = additionalCharges.reduce((sum, c) => sum + (Number(c.amount) || 0), 0)
   const taxRate = taxes.find((t: any) => t.id === taxId)?.rate ?? 0
-  const taxAmount = Math.round((subtotal * taxRate) / 100)
+  // PPN is charged after a voucher discount (server rule); this local figure is
+  // only a preview — the saved order's tax_amount/total_price are the truth.
+  const taxBase = hasVoucher ? Math.max(0, subtotal - discountPrice) : subtotal
+  const taxAmount = Math.round((taxBase * taxRate) / 100)
   const total = Math.max(0, subtotal + taxAmount + additionalChargesTotal - discountPrice)
 
   // ── Line item helpers ─────────────────────────────────────────────────────

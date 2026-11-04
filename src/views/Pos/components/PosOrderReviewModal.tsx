@@ -17,6 +17,9 @@ interface PosOrderReviewModalProps {
   bundleCart: PosCartBundle[]
   subtotal: number
   discountAmount: number
+  /** Server PPN (after the voucher discount); 0 hides the line. */
+  taxAmount?: number
+  taxIncluded?: boolean
   total: number
   orderType: 'offline' | 'online'
   salesChannelName?: string
@@ -74,6 +77,8 @@ export default function PosOrderReviewModal({
   bundleCart,
   subtotal,
   discountAmount,
+  taxAmount,
+  taxIncluded,
   total,
   orderType,
   salesChannelName,
@@ -542,6 +547,12 @@ export default function PosOrderReviewModal({
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--success)' }}>
               <span>Diskon{appliedVoucher?.code ? ` (${appliedVoucher.code})` : ''}</span>
               <span>- {formatCurrency(discountAmount)}</span>
+            </div>
+          )}
+          {(taxAmount ?? 0) > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
+              <span>{taxIncluded ? 'PPN (termasuk)' : 'PPN'}</span>
+              <span>{formatCurrency(taxAmount ?? 0)}</span>
             </div>
           )}
           <div

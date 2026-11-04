@@ -357,6 +357,16 @@ export default function SalesOrdersView() {
       )
       return
     }
+    // An order with partial returns can no longer move out of its settlement status.
+    const returnedSelected = items.filter(
+      (i: any) => selectedIds.includes(Number(i.id)) && Number(i.returned_amount ?? 0) > 0,
+    )
+    if (returnedSelected.length > 0) {
+      toast.error(
+        `${returnedSelected.map((o: any) => o.code).join(', ')}: has partial returns and can no longer change settlement status.`,
+      )
+      return
+    }
     if (onlineSelected.length > 0 && bulkSettlement === 'cancelled') {
       toast.error(
         `${onlineSelected.map((o: any) => o.code).join(', ')}: cancel online orders with void or return.`,
@@ -1140,6 +1150,11 @@ export default function SalesOrdersView() {
                   </td>
                   <td style={{ ...tdStyle, fontWeight: 600 }}>
                     <PriceDisplay amount={item.total_price} />
+                    {Number(item.returned_amount ?? 0) > 0 && (
+                      <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--warning)', marginTop: 2 }}>
+                        Returned −<PriceDisplay amount={item.returned_amount} />
+                      </div>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <span
@@ -1248,7 +1263,8 @@ export default function SalesOrdersView() {
                       >
                         View
                       </button>
-                      {canDelete && (
+                      {/* An order with partial returns can't be voided — return its remaining lines instead. */}
+                      {canDelete && !(Number(item.returned_amount ?? 0) > 0) && (
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(item)}

@@ -42,6 +42,8 @@ interface Payment {
     fee_chart_of_account_id?: number | null
   }[]
   is_reversed?: boolean
+  /** receive | disburse | refund — a refund is money paid back for a partial return. */
+  type?: string
 }
 
 export default function PaymentsView() {
@@ -143,7 +145,7 @@ export default function PaymentsView() {
       toast.success('Payment voided')
       setVoidConfirmId(null)
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Failed to void payment'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to void payment'),
   })
 
   const thStyle: React.CSSProperties = {
@@ -388,6 +390,17 @@ export default function PaymentsView() {
                       <span style={{ fontSize: 13, color: 'var(--foreground)' }}>
                         {item.payment_method?.name ?? '—'}
                       </span>
+                      {item.type === 'refund' && (
+                        <span
+                          style={{
+                            fontSize: 10, fontWeight: 700, padding: '1px 6px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--destructive-bg)', color: 'var(--destructive)',
+                          }}
+                        >
+                          Refund
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td style={tdStyle}>
@@ -400,11 +413,11 @@ export default function PaymentsView() {
                       style={{
                         fontSize: 13,
                         fontWeight: 600,
-                        color: 'var(--foreground)',
+                        color: item.type === 'refund' ? 'var(--destructive)' : 'var(--foreground)',
                         textDecoration: item.is_reversed ? 'line-through' : 'none'
                       }}
                     >
-                      Rp {(item.amount ?? 0).toLocaleString('id-ID')}
+                      {item.type === 'refund' ? '− ' : ''}Rp {(item.amount ?? 0).toLocaleString('id-ID')}
                     </span>
                     {Number(item.fee_amount ?? 0) > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 12 }}>
@@ -441,7 +454,8 @@ export default function PaymentsView() {
                         justifyContent: 'flex-end',
                       }}
                     >
-                      {!item.is_reversed && canEdit && (
+                      {/* A refund is created by a sales order return and can't be reallocated, voided or deleted. */}
+                      {item.type !== 'refund' && !item.is_reversed && canEdit && (
                         <button
                           onClick={() => setAllocatePayment(item)}
                           style={actionBtnStyle}
@@ -449,7 +463,7 @@ export default function PaymentsView() {
                           <SplitSquareHorizontal size={14} />
                         </button>
                       )}
-                      {!item.is_reversed && canEdit && (
+                      {item.type !== 'refund' && !item.is_reversed && canEdit && (
                         <button
                           onClick={() => setVoidConfirmId(item.id)}
                           style={{ ...actionBtnStyle, color: 'var(--foreground-muted)' }}
@@ -457,7 +471,7 @@ export default function PaymentsView() {
                           <Ban size={14} />
                         </button>
                       )}
-                      {canDelete && (<button
+                      {item.type !== 'refund' && canDelete && (<button
                         onClick={() => setDeleteConfirmId(item.id)}
                         style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
                         title="Delete">

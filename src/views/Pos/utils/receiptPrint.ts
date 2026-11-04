@@ -40,6 +40,8 @@ export function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
     items: r.items,
     gross: r.grossAmount,
     discount: r.discountAmount,
+    tax: r.taxAmount ?? 0,
+    taxIncluded: !!r.taxIncluded,
     total: r.totalAmount,
     payment: paymentTotal,
     paymentMethod,
@@ -94,6 +96,7 @@ export function buildReceiptHtml(r: ReceiptData): string {
     <div style="margin:4px 0;">
       ${row('GROSS', fmt(r.grossAmount))}
       ${r.discountAmount > 0 ? row('DISCOUNT', fmt(r.discountAmount)) : ''}
+      ${(r.taxAmount ?? 0) > 0 ? row(r.taxIncluded ? 'PPN (INCL.)' : 'PPN', fmt(r.taxAmount ?? 0)) : ''}
     </div>
     <div>${thin}</div>
     <div style="margin:4px 0;">

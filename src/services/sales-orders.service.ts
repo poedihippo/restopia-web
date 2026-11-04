@@ -20,6 +20,11 @@ export interface BulkSettlementRequest {
   payouts?: SettlementPayout[]
 }
 
+export interface ReturnSalesOrderRequest {
+  lines?: { sales_order_detail_id: number; qty: number }[]
+  refund_payment_method_id?: number
+}
+
 export const salesOrdersService = {
   list: (params?: ListParams) =>
     api.get<ApiResponse<PaginatedData<unknown>>>('/sales-orders', { params }),
@@ -69,8 +74,10 @@ export const salesOrdersService = {
       headers: { 'Idempotency-Key': idempotencyKey },
     }),
 
-  returnOrder: (id: number) =>
-    api.post<ApiResponse<unknown>>(`/sales-orders/${id}/return`, undefined, {
+  // Without a body the whole order is returned. With `lines` only those
+  // quantities; a paid order then needs refund_payment_method_id (never Credit).
+  returnOrder: (id: number, data?: ReturnSalesOrderRequest) =>
+    api.post<ApiResponse<unknown>>(`/sales-orders/${id}/return`, data, {
       headers: { 'Idempotency-Key': crypto.randomUUID() },
     }),
 

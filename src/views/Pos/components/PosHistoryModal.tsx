@@ -1,10 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { formatCurrency } from '@/utils/price';
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { salesOrdersService } from '@/services/sales-orders.service'
-import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import ReturnOrderModal from '@/views/SalesOrders/ReturnOrderModal'
 
 const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
@@ -44,44 +41,10 @@ export default function PosHistoryModal({
   historyMeta,
   isHistoryLoading,
 }: PosHistoryModalProps) {
-  const qc = useQueryClient()
   const { hasPermission } = useAuth()
   const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
-
-  const returnOrderMutation = useMutation({
-    mutationFn: (order: { id: number; code?: string }) => salesOrdersService.returnOrder(order.id),
-    onSuccess: (_res, order) => {
-      qc.invalidateQueries({ queryKey: ['pos-history'] })
-      qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
-      toast.success(order.code ? `Order ${order.code} returned` : 'Order returned successfully')
-    },
-    onError: (err: any, order) => {
-      // A paid-out online order sharing its payout with other orders can't be
-      // returned until that payout is moved back to pending.
-      const message: string = err?.response?.data?.message ?? ''
-      const fieldMessages = Object.values(err?.response?.data?.errors ?? {}).flat().map(String)
-      const shared = [message, ...fieldMessages].find((m) => /paid out together/i.test(m))
-      if (err?.response?.status === 422 && shared) {
-        toast.error(shared, {
-          duration: 10000,
-          action: {
-            label: 'Undo payout',
-            onClick: () =>
-              window.open(
-                `/sales/settle-payout?tab=settled&search=${encodeURIComponent(order.code ?? '')}`,
-                '_blank',
-              ),
-          },
-        })
-        return
-      }
-      toastMutationApiError(err, 'Failed to return order')
-    },
-  })
-  // Only the order being returned shows the spinner; the other buttons are
-  // just blocked until it finishes.
-  const isReturningThis = (id: number) =>
-    returnOrderMutation.isPending && returnOrderMutation.variables?.id === id
+  // Whole or line-by-line return (with refund) happens in the return modal.
+  const [returnTarget, setReturnTarget] = useState<{ id: number; code?: string } | null>(null)
 
   if (!showHistory) return null
 
@@ -272,6 +235,26 @@ export default function PosHistoryModal({
                 </span>
               </div>
 
+              {/* Partial returns: the order is now worth total − returned. */}
+              {Number(order.returned_amount ?? 0) > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4, fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--warning)' }}>
+                    <span>Returned</span>
+                    <span>− {formatCurrency(Number(order.returned_amount))}</span>
+                  </div>
+                  {Number(order.refunded_amount ?? 0) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--destructive)' }}>
+                      <span>Refunded</span>
+                      <span>{formatCurrency(Number(order.refunded_amount))}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: 'var(--foreground)' }}>
+                    <span>Net total</span>
+                    <span>{formatCurrency(Number(order.total_price) - Number(order.returned_amount))}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Return button — only for final orders without deliveries/invoices, not already cancelled */}
               {canReturn &&
                 order.status === 'final' &&
@@ -280,13 +263,7 @@ export default function PosHistoryModal({
                 !order.has_invoice && (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (window.confirm(`Return order ${order.code}? This will reverse all payments and restore stock.`)) {
-                      returnOrderMutation.mutate({ id: order.id, code: order.code })
-                    }
-                  }}
-                  disabled={returnOrderMutation.isPending}
-                  aria-busy={isReturningThis(order.id)}
+                  onClick={() => setReturnTarget({ id: order.id, code: order.code })}
                   style={{
                     marginTop: 8,
                     width: '100%',
@@ -297,11 +274,10 @@ export default function PosHistoryModal({
                     color: 'var(--destructive)',
                     fontSize: 12,
                     fontWeight: 500,
-                    cursor: returnOrderMutation.isPending ? (isReturningThis(order.id) ? 'progress' : 'not-allowed') : 'pointer',
-                    opacity: isReturningThis(order.id) ? 0.7 : 1,
+                    cursor: 'pointer',
                   }}
                 >
-                  {isReturningThis(order.id) ? 'Returning...' : '↩ Return Order'}
+                  {Number(order.returned_amount ?? 0) > 0 ? '↩ Return Remaining Items' : '↩ Return Order'}
                 </button>
               )}
             </div>
@@ -348,6 +324,14 @@ export default function PosHistoryModal({
           </div>
         )}
       </div>
+
+      {returnTarget && (
+        <ReturnOrderModal
+          orderId={returnTarget.id}
+          orderCode={returnTarget.code}
+          onClose={() => setReturnTarget(null)}
+        />
+      )}
     </>
   )
 }
