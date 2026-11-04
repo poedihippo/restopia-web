@@ -157,6 +157,8 @@ export function usePosLogic() {
     discount_amount: number
     voucher_id: number | null
     subtotal_at_apply: number
+    /** Channel the voucher was validated against; undefined = not tracked (loaded order). */
+    sales_channel_at_apply?: number | null
     // Server figures from the voucher preview: PPN is charged after the
     // discount, so never recompute it on the screen.
     tax_amount?: number
@@ -808,6 +810,19 @@ export function usePosLogic() {
     }
   }, [subtotal, appliedVoucher])
 
+  // ...and for the sales channel it was validated against.
+  useEffect(() => {
+    if (
+      appliedVoucher &&
+      appliedVoucher.sales_channel_at_apply !== undefined &&
+      appliedVoucher.sales_channel_at_apply !== salesChannelId
+    ) {
+      setAppliedVoucher(null)
+      setVoucherCode('')
+      toast.info('Sales channel berubah, voucher direset. Terapkan ulang voucher.')
+    }
+  }, [salesChannelId, appliedVoucher])
+
   // Order lines in API shape. Optional ints are omitted (never null); `id` is only
   // sent when updating a held order so existing lines are matched, not recreated.
   const buildDetails = (status: 'pending' | 'completed', withIds = false) => [
@@ -923,6 +938,11 @@ export function usePosLogic() {
 
   const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
     if (!selectedVoucher) return
+    // Vouchers are validated against the sales channel — an online order must pick it first.
+    if (orderType === 'online' && !salesChannelId) {
+      toast.error('Pilih sales channel dulu sebelum menerapkan voucher')
+      return
+    }
     setVoucherLoading(true)
     try {
       const voucher = selectedVoucher
@@ -948,6 +968,7 @@ export function usePosLogic() {
           discount_amount: Number(data.discount_price),
           voucher_id: voucher.id,
           subtotal_at_apply: subtotal,
+          sales_channel_at_apply: salesChannelId,
           tax_amount: data.tax_amount != null ? Number(data.tax_amount) : undefined,
           total_price: data.total_price != null ? Number(data.total_price) : undefined,
         })

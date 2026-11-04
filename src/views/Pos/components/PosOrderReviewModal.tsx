@@ -23,6 +23,11 @@ interface PosOrderReviewModalProps {
   total: number
   orderType: 'offline' | 'online'
   salesChannelName?: string
+  // An online order picks its sales channel here: vouchers are validated
+  // against the channel, so apply-voucher needs it first.
+  salesChannelId?: number | null
+  setSalesChannelId?: (val: number | null) => void
+  salesChannels?: any[]
   editingOrderCode?: string | null
 
   // Editable order details (moved here from the cart sidebar)
@@ -82,6 +87,9 @@ export default function PosOrderReviewModal({
   total,
   orderType,
   salesChannelName,
+  salesChannelId,
+  setSalesChannelId,
+  salesChannels = [],
   editingOrderCode,
   selectedCustomerName,
   onClearCustomer,
@@ -132,7 +140,9 @@ export default function PosOrderReviewModal({
   // A voucher picked but never applied (Terapkan) gives no discount. Block
   // "Lanjut Bayar" once and ask the cashier to apply it or drop it.
   const [voucherWarn, setVoucherWarn] = useState(false)
-  const voucherPending = !appliedVoucher && typeof voucherCode === 'number' && voucherCode > 0
+  const needsChannelForVoucher = orderType === 'online' && !salesChannelId
+  const voucherPending =
+    !needsChannelForVoucher && !appliedVoucher && typeof voucherCode === 'number' && voucherCode > 0
   const showVoucherWarn = voucherWarn && voucherPending
   const pendingVoucher = voucherPending ? vouchers.find((x: any) => x.id === voucherCode) : undefined
   const applyPendingVoucher = () => {
@@ -261,7 +271,30 @@ export default function PosOrderReviewModal({
         >
           {metaRow('Order', editingOrderCode ? `${editingOrderCode} (pending)` : 'Baru')}
           {metaRow('Tipe', orderType === 'online' ? 'Online' : 'Offline')}
-          {metaRow('Sales Channel', salesChannelName)}
+          {orderType === 'online' && setSalesChannelId ? (
+            <div style={{ marginTop: 6 }}>
+              <span style={fieldLabel}>
+                Sales Channel <span style={{ color: 'var(--destructive)' }}>*</span>
+              </span>
+              <select
+                value={salesChannelId ?? ''}
+                onChange={(e) => setSalesChannelId(e.target.value ? Number(e.target.value) : null)}
+                style={{
+                  ...fieldStyle,
+                  borderColor: salesChannelId ? 'var(--border)' : 'var(--warning)',
+                }}
+              >
+                <option value="">Pilih sales channel...</option>
+                {salesChannels.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            metaRow('Sales Channel', salesChannelName)
+          )}
 
           {/* Customer */}
           <div style={{ marginTop: 6 }}>
@@ -329,6 +362,10 @@ export default function PosOrderReviewModal({
                 >
                   <X size={14} />
                 </button>
+              </div>
+            ) : needsChannelForVoucher ? (
+              <div style={{ ...fieldStyle, color: 'var(--foreground-subtle)', background: 'var(--background)' }}>
+                Pilih sales channel dulu untuk memakai voucher
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 6 }}>

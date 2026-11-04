@@ -213,6 +213,9 @@ export default function PosView() {
         taxIncluded={logic.taxIncluded}
         total={logic.total}
         orderType={logic.orderType}
+        salesChannelId={logic.salesChannelId}
+        setSalesChannelId={logic.setSalesChannelId}
+        salesChannels={logic.salesChannels}
         salesChannelName={
           logic.salesChannels.find((sc: any) => sc.id === logic.salesChannelId)?.name
         }

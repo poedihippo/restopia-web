@@ -72,7 +72,7 @@ function mapApiToForm(production: any) {
           owner_ref: null,
           stage: null,
           location_ref: null,
-          materials: [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }],
+          materials: [],
         },
       ]
 
