@@ -476,7 +476,9 @@ export default function PosModals({
             </div>
             )}
 
-            {/* Sales Channel (Required) */}
+            {/* Sales Channel (Required). An online order already picked it on the
+                review step (needed for its voucher) — don't ask twice; "Kembali" changes it. */}
+            {!(isOnline && salesChannelId) && (
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
                 Sales Channel <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -500,6 +502,7 @@ export default function PosModals({
                 ))}
               </select>
             </div>
+            )}
 
             {isOnline ? (
               <div
