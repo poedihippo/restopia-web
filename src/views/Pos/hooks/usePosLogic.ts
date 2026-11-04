@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { usePrinter } from '@/hooks/usePrinter'
+import { buildReceiptBytes } from '@/lib/print/receiptBuilder'
+import { mapReceiptToBuilder, printReceiptViaIframe } from '../utils/receiptPrint'
+import type { CompletedTransaction } from '../components/PosTransactionCompleteModal'
 
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productUomsService } from '@/services/product-uoms.service'
@@ -192,6 +195,11 @@ export function usePosLogic() {
 
   // Modals & Panels State
   const [showReceipt, setShowReceipt] = useState(false)
+  // Cashier flow: cart -> review (read order back) -> payment -> complete
+  // (change, print receipt, new transaction). No page reload in between.
+  const [showReview, setShowReview] = useState(false)
+  const [completedTransaction, setCompletedTransaction] = useState<CompletedTransaction | null>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showPreorders, setShowPreorders] = useState(false)
   const [showPreorder, setShowPreorder] = useState(false) // For creating Pre-order
@@ -636,6 +644,8 @@ export function usePosLogic() {
     setEditingOrderId(null)
     setEditingOrderCode(null)
     setEditingOrderSettlement(null)
+    setShowReview(false)
+    setCompletedTransaction(null)
     idemRef.current = null
   }, [])
 
@@ -923,8 +933,56 @@ export function usePosLogic() {
       toast.error('Cart is empty')
       return
     }
-    setShowPayment(true)
+    // Sales channel is chosen inside the payment modal — don't block here.
+    setShowReview(true)
   }
+
+  const closeReview = useCallback(() => setShowReview(false), [])
+  const clearVoucher = useCallback(() => {
+    setAppliedVoucher(null)
+    setVoucherCode('')
+  }, [])
+  const proceedFromReview = useCallback(() => {
+    setShowReview(false)
+    setShowPayment(true)
+  }, [])
+
+  // Print a receipt: WebUSB thermal printer when connected, otherwise the
+  // browser print dialog (hidden iframe).
+  const printTransaction = useCallback(
+    async (tx: CompletedTransaction | null) => {
+      if (!tx) return
+      setIsPrinting(true)
+      try {
+        let printed = false
+        if (printer.status === 'connected') {
+          try {
+            await printer.print(buildReceiptBytes(mapReceiptToBuilder(tx.receipt)))
+            printed = true
+          } catch (e) {
+            console.error('[Print] WebUSB failed, falling back to browser print', e)
+          }
+        }
+        if (!printed) printReceiptViaIframe(tx.receipt)
+        setCompletedTransaction((prev) =>
+          prev && prev.receipt.invoiceNo === tx.receipt.invoiceNo
+            ? { ...prev, printedCount: prev.printedCount + 1 }
+            : prev,
+        )
+      } finally {
+        setIsPrinting(false)
+      }
+    },
+    [printer],
+  )
+
+  const handlePrintCompleted = useCallback(() => {
+    void printTransaction(completedTransaction)
+  }, [printTransaction, completedTransaction])
+
+  const startNewTransaction = useCallback(() => {
+    resetCart()
+  }, [resetCart])
 
   const { mutate: holdMutate, isPending: isHoldPending } = useMutation({
     mutationFn: (payload: any) => {
@@ -1154,16 +1212,86 @@ export function usePosLogic() {
       qc.invalidateQueries({ queryKey: ['pos-history'] })
       qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
       qc.invalidateQueries({ queryKey: ['pos-bundles'] })
+      qc.invalidateQueries({ queryKey: ['pos-credit-users'] })
+
+      // ── Transaction complete screen (replaces the old page reload) ──
+      // Totals come from the server response (voucher rounding is server-side).
+      const order = res?.data?.data ?? {}
+      const num = (v: any, fallback: number) => {
+        const n = Number(v)
+        return Number.isFinite(n) ? n : fallback
+      }
+      const isOnline = variables.type === 'online'
+      const serverTotal = num(order.total_price, variables.total_price)
+      const serverSubtotal = num(order.subtotal_price, variables.subtotal_price)
+      const serverDiscount = num(order.discount_price, variables.discount_price)
+      const isPartial = !isOnline && paymentMode === 'partial'
+      const dueNow = isPartial ? Number(partialAmount.replace(/\D/g, '')) || 0 : serverTotal
+      const methodName = (id: number | null | undefined) =>
+        paymentMethods.find((pm: any) => pm.id === id)?.name ?? 'Payment'
+
+      let payments: { method: string; amount: number }[] = []
+      if (!isOnline) {
+        if (isSplitPayment) {
+          payments = splitPayments.map((sp) => ({ method: methodName(sp.paymentMethodId), amount: Number(sp.amount) || 0 }))
+        } else if (paymentMethodId) {
+          payments = [{ method: methodName(paymentMethodId), amount: dueNow }]
+        }
+      }
+      const tenderedCash = Number(cashTendered.replace(/\D/g, '')) || 0
+      const tendered = !isOnline && !isSplitPayment && isCashMethod && tenderedCash > 0 ? tenderedCash : dueNow
+      const change = !isOnline && !isSplitPayment && isCashMethod ? Math.max(0, tendered - dueNow) : 0
+
+      const now = new Date()
+      const branch = (user as any)?.branch ?? {}
+      const tx: CompletedTransaction = {
+        orderId: order.id ?? editingOrderId ?? null,
+        receipt: {
+          companyName: 'Dapur Cokelat Indonesia',
+          branchName: branch.name ?? 'Dapur Cokelat',
+          branchAddress: branch.address ?? '',
+          branchPhone: branch.phone ?? '',
+          invoiceNo: order.code ?? editingOrderCode ?? '',
+          date: now
+            .toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' })
+            .replace(/\//g, '-'),
+          time: now.toLocaleTimeString('id-ID'),
+          cashierName: (user as any)?.name ?? 'Kasir',
+          customerName: (selectedCustomerId ? customerSearch : variables.customer_name || guestName) || undefined,
+          orderType: variables.type,
+          items: [
+            ...cart.map((c: any) => ({ name: c.name ?? '', qty: c.qty, price: c.price, subtotal: c.qty * c.price })),
+            ...bundleCart.map((c: any) => ({ name: c.name ?? '', qty: c.qty, price: c.price, subtotal: c.qty * c.price })),
+          ],
+          grossAmount: serverSubtotal,
+          discountAmount: serverDiscount,
+          totalAmount: serverTotal,
+          payments,
+          changeAmount: change,
+          isPrinted: false,
+        },
+        tendered,
+        change,
+        isOnline,
+        isPartial,
+        remaining: isPartial ? Math.max(0, serverTotal - dueNow) : 0,
+        printedCount: 0,
+      }
+
+      setShowPayment(false)
+      setCompletedTransaction(tx)
       toast.success(editingOrderId ? 'Order updated!' : 'Order placed!')
-      resetCart()
-      
-      // Full page refresh after 1.5 seconds so user can read the success toast
-      setTimeout(() => {
-        window.location.reload()
-      }, 1500)
+
+      // A connected thermal printer prints straight away (like a real till);
+      // without one the cashier prints from the complete screen.
+      if (printer.status === 'connected' && !isOnline) {
+        void printTransaction(tx)
+      }
     },
     onError: (err: any) => {
       toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to place order')))
+      // Keep the cart and reopen payment so the cashier can fix and retry.
+      setShowPayment(true)
     },
   })
 
@@ -1270,6 +1398,10 @@ export function usePosLogic() {
     transactionDate, setTransactionDate,
     fulfillmentDate, setFulfillmentDate,
     showReceipt, setShowReceipt,
+    showReview, closeReview, proceedFromReview, clearVoucher,
+    completedTransaction, isPrinting, printerConnected: printer.status === 'connected',
+    handlePrintCompleted, startNewTransaction,
+    editingOrderCode,
     showHistory, setShowHistory,
     showPreorders, setShowPreorders,
     preorderSearch, setPreorderSearch, preorderDateFrom, setPreorderDateFrom, preorderDateTo, setPreorderDateTo, preorderPage, setPreorderPage,

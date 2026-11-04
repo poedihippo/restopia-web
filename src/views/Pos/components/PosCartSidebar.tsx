@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { ShoppingCart, ChevronUp, ChevronDown, Loader2 } from 'lucide-react'
+import React, { useState } from 'react'
+import { ShoppingCart } from 'lucide-react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
-import useGetVoucherList from '@/hooks/voucher/useGetVoucherList'
-import SearchableSelect from '@/components/SearchableSelect'
 import { formatCurrency } from '@/utils/price';
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { getProductUomName } from '@/utils/productUomName'
@@ -24,27 +22,6 @@ const bundleStockMessage = (item: PosCartBundle, max: number): string =>
   item.limitedBy
     ? `Stok ${item.limitedBy} tidak mencukupi — maksimal ${formatQty(max)} bundle`
     : `Stok tidak mencukupi — maksimal ${formatQty(max)} bundle`
-
-// Some styling constants for the sidebar
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '7px 10px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-sm)',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  background: 'var(--background)',
-  outline: 'none',
-  fontFamily: 'var(--font-sans)',
-  boxSizing: 'border-box',
-}
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--foreground-muted)',
-  marginBottom: 4,
-  display: 'block',
-}
 
 const qtyBtnStyle: React.CSSProperties = {
   width: 28,
@@ -114,19 +91,8 @@ export default function PosCartSidebar({
   total,
   discountAmount,
   appliedVoucher,
-  voucherCode,
-  setVoucherCode,
-  voucherLoading,
-  handleApplyVoucher,
-  salesChannelId,
-  setSalesChannelId,
-  salesChannels,
-  orderNote,
-  setOrderNote,
-  transactionDate,
-  setTransactionDate,
-  fulfillmentDate,
-  setFulfillmentDate,
+  // voucher / sales channel / note / dates props are still accepted but now
+  // edited in the review step and payment modal, not in the sidebar.
   handleHold,
   handleCharge,
   isHoldPending = false,
@@ -135,24 +101,10 @@ export default function PosCartSidebar({
   paymentMethods = [],
 }: PosCartSidebarProps) {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
-  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false)
+  // Order details (customer, voucher, note) are filled in the review step
+  // before payment; sales channel is picked in the payment modal.
   const [lotPickerFor, setLotPickerFor] = useState<number | null>(null)
 
-  const { data: vouchersData, isLoading: vouchersLoadingQuery } = useGetVoucherList({
-    per_page: 100,
-    'filter[status]': 'active',
-  } as any)
-
-  const voucherOptions = useMemo(() => {
-    return (vouchersData?.data || []).map((v: any) => ({
-      label: v.code,
-      value: v.id,
-      sublabel: v.description || '',
-    }))
-  }, [vouchersData])
 
   const changeCartLot = (currentInventoryId: number, targetLot: any) => {
 
@@ -548,124 +500,6 @@ export default function PosCartSidebar({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setOrderDetailsOpen((v) => !v)}
-        style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '10px 16px',
-          background: 'var(--background)',
-          border: 'none',
-          borderTop: '1px solid var(--border)',
-          borderBottom: orderDetailsOpen ? '1px solid var(--border)' : 'none',
-          cursor: 'pointer',
-          fontSize: 13,
-          fontWeight: 500,
-          color: 'var(--foreground)',
-          flexShrink: 0,
-          fontFamily: 'var(--font-sans)',
-        }}
-      >
-        <span>Order Details</span>
-        <span style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, color: 'var(--foreground-muted)' }}>
-          {orderDetailsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </span>
-      </button>
-
-      {orderDetailsOpen && (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--background)',
-            flexShrink: 0,
-          }}
-        >
-          {/* Sales Channel field */}
-          <div style={{ padding: '0 16px', flexShrink: 0, marginTop: 10 }}>
-            <span style={labelStyle}>Sales Channel</span>
-            <select
-              value={salesChannelId || ''}
-              onChange={(e) => setSalesChannelId(e.target.value ? Number(e.target.value) : null)}
-              style={inputStyle}
-            >
-              <option value="">Select channel...</option>
-              {salesChannels.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Voucher field */}
-          <div style={{ padding: '0 16px', flexShrink: 0, marginTop: 10 }}>
-            <span style={labelStyle}>Voucher</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <div style={{ flex: 1 }}>
-                <SearchableSelect
-                  options={voucherOptions}
-                  value={voucherCode}
-                  onChange={(val) => setVoucherCode(val as number)}
-                  placeholder="Select voucher..."
-                  searchPlaceholder="Search voucher..."
-                  loading={vouchersLoadingQuery}
-                  onSearchChange={setDropdownSearch}
-/>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const selectedVoucher = vouchersData?.data?.find((v: any) => v.id === voucherCode)
-                  handleApplyVoucher(selectedVoucher)
-                }}
-                disabled={voucherLoading || !voucherCode}
-                style={{
-                  padding: '0 12px',
-                  background: 'var(--accent)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: voucherLoading || !voucherCode ? 'not-allowed' : 'pointer',
-                  opacity: voucherLoading || !voucherCode ? 0.7 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                {voucherLoading ? <Loader2 size={14} className="animate-spin" /> : 'Apply'}
-              </button>
-            </div>
-          </div>
-
-          <div style={{ padding: '8px 16px', flexShrink: 0 }}>
-            <textarea
-              value={orderNote}
-              onChange={(e) => setOrderNote(e.target.value)}
-              placeholder="Order note..."
-              rows={2}
-              style={{
-                width: '100%',
-                resize: 'none',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '8px 10px',
-                fontSize: 13,
-                color: 'var(--foreground)',
-                background: 'var(--background)',
-                outline: 'none',
-                fontFamily: 'var(--font-sans)',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       <div
         style={{

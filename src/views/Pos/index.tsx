@@ -5,6 +5,8 @@ import PosProductGrid from './components/PosProductGrid'
 import PosCartSidebar from './components/PosCartSidebar'
 import PosModals from './components/PosModals'
 import PosShiftBlockerModal from './components/PosShiftBlockerModal'
+import PosOrderReviewModal from './components/PosOrderReviewModal'
+import PosTransactionCompleteModal from './components/PosTransactionCompleteModal'
 // TODO: You might want to extract PosPreorderModal and PosHistoryModal later.
 
 export default function PosView() {
@@ -194,6 +196,45 @@ export default function PosView() {
         isHistoryLoading={logic.isHistoryLoading}
       />
       
+      {/* Cashier flow: review -> payment (PosModals) -> complete */}
+      <PosOrderReviewModal
+        open={logic.showReview}
+        onBack={logic.closeReview}
+        onProceed={logic.proceedFromReview}
+        cart={logic.cart}
+        bundleCart={logic.bundleCart}
+        subtotal={logic.subtotal}
+        discountAmount={logic.discountAmount}
+        total={logic.total}
+        orderType={logic.orderType}
+        salesChannelName={
+          logic.salesChannels.find((sc: any) => sc.id === logic.salesChannelId)?.name
+        }
+        editingOrderCode={logic.editingOrderCode}
+        selectedCustomerName={logic.selectedCustomerId ? logic.customerSearch || 'Customer' : undefined}
+        onClearCustomer={logic.clearSelectedCustomer}
+        guestName={logic.guestName}
+        setGuestName={logic.setGuestName}
+        guestPhone={logic.guestPhone}
+        setGuestPhone={logic.setGuestPhone}
+        orderNote={logic.orderNote}
+        setOrderNote={logic.setOrderNote}
+        appliedVoucher={logic.appliedVoucher}
+        voucherCode={logic.voucherCode}
+        setVoucherCode={logic.setVoucherCode}
+        voucherLoading={logic.voucherLoading}
+        onApplyVoucher={logic.handleApplyVoucher}
+        onClearVoucher={logic.clearVoucher}
+      />
+
+      <PosTransactionCompleteModal
+        transaction={logic.completedTransaction}
+        isPrinting={logic.isPrinting}
+        printerConnected={logic.printerConnected}
+        onPrint={logic.handlePrintCompleted}
+        onNewTransaction={logic.startNewTransaction}
+      />
+
       <PosShiftBlockerModal />
     </div>
   )
