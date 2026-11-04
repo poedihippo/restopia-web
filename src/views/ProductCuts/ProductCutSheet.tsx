@@ -36,9 +36,11 @@ interface ProductCutSheetProps {
     child_product_uom_id: number
     yield_qty: number
   } | null
+  /** 'modal' renders a centered pop-up (used from the Portioning form). */
+  variant?: 'sheet' | 'modal'
 }
 
-export default function ProductCutSheet({ open, onClose, editData }: ProductCutSheetProps) {
+export default function ProductCutSheet({ open, onClose, editData, variant = 'sheet' }: ProductCutSheetProps) {
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
   useEffect(() => {
@@ -161,14 +163,27 @@ export default function ProductCutSheet({ open, onClose, editData }: ProductCutS
 
   if (!open) return null
 
+  const isModal = variant === 'modal'
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end' }}>
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: isModal ? 60 : 40, display: 'flex',
+        justifyContent: isModal ? 'center' : 'flex-end',
+        alignItems: isModal ? 'center' : 'stretch',
+        padding: isModal ? 16 : 0,
+      }}
+    >
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
 
       <div
         style={{
-          position: 'relative', zIndex: 50, width: 480, height: '100%',
-          background: 'var(--surface)', borderLeft: '1px solid var(--border)',
+          position: 'relative', zIndex: 50, width: 480, maxWidth: '100%',
+          height: isModal ? 'auto' : '100%', maxHeight: isModal ? '90vh' : undefined,
+          background: 'var(--surface)',
+          ...(isModal
+            ? { border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }
+            : { borderLeft: '1px solid var(--border)' }),
           display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)',
         }}
       >

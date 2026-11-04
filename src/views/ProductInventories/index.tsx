@@ -1,5 +1,4 @@
 'use client'
-import { formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
@@ -16,7 +15,7 @@ import { availableStockOf } from '@/utils/inventoryStock'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductInventorySheet from './ProductInventorySheet'
-import ProductInventoryConvertSheet from './ConvertSheet'
+import ChangeDimensionModal from './ChangeDimensionModal'
 import StockMovementSheet from '../StockMovement/StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -38,11 +37,8 @@ import {
   ChevronRight,
   Boxes,
   AlertTriangle,
-  Eye,
-  X,
   Download,
   Loader2,
-  ArrowLeftRight,
   SlidersHorizontal,
   History,
 } from 'lucide-react'
@@ -167,9 +163,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
-  const [convertItem, setConvertItem] = useState<ProductInventory | null>(null)
   // Baris yang sedang di-adjust — membuka Record Movement sheet dgn batch terpilih
   const [adjustItem, setAdjustItem] = useState<ProductInventory | null>(null)
+  const [dimensionItem, setDimensionItem] = useState<ProductInventory | null>(null)
 
   // Gaya tombol ikon di kolom aksi (seragam untuk semua tombol baris)
   const actionBtnStyle: React.CSSProperties = {
@@ -198,7 +194,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     flexShrink: 0,
   }
 
-  const [selectedItem, setSelectedItem] = useState<ProductInventory | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   // Dedicated key: product inventory has its own mode default ('branch' —
@@ -951,7 +946,34 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                         color: 'var(--foreground-muted)',
                       }}
                     >
-                      {item.stage ?? '—'}
+                      {/* Change dimension — klik nama stage untuk pindah stage
+                          (endpoint sama dgn Dimension Transfer) */}
+                      {canAdjustStock && (item.display_qty ?? item.stock ?? item.qty ?? 0) > 0 ? (
+                        <button
+                          title="Ubah stage (Change Dimension)"
+                          onClick={() => setDimensionItem(item)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: 0,
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontFamily: 'var(--font-sans)',
+                            color: 'var(--accent-light)',
+                            fontWeight: 600,
+                            textDecoration: 'underline',
+                            textUnderlineOffset: 3,
+                          }}
+                        >
+                          {item.stage ?? '—'}
+                          <Pencil size={12} />
+                        </button>
+                      ) : (
+                        item.stage ?? '—'
+                      )}
                     </td>
                     {/* Location */}
                     <td
@@ -1018,20 +1040,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                             justifyContent: 'flex-end',
                           }}
                         >
-                          <button
-                            onClick={() => setSelectedItem(item)}
-                            style={{
-                              padding: 6,
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              color: 'var(--foreground-muted)',
-                              display: 'flex',
-                            }}
-                          >
-                            <Eye size={14} />
-                          </button>
                           {/* Adjust stock — sheet Record Movement, product sudah terpilih */}
                           {canAdjustStock && (
                             <button
@@ -1067,21 +1075,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                               display: 'flex',
                             }}>
                             <Pencil size={14} />
-                          </button>)}
-                          {canEdit && (item.display_qty ?? item.stock ?? item.qty ?? 0) > 0 && (
-                          <button
-                            title="Convert UOM"
-                            onClick={() => setConvertItem(item)}
-                            style={{
-                              padding: 6,
-                              background: 'none',
-                              border: 'none',
-                              borderRadius: 'var(--radius-sm)',
-                              cursor: 'pointer',
-                              color: 'var(--foreground-muted)',
-                              display: 'flex',
-                            }}>
-                            <ArrowLeftRight size={14} />
                           </button>)}
                           {canDelete && (<button
                             onClick={() => setDeleteConfirmId(item.id)}
@@ -1199,210 +1192,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           </div>
         </div>
       )}
-      {/* Detail panel */}
-      {selectedItem && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 40,
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <div
-            onClick={() => setSelectedItem(null)}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(0,0,0,0.18)',
-            }}
-          />
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 50,
-              width: 420,
-              height: '100%',
-              background: 'var(--surface)',
-              borderLeft: '1px solid var(--border)',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: 'var(--shadow-lg)',
-              overflowY: 'auto',
-            }}
-          >
-            <div
-              style={{
-                padding: '20px 24px',
-                borderBottom: '1px solid var(--border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <h2
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 18,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: 'var(--foreground)',
-                }}
-              >
-                Inventory Detail
-              </h2>
-              <button
-                onClick={() => setSelectedItem(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 4,
-                  display: 'flex',
-                }}
-              >
-                <X size={18} color="var(--foreground-muted)" />
-              </button>
-            </div>
-            <div
-              style={{
-                padding: 24,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-              }}
-            >
-              {(() => {
-                const detailPu = getProductUom(selectedItem.product_uom_id)
-                const batchPu = (selectedItem as any).product_uom_batch?.product_uom
-                const productName =
-                  (getProductUomName(batchPu, undefined)
-                  || getProductUomName(selectedItem.product_uom, undefined)
-                  || getProductUomName(detailPu, undefined))
-                  || undefined
-                const puCode =
-                  batchPu?.code ?? selectedItem.product_uom?.code ?? detailPu?.code
-                const uom = batchPu?.uom ?? selectedItem.product_uom?.uom ?? detailPu?.uom
-                const bUomCode = selectedItem.base_uom_code ??
-                  batchPu?.uom?.code ?? selectedItem.product_uom?.uom?.code ?? detailPu?.uom?.code ?? ''
-                const convs: ConversionEntry[] | undefined =
-                  batchPu?.product?.conversions ??
-                  selectedItem.product_uom_batch?.product_uom?.product?.conversions ??
-                  selectedItem.product_uom?.product?.conversions
-                let displayUom = uom?.name ?? ''
-                if (unitMode === 'largest' && convs && convs.length > 0) {
-                  const chain = [...convs].sort((a, b) => a.amount - b.amount)
-                  let val = selectedItem.base_stock ?? selectedItem.stock ?? 0
-                  for (const step of chain) {
-                    const next = val / step.amount
-                    if (next < 1) break
-                    displayUom = step.uom_name
-                    break
-                  }
-                }
-
-                return [
-                  { label: 'ID', value: selectedItem.id },
-                  { label: 'SKU Code', value: selectedItem.code },
-                  { label: 'Product', value: productName },
-                  { label: 'Product UOM', value: puCode },
-                  {
-                    label: 'UOM',
-                    value: displayUom || undefined,
-                  },
-                  { label: 'Branch', value: selectedItem.branch?.name },
-                  { label: 'Current Stock', value: (() => {
-                    const conversions: ConversionEntry[] | undefined =
-                      selectedItem.product_uom_batch?.product_uom?.product?.conversions ??
-                      selectedItem.product_uom?.product?.conversions
-                    const bQty = selectedItem.base_stock ?? selectedItem.stock ?? 0
-                    const bUom = selectedItem.base_uom_code ??
-                      selectedItem.product_uom_batch?.product_uom?.uom?.code ?? ''
-
-                    if (unitMode === 'largest' && conversions && conversions.length > 0) {
-                      let val = bQty
-                      let unit = bUom
-                      const chain = [...conversions].sort((a, b) => a.amount - b.amount)
-                      for (const step of chain) {
-                        const next = val / step.amount
-                        if (next < 1) break
-                        val = next
-                        unit = step.uom_code
-                      }
-                      return `${val.toLocaleString('id-ID')} ${unit}`
-                    }
-                    if (unitMode === 'branch' && userBranchType) {
-                      const productId =
-                        selectedItem.product_uom_batch?.product_uom?.product?.id ??
-                        selectedItem.product_uom?.product?.id
-                      const target = productId ? branchUomByProductId.get(Number(productId)) : undefined
-                      if (target?.uomCode) {
-                        const converted = convertUp(bQty, bUom, target.uomCode, conversions ?? target.conversions)
-                        if (converted !== null) {
-                          return `${converted.toLocaleString('id-ID')} ${target.uomCode}`
-                        }
-                      }
-                    }
-                    return `${bQty.toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${bUom}`
-                  })() },
-                  { label: 'Status', value: selectedItem.status },
-                  { label: 'Expiry Date', value: selectedItem.expiry_date },
-                  {
-                    label: 'Created At',
-                    value: selectedItem.created_at
-                      ? formatDateTime(selectedItem.created_at)
-                      : '—',
-                  },
-                ].map((f) => (
-                  <div
-                    key={f.label}
-                    style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: 'var(--foreground-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.6px',
-                      }}
-                    >
-                      {f.label}
-                    </span>
-                    {f.label === 'Status' && selectedItem.status ? (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignSelf: 'flex-start',
-                          padding: '2px 10px',
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 500,
-                          background:
-                            selectedItem.status === 'active'
-                              ? 'var(--success-bg)'
-                              : 'var(--destructive-bg)',
-                          color:
-                            selectedItem.status === 'active'
-                              ? 'var(--success)'
-                              : 'var(--destructive)',
-                        }}
-                      >
-                        {selectedItem.status}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
-                        {f.value ?? '—'}
-                      </span>
-                    )}
-                  </div>
-                ))
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
       {/* Sheet */}
       <ProductInventorySheet
         open={sheetOpen}
@@ -1411,12 +1200,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           setEditData(null)
         }}
         editData={editData}
-      />
-      {/* Convert UOM sheet */}
-      <ProductInventoryConvertSheet
-        open={!!convertItem}
-        onClose={() => setConvertItem(null)}
-        inventory={convertItem}
       />
       {/* Adjust stock — Record Movement sheet dengan batch produk terpilih.
           Dirender hanya saat dibuka agar query inventori sheet tidak berjalan
@@ -1427,6 +1210,9 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           onClose={() => setAdjustItem(null)}
           initialBatchId={adjustItem.product_uom_batch?.id ?? null}
         />
+      )}
+      {dimensionItem && (
+        <ChangeDimensionModal inventory={dimensionItem} onClose={() => setDimensionItem(null)} />
       )}
       <style>{`
         @keyframes pulse {
