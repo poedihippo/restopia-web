@@ -114,6 +114,7 @@ export default function PosView() {
       <PosModals
         showPayment={logic.showPayment}
         setShowPayment={logic.setShowPayment}
+        onBackToReview={logic.backToReview}
         showReceipt={logic.showReceipt}
         setShowReceipt={logic.setShowReceipt}
         showPreorder={logic.showPreorder}
@@ -145,6 +146,7 @@ export default function PosView() {
         creditByUserId={logic.creditByUserId}
         setCreditByUserId={logic.setCreditByUserId}
         creditUsers={logic.creditUsers}
+        setCreditUserSearch={logic.setCreditUserSearch}
         creditType={logic.creditType}
         setCreditType={logic.setCreditType}
         selectedCustomerId={logic.selectedCustomerId}

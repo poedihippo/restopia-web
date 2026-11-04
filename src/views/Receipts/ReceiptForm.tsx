@@ -120,12 +120,18 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     0
   )
 
-  const { data: deliveriesData, isLoading: deliveriesLoading } = useQuery({
-    queryKey: ['deliveries-pending'],
+  // Typed text is searched on the server; the old per_page=1000 + local
+  // filtering could never find deliveries past the first page.
+  const { data: deliveriesData, isFetching: deliveriesLoading } = useQuery({
+    queryKey: ['deliveries-pending', debouncedDropdownSearch],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       deliveriesService
         .list({
-          per_page: 1000,
+          'filter[search]': debouncedDropdownSearch || undefined,
+          per_page: 50,
+          sort: '-id',
           'filter[status]': 'final',
           include: 'branch,target_branch',
         } as any)
@@ -275,7 +281,12 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     )
   }, [deliveries, mode, user, isSuperadmin])
 
-  const deliveryOptions = eligibleDeliveries.map((d: any) => ({
+  // Keep the selected delivery visible even when the current search result
+  // set doesn't contain it (deliveryDetail is fetched by id).
+  const deliveryOptions = [
+    ...(deliveryDetail && !eligibleDeliveries.some((d: any) => d.id === deliveryDetail.id) ? [deliveryDetail] : []),
+    ...eligibleDeliveries,
+  ].map((d: any) => ({
     value: d.id as number,
     label: `${d.code ?? `DEL-${d.id}`} - ${d.branch?.name ?? 'Unknown Branch'}${d.target_branch?.name ? ` → ${d.target_branch.name}` : ''}`,
     sublabel: d.date ? d.date : undefined,

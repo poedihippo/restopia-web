@@ -50,10 +50,10 @@ export default function PosHistoryModal({
 
   const returnOrderMutation = useMutation({
     mutationFn: (order: { id: number; code?: string }) => salesOrdersService.returnOrder(order.id),
-    onSuccess: () => {
+    onSuccess: (_res, order) => {
       qc.invalidateQueries({ queryKey: ['pos-history'] })
       qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
-      toast.success('Order returned successfully')
+      toast.success(order.code ? `Order ${order.code} returned` : 'Order returned successfully')
     },
     onError: (err: any, order) => {
       // A paid-out online order sharing its payout with other orders can't be
@@ -78,6 +78,10 @@ export default function PosHistoryModal({
       toastMutationApiError(err, 'Failed to return order')
     },
   })
+  // Only the order being returned shows the spinner; the other buttons are
+  // just blocked until it finishes.
+  const isReturningThis = (id: number) =>
+    returnOrderMutation.isPending && returnOrderMutation.variables?.id === id
 
   if (!showHistory) return null
 
@@ -282,6 +286,7 @@ export default function PosHistoryModal({
                     }
                   }}
                   disabled={returnOrderMutation.isPending}
+                  aria-busy={isReturningThis(order.id)}
                   style={{
                     marginTop: 8,
                     width: '100%',
@@ -292,11 +297,11 @@ export default function PosHistoryModal({
                     color: 'var(--destructive)',
                     fontSize: 12,
                     fontWeight: 500,
-                    cursor: 'pointer',
-                    opacity: returnOrderMutation.isPending ? 0.7 : 1,
+                    cursor: returnOrderMutation.isPending ? (isReturningThis(order.id) ? 'progress' : 'not-allowed') : 'pointer',
+                    opacity: isReturningThis(order.id) ? 0.7 : 1,
                   }}
                 >
-                  {returnOrderMutation.isPending ? 'Returning...' : '↩ Return Order'}
+                  {isReturningThis(order.id) ? 'Returning...' : '↩ Return Order'}
                 </button>
               )}
             </div>

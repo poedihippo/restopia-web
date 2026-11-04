@@ -11,6 +11,7 @@ import {
 import { branchesService } from '@/services/branches.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useDebounce } from '@/hooks/useDebounce'
 import { toastMutationApiError } from '@/utils/apiError'
 
 interface Props {
@@ -131,18 +132,25 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
   })
   const branches: any[] = useMemo(() => (branchesData as any)?.data ?? [], [branchesData])
 
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-pm-branch'],
+  // Searched on the server; the saved account's label is added back by
+  // coaOptions() when it is not in the current result set.
+  const [coaSearch, setCoaSearch] = useState('')
+  const coaSearchDebounced = useDebounce(coaSearch, 400)
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-pm-branch', coaSearchDebounced],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
         .list({
-          per_page: 1000,
+          per_page: 50,
           sort: 'code',
           'filter[is_header]': 'false',
           'filter[is_active]': 'true',
+          'filter[search]': coaSearchDebounced || undefined,
         } as any)
         .then((r) => (r.data as any)?.data ?? []),
-    enabled: canEdit,
+    enabled: canEdit && editingId != null,
   })
   const coas: any[] = coaData ?? []
 
@@ -401,6 +409,7 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
                         placeholder="Pilih akun (COA)"
                         searchPlaceholder="Cari nama atau kode akun..."
                         loading={coaLoading}
+                        onSearchChange={setCoaSearch}
                         error={fieldError || undefined}
                         triggerStyle={selectTriggerStyle}
                       />

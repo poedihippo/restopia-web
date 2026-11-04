@@ -20,6 +20,7 @@ import { usersService } from '@/services/users.service'
 import api from '@/hooks/useApi'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { availableStockOf } from '@/utils/inventoryStock'
+import { useDebounce } from '@/hooks/useDebounce'
 
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
@@ -595,14 +596,31 @@ export function usePosLogic() {
   const dueAmount = paymentMode === 'partial' ? (Number(partialAmount.replace(/\D/g, '')) || 0) : total
   const change = isCashMethod ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - dueAmount) : 0;
 
+  // Credit-user picker searches on the server; users already picked (single
+  // or split payment) stay in the list so their name + credit remain known.
+  const [creditUserSearch, setCreditUserSearch] = useState('')
+  const creditUserSearchDebounced = useDebounce(creditUserSearch, 400)
   const { data: creditUsersData } = useQuery({
-    queryKey: ['pos-credit-users'],
+    queryKey: ['pos-credit-users', creditUserSearchDebounced],
+    staleTime: 30_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       usersService
-        .list({ per_page: 100, 'filter[type]': 'user' } as any)
+        .list({ 'filter[search]': creditUserSearchDebounced || undefined, per_page: 20, 'filter[type]': 'user' } as any)
         .then((r) => r.data),
   })
-  const creditUsers: any[] = (creditUsersData as any)?.data ?? []
+  const seenCreditUsersRef = useRef(new Map<number, any>())
+  const creditUsers: any[] = useMemo(() => {
+    const results: any[] = (creditUsersData as any)?.data ?? []
+    for (const u of results) seenCreditUsersRef.current.set(u.id, u)
+    const pickedIds = [creditByUserId, ...splitPayments.map((sp) => sp.creditByUserId)]
+      .filter((id): id is number => typeof id === 'number' && id > 0)
+    const extra = pickedIds
+      .filter((id, i, arr) => arr.indexOf(id) === i && !results.some((u) => u.id === id))
+      .map((id) => seenCreditUsersRef.current.get(id))
+      .filter(Boolean)
+    return [...extra, ...results]
+  }, [creditUsersData, creditByUserId, splitPayments])
 
   const quickAmounts = [
     total,
@@ -945,6 +963,11 @@ export function usePosLogic() {
   const proceedFromReview = useCallback(() => {
     setShowReview(false)
     setShowPayment(true)
+  }, [])
+  // Payment -> back to the review step (customer / voucher / note edits).
+  const backToReview = useCallback(() => {
+    setShowPayment(false)
+    setShowReview(true)
   }, [])
 
   // Print a receipt: WebUSB thermal printer when connected, otherwise the
@@ -1398,7 +1421,7 @@ export function usePosLogic() {
     transactionDate, setTransactionDate,
     fulfillmentDate, setFulfillmentDate,
     showReceipt, setShowReceipt,
-    showReview, closeReview, proceedFromReview, clearVoucher,
+    showReview, closeReview, proceedFromReview, backToReview, clearVoucher,
     completedTransaction, isPrinting, printerConnected: printer.status === 'connected',
     handlePrintCompleted, startNewTransaction,
     editingOrderCode,
@@ -1417,7 +1440,7 @@ export function usePosLogic() {
     customers,
     subtotal, total, change, quickAmounts,
     selectedMethod, isCashMethod, isCreditMethod,
-    creditByUserId, setCreditByUserId, creditUsers,
+    creditByUserId, setCreditByUserId, creditUsers, setCreditUserSearch,
     creditType, setCreditType,
     isPending, isHoldPending,
 

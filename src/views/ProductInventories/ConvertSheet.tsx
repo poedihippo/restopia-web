@@ -123,16 +123,19 @@ export default function ProductInventoryConvertSheet({
     inventory?.product_uom?.product?.id
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', sourceProductId],
+    // Only this product's UOMs are needed; fetching the first 1000 of all
+    // product UOMs and filtering here missed products beyond that page.
+    queryKey: ['product-uoms-by-product', sourceProductId],
     queryFn: () =>
       productUomsService
         .list({
-          per_page: 1000,
+          per_page: 100,
           include: 'product,uom',
           'filter[is_active]': true,
-        })
+          'filter[product_id]': sourceProductId,
+        } as any)
         .then((r: any) => r.data),
-    enabled: !!open && !!inventory,
+    enabled: !!open && !!inventory && !!sourceProductId,
   })
   const productUoms = (productUomsData as any)?.data ?? []
 

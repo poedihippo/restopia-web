@@ -408,12 +408,33 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   // ── Sources (S1: GET /portionings/sources) ───────────────────────────────
   // This branch's stock rows of products that are the parent of at least one
   // cut. Not paged. `stock` is the only quantity.
-  const { data: sourcesData, isLoading: sourcesLoading } = useQuery({
-    queryKey: ['portioning-sources'],
+  // Re-fetched whenever the Konsumsi Dari stage/owner changes. The documented
+  // endpoint only takes product_id/include_empty, so stage/owner_ref are sent
+  // for the backend to honour once supported, and the stage is also applied
+  // client-side so the picker always matches the selected stage.
+  const sourceStage = watch('source_stage')
+  const sourceOwnerRef = watch('source_owner_ref')
+  const { data: sourcesData, isFetching: sourcesLoading } = useQuery({
+    queryKey: ['portioning-sources', sourceStage, sourceOwnerRef],
     staleTime: 30 * 1000,
-    queryFn: () => portioningsService.sources().then((r) => r.data),
+    placeholderData: (prev: any) => prev,
+    queryFn: () =>
+      portioningsService
+        .sources({ stage: sourceStage || undefined, owner_ref: sourceOwnerRef || undefined })
+        .then((r) => r.data),
   })
-  const sources: PortioningSource[] = (sourcesData as any)?.data ?? []
+  const allSources: PortioningSource[] = (sourcesData as any)?.data ?? []
+  const selectedSourceIds = new Set(
+    (watch('details') ?? []).map((d: any) => Number(d?.base_product_inventory_id)).filter((id: number) => id > 0),
+  )
+  const sources: PortioningSource[] = allSources.filter(
+    (s) =>
+      !sourceStage ||
+      !s.stage ||
+      s.stage.toLowerCase() === sourceStage.toLowerCase() ||
+      // keep rows already picked so their label/stock don't vanish
+      selectedSourceIds.has(s.product_inventory_id),
+  )
 
   const sourceOptions = sources.map((s) => ({
     value: s.product_inventory_id,

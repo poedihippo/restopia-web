@@ -29,19 +29,28 @@ interface OperationSheetProps {
 
 export default function OperationSheet({ open, onClose, editData }: OperationSheetProps) {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
+  // Each select searches on the server with its own term.
+  const [branchSearch, setBranchSearch] = useState('')
+  const [debouncedBranchSearch, setDebouncedBranchSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedBranchSearch(branchSearch), 400); return () => clearTimeout(t) }, [branchSearch])
+  const [ruleSearch, setRuleSearch] = useState('')
+  const [debouncedRuleSearch, setDebouncedRuleSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedRuleSearch(ruleSearch), 400); return () => clearTimeout(t) }, [ruleSearch])
   const qc = useQueryClient()
   const {user, isSuperadmin } = useAuth()
 
   const {data: branchesData, isLoading: branchesLoading} = useQuery({
-    queryKey: ['branches','list-all'],
-    queryFn: () => branchesService.list({per_page:100}).then((r) => r.data),
-    enabled: isSuperadmin,
+    queryKey: ['branches','options', debouncedBranchSearch],
+    queryFn: () => branchesService.list({'filter[search]': debouncedBranchSearch || undefined, per_page: 30} as any).then((r) => r.data),
+    enabled: isSuperadmin && open,
+    placeholderData: (prev: any) => prev,
   })
   const allBranches = (branchesData as any)?.data ?? []
-  const branchOptions = (isSuperadmin ? allBranches : user?.branches ?? []).map((b:any) =>({
+  // Keep the edited record's branch selectable even when it is not in the
+  // current search page.
+  const branchSource = [...(isSuperadmin ? allBranches : user?.branches ?? [])]
+  if (editData?.branch?.id && !branchSource.some((b: any) => b.id === editData.branch.id)) branchSource.unshift(editData.branch)
+  const branchOptions = branchSource.map((b:any) =>({
     value: b.id as number,
     label: (b.name as string) ?? '',
     sublabel: b.code as string | undefined,
@@ -50,11 +59,14 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
   const myBranchIds = (user?.branches ?? []).map((b:any) => b.id as number)
 
   const {data: operationRulesData, isLoading: operationRulesLoading} = useQuery({
-    queryKey: ['operationrules','list-all'],
-    queryFn: () => operationRulesService.list({per_page:100}).then((r) => r.data),
+    queryKey: ['operationrules','options', debouncedRuleSearch],
+    queryFn: () => operationRulesService.list({'filter[search]': debouncedRuleSearch || undefined, per_page: 30} as any).then((r) => r.data),
+    enabled: open,
+    placeholderData: (prev: any) => prev,
   })
 
-  const allOperationRules = (operationRulesData as any)?.data ?? []
+  const allOperationRules = [...((operationRulesData as any)?.data ?? [])]
+  if (editData?.operation_rule?.id && !allOperationRules.some((r: any) => r.id === editData.operation_rule.id)) allOperationRules.unshift(editData.operation_rule)
   const operationRulesOption = allOperationRules
     .filter((r:any) => isSuperadmin || myBranchIds.includes(r.branch_id as number))
     .map((r:any) =>({
@@ -152,7 +164,7 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
               placeholder='Select branch...'
               searchPlaceholder='Search branch...'
               loading={branchesLoading}
-              error={errors.branch_id?.message as string | undefined}   onSearchChange={setDropdownSearch}
+              error={errors.branch_id?.message as string | undefined}   onSearchChange={setBranchSearch}
 />
              )}
              />
@@ -180,7 +192,7 @@ export default function OperationSheet({ open, onClose, editData }: OperationShe
               placeholder='Select rule...'
               searchPlaceholder='Search rule...'
               loading={operationRulesLoading}
-              error={errors.operation_rule_id?.message as string | undefined}   onSearchChange={setDropdownSearch}
+              error={errors.operation_rule_id?.message as string | undefined}   onSearchChange={setRuleSearch}
 />
              )}
              />

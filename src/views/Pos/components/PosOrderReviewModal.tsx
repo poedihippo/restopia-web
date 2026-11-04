@@ -1,11 +1,13 @@
 'use client'
 
-import React, { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Loader2, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/price'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import SearchableSelect from '@/components/SearchableSelect'
-import useGetVoucherList from '@/hooks/voucher/useGetVoucherList'
+import { vouchersService } from '@/services/vouchers.service'
+import { useDebounce } from '@/hooks/useDebounce'
 
 interface PosOrderReviewModalProps {
   open: boolean
@@ -91,20 +93,64 @@ export default function PosOrderReviewModal({
   onApplyVoucher,
   onClearVoucher,
 }: PosOrderReviewModalProps) {
-  const { data: vouchersData, isLoading: vouchersLoading } = useGetVoucherList(
-    { per_page: 100, 'filter[status]': 'active' } as any,
-    { enabled: open },
-  )
-  const vouchers: any[] = (vouchersData as any)?.data ?? []
+  // Voucher picker searches on the server; the picked voucher is kept in the
+  // list even when a later search no longer returns it.
+  const [voucherSearch, setVoucherSearch] = useState('')
+  const voucherSearchDebounced = useDebounce(voucherSearch, 400)
+  const { data: vouchersData, isFetching: vouchersLoading } = useQuery({
+    queryKey: ['pos-vouchers', voucherSearchDebounced],
+    enabled: open,
+    staleTime: 30_000,
+    placeholderData: (prev: any) => prev,
+    queryFn: () =>
+      vouchersService
+        .list({ 'filter[search]': voucherSearchDebounced || undefined, 'filter[status]': 'active', per_page: 20 } as any)
+        .then((r) => r.data),
+  })
+  const [pickedVoucher, setPickedVoucher] = useState<any>(null)
+  const vouchers: any[] = useMemo(() => {
+    const results: any[] = (vouchersData as any)?.data ?? []
+    const picked = pickedVoucher && pickedVoucher.id === voucherCode ? pickedVoucher : null
+    return picked && !results.some((v) => v.id === picked.id) ? [picked, ...results] : results
+  }, [vouchersData, voucherCode, pickedVoucher])
   const voucherOptions = useMemo(
     () =>
+      // Name first (what the cashier recognises), code underneath.
       vouchers.map((v: any) => ({
-        label: v.code,
+        label: v.name || v.code,
         value: v.id,
-        sublabel: v.description || '',
+        sublabel: v.name ? v.code : '',
       })),
     [vouchers],
   )
+
+  // A voucher picked but never applied (Terapkan) gives no discount. Block
+  // "Lanjut Bayar" once and ask the cashier to apply it or drop it.
+  const [voucherWarn, setVoucherWarn] = useState(false)
+  const voucherPending = !appliedVoucher && typeof voucherCode === 'number' && voucherCode > 0
+  const showVoucherWarn = voucherWarn && voucherPending
+  const pendingVoucher = voucherPending ? vouchers.find((x: any) => x.id === voucherCode) : undefined
+  const applyPendingVoucher = () => {
+    if (pendingVoucher) onApplyVoucher({ id: pendingVoucher.id, code: pendingVoucher.code })
+    setVoucherWarn(false)
+  }
+  const handleProceed = () => {
+    if (voucherPending) {
+      setVoucherWarn(true)
+      return
+    }
+    setVoucherWarn(false)
+    onProceed()
+  }
+  const proceedWithoutVoucher = () => {
+    setVoucherCode('')
+    setVoucherWarn(false)
+    onProceed()
+  }
+  const handleProceedRef = useRef(handleProceed)
+  useEffect(() => {
+    handleProceedRef.current = handleProceed
+  })
 
   useEffect(() => {
     if (!open) return
@@ -118,12 +164,12 @@ export default function PosOrderReviewModal({
         onBack()
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        onProceed()
+        handleProceedRef.current()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onBack, onProceed])
+  }, [open, onBack])
 
   if (!open) return null
 
@@ -281,14 +327,24 @@ export default function PosOrderReviewModal({
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    borderRadius: 'var(--radius-sm)',
+                    boxShadow: voucherPending ? '0 0 0 1px var(--warning)' : undefined,
+                  }}
+                >
                   <SearchableSelect
                     options={voucherOptions}
                     value={voucherCode}
-                    onChange={(val) => setVoucherCode(val as number)}
+                    onChange={(val) => {
+                      setPickedVoucher(vouchers.find((x: any) => x.id === val) ?? null)
+                      setVoucherCode(val as number)
+                    }}
                     placeholder="Pilih voucher..."
                     searchPlaceholder="Cari voucher..."
                     loading={vouchersLoading}
+                    onSearchChange={setVoucherSearch}
                   />
                 </div>
                 <button
@@ -314,6 +370,67 @@ export default function PosOrderReviewModal({
                 >
                   {voucherLoading ? <Loader2 size={14} className="animate-spin" /> : 'Terapkan'}
                 </button>
+              </div>
+            )}
+            {voucherPending && !showVoucherWarn && (
+              <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
+                Voucher belum diterapkan — klik Terapkan agar diskon dihitung.
+              </div>
+            )}
+            {showVoucherWarn && (
+              <div
+                role="alert"
+                style={{
+                  marginTop: 6,
+                  padding: '10px 12px',
+                  background: 'var(--warning-bg)',
+                  border: '1px solid var(--warning)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: 12,
+                  color: 'var(--foreground)',
+                }}
+              >
+                <div style={{ fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}>
+                  Voucher {pendingVoucher?.name || pendingVoucher?.code || ''} belum diterapkan
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  Diskon belum masuk ke total. Terapkan voucher dulu, atau lanjut tanpa voucher.
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={applyPendingVoucher}
+                    disabled={voucherLoading || !pendingVoucher}
+                    style={{
+                      padding: '6px 12px',
+                      background: 'var(--accent)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Terapkan voucher
+                  </button>
+                  <button
+                    type="button"
+                    onClick={proceedWithoutVoucher}
+                    style={{
+                      padding: '6px 12px',
+                      background: 'var(--surface)',
+                      color: 'var(--foreground)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Lanjut tanpa voucher
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -464,7 +581,7 @@ export default function PosOrderReviewModal({
           </button>
           <button
             type="button"
-            onClick={onProceed}
+            onClick={handleProceed}
             autoFocus
             style={{
               flex: 2,

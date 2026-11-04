@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,10 +11,11 @@ import { vouchersService } from '@/services/vouchers.service'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
+import { isProductTypeAllowed } from '@/hooks/useProductTypes'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { X, Loader2 } from 'lucide-react'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
+import { useDebounce } from '@/hooks/useDebounce'
 
 const schema = z.object({
   code: z.string().min(1, 'Code is required'),
@@ -31,6 +32,8 @@ const schema = z.object({
   description: z.string().optional(),
   branches: z.array(z.number()).optional(),
   product_uoms: z.array(z.number()).optional(),
+  // per-product quota keyed `pu_<product_uom_id>` (0 = unlimited)
+  product_quotas: z.record(z.string(), z.coerce.number().min(0)).optional(),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -83,29 +86,45 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
       description: '',
       branches: [],
       product_uoms: [],
+      product_quotas: {},
     },
   })
 
   const watchDiscountType = watch('discount_type')
   const watchScope = watch('scope')
 
+  // Edit: always load the voucher fresh with its relations; the list row may
+  // be stale or missing voucher_branches / voucher_product_uoms.
+  const { data: voucherDetailData, isFetching: voucherDetailLoading } = useQuery({
+    queryKey: ['voucher-edit', editData?.id],
+    enabled: open && !!editData?.id,
+    queryFn: () =>
+      vouchersService
+        .findById(editData!.id, { include: 'voucher_branches,voucher_product_uoms' })
+        .then((r) => (r.data as any)?.data),
+  })
+  const source: any = editData ? (voucherDetailData ?? editData) : null
+
   useEffect(() => {
-    if (editData) {
+    if (source) {
       reset({
-        code: editData.code,
-        name: editData.name,
-        discount_type: editData.discount_type,
-        discount_value: editData.discount_value,
-        min_subtotal_price: editData.min_subtotal_price ?? 0,
-        max_discount_price: editData.max_discount_price ?? 0,
-        scope: editData.scope,
-        valid_from: editData.valid_from,
-        valid_until: editData.valid_until,
-        quota: editData.quota ?? 0,
-        status: editData.status,
-        description: editData.description ?? '',
-        branches: editData.voucher_branches?.map((b: any) => b.branch_id || b.id) || [],
-        product_uoms: editData.voucher_product_uoms?.map((p: any) => p.product_uom_id || p.id) || [],
+        code: source.code,
+        name: source.name,
+        discount_type: source.discount_type,
+        discount_value: source.discount_value,
+        min_subtotal_price: source.min_subtotal_price ?? 0,
+        max_discount_price: source.max_discount_price ?? 0,
+        scope: source.scope,
+        valid_from: (source.valid_from ?? '').slice(0, 10),
+        valid_until: (source.valid_until ?? '').slice(0, 10),
+        quota: source.quota ?? 0,
+        status: source.status,
+        description: source.description ?? '',
+        branches: (source.voucher_branches ?? []).map((b: any) => b.branch_id ?? b.branch?.id).filter(Boolean),
+        product_uoms: (source.voucher_product_uoms ?? []).map((p: any) => p.product_uom_id ?? p.product_uom?.id).filter(Boolean),
+        product_quotas: Object.fromEntries(
+          (source.voucher_product_uoms ?? []).map((p: any) => [`pu_${p.product_uom_id ?? p.product_uom?.id}`, Number(p.quota ?? 0)]),
+        ),
       })
     } else {
       reset({
@@ -123,47 +142,129 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
         description: '',
         branches: [],
         product_uoms: [],
+        product_quotas: {},
       })
     }
-  }, [editData, open, reset])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editData, voucherDetailData, open, reset])
 
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-list'],
+  // Both pickers search on the server (filter[search]); the old per_page=100
+  // + client-side filtering hid every row past the first page.
+  const [branchSearch, setBranchSearch] = useState('')
+  const [productSearch, setProductSearch] = useState('')
+  const branchSearchDebounced = useDebounce(branchSearch, 400)
+  const productSearchDebounced = useDebounce(productSearch, 400)
+
+  const { data: branchesData, isFetching: branchesLoading } = useQuery({
+    queryKey: ['voucher-branch-options', branchSearchDebounced],
+    enabled: open,
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: async () => {
-      const res = await branchesService.list({ per_page: 100 })
+      const res = await branchesService.list({ 'filter[search]': branchSearchDebounced || undefined, per_page: 20 } as any)
       return (res.data as any)?.data || []
     }
   })
-  
-  const activeProductTypes = useActiveBranchProductTypes()
 
-  const { data: productUomsData } = useQuery({
-    queryKey: ['product-uoms-list', activeProductTypes],
+  // Vouchers only discount sellable goods, so the picker is limited to
+  // final products (not the company's full product_types list).
+  const activeProductTypes = 'final'
+
+  const { data: productUomsData, isFetching: productUomsLoading } = useQuery({
+    queryKey: ['voucher-product-uom-options', activeProductTypes, productSearchDebounced],
+    enabled: open,
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: async () => {
-      const res = await productUomsService.list({ per_page: 100, include: 'product,uom', 'filter[product_types]': activeProductTypes, 'filter[is_active]': true } as any)
+      const res = await productUomsService.list({
+        'filter[search]': productSearchDebounced || undefined,
+        per_page: 20,
+        include: 'product,uom',
+        'filter[product_type]': activeProductTypes,
+        'filter[is_active]': true,
+      } as any)
       return (res.data as any)?.data || []
     }
   })
+
+  // Labels of selected values must survive a new search result set, so keep
+  // every option seen so far.
+  const branchLabelsRef = useRef(new Map<number, string>())
+  const productLabelsRef = useRef(new Map<number, string>())
+
+  // Edit mode: resolve labels for selected product UOMs not seen yet.
+  const selectedProductUomIds: number[] = watch('product_uoms') || []
+  const missingProductIds = selectedProductUomIds.filter((id) => !productLabelsRef.current.has(id))
+  const { data: selectedProductUomsData } = useQuery({
+    queryKey: ['product-uoms-by-ids', missingProductIds.slice().sort((a, b) => a - b).join(',')],
+    enabled: open && missingProductIds.length > 0,
+    queryFn: async () => {
+      const res = await productUomsService.list({
+        'filter[ids]': missingProductIds.join(','),
+        include: 'product,uom',
+        per_page: missingProductIds.length,
+      } as any)
+      return (res.data as any)?.data || []
+    }
+  })
+
+  // /v1/branches has no filter[ids]; edit-mode labels come from the
+  // voucher's own voucher_branches relation.
+  const selectedBranchesData = React.useMemo(
+    () =>
+      (source?.voucher_branches || [])
+        .map((vb: any) => vb.branch ?? (vb.name ? vb : null))
+        .filter(Boolean),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editData, voucherDetailData],
+  )
+
+  const productUomLabel = (p: any) => {
+    const name = getProductUomName(p, p.product?.name)
+    const base = name ? `${name} (${p.code || p.uom?.code || p.id})` : (p.code || String(p.id))
+    return withProductType(base, p.product?.type)
+  }
 
   const branchOptions = React.useMemo(() => {
+    for (const b of [...selectedBranchesData, ...(branchesData || [])]) {
+      branchLabelsRef.current.set(b.id, b.name)
+    }
     return (branchesData || []).map((b: any) => ({ label: b.name, value: b.id }))
-  }, [branchesData])
+  }, [branchesData, selectedBranchesData])
 
   const productUomOptions = React.useMemo(() => {
+    for (const p of [...(selectedProductUomsData || []), ...(productUomsData || [])]) {
+      productLabelsRef.current.set(p.id, productUomLabel(p))
+    }
     return (productUomsData || [])
       .filter((p: any) => isProductTypeAllowed(p.product, activeProductTypes))
-      .map((p: any) => {
-        const name = getProductUomName(p, p.product?.name)
-        const base = name ? `${name} (${p.code || p.uom?.code || p.id})` : (p.code || String(p.id))
-        return { label: withProductType(base, p.product?.type), value: p.id }
-      })
-  }, [productUomsData, activeProductTypes])
+      .map((p: any) => ({ label: productUomLabel(p), value: p.id }))
+  }, [productUomsData, selectedProductUomsData, activeProductTypes])
 
+  const toSelected = (ids: number[] | undefined, labels: Map<number, string>) =>
+    (ids || []).map((id) => ({ value: id, label: labels.get(id) ?? `#${id}` }))
+
+  // Kept rows carry their existing pivot id (and quota) so the backend
+  // updates them instead of treating every save as delete + re-create.
   const mapPayload = (data: FormValues) => {
+    const existingBranches: any[] = source?.voucher_branches ?? []
+    const existingProducts: any[] = source?.voucher_product_uoms ?? []
+    const { product_quotas: productQuotas, ...rest } = data
+    const quotaOf = (id: number) => Number(productQuotas?.[`pu_${id}`] ?? 0) || 0
     return {
-      ...data,
-      branches: data.scope === 'branch' ? data.branches?.map(id => ({ branch_id: id })) : [],
-      product_uoms: data.product_uoms?.map(id => ({ product_uom_id: id })) || []
+      ...rest,
+      branches: data.scope === 'branch'
+        ? (data.branches ?? []).map((id) => {
+            const row = existingBranches.find((b) => (b.branch_id ?? b.branch?.id) === id)
+            return row ? { id: row.id, branch_id: id, quota: row.quota ?? undefined } : { branch_id: id }
+          })
+        : [],
+      product_uoms: (data.product_uoms ?? []).map((id) => {
+        const row = existingProducts.find((p) => (p.product_uom_id ?? p.product_uom?.id) === id)
+        return row
+          ? { id: row.id, product_uom_id: id, quota: quotaOf(id) }
+          : { product_uom_id: id, quota: quotaOf(id) }
+      }),
     }
   }
 
@@ -182,6 +283,7 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vouchers'] })
       qc.invalidateQueries({ queryKey: ['voucher-detail'] })
+      qc.invalidateQueries({ queryKey: ['voucher-edit'] })
       toast.success('Voucher updated')
       onClose()
     },
@@ -461,7 +563,12 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
                     <Select
                       isMulti
                       options={branchOptions}
-                      value={branchOptions.filter((o: any) => field.value?.includes(o.value))}
+                      value={toSelected(field.value, branchLabelsRef.current)}
+                      filterOption={null}
+                      isLoading={branchesLoading}
+                      onInputChange={(val, { action }) => { if (action === 'input-change') setBranchSearch(val) }}
+                      onMenuClose={() => setBranchSearch('')}
+                      noOptionsMessage={() => (branchesLoading ? 'Searching...' : 'No branches found')}
                       onChange={(selected: any) => field.onChange(selected.map((o: any) => o.value))}
                       styles={{
                         control: (base) => ({
@@ -489,7 +596,12 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
                   <Select
                     isMulti
                     options={productUomOptions}
-                    value={productUomOptions.filter((o: any) => field.value?.includes(o.value))}
+                    value={toSelected(field.value, productLabelsRef.current)}
+                    filterOption={null}
+                    isLoading={productUomsLoading}
+                    onInputChange={(val, { action }) => { if (action === 'input-change') setProductSearch(val) }}
+                    onMenuClose={() => setProductSearch('')}
+                    noOptionsMessage={() => (productUomsLoading ? 'Searching...' : 'No products found')}
                     onChange={(selected: any) => field.onChange(selected.map((o: any) => o.value))}
                     styles={{
                       control: (base) => ({
@@ -501,10 +613,41 @@ export default function VoucherSheet({ open, onClose, editData }: VoucherSheetPr
                       }),
                       menu: (base) => ({ ...base, fontSize: 13, zIndex: 100 })
                     }}
-                    placeholder="Select products (leave empty for all)"
+                    placeholder={voucherDetailLoading && !voucherDetailData ? 'Loading...' : 'Select products (leave empty for all)'}
                   />
                 )}
               />
+              {selectedProductUomIds.length > 0 && (
+                <div style={{ marginTop: 10, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--background)', fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    <span>Product</span>
+                    <span>Quota</span>
+                  </div>
+                  {selectedProductUomIds.map((id) => (
+                    <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--foreground)' }}>
+                        {productLabelsRef.current.get(id) ?? `#${id}`}
+                      </span>
+                      <div style={{ width: 110 }}>
+                        <Controller
+                          name={`product_quotas.pu_${id}` as any}
+                          control={control}
+                          render={({ field }) => (
+                            <LocalizedNumberInput
+                              value={field.value ?? 0}
+                              onChange={field.onChange}
+                              decimals={0}
+                              placeholder="0"
+                              style={{ ...inputStyle, padding: '6px 10px' }}
+                            />
+                          )}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ ...hintStyle, padding: '0 12px 8px' }}>Quota per product — leave 0 for unlimited usage</div>
+                </div>
+              )}
             </div>
 
             {/* Row 3 — discount_value + quota */}

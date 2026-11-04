@@ -12,6 +12,7 @@ import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { paymentsService } from '@/services/payments.service'
 import { formatDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
+import { useDebounce } from '@/hooks/useDebounce'
 import { Search, ArrowRight, Building2, FileText, AlertCircle, Loader2 } from 'lucide-react'
 
 interface Supplier {
@@ -92,14 +93,30 @@ export default function SupplierDebtsView() {
         .then((r) => r.data),
   })
 
-  const { data: buyersData, isLoading: buyersLoading } = useQuery({
-    queryKey: ['buyers-all'],
+  // Buyer filter searches on the server (filter[search]).
+  const [buyerSearch, setBuyerSearch] = useState('')
+  const debouncedBuyerSearch = useDebounce(buyerSearch, 400)
+  const { data: buyersData, isFetching: buyersLoading } = useQuery({
+    queryKey: ['supplier-debts-buyer-options', debouncedBuyerSearch],
     enabled: canRead,
-    queryFn: () => buyersService.list({ per_page: 1000, sort: 'name' } as any).then((r) => r.data),
+    placeholderData: (prev: any) => prev,
+    queryFn: () =>
+      buyersService
+        .list({ 'filter[search]': debouncedBuyerSearch || undefined, per_page: 30, sort: 'name' } as any)
+        .then((r) => r.data),
+  })
+  const buyerRows: any[] = (buyersData as any)?.data ?? []
+  // ?buyer_id= from the URL may not be in the current search page; fetch it
+  // so the select still shows its name.
+  const { data: selectedBuyerData } = useQuery({
+    queryKey: ['buyer', buyerId],
+    enabled: canRead && buyerId > 0 && !buyerRows.some((b) => b.id === buyerId),
+    staleTime: 5 * 60_000,
+    queryFn: () => buyersService.findById(buyerId).then((r) => (r.data as any)?.data),
   })
   const buyerOptions = [
     { value: 0, label: 'Semua Buyer' },
-    ...(((buyersData as any)?.data ?? []) as any[]).map((b) => ({
+    ...(selectedBuyerData && !buyerRows.some((b) => b.id === selectedBuyerData.id) ? [selectedBuyerData] : []).concat(buyerRows).map((b: any) => ({
       value: b.id as number,
       label: (b.name as string) ?? `Buyer #${b.id}`,
       sublabel: b.code as string | undefined,
@@ -297,6 +314,7 @@ export default function SupplierDebtsView() {
             placeholder="Semua Buyer"
             searchPlaceholder="Cari buyer..."
             loading={buyersLoading}
+            onSearchChange={setBuyerSearch}
           />
         </div>
         <div style={{ position: 'relative', width: 320 }}>

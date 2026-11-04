@@ -74,9 +74,13 @@ const linePriceForApi = (i: LineItem): number | undefined => {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SalesOrderForm({ editingOrder }: { editingOrder?: any }): React.ReactElement {
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
+  // Server-side search terms, one per select.
+  const [creditUserSearch, setCreditUserSearch] = useState('')
+  const [debouncedCreditUserSearch, setDebouncedCreditUserSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedCreditUserSearch(creditUserSearch), 400); return () => clearTimeout(t) }, [creditUserSearch])
+  const [coaChargeSearch, setCoaChargeSearch] = useState('')
+  const [debouncedCoaChargeSearch, setDebouncedCoaChargeSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedCoaChargeSearch(coaChargeSearch), 400); return () => clearTimeout(t) }, [coaChargeSearch])
   const router = useRouter()
   const qc = useQueryClient()
   const isEdit = !!editingOrder
@@ -150,14 +154,21 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   })
 
   // Chart of accounts for additional charges — required by the API.
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-all', 'charges'],
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['so-charge-coa-options', debouncedCoaChargeSearch],
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .list({ per_page: 30, sort: 'code', 'filter[is_active]': 'true', 'filter[search]': debouncedCoaChargeSearch || undefined } as any)
         .then((r) => (r.data as any)?.data ?? []),
   })
-  const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
+  // Accounts already on the order's charges stay selectable even when they
+  // are not in the current search page.
+  const coaChargeRows: any[] = (coaData as any) ?? []
+  const editingChargeCoas: any[] = (editingOrder?.additional_charges ?? [])
+    .map((c: any) => c.chart_of_account)
+    .filter((c: any) => c?.id && !coaChargeRows.some((r: any) => r.id === c.id))
+  const coaChargeOptions = [...editingChargeCoas, ...coaChargeRows].map((coa: any) => ({
     value: coa.id as number,
     label: (coa.name as string) ?? `COA #${coa.id}`,
     sublabel: (coa.code as string) ?? undefined,
@@ -338,14 +349,19 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
 
   const { data: creditUsersData } = useQuery({
-    queryKey: ['users-credit'],
+    queryKey: ['users-credit', debouncedCreditUserSearch],
     enabled: settlementStatus === 'credit',
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       usersService
-        .list({ per_page: 100, 'filter[type]': 'user' } as any)
+        .list({ per_page: 30, 'filter[type]': 'user', 'filter[search]': debouncedCreditUserSearch || undefined } as any)
         .then((r) => r.data),
   })
-  const creditUsers: any[] = (creditUsersData as any)?.data ?? []
+  const creditUserRows: any[] = (creditUsersData as any)?.data ?? []
+  const creditUsers: any[] =
+    editingOrder?.credit_by?.id && !creditUserRows.some((u: any) => u.id === editingOrder.credit_by.id)
+      ? [editingOrder.credit_by, ...creditUserRows]
+      : creditUserRows
 
   const { data: bundleData } = useQuery({
     queryKey: ['so-bundles', productSearchDebounced],
@@ -363,8 +379,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const bundles = (bundleData as any)?.data ?? []
 
   const { data: taxesData } = useQuery({
-    queryKey: ['taxes-all', debouncedDropdownSearch],
-    queryFn: () => taxesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 50 }).then((r) => r.data),
+    queryKey: ['taxes-all'],
+    queryFn: () => taxesService.list({ per_page: 50 }).then((r) => r.data),
   })
   const taxes = (taxesData as any)?.data ?? []
 
@@ -984,7 +1000,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     ]}
                     placeholder="Search user..."
                     searchPlaceholder="Search users..."
-                    onSearchChange={setDropdownSearch}
+                    onSearchChange={setCreditUserSearch}
                   />
                   <span
                     style={{
@@ -1837,6 +1853,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               placeholder="Select account... *"
               searchPlaceholder="Search account name or code..."
               loading={coaLoading}
+              onSearchChange={setCoaChargeSearch}
               triggerStyle={{ height: 38, padding: '0 12px', fontSize: 14, borderRadius: 'var(--radius-sm)' }}
             />
             {/* Plain number input (not LocalizedNumberInput): the localized

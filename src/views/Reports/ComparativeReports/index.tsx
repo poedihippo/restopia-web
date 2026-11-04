@@ -10,6 +10,7 @@ import { suppliersService } from '@/services/suppliers.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useDebounce } from '@/hooks/useDebounce'
 import {
   TrendingUp,
   Scale,
@@ -37,10 +38,22 @@ export default function ComparativeReportsView() {
     label: `${fy.name} (${fy.start_date} ~ ${fy.end_date})`,
   }))
 
+  // Customer / supplier pickers search on the server (filter[search]);
+  // SearchableSelect keeps the picked label cached.
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [supplierSearch, setSupplierSearch] = useState('')
+  const customerSearchDebounced = useDebounce(customerSearch, 400)
+  const supplierSearchDebounced = useDebounce(supplierSearch, 400)
+
   // Query Customers for AR Card
-  const { data: customersData } = useQuery({
-    queryKey: ['customers-select-ar'],
-    queryFn: () => customersService.list({ per_page: 200 } as any).then((r) => r.data),
+  const { data: customersData, isFetching: customersLoading } = useQuery({
+    queryKey: ['customers-select-ar', customerSearchDebounced],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
+    queryFn: () =>
+      customersService
+        .list({ per_page: 50, 'filter[search]': customerSearchDebounced || undefined } as any)
+        .then((r) => r.data),
   })
   const customers: any[] = (customersData as any)?.data ?? []
   const customerOptions = customers.map((c) => ({
@@ -49,9 +62,14 @@ export default function ComparativeReportsView() {
   }))
 
   // Query Suppliers for AP Card
-  const { data: suppliersData } = useQuery({
-    queryKey: ['suppliers-select-ap'],
-    queryFn: () => suppliersService.list({ per_page: 200 } as any).then((r) => r.data),
+  const { data: suppliersData, isFetching: suppliersLoading } = useQuery({
+    queryKey: ['suppliers-select-ap', supplierSearchDebounced],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
+    queryFn: () =>
+      suppliersService
+        .list({ per_page: 50, 'filter[search]': supplierSearchDebounced || undefined } as any)
+        .then((r) => r.data),
   })
   const suppliers: any[] = (suppliersData as any)?.data ?? []
   const supplierOptions = suppliers.map((s) => ({
@@ -405,6 +423,8 @@ export default function ComparativeReportsView() {
                   value={arCustomerId || ''}
                   onChange={(val) => setArCustomerId(val ? Number(val) : undefined)}
                   options={customerOptions}
+                  loading={customersLoading}
+                  onSearchChange={setCustomerSearch}
                   placeholder="Select Customer..."
                 />
               </div>
@@ -504,6 +524,8 @@ export default function ComparativeReportsView() {
                   value={apSupplier || ''}
                   onChange={(val) => setApSupplier(val ? String(val) : '')}
                   options={supplierOptions}
+                  loading={suppliersLoading}
+                  onSearchChange={setSupplierSearch}
                   placeholder="Select Supplier..."
                 />
               </div>

@@ -11,6 +11,7 @@ import {
 import { branchesService } from '@/services/branches.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useDebounce } from '@/hooks/useDebounce'
 import { toastMutationApiError } from '@/utils/apiError'
 
 interface Props {
@@ -143,21 +144,31 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
   const branches: any[] = useMemo(() => (branchesData as any)?.data ?? [], [branchesData])
 
   // Receivable and fee accounts must both be active, non-header, debit-normal.
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-sc-branch'],
+  // Each picker searches on the server with its own term; the saved
+  // account's label is added back by coaOptions() when not in the results.
+  const [receivableSearch, setReceivableSearch] = useState('')
+  const [feeSearch, setFeeSearch] = useState('')
+  const receivableSearchDebounced = useDebounce(receivableSearch, 400)
+  const feeSearchDebounced = useDebounce(feeSearch, 400)
+  const coaQuery = (term: string) => ({
+    queryKey: ['chart-of-accounts-sc-branch', term],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
         .list({
-          per_page: 1000,
+          per_page: 50,
           sort: 'code',
           'filter[is_header]': 'false',
           'filter[is_active]': 'true',
           'filter[normal_balance]': 'debit',
+          'filter[search]': term || undefined,
         } as any)
         .then((r) => (r.data as any)?.data ?? []),
-    enabled: canEdit,
+    enabled: canEdit && editingId != null,
   })
-  const coas: any[] = coaData ?? []
+  const { data: receivableCoaData, isFetching: receivableCoaLoading } = useQuery(coaQuery(receivableSearchDebounced))
+  const { data: feeCoaData, isFetching: feeCoaLoading } = useQuery(coaQuery(feeSearchDebounced))
 
   // Outlets and pickup points, plus any branch that already has a setting.
   const outletRows: OutletRow[] = useMemo(() => {
@@ -199,6 +210,7 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
   })
 
   const coaOptions = (selectedId: number, kind: 'receivable' | 'fee') => {
+    const coas: any[] = (kind === 'receivable' ? receivableCoaData : feeCoaData) ?? []
     const opts = coas.map((c) => ({ value: Number(c.id), label: c.name ?? `COA #${c.id}`, sublabel: c.code ?? undefined }))
     if (selectedId > 0 && !opts.some((o) => o.value === selectedId)) {
       const saved: any = savedAccounts.find((a: any) => Number(a[`${kind}_chart_of_account_id`]) === selectedId)
@@ -419,7 +431,8 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
                               options={coaOptions(draft.receivable, 'receivable')}
                               placeholder="Pilih akun piutang"
                               searchPlaceholder="Cari nama atau kode akun..."
-                              loading={coaLoading}
+                              loading={receivableCoaLoading}
+                              onSearchChange={setReceivableSearch}
                               error={fieldErrors.receivable_chart_of_account_id}
                               triggerStyle={selectTriggerStyle}
                             />
@@ -433,7 +446,8 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
                             options={coaOptions(draft.fee, 'fee')}
                             placeholder="Pilih akun fee"
                             searchPlaceholder="Cari nama atau kode akun..."
-                            loading={coaLoading}
+                            loading={feeCoaLoading}
+                            onSearchChange={setFeeSearch}
                             error={fieldErrors.fee_chart_of_account_id}
                             triggerStyle={selectTriggerStyle}
                           />

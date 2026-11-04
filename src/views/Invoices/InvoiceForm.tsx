@@ -15,6 +15,7 @@ import { formatDate } from '@/utils/date'
 import SearchableSelect from '@/components/SearchableSelect'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useDebounce } from '@/hooks/useDebounce'
 
 const todayInputDate = () => new Date().toISOString().split('T')[0]
 
@@ -248,11 +249,21 @@ export default function InvoiceForm() {
   const hiddenSoCount = fetchedSOs.length - availableSOs.length
 
   // Chart of accounts for standalone (custom) charges — required by the API.
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-all', 'charges'],
+  // Searched on the server; SearchableSelect keeps the picked label cached.
+  const [coaSearch, setCoaSearch] = useState('')
+  const coaSearchDebounced = useDebounce(coaSearch, 400)
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-options', 'charges', coaSearchDebounced],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .list({
+          per_page: 50,
+          sort: 'code',
+          'filter[is_active]': 'true',
+          'filter[search]': coaSearchDebounced || undefined,
+        } as any)
         .then(r => (r.data as any)?.data ?? []),
   })
   const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
@@ -780,6 +791,7 @@ export default function InvoiceForm() {
                       placeholder="Select account... *"
                       searchPlaceholder="Search account name or code..."
                       loading={coaLoading}
+                      onSearchChange={setCoaSearch}
                       triggerStyle={{ height: 32, padding: '0 8px', fontSize: 13, borderRadius: 'var(--radius-sm)' }}
                     />
                     <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4 }}>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import { SearchableSelect, SelectOption } from '@/components/ui/searchable-select'
 import { X, Loader2, Check } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useDebounce } from '@/hooks/useDebounce'
 
 const createSchema = z.object({
   buyer_id: z.coerce.number().min(1, 'Buyer is required'),
@@ -68,12 +69,17 @@ export default function BuyerAccountSettingSheet({ open, onClose, editData }: Pr
     }
   }, [editData, open, reset])
 
+  // Buyer + COA selects search on the server; each has its own term.
+  const [buyerSearch, setBuyerSearch] = useState('')
   const [coaSearch, setCoaSearch] = useState('')
+  const debouncedBuyerSearch = useDebounce(buyerSearch, 400)
+  const debouncedCoaSearch = useDebounce(coaSearch, 400)
 
-  const { data: buyersData } = useQuery({
-    queryKey: ['buyers-all'],
-    queryFn: () => buyersService.list({ per_page: 1000, sort: 'name' } as any).then(r => r.data),
+  const { data: buyersData, isFetching: buyersLoading } = useQuery({
+    queryKey: ['buyer-account-buyer-options', debouncedBuyerSearch],
+    queryFn: () => buyersService.list({ 'filter[search]': debouncedBuyerSearch || undefined, per_page: 30, sort: 'name' } as any).then(r => r.data),
     enabled: open,
+    placeholderData: (prev: any) => prev,
   })
 
   const { data: accountSettingsData } = useQuery({
@@ -82,13 +88,15 @@ export default function BuyerAccountSettingSheet({ open, onClose, editData }: Pr
     enabled: open,
   })
 
-  const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-all', coaSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 100, 'filter[search]': coaSearch || undefined } as any).then(r => r.data),
-    enabled: open,
-  })
+  // Every buyer / COA seen so far, so the selected value keeps its label
+  // when a new search page doesn't contain it.
+  const seenBuyersRef = useRef(new Map<number, any>())
+  const seenCoaRef = useRef(new Map<number, any>())
+  if (editData?.buyer?.id) seenBuyersRef.current.set(editData.buyer.id, editData.buyer)
+  if (editData?.chart_of_account?.id) seenCoaRef.current.set(editData.chart_of_account.id, editData.chart_of_account)
 
   const allBuyers: any[] = (buyersData as any)?.data ?? []
+  for (const b of allBuyers) seenBuyersRef.current.set(b.id, b)
 
   const accountKeys: AccountSettingKey[] = useMemo(() => {
     const settings: any[] = (accountSettingsData as any)?.data ?? []
@@ -110,13 +118,29 @@ export default function BuyerAccountSettingSheet({ open, onClose, editData }: Pr
 
   const selectedKeyInfo = accountKeys.find(k => k.id === keyId)
 
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['buyer-account-coa-options', debouncedCoaSearch, selectedKeyInfo?.expected_normal_balance ?? ''],
+    queryFn: () => chartOfAccountsService.list({
+      per_page: 30,
+      'filter[search]': debouncedCoaSearch || undefined,
+      'filter[is_header]': 'false',
+      'filter[is_active]': 'true',
+      'filter[normal_balance]': selectedKeyInfo?.expected_normal_balance || undefined,
+    } as any).then(r => r.data),
+    enabled: open,
+    placeholderData: (prev: any) => prev,
+  })
+
   const buyerOptions: SelectOption[] = allBuyers.map((b: any) => ({
     value: b.id,
     label: `${b.code} - ${b.name}`,
   }))
+  const selectedBuyer = seenBuyersRef.current.get(buyerId)
+  const selectedBuyerOption: SelectOption | null = selectedBuyer ? { value: selectedBuyer.id, label: `${selectedBuyer.code} - ${selectedBuyer.name}` } : null
 
   const coaOptions: SelectOption[] = useMemo(() => {
     const accounts = ((coaData as any)?.data ?? []).filter((c: any) => !c.is_header && c.is_active !== false)
+    for (const c of accounts) seenCoaRef.current.set(c.id, c)
     if (!selectedKeyInfo) return accounts.map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name} (${c.normal_balance})` }))
     return accounts
       .filter((c: any) => c.normal_balance === selectedKeyInfo.expected_normal_balance)
@@ -176,8 +200,11 @@ export default function BuyerAccountSettingSheet({ open, onClose, editData }: Pr
                 Buyer <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
               <SearchableSelect
-                value={buyerOptions.find(o => o.value === buyerId) || null}
+                value={selectedBuyerOption}
                 options={buyerOptions}
+                filterOption={null}
+                isLoading={buyersLoading}
+                onInputChange={(val, { action }) => { if (action === 'input-change') setBuyerSearch(val) }}
                 onChange={(val: any) => setValue('buyer_id', val?.value || 0, { shouldValidate: true })}
                 placeholder="Search buyer..."
                 isClearable
@@ -216,8 +243,10 @@ export default function BuyerAccountSettingSheet({ open, onClose, editData }: Pr
                 Chart of Account {selectedKeyInfo ? `(${selectedKeyInfo.expected_normal_balance}-normal)` : ''} <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
               <SearchableSelect
-                value={coaOptions.find(o => o.value === chartOfAccountId) || null}
+                value={coaOptions.find(o => o.value === chartOfAccountId) || (seenCoaRef.current.has(chartOfAccountId) ? { value: chartOfAccountId, label: `${seenCoaRef.current.get(chartOfAccountId).code} - ${seenCoaRef.current.get(chartOfAccountId).name}` } : null)}
                 options={coaOptions}
+                filterOption={null}
+                isLoading={coaLoading}
                 onChange={(val: any) => setValue('chart_of_account_id', val?.value || 0, { shouldValidate: true })}
                 onInputChange={(val, { action }) => { if (action === 'input-change') setCoaSearch(val) }}
                 placeholder="Search account..."

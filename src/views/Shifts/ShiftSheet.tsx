@@ -30,31 +30,45 @@ interface ShiftSheetProps {
 
 export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps) {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
+  // Each select searches on the server with its own term.
+  const [branchSearch, setBranchSearch] = useState('')
+  const [debouncedBranchSearch, setDebouncedBranchSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedBranchSearch(branchSearch), 400); return () => clearTimeout(t) }, [branchSearch])
+  const [operationSearch, setOperationSearch] = useState('')
+  const [debouncedOperationSearch, setDebouncedOperationSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedOperationSearch(operationSearch), 400); return () => clearTimeout(t) }, [operationSearch])
+  const [shiftRuleSearch, setShiftRuleSearch] = useState('')
+  const [debouncedShiftRuleSearch, setDebouncedShiftRuleSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedShiftRuleSearch(shiftRuleSearch), 400); return () => clearTimeout(t) }, [shiftRuleSearch])
   const qc = useQueryClient()
   const { user, isSuperadmin } = useAuth()
 
   const myBranchIds = (user?.branches ?? []).map((b: any) => b.id as number)
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches', 'list-all'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-    enabled: isSuperadmin,
+    queryKey: ['branches', 'options', debouncedBranchSearch],
+    queryFn: () => branchesService.list({ 'filter[search]': debouncedBranchSearch || undefined, per_page: 30 } as any).then((r) => r.data),
+    enabled: isSuperadmin && open,
+    placeholderData: (prev: any) => prev,
   })
   const allBranches = (branchesData as any)?.data ?? []
-  const branchOptions = (isSuperadmin ? allBranches : user?.branches ?? []).map((b: any) => ({
+  // Keep the edited record's relations selectable even when they are not in
+  // the current search page.
+  const withEdited = (rows: any[], rel: any) =>
+    rel?.id && !rows.some((r: any) => r.id === rel.id) ? [rel, ...rows] : rows
+  const branchOptions = withEdited(isSuperadmin ? allBranches : user?.branches ?? [], editData?.branch).map((b: any) => ({
     value: b.id as number,
     label: (b.name as string) ?? '',
     sublabel: b.code as string | undefined,
   }))
 
   const { data: operationsData, isLoading: operationsLoading } = useQuery({
-    queryKey: ['operations', 'list-all'],
-    queryFn: () => operationsService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['operations', 'options', debouncedOperationSearch],
+    queryFn: () => operationsService.list({ 'filter[search]': debouncedOperationSearch || undefined, sort: '-id', per_page: 30 } as any).then((r) => r.data),
+    enabled: open,
+    placeholderData: (prev: any) => prev,
   })
-  const allOperations = (operationsData as any)?.data ?? []
+  const allOperations = withEdited((operationsData as any)?.data ?? [], editData?.operation)
   const operationOptions = allOperations
     .filter((o: any) => isSuperadmin || myBranchIds.includes(o.branch_id as number))
     .map((o: any) => ({
@@ -64,10 +78,12 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
     }))
 
   const { data: shiftRulesData, isLoading: shiftRulesLoading } = useQuery({
-    queryKey: ['shift-rules', 'list-all'],
-    queryFn: () => shiftRulesService.list({ per_page: 100 }).then((r) => r.data),
+    queryKey: ['shift-rules', 'options', debouncedShiftRuleSearch],
+    queryFn: () => shiftRulesService.list({ 'filter[search]': debouncedShiftRuleSearch || undefined, per_page: 30 } as any).then((r) => r.data),
+    enabled: open,
+    placeholderData: (prev: any) => prev,
   })
-  const allShiftRules = (shiftRulesData as any)?.data ?? []
+  const allShiftRules = withEdited((shiftRulesData as any)?.data ?? [], editData?.shift_rule)
   const shiftRuleOptions = allShiftRules
     .filter((r: any) => isSuperadmin || myBranchIds.includes(r.branch_id as number))
     .map((r: any) => ({
@@ -166,7 +182,7 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
                     searchPlaceholder="Search branch..."
                     loading={branchesLoading}
                     error={errors.branch_id?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
+                    onSearchChange={setBranchSearch}
 />
                 )}
               />
@@ -186,7 +202,7 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
                     searchPlaceholder="Search operation..."
                     loading={operationsLoading}
                     error={errors.operation_id?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
+                    onSearchChange={setOperationSearch}
 />
                 )}
               />
@@ -206,7 +222,7 @@ export default function ShiftSheet({ open, onClose, editData }: ShiftSheetProps)
                     searchPlaceholder="Search shift rule..."
                     loading={shiftRulesLoading}
                     error={errors.shift_rule_id?.message as string | undefined}
-                    onSearchChange={setDropdownSearch}
+                    onSearchChange={setShiftRuleSearch}
 />
                 )}
               />

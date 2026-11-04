@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -13,6 +13,7 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import { SearchableSelect, SelectOption } from '@/components/ui/searchable-select'
 import { X, Loader2, Check, AlertTriangle } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useDebounce } from '@/hooks/useDebounce'
 
 const createSchema = z.object({
   branch_id: z.coerce.number().min(1, 'Branch is required'),
@@ -70,13 +71,17 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
     }
   }, [editData, open, reset])
 
+  // Branch + COA selects search on the server; each has its own term.
   const [branchSearch, setBranchSearch] = useState('')
   const [coaSearch, setCoaSearch] = useState('')
+  const debouncedBranchSearch = useDebounce(branchSearch, 400)
+  const debouncedCoaSearch = useDebounce(coaSearch, 400)
 
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then(r => r.data),
+  const { data: branchesData, isFetching: branchesLoading } = useQuery({
+    queryKey: ['branch-account-branch-options', debouncedBranchSearch],
+    queryFn: () => branchesService.list({ 'filter[search]': debouncedBranchSearch || undefined, per_page: 30, sort: 'name' } as any).then(r => r.data),
     enabled: open,
+    placeholderData: (prev: any) => prev,
   })
 
   const { data: accountSettingsData } = useQuery({
@@ -85,14 +90,16 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
     enabled: open,
   })
 
-  const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-all', coaSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 100, 'filter[search]': coaSearch || undefined } as any).then(r => r.data),
-    enabled: open,
-  })
+  // Every branch / COA seen so far, so the selected value keeps its label
+  // (and pickup-point flag) when a new search page doesn't contain it.
+  const seenBranchesRef = useRef(new Map<number, any>())
+  const seenCoaRef = useRef(new Map<number, any>())
+  if (editData?.branch?.id) seenBranchesRef.current.set(editData.branch.id, editData.branch)
+  if (editData?.chart_of_account?.id) seenCoaRef.current.set(editData.chart_of_account.id, editData.chart_of_account)
 
   const allBranches: any[] = (branchesData as any)?.data ?? []
-  const selectedBranch = allBranches.find((b: any) => b.id === branchId)
+  for (const b of allBranches) seenBranchesRef.current.set(b.id, b)
+  const selectedBranch = seenBranchesRef.current.get(branchId)
   const isPickupPoint = selectedBranch?.format === 'pickup_point'
 
   const accountKeys: AccountSettingKey[] = useMemo(() => {
@@ -119,13 +126,26 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
 
   const selectedKeyInfo = accountKeys.find(k => k.id === keyId)
 
-  const branchOptions: SelectOption[] = allBranches.map((b: any) => ({
-    value: b.id,
-    label: `${b.code} - ${b.name}${b.format === 'pickup_point' ? ' (Pickup Point)' : ''}`,
-  }))
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['branch-account-coa-options', debouncedCoaSearch, selectedKeyInfo?.expected_normal_balance ?? ''],
+    queryFn: () => chartOfAccountsService.list({
+      per_page: 30,
+      'filter[search]': debouncedCoaSearch || undefined,
+      'filter[is_header]': 'false',
+      'filter[is_active]': 'true',
+      'filter[normal_balance]': selectedKeyInfo?.expected_normal_balance || undefined,
+    } as any).then(r => r.data),
+    enabled: open,
+    placeholderData: (prev: any) => prev,
+  })
+
+  const branchLabel = (b: any) => `${b.code} - ${b.name}${b.format === 'pickup_point' ? ' (Pickup Point)' : ''}`
+  const branchOptions: SelectOption[] = allBranches.map((b: any) => ({ value: b.id, label: branchLabel(b) }))
+  const selectedBranchOption: SelectOption | null = selectedBranch ? { value: selectedBranch.id, label: branchLabel(selectedBranch) } : null
 
   const coaOptions: SelectOption[] = useMemo(() => {
     const accounts = ((coaData as any)?.data ?? []).filter((c: any) => !c.is_header && c.is_active !== false)
+    for (const c of accounts) seenCoaRef.current.set(c.id, c)
     if (!selectedKeyInfo) return accounts.map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name} (${c.normal_balance})` }))
     return accounts
       .filter((c: any) => c.normal_balance === selectedKeyInfo.expected_normal_balance)
@@ -185,8 +205,10 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
                 Branch <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
               <SearchableSelect
-                value={branchOptions.find(o => o.value === branchId) || null}
+                value={selectedBranchOption}
                 options={branchOptions}
+                filterOption={null}
+                isLoading={branchesLoading}
                 onChange={(val: any) => {
                   setValue('branch_id', val?.value || 0, { shouldValidate: true })
                 }}
@@ -233,8 +255,10 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
                 Chart of Account {selectedKeyInfo ? `(${selectedKeyInfo.expected_normal_balance}-normal)` : ''} <span style={{ color: 'var(--destructive)' }}>*</span>
               </label>
               <SearchableSelect
-                value={coaOptions.find(o => o.value === chartOfAccountId) || null}
+                value={coaOptions.find(o => o.value === chartOfAccountId) || (seenCoaRef.current.has(chartOfAccountId) ? { value: chartOfAccountId, label: `${seenCoaRef.current.get(chartOfAccountId).code} - ${seenCoaRef.current.get(chartOfAccountId).name}` } : null)}
                 options={coaOptions}
+                filterOption={null}
+                isLoading={coaLoading}
                 onChange={(val: any) => setValue('chart_of_account_id', val?.value || 0, { shouldValidate: true })}
                 onInputChange={(val, { action }) => { if (action === 'input-change') setCoaSearch(val) }}
                 placeholder="Search account..."

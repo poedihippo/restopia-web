@@ -56,7 +56,7 @@ export const portioningsService = {
    * Stock rows of this branch that can be cut. Not paged; ordered by product
    * name then first-expiring first. Needs `portioning.read`.
    */
-  sources: (params?: { product_id?: number; include_empty?: boolean }) =>
+  sources: (params?: { product_id?: number; include_empty?: boolean; stage?: string; owner_ref?: string }) =>
     api.get<ApiResponse<PortioningSource[]>>('/portionings/sources', { params }),
 
   /**

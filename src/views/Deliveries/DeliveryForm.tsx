@@ -231,10 +231,34 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryFn: () => companiesService.list({ 'filter[search]': companySearchDebounced || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
-  const companyOptions = [
-    GENERAL_OWNER_OPTION,
-    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
-  ]
+
+  // "Owner Tujuan" (dimension transfer) searches on its own so typing there
+  // doesn't narrow the source-owner list, and vice versa.
+  const [targetCompanySearch, setTargetCompanySearch] = useState('')
+  const [targetCompanySearchDebounced, setTargetCompanySearchDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setTargetCompanySearchDebounced(targetCompanySearch), 400)
+    return () => clearTimeout(t)
+  }, [targetCompanySearch])
+  const { data: targetCompaniesData, isFetching: targetCompaniesLoading } = useQuery({
+    queryKey: ['companies-all', targetCompanySearchDebounced],
+    enabled: enableDimensionTransfer,
+    placeholderData: (prev: any) => prev,
+    queryFn: () => companiesService.list({ 'filter[search]': targetCompanySearchDebounced || undefined,  per_page: 100 } as any).then((r) => r.data),
+  })
+  const targetCompanies: { id: number; name: string }[] = (targetCompaniesData as any)?.data ?? []
+
+  // Remember every company name seen so a selected owner keeps its label
+  // after the search narrows the result set.
+  const companyLabelsRef = useRef(new Map<string, string>())
+  for (const c of [...companies, ...targetCompanies]) companyLabelsRef.current.set(String(c.id), c.name)
+  const buildCompanyOptions = (list: { id: number; name: string }[], selected?: string) => {
+    const opts = [GENERAL_OWNER_OPTION, ...list.map((c) => ({ value: String(c.id), label: c.name }))]
+    if (selected && !opts.some((o) => o.value === selected) && companyLabelsRef.current.has(selected)) {
+      opts.push({ value: selected, label: companyLabelsRef.current.get(selected)! })
+    }
+    return opts
+  }
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
     queryKey: ['stages-all'],
@@ -473,13 +497,19 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const sourceTypeForPickers = watch('source_type')
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
-    queryKey: ['purchase-orders-linkable'],
+    queryKey: ['purchase-orders-linkable', poSearchDebounced],
     enabled:
       sourceTypeForPickers === 'po_from_supplier' || sourceTypeForPickers === 'po_from_branch',
     staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       purchaseOrdersService
-        .list({ per_page: 1000, include: 'supplier,supplier_branch', sort: '-id' } as any)
+        .list({
+          'filter[search]': poSearchDebounced || undefined,
+          per_page: 50,
+          include: 'supplier,supplier_branch',
+          sort: '-id',
+        } as any)
         .then((r) => r.data),
   })
   const allPurchaseOrders: any[] = (purchaseOrdersData as any)?.data ?? []
@@ -539,7 +569,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryFn: () =>
       purchaseOrdersService
         .findById(watchPurchaseOrderId as number, {
-          include: 'purchase_order_details,purchase_order_details.product_uom',
+          include: 'supplier,supplier_branch,purchase_order_details,purchase_order_details.product_uom',
         })
         .then((r) => r.data),
     enabled: !!watchPurchaseOrderId && (watchPurchaseOrderId as number) > 0,
@@ -855,9 +885,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     return Array.from(map.values())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productUoms, poDetail, soDetail])
+  // The selected PO stays listed even when the current search result set
+  // doesn't contain it (poDetail is fetched by id).
   const purchaseOrderOptions = [
     { value: 0, label: 'No linked PO' },
-    ...purchaseOrders.map((po: any) => ({
+    ...[
+      ...(poDetail && !purchaseOrders.some((po: any) => po.id === poDetail.id) ? [poDetail] : []),
+      ...purchaseOrders,
+    ].map((po: any) => ({
       value: po.id as number,
       label: `${po.code ?? `PO-${po.id}`} - ${po.supplier?.name ?? po.supplier_branch?.name ?? 'Internal / No Supplier'}`,
       sublabel: po.date ? po.date : undefined,
@@ -1480,7 +1515,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     <SearchableSelect
                       value={field.value ?? 'GENERAL'}
                       onChange={field.onChange}
-                      options={companyOptions}
+                      options={buildCompanyOptions(companies, field.value)}
                       placeholder="Pilih owner..."
                       searchPlaceholder="Cari perusahaan..."
                       loading={companiesLoading}
@@ -1507,7 +1542,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
                     error={errors.source_stage?.message as string | undefined}
-                    onSearchChange={setCompanySearch}
                     // Stage dropdown filters client-side only — no server-side search needed
                   />
                 )}
@@ -1580,10 +1614,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 <SearchableSelect
                   value={dimTransferToOwner}
                   onChange={setDimTransferToOwner}
-                  options={companyOptions}
+                  options={buildCompanyOptions(targetCompanies, dimTransferToOwner)}
                   placeholder="Pilih owner tujuan..."
                   searchPlaceholder="Cari perusahaan..."
-                  loading={companiesLoading}
+                  loading={targetCompaniesLoading}
+                  onSearchChange={setTargetCompanySearch}
                 />
               </div>
 

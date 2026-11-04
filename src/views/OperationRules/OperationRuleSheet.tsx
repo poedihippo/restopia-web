@@ -40,12 +40,20 @@ export default function OperationRuleSheet({ open, onClose, editData }: Operatio
 
   
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
-    queryKey: ['branches', 'list-all'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-    enabled: isSuperadmin,
+    queryKey: ['branches', 'options', debouncedDropdownSearch],
+    queryFn: () => branchesService.list({ 'filter[search]': debouncedDropdownSearch || undefined, per_page: 30 } as any).then((r) => r.data),
+    enabled: isSuperadmin && open,
+    placeholderData: (prev: any) => prev,
   })
   const allBranches = (branchesData as any)?.data ?? []
-  const branchOptions = (isSuperadmin ? allBranches : user?.branches ?? []).map((b: any) => ({
+  // Keep the edited record's branch selectable even when it is not in the
+  // current search page.
+  const branchSource = isSuperadmin ? allBranches : user?.branches ?? []
+  const branchRows =
+    editData?.branch?.id && !branchSource.some((b: any) => b.id === editData.branch.id)
+      ? [editData.branch, ...branchSource]
+      : branchSource
+  const branchOptions = branchRows.map((b: any) => ({
     value: b.id as number,
     label: (b.name as string) ?? '',
     sublabel: b.code as string | undefined,

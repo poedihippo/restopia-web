@@ -12,6 +12,8 @@ import { parseNumberId } from '@/utils/numberFormat'
 interface PosModalsProps {
   showPayment: boolean
   setShowPayment: (val: boolean) => void
+  /** Returns to the order review step (customer, voucher, note). */
+  onBackToReview?: () => void
   showReceipt: boolean
   setShowReceipt: (val: boolean) => void
   showPreorder: boolean
@@ -45,6 +47,8 @@ interface PosModalsProps {
   creditByUserId: number | null
   setCreditByUserId: (val: number | null) => void
   creditUsers: any[]
+  /** Server-side search for the credit-user picker. */
+  setCreditUserSearch?: (val: string) => void
   creditType?: 'user' | 'customer'
   setCreditType?: (val: 'user' | 'customer') => void
   selectedCustomerId?: number | null
@@ -104,6 +108,7 @@ interface PosModalsProps {
 
 export default function PosModals({
   showPayment,
+  onBackToReview,
   setShowPayment,
   showReceipt,
   setShowReceipt,
@@ -137,6 +142,7 @@ export default function PosModals({
   creditByUserId,
   setCreditByUserId,
   creditUsers,
+  setCreditUserSearch,
   creditType = 'user',
   setCreditType,
   selectedCustomerId = null,
@@ -188,9 +194,6 @@ export default function PosModals({
   isHistoryLoading,
 }: PosModalsProps) {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const [splitMethodId, setSplitMethodId] = React.useState<number | null>(null)
   const [splitAmount, setSplitAmount] = React.useState<string>('')
 
@@ -627,7 +630,7 @@ export default function PosModals({
                           ]}
                           placeholder="Search user..."
                           searchPlaceholder="Search users..."
-                          onSearchChange={setDropdownSearch}
+                          onSearchChange={setCreditUserSearch}
 />
                       </div>
                     )}
@@ -838,7 +841,7 @@ export default function PosModals({
                       ]}
                       placeholder="Search user..."
                       searchPlaceholder="Search users..."
-                      onSearchChange={setDropdownSearch}
+                      onSearchChange={setCreditUserSearch}
                     />
                     <span
                       style={{
@@ -1083,7 +1086,28 @@ export default function PosModals({
             </>
             )}
 
-            {/* Confirm button */}
+            {/* Back + Confirm */}
+            <div style={{ display: 'flex', gap: 10 }}>
+            {onBackToReview && (
+              <button
+                type="button"
+                onClick={onBackToReview}
+                disabled={isPending}
+                style={{
+                  padding: '14px 18px',
+                  background: 'var(--surface)',
+                  color: 'var(--foreground)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: isPending ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                ← Kembali
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -1146,7 +1170,7 @@ export default function PosModals({
               }}
               disabled={isPending || !salesChannelId || !canConfirm}
               style={{
-                width: '100%',
+                flex: 1,
                 padding: '14px 24px',
                 background: (isPending || !salesChannelId || !canConfirm) ? 'var(--foreground-subtle)' : 'var(--accent)',
                 color: 'white',
@@ -1172,6 +1196,7 @@ export default function PosModals({
                         ? 'Confirm DP'
                         : 'Confirm Payment'}
             </button>
+            </div>
           </div>
         </div>
       )}

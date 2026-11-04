@@ -7,7 +7,8 @@ import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/useDebounce'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -172,19 +173,48 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const taxes = (taxesData as any)?.data ?? []
 
   // Chart of accounts for additional charges — every charge needs one
-  // (required by the API), searchable by name or code.
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-all', 'charges'],
+  // (required by the API), searched on the server by name or code.
+  const [coaSearch, setCoaSearch] = useState('')
+  const coaSearchDebounced = useDebounce(coaSearch, 400)
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-options', 'charges', coaSearchDebounced],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .list({
+          per_page: 50,
+          sort: 'code',
+          'filter[is_active]': 'true',
+          'filter[search]': coaSearchDebounced || undefined,
+        } as any)
         .then((r) => (r.data as any)?.data ?? []),
   })
-  const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
+  const toCoaOption = (coa: any) => ({
     value: coa.id as number,
     label: (coa.name as string) ?? `COA #${coa.id}`,
     sublabel: (coa.code as string) ?? undefined,
-  }))
+  })
+  // Accounts already on the PO (edit mode) may fall outside the current
+  // result set; /chart-of-accounts has no filter[ids], so fetch them by id.
+  const selectedCoaIds: number[] = Array.from(
+    new Set(watchAdditionalCharges.map((c: any) => Number(c?.chart_of_account_id) || 0).filter((id: number) => id > 0)),
+  )
+  const missingCoaIds = selectedCoaIds.filter(
+    (id) => !((coaData as any) ?? []).some((c: any) => c.id === id),
+  )
+  const missingCoaQueries = useQueries({
+    queries: missingCoaIds.map((id) => ({
+      queryKey: ['chart-of-account', id],
+      staleTime: 300_000,
+      queryFn: () => chartOfAccountsService.findById(id).then((r) => (r.data as any)?.data),
+    })),
+  })
+  // Already-fetched by-id results come from the query cache (staleTime).
+  const coaChargeOptions = [
+    ...((coaData as any) ?? []).map(toCoaOption),
+    ...missingCoaQueries.filter((q) => (q.data as any)?.id).map((q) => toCoaOption(q.data)),
+  ]
 
   const selectedTax = taxes.find((t: any) => t.id === watchTaxId)
   const taxRate = selectedTax?.rate ?? 0
@@ -1278,6 +1308,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                             placeholder="Select account... *"
                             searchPlaceholder="Search account name or code..."
                             loading={coaLoading}
+                            onSearchChange={setCoaSearch}
                             error={errors.additional_charges?.[index]?.chart_of_account_id?.message}
                             triggerStyle={{ padding: '8px 10px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
                           />

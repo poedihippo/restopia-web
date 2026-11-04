@@ -1,8 +1,12 @@
+import { useEffect } from 'react'
 import { useRouter } from 'next/router'
-import VoucherDetail from '@/views/Vouchers/VoucherDetail'
 
+// Voucher detail now opens as a side panel on the list page.
 export default function VoucherDetailPage() {
   const router = useRouter()
-  const id = Number(router.query.id)
-  return <VoucherDetail id={id} />
+  useEffect(() => {
+    if (!router.isReady) return
+    router.replace({ pathname: '/sales/vouchers', query: { detail: router.query.id } })
+  }, [router])
+  return null
 }
