@@ -153,6 +153,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     setValue,
     getValues,
     setError,
+    clearErrors,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -301,6 +302,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       productUomsService
         .list({
           'filter[ids]': lineProductUomIds.join(','),
+          include: 'product,uom',
           per_page: lineProductUomIds.length,
         } as any)
         .then((r) => r.data),
@@ -330,7 +332,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         } as any)
         .then((r) => r.data),
   })
-  const sourceInventory = (inventoryData as any)?.data ?? []
+  const sourceInventory: any[] = useMemo(() => (inventoryData as any)?.data ?? [], [inventoryData])
 
   // Available qty shown in the batch picker must be in the LINE's own uom
   // (e.g. "240 PACK"), but the matched batch row is the BASE-uom row (e.g.
@@ -377,7 +379,19 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // product_id resolution uses scalar FKs + puomToProduct map instead of
   // relying on nested includes (product_uom_batch.product_uom.product.id
   // can be null when the include is missing).
-  const getBatchOptionsForUom = (productUomId: number) => {
+  // Cache of computed batch options per product uom. Rebuilt only when the
+  // underlying data changes (see batchOptionsCache below) — with ~100 rows
+  // the old per-render full scan of sourceInventory froze the page.
+  const batchOptionsCacheRef = useRef<Map<number, any[]>>(new Map())
+  const getBatchOptionsForUom = (productUomId: number): any[] => {
+    const cached = batchOptionsCacheRef.current.get(productUomId)
+    if (cached) return cached
+    const result = computeBatchOptionsForUom(productUomId)
+    batchOptionsCacheRef.current.set(productUomId, result)
+    return result
+  }
+
+  const computeBatchOptionsForUom = (productUomId: number) => {
     const lineProductId = puomToProduct.get(productUomId)
 
     const stockBatches = sourceInventory
@@ -447,21 +461,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     for (const b of stored) merged.set(b.batchId, { ...b, stock: undefined })
     for (const b of stockBatches) merged.set(b.batchId, { ...merged.get(b.batchId), ...b })
 
-    // Temporary debug: flag when product_id resolved but zero batches matched
-    // despite sourceInventory being non-empty
-    if (lineProductId != null && merged.size === 0 && sourceInventory.length > 0) {
-      console.warn(
-        `[DeliveryForm] No batch matched for product_uom_id=${productUomId} ` +
-        `(product_id=${lineProductId}) despite ${sourceInventory.length} inventory rows.`,
-        { puomToProductSize: puomToProduct.size, sampleInv: sourceInventory.slice(0, 3) }
-      )
-    }
-
     return Array.from(merged.values())
   }
 
+  const sourceTypeForPickers = watch('source_type')
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
     queryKey: ['purchase-orders-linkable'],
+    enabled:
+      sourceTypeForPickers === 'po_from_supplier' || sourceTypeForPickers === 'po_from_branch',
+    staleTime: 60_000,
     queryFn: () =>
       purchaseOrdersService
         .list({ per_page: 1000, include: 'supplier,supplier_branch', sort: '-id' } as any)
@@ -474,6 +482,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const { data: salesOrdersData, isLoading: salesOrdersLoading } = useQuery({
     queryKey: ['sales-orders-pending', soSearchDebounced],
+    enabled: sourceTypeForPickers === 'so_to_branch',
+    staleTime: 60_000,
     queryFn: () =>
       salesOrdersService
         .list({
@@ -565,11 +575,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // needed to look up additional items beyond the PO's pre-filled list.)
   const { data: dropdownProductUomsData } = useQuery({
     queryKey: ['product-uoms-all', productSearchDebounced],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       productUomsService
         .list({
           'filter[search]': productSearchDebounced || undefined,
-          per_page: 1000,
+          per_page: 100,
           include: 'product,uom',
           'filter[is_active]': true,
         } as any)
@@ -589,23 +601,27 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         .then((r) => r.data),
   })
 
-  const linkedProductUoms: any[] = (linkedProductUomsData as any)?.data ?? []
-  const dropdownProductUoms: any[] = (dropdownProductUomsData as any)?.data ?? []
+  const linkedProductUoms: any[] = useMemo(() => (linkedProductUomsData as any)?.data ?? [], [linkedProductUomsData])
+  const dropdownProductUoms: any[] = useMemo(() => (dropdownProductUomsData as any)?.data ?? [], [dropdownProductUomsData])
   // Loading = either query is still resolving. Both run in parallel.
   const productUomsLoading =
     linkedProductUomsData === undefined || dropdownProductUomsData === undefined
 
   // Merge for the puomToProduct lookup + dropdown options
+  const lineProductUoms: any[] = useMemo(() => (linePuomsData as any)?.data ?? [], [linePuomsData])
   const productUoms = useMemo(() => {
     const map = new Map<number, any>()
     for (const pu of linkedProductUoms) {
+      if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
+    }
+    for (const pu of lineProductUoms) {
       if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
     }
     for (const pu of dropdownProductUoms) {
       if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
     }
     return Array.from(map.values())
-  }, [linkedProductUoms, dropdownProductUoms])
+  }, [linkedProductUoms, dropdownProductUoms, lineProductUoms])
 
   // Authoritative lookup: product_uom_id -> product_id, built from the
   // productUoms list which is already loaded with include 'product,uom'.
@@ -642,6 +658,17 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     for (const pu of productUoms) if (pu?.id) map.set(Number(pu.id), pu)
     return map
   }, [productUoms])
+
+  // Reset the batch-options cache during render when any input changes, so
+  // the first lookup after a change recomputes with fresh data.
+  const batchCacheDeps = useRef<unknown[]>([])
+  {
+    const deps = [sourceInventory, puomToProduct, productUomById, initialData, mode]
+    if (deps.some((d, i) => d !== batchCacheDeps.current[i])) {
+      batchCacheDeps.current = deps
+      batchOptionsCacheRef.current = new Map()
+    }
+  }
 
   const lineUomInfo = (productUomId: number) => {
     const pu = productUomById.get(Number(productUomId))
@@ -812,13 +839,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const soProductUoms = (soDetail?.sales_order_details ?? [])
     .map((d: any) => d.product_uom)
     .filter(Boolean)
-  const productUomOptionsMap = new Map<number, ReturnType<typeof toProductUomOption>>()
-  ;[...productUoms, ...poProductUoms, ...soProductUoms].forEach((pu: any) => {
-    if (pu?.id && !productUomOptionsMap.has(pu.id)) {
-      productUomOptionsMap.set(pu.id, toProductUomOption(pu))
-    }
-  })
-  const productUomOptions = Array.from(productUomOptionsMap.values())
+  const productUomOptions = useMemo(() => {
+    const map = new Map<number, ReturnType<typeof toProductUomOption>>()
+    ;[...productUoms, ...poProductUoms, ...soProductUoms].forEach((pu: any) => {
+      if (pu?.id && !map.has(pu.id)) map.set(pu.id, toProductUomOption(pu))
+    })
+    return Array.from(map.values())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productUoms, poDetail, soDetail])
   const purchaseOrderOptions = [
     { value: 0, label: 'No linked PO' },
     ...purchaseOrders.map((po: any) => ({
@@ -1710,8 +1738,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       f.value && !batches.some((b: any) => b.batchId === f.value)
                         ? [...batches, { batchId: f.value, code: undefined, expiry_date: undefined, stock: undefined }]
                         : batches
-                    const batchError = errors.details?.[index]?.product_uom_batch_id
-                      ?.message as string | undefined
+                    const batchError = f.value
+                      ? undefined
+                      : (errors.details?.[index]?.product_uom_batch_id?.message as string | undefined)
                     // Show spinner when ANY of these are true:
                     // 1. sourceBranchId not yet resolved (poSourceBranchData still loading for fulfill flow)
                     // 2. inventory query has never fetched or is currently fetching
@@ -1751,9 +1780,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         ) : (
                           <select
                             value={f.value ?? 0}
-                            onChange={(e) =>
-                              f.onChange(Number(e.target.value) || undefined)
-                            }
+                            onChange={(e) => {
+                              const v = Number(e.target.value) || undefined
+                              f.onChange(v)
+                              if (v) clearErrors(`details.${index}.product_uom_batch_id`)
+                            }}
                             style={{
                               ...lineInputStyle,
                               border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'}`,
