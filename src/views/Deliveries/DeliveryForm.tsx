@@ -23,6 +23,9 @@ import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
+import { convertUp, convertDown, type ConversionEntry } from '@/utils/unitDisplay'
+
+const fmtQty = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -149,6 +152,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     control,
     setValue,
     getValues,
+    setError,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -414,15 +418,32 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
         return false
       })
-      .map((inv: any) => ({
-        batchId: inv.product_uom_batch.id as number,
-        code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
-        expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
-        stock: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
-      }))
+      .map((inv: any) => {
+        const rawStock = Number(inv.display_qty ?? inv.stock ?? inv.qty ?? 0)
+        const baseStock = inv.base_stock !== undefined && inv.base_stock !== null ? Number(inv.base_stock) : undefined
+        const baseUom: string =
+          inv.base_uom_code ??
+          inv.product_uom_batch?.product_uom?.uom?.code ??
+          ''
+        const line = lineUomInfo(productUomId)
+        // Convert base stock -> line uom; null when the chain can't reach it.
+        const converted =
+          baseStock !== undefined && baseUom && line.code
+            ? convertUp(baseStock, baseUom, line.code, line.conversions)
+            : null
+        return {
+          batchId: inv.product_uom_batch.id as number,
+          code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
+          expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
+          stock: converted ?? (baseStock ?? rawStock),
+          unit: converted !== null ? line.code : baseUom || undefined,
+          baseStock,
+          baseUom: baseUom || undefined,
+        }
+      })
 
     const stored = storedBatchesByUomId.get(productUomId) ?? []
-    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number }>()
+    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number; unit?: string; baseStock?: number; baseUom?: string }>()
     for (const b of stored) merged.set(b.batchId, { ...b, stock: undefined })
     for (const b of stockBatches) merged.set(b.batchId, { ...merged.get(b.batchId), ...b })
 
@@ -612,6 +633,23 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     }
     return map
   }, [productUoms, sourceInventory])
+
+  // product_uom_id -> product uom (with product.conversions + uom), used to
+  // show batch stock in the LINE's unit (e.g. 20.420 GR -> 9 CAN), the same
+  // way the Product Inventory page converts base stock.
+  const productUomById = useMemo(() => {
+    const map = new Map<number, any>()
+    for (const pu of productUoms) if (pu?.id) map.set(Number(pu.id), pu)
+    return map
+  }, [productUoms])
+
+  const lineUomInfo = (productUomId: number) => {
+    const pu = productUomById.get(Number(productUomId))
+    return {
+      code: (pu?.uom?.code ?? '') as string,
+      conversions: (pu?.product?.conversions ?? undefined) as ConversionEntry[] | undefined,
+    }
+  }
 
   useEffect(() => {
     if (!poDetail?.purchase_order_details?.length) return
@@ -905,7 +943,74 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     },
   })
 
+  // Frontend stock check (create only — an edited delivery already holds its
+  // own stock). Lines sharing a batch are summed in the base unit, so two
+  // lines of 5 CAN against a 9 CAN batch are caught too. The server still
+  // validates; this only stops an obviously short delivery before submitting.
+  const getStockShortages = (details: FormValues['details']) => {
+    const shortages = new Map<number, string>()
+    if (mode !== 'create' || !requiresBatch) return shortages
+
+    const perBatch = new Map<number, { need: number; available: number; baseUom: string; lines: number[] }>()
+    details.forEach((d, i) => {
+      const batchId = Number(d?.product_uom_batch_id ?? 0)
+      const qty = Number(d?.qty ?? 0)
+      if (!batchId || !(qty > 0) || !d?.product_uom_id) return
+      const batch: any = getBatchOptionsForUom(Number(d.product_uom_id)).find((b: any) => b.batchId === batchId)
+      if (!batch) return
+
+      if (batch.baseStock !== undefined && batch.baseUom) {
+        const line = lineUomInfo(Number(d.product_uom_id))
+        const needBase = line.code ? convertDown(qty, line.code, batch.baseUom, line.conversions) : null
+        if (needBase === null) {
+          // Can't reach the base unit — compare in the line's unit directly.
+          if (batch.unit && batch.unit === line.code && qty > batch.stock) {
+            shortages.set(i, `Stok tidak cukup — tersedia ${fmtQty(batch.stock)} ${batch.unit}`)
+          }
+          return
+        }
+        const agg = perBatch.get(batchId) ?? { need: 0, available: batch.baseStock, baseUom: batch.baseUom, lines: [] as number[] }
+        agg.need += needBase
+        agg.lines.push(i)
+        perBatch.set(batchId, agg)
+        return
+      }
+
+      if (batch.stock !== undefined && qty > batch.stock) {
+        shortages.set(i, `Stok tidak cukup — tersedia ${fmtQty(batch.stock)}${batch.unit ? ` ${batch.unit}` : ''}`)
+      }
+    })
+
+    for (const agg of perBatch.values()) {
+      // Small tolerance for float conversion noise.
+      if (agg.need <= agg.available + 1e-6) continue
+      for (const i of agg.lines) {
+        const d = details[i]
+        const batch: any = getBatchOptionsForUom(Number(d.product_uom_id)).find(
+          (b: any) => b.batchId === Number(d.product_uom_batch_id),
+        )
+        const shared = agg.lines.length > 1 ? ' (batch dipakai di beberapa baris)' : ''
+        shortages.set(
+          i,
+          `Stok tidak cukup — tersedia ${fmtQty(batch?.stock ?? 0)}${batch?.unit ? ` ${batch.unit}` : ''}${shared}`,
+        )
+      }
+    }
+    return shortages
+  }
+
+  const stockShortages = getStockShortages(watchDetails ?? [])
+
   const onSubmit = (values: FormValues) => {
+    const shortages = getStockShortages(values.details)
+    if (shortages.size > 0) {
+      shortages.forEach((message, i) => {
+        setError(`details.${i}.qty` as any, { type: 'stock', message })
+      })
+      const rows = Array.from(shortages.keys()).map((i) => i + 1).join(', ')
+      toast.error(`Stok tidak cukup pada baris ${rows}. Kurangi qty atau pilih batch lain.`)
+      return
+    }
     console.log('DeliveryForm onSubmit called', { ...values, total_price: totalPrice })
     if (mode === 'edit' && deliveryId) {
       updateMutation.mutate(values)
@@ -1003,7 +1108,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     const rawCode = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
     const shortCode = rawCode.length > 7 ? `${rawCode.substring(0, 7)}...` : rawCode
     if (b.stock !== undefined) {
-      return `${shortCode} (${b.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })})`
+      return `${shortCode} (${fmtQty(b.stock)}${b.unit ? ` ${b.unit}` : ''})`
     }
     return shortCode
   }
@@ -1662,7 +1767,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                             </option>
                             {batchOptions.map((b: any) => {
                               const stockTitle = b.stock !== undefined
-                                ? ` | Stock: ${b.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
+                                ? ` | Stock: ${fmtQty(b.stock)}${b.unit ? ` ${b.unit}` : ''}` +
+                                  (b.baseStock !== undefined && b.unit !== b.baseUom
+                                    ? ` (${fmtQty(b.baseStock)} ${b.baseUom ?? ''})`
+                                    : '')
                                 : ''
                               return (
                                 <option
@@ -1689,14 +1797,31 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 />
               )}
 
-              <input
-                type="number"
-                min={0.001}
-                step={0.001}
-                {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                style={lineInputStyle}
-                onWheel={(e) => (e.target as HTMLElement).blur()}
-              />
+              {(() => {
+                const shortage = stockShortages.get(index)
+                const qtyError = errors.details?.[index]?.qty?.message as string | undefined
+                const message = shortage ?? qtyError
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                    <input
+                      type="number"
+                      min={0.001}
+                      step={0.001}
+                      {...register(`details.${index}.qty`, { valueAsNumber: true })}
+                      style={{
+                        ...lineInputStyle,
+                        border: `1px solid ${message ? 'var(--destructive)' : 'var(--border)'}`,
+                      }}
+                      onWheel={(e) => (e.target as HTMLElement).blur()}
+                    />
+                    {message && (
+                      <span style={{ fontSize: 10, color: 'var(--destructive)', lineHeight: 1.3 }}>
+                        {message}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
 
               <Controller
                 name={`details.${index}.status`}

@@ -74,6 +74,24 @@ const toApiOrder = (payload: any, opts: { keepNull?: string[] } = {}) => {
   )
 }
 
+// Two requests with the same Idempotency-Key at the same moment: the second
+// gets 409 "already in progress". Retrying with the SAME key returns the stored
+// response once the first request has answered.
+const isIdempotencyInProgress = (err: any): boolean =>
+  err?.response?.status === 409 &&
+  /already in progress/i.test(String(err?.response?.data?.message ?? ''))
+
+const withIdempotencyRetry = async <T,>(fn: () => Promise<T>, attempts = 5): Promise<T> => {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (!isIdempotencyInProgress(err) || i >= attempts - 1) throw err
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)))
+    }
+  }
+}
+
 export function usePosLogic() {
   const { user } = useAuth()
   const printer = usePrinter()
@@ -111,6 +129,12 @@ export function usePosLogic() {
   const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
   const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null)
+  // PATCH refuses a changed settlement_status — the stored one is sent back and
+  // any change goes through the bulk settlement endpoint.
+  const [editingOrderSettlement, setEditingOrderSettlement] = useState<string | null>(null)
+  // Blocks a second submit while the first is still preparing (customer
+  // resolve) or in flight.
+  const submitLockRef = useRef(false)
   const [batchPickerGroup, setBatchPickerGroup] = useState<any | null>(null)
   const [bundlePickerGroup, setBundlePickerGroup] = useState<any | null>(null)
   const [salesChannelId, setSalesChannelId] = useState<number | null>(null)
@@ -321,6 +345,7 @@ export function usePosLogic() {
     setOrderNote(order.description ?? '')
     setEditingOrderId(order.id)
     setEditingOrderCode(order.code)
+    setEditingOrderSettlement(order.settlement_status ?? null)
     // Restore credit fields when re-opening a held order
     setCreditByUserId(order.credit_by_id ?? null)
     setCreditType(order.credit_type === 'customer' ? 'customer' : 'user')
@@ -610,6 +635,7 @@ export function usePosLogic() {
     setShowReceipt(false)
     setEditingOrderId(null)
     setEditingOrderCode(null)
+    setEditingOrderSettlement(null)
     idemRef.current = null
   }, [])
 
@@ -905,13 +931,17 @@ export function usePosLogic() {
       if (editingOrderId) {
         return salesOrdersService.update(
           editingOrderId,
-          toApiOrder(payload, { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] }) as any,
+          toApiOrder(
+            { ...payload, settlement_status: editingOrderSettlement ?? payload.settlement_status },
+            { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] },
+          ) as any,
         )
       }
       const body = toApiOrder(payload)
-      return api
-        .post('/sales-orders', body, { headers: { 'Idempotency-Key': idemKeyFor('hold', body) } })
-        .then((r) => r.data)
+      const key = idemKeyFor('hold', body)
+      return withIdempotencyRetry(() =>
+        api.post('/sales-orders', body, { headers: { 'Idempotency-Key': key } }),
+      ).then((r) => r.data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
@@ -923,21 +953,33 @@ export function usePosLogic() {
   })
 
   const handleHold = async () => {
+    if (submitLockRef.current || isHoldPending || isPending) return
+    submitLockRef.current = true
+    let dispatched = false
+    try {
+      dispatched = await prepareHold()
+    } finally {
+      if (!dispatched) submitLockRef.current = false
+    }
+  }
+
+  // Returns true once the mutation was dispatched (its onSettled releases the lock).
+  const prepareHold = async (): Promise<boolean> => {
     if (cart.length === 0 && bundleCart.length === 0) {
       toast.error('Cart is empty')
-      return
+      return false
     }
 
     if (!salesChannelId) {
       toast.error('Please select a Sales Channel first')
-      return
+      return false
     }
 
     const { creditById, settlementStatus, creditType: resolvedCreditType } = getSettlement()
 
     if (resolvedCreditType === 'user' && !creditById) {
       toast.error('Select a credit user')
-      return
+      return false
     }
     if (
       resolvedCreditType === 'customer' &&
@@ -945,7 +987,7 @@ export function usePosLogic() {
       !manualCustomerName
     ) {
       toast.error('Select a customer or type a customer name for customer credit')
-      return
+      return false
     }
 
     const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
@@ -969,15 +1011,21 @@ export function usePosLogic() {
       details: buildDetails('pending', !!editingOrderId),
     }
 
-    holdMutate(payload)
+    holdMutate(payload, { onSettled: () => { submitLockRef.current = false } })
+    return true
   }
 
   const { mutate, isPending } = useMutation({
     mutationFn: (payload: any) => {
       if (editingOrderId) {
+        // Send the stored settlement_status back unchanged — PATCH refuses a
+        // change (422); onSuccess moves it through the bulk endpoint instead.
         return salesOrdersService.update(
           editingOrderId,
-          toApiOrder(payload, { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] }) as any,
+          toApiOrder(
+            { ...payload, settlement_status: editingOrderSettlement ?? payload.settlement_status },
+            { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] },
+          ) as any,
         )
       }
       // Payment amount: full = sale total; partial (DP) = user-entered amount.
@@ -1026,17 +1074,20 @@ export function usePosLogic() {
         details: payload.details,
         payments: checkoutPayments,
       }
-      return salesOrdersService.checkout(body, idemKeyFor('checkout', body))
+      const key = idemKeyFor('checkout', body)
+      return withIdempotencyRetry(() => salesOrdersService.checkout(body, key))
     },
-    onSuccess: async (_res: any, variables: any) => {
+    onSuccess: async (res: any, variables: any) => {
       // Checkout is atomic — payment already created by the backend.
       // Only create payments separately for edited (held) orders. Online
       // orders never get a payment here: the marketplace payout settles them.
       if (editingOrderId && variables.type !== 'online') {
         const salesOrderId = editingOrderId
+        // Pay the server's total (voucher discount is rounded server-side), not a local recompute.
+        const serverTotal = Number(res?.data?.data?.total_price)
         const paidAmount = paymentMode === 'partial'
           ? Number(partialAmount.replace(/\D/g, '')) || 0
-          : variables.total_price
+          : Number.isFinite(serverTotal) ? serverTotal : variables.total_price
 
         const dateStr = new Date().toISOString().split('T')[0]
         let paymentsPayload: any[] = []
@@ -1064,16 +1115,38 @@ export function usePosLogic() {
               date: dateStr,
               payments: paymentsPayload
             }
-            await paymentsService.create(
-              paymentBody as any,
-              idemKeyFor(`pay:${salesOrderId}`, paymentBody),
-            )
+            const payKey = idemKeyFor(`pay:${salesOrderId}`, paymentBody)
+            await withIdempotencyRetry(() => paymentsService.create(paymentBody as any, payKey))
           } catch (err: any) {
             toast.error(
               'Order updated but payment recording failed: ' +
-              (err?.response?.data?.message ?? 'Unknown error'),
+              getApiErrorMessage(err, 'Unknown error'),
             )
           }
+        }
+      }
+
+      // A held order's settlement can't change through PATCH. If the payment
+      // didn't already move it to the target status, use the bulk endpoint.
+      // A partial (DP) payment never settles the order.
+      const wantsChange =
+        !!variables.settlement_status &&
+        variables.settlement_status !== editingOrderSettlement &&
+        !(paymentMode === 'partial' && variables.settlement_status === 'settled')
+      if (editingOrderId && wantsChange) {
+        try {
+          const fresh = await salesOrdersService.findById(editingOrderId)
+          const current = (fresh.data as any)?.data?.settlement_status
+          if (current !== variables.settlement_status) {
+            await salesOrdersService.bulkUpdateSettlement({
+              items: [{ sales_order_id: editingOrderId, settlement_status: variables.settlement_status }],
+            })
+          }
+        } catch (err: any) {
+          toast.error(
+            'Order updated but settlement status could not be changed: ' +
+            getApiErrorMessage(err, 'Unknown error'),
+          )
         }
       }
 
@@ -1095,9 +1168,21 @@ export function usePosLogic() {
   })
 
   const handleConfirmPayment = async () => {
+    if (submitLockRef.current || isPending || isHoldPending) return
+    submitLockRef.current = true
+    let dispatched = false
+    try {
+      dispatched = await prepareCheckout()
+    } finally {
+      if (!dispatched) submitLockRef.current = false
+    }
+  }
+
+  // Returns true once the mutation was dispatched (its onSettled releases the lock).
+  const prepareCheckout = async (): Promise<boolean> => {
     if (orderType !== 'online' && (isSplitPayment ? splitPayments.length === 0 : !paymentMethodId)) {
       toast.error('Select a payment method')
-      return
+      return false
     }
 
     const { creditById, settlementStatus, creditType: resolvedCreditType } = getSettlement()
@@ -1106,7 +1191,7 @@ export function usePosLogic() {
     // customer ⇒ a real customer_id (picked or created from a manual name).
     if (resolvedCreditType === 'user' && !creditById) {
       toast.error('Please select a credit user')
-      return
+      return false
     }
     if (
       resolvedCreditType === 'customer' &&
@@ -1114,7 +1199,7 @@ export function usePosLogic() {
       !manualCustomerName
     ) {
       toast.error('Please select a customer or type a customer name for customer credit')
-      return
+      return false
     }
 
     const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
@@ -1143,7 +1228,8 @@ export function usePosLogic() {
       details: buildDetails('completed', !!editingOrderId),
     }
 
-    mutate(payload)
+    mutate(payload, { onSettled: () => { submitLockRef.current = false } })
+    return true
   }
 
   // ---------------------------------------------------------------------------

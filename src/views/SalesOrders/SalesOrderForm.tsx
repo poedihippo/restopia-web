@@ -48,6 +48,28 @@ interface LineItem {
   price: number
   status: 'pending' | 'process' | 'completed'
   description: string
+  /** Only an editable product uom accepts a custom price; bundles never do. */
+  price_editable: boolean
+  /** Price the saved order already carries — accepted unchanged on update. */
+  stored_price?: number
+}
+
+// A product uom's price_editable flag, wherever the row nests it.
+const priceEditableOf = (src: any): boolean =>
+  Boolean(
+    src?.product_uom_batch?.product_uom?.price_editable ??
+    src?.product_uom?.price_editable ??
+    src?.price_editable ??
+    false,
+  )
+
+// Price sent per line: editable uom -> typed price; unchanged saved line -> its
+// stored price; otherwise omitted so the server applies the price list
+// (sending a different price gives 422 "price ... is not editable").
+const linePriceForApi = (i: LineItem): number | undefined => {
+  if (i.type === 'product' && i.price_editable) return i.price
+  if (i.stored_price !== undefined && i.price === i.stored_price) return i.stored_price
+  return undefined
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -184,9 +206,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         name,
         code,
         qty: d.qty,
-        price: d.price,
+        price: Number(d.price),
         status: d.status,
         description: d.description ?? '',
+        price_editable: !isBundle && (priceEditableOf(snap) || priceEditableOf(d.product_inventory)),
+        stored_price: Number(d.price),
       }
     })
   })
@@ -265,6 +289,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const isOnline = type === 'online'
   const isLockedOnline =
     isEdit && editingOrder?.type === 'online' && editingOrder?.settlement_status === 'settled'
+  // Credit type is fixed once the order has payments (void them first).
+  const hasPayments =
+    isEdit &&
+    (Number(editingOrder?.total_payment ?? 0) > 0 ||
+      ['partial', 'paid'].includes(editingOrder?.payment_status))
+  // A voucher discount is computed (and rounded) by the server.
+  const hasVoucher = !!voucherId
 
   const { data: paymentMethodsData } = useQuery({
     queryKey: ['so-payment-methods'],
@@ -392,6 +423,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
         const newItems = poDetails.map((d: any) => {
           const inv = inventories.find((i: any) => i.product_uom_batch?.product_uom_id === d.product_uom_id)
+          const uom = inv?.product_uom_batch?.product_uom ?? inv?.product_uom ?? d.product_uom
+          const editable = priceEditableOf(inv) || priceEditableOf(d)
+          // A non-editable uom is sold at its list price, not the PO price.
+          const listPrice = Number(uom?.base_price ?? d.price ?? 0)
 
           return {
             type: 'product' as const,
@@ -406,9 +441,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               : getProductUomName(d.product_uom, d.product_uom?.product?.name) || 'Unknown Product',
             code: inv?.code ?? d.product_uom?.code ?? '',
             qty: d.qty,
-            price: d.price,
+            price: editable ? Number(d.price) : listPrice,
             status: 'completed' as const,
             description: d.description ?? '',
+            price_editable: editable,
           }
         })
 
@@ -454,6 +490,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             price,
             status: 'pending',
             description: '',
+            price_editable: priceEditableOf(p),
           },
         ]
       })
@@ -489,6 +526,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           price: b.price ?? 0,
           status: 'pending',
           description: '',
+          price_editable: false,
         },
       ]
     })
@@ -580,7 +618,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         discount_price: discountPrice,
         total_price: total,
         status,
-        settlement_status: settlementStatus,
+        // PATCH refuses a changed settlement_status — send the stored one back;
+        // settling/unsettling goes through the bulk settlement endpoint.
+        settlement_status: isEdit ? (editingOrder?.settlement_status ?? settlementStatus) : settlementStatus,
         description: description || undefined,
         tax_id: taxId,
         additional_charges: additionalCharges
@@ -597,7 +637,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           bundle_details: i.bundle_details ?? null,
           purchase_order_detail_id: i.purchase_order_detail_id || undefined,
           qty: i.qty,
-          price: i.price,
+          price: linePriceForApi(i),
           status: i.status,
           description: i.description || undefined,
         })),
@@ -836,8 +876,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             <label style={labelStyle}>Settlement Status</label>
             <select
               value={settlementStatus}
-              disabled={isOnline}
-              title={isOnline ? 'Online orders are settled from the Settle Payout screen' : undefined}
+              disabled={isOnline || isEdit}
+              title={
+                isOnline
+                  ? 'Online orders are settled from the Settle Payout screen'
+                  : isEdit
+                    ? 'Settlement status cannot be changed here — use bulk settlement on the Sales Orders list'
+                    : undefined
+              }
               onChange={(e) =>
                 setSettlementStatus(
                   e.target.value as 'pending' | 'credit' | 'settled' | 'cancelled'
@@ -850,6 +896,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               <option value="settled">Settled</option>
               <option value="cancelled">Cancelled</option>
             </select>
+            {isEdit && !isOnline && (
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', display: 'block', marginTop: 4 }}>
+                Change settlement via bulk settlement on the Sales Orders list.
+              </span>
+            )}
           </div>
           {settlementStatus === 'credit' && (
             <div
@@ -873,6 +924,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               </label>
               <select
                 value={creditType}
+                disabled={hasPayments}
+                title={hasPayments ? 'Credit type cannot be changed once the order has payments — void the payments first' : undefined}
                 onChange={(e) => {
                   const v = e.target.value as 'user' | 'customer'
                   setCreditType(v)
@@ -990,6 +1043,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               type="text"
               inputMode="numeric"
               value={formatNumber(discountPrice, getCanReadPrice())}
+              disabled={hasVoucher}
+              title={hasVoucher ? 'Discount comes from the voucher and is calculated by the server' : undefined}
               onChange={(e) => {
                 const raw = e.target.value.replace(/[^\d]/g, '')
                 setDiscountPrice(raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -1675,19 +1730,28 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                       }}
                     />
                   </td>
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+                  <td
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}
+                    title={
+                      item.price_editable
+                        ? undefined
+                        : item.type === 'bundle'
+                          ? 'Bundles are sold at the bundle price'
+                          : 'Price follows the price list (product uom is not price editable)'
+                    }
+                  >
                     <LocalizedNumberInput
                       value={item.price}
                       onChange={(val) => updateItem(idx, 'price', Math.max(0, val))}
                       decimals={2}
-                      disabled={!getCanReadPrice()}
+                      disabled={!getCanReadPrice() || !item.price_editable}
                       style={{
                         width: 110,
                         height: 32,
                         padding: '0 8px',
                         fontSize: 13,
-                        background: !getCanReadPrice() ? 'var(--surface)' : undefined,
-                        cursor: !getCanReadPrice() ? 'not-allowed' : undefined,
+                        background: !getCanReadPrice() || !item.price_editable ? 'var(--surface)' : undefined,
+                        cursor: !getCanReadPrice() || !item.price_editable ? 'not-allowed' : undefined,
                       }}
                     />
                   </td>

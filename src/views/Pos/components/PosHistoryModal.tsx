@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import { useAuth } from '@/hooks/useAuth'
 
 const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
@@ -44,6 +45,8 @@ export default function PosHistoryModal({
   isHistoryLoading,
 }: PosHistoryModalProps) {
   const qc = useQueryClient()
+  const { hasPermission } = useAuth()
+  const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
 
   const returnOrderMutation = useMutation({
     mutationFn: (order: { id: number; code?: string }) => salesOrdersService.returnOrder(order.id),
@@ -266,7 +269,8 @@ export default function PosHistoryModal({
               </div>
 
               {/* Return button — only for final orders without deliveries/invoices, not already cancelled */}
-              {order.status === 'final' &&
+              {canReturn &&
+                order.status === 'final' &&
                 order.settlement_status !== 'cancelled' &&
                 !order.has_delivery &&
                 !order.has_invoice && (
