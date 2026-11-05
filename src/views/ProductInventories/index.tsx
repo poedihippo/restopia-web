@@ -36,7 +36,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Boxes,
-  AlertTriangle,
   Download,
   Loader2,
   SlidersHorizontal,
@@ -315,6 +314,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           sort: '-id',
           include: 'branch,product_uom_batch,product_uom,product,uom',
           'filter[search]': debouncedSearch || undefined,
+          // Default hanya inventori aktif (kolom Status sudah tidak ditampilkan).
+          'filter[status]': 'active',
           'filter[stock_gte]': debouncedStockGte || undefined,
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
@@ -711,7 +712,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 { label: 'Stage', width: 110 },
                 { label: 'Location', width: 120 },
                 { label: 'Qty', width: 100 },
-                { label: 'Status', width: 110 },
                 { label: '', width: 110 },
               ].map(({ label, width }, i) => (
                 <th
@@ -736,7 +736,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -765,7 +765,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             {isError && (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={9}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -780,7 +780,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={9}>
                   <div
                     style={{
                       padding: 48,
@@ -1000,27 +1000,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     </td>
 
                     <>
-                      {/* Status */}
-                      <td style={{ padding: '12px 16px' }}>
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            padding: '2px 10px',
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 500,
-                            background: isLow
-                              ? 'var(--warning-bg)'
-                              : 'var(--success-bg)',
-                            color: isLow ? 'var(--warning)' : 'var(--success)',
-                          }}
-                        >
-                          {isLow && <AlertTriangle size={10} />}
-                          {isLow ? 'Low Stock' : 'OK'}
-                        </span>
-                      </td>
                       {/* Actions */}
                       <td style={{ padding: '12px 16px' }}>
                         <div
