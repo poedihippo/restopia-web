@@ -148,6 +148,8 @@ export default function InvoiceForm() {
   const [soChannel, setSoChannel] = useState<string | number>('')
   const [soDateGte, setSoDateGte] = useState('')
   const [soDateLte, setSoDateLte] = useState('')
+  // Outlet filter — key from outletKeyOf ('buyer:<id>' | 'own:<id>' | 'none')
+  const [soOutlet, setSoOutlet] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setSoSearchDebounced(soSearch), 400)
@@ -217,30 +219,55 @@ export default function InvoiceForm() {
     branchList.find((b) => b.id === so?.buyer_branch_id)?.name ??
     (String(so?.branch?.type ?? '').toLowerCase() === 'outlet' ? so?.branch?.name : undefined) ??
     '—'
+  // Same resolution as outletNameOf, as a stable grouping key. `buyer:` keys
+  // can be filtered on the server (filter[buyer_branch_id]); an outlet's own
+  // SOs (`own:`) and unresolved ones (`none`) are filtered client-side.
+  const outletKeyOf = (so: {
+    buyer_branch_id?: number | null
+    branch_id?: number | null
+    branch?: { type?: string } | null
+  }): string => {
+    if (so?.buyer_branch_id) return `buyer:${so.buyer_branch_id}`
+    if (String(so?.branch?.type ?? '').toLowerCase() === 'outlet' && so?.branch_id) return `own:${so.branch_id}`
+    return 'none'
+  }
+  const soOutletBuyerId = soOutlet.startsWith('buyer:') ? Number(soOutlet.slice(6)) : undefined
 
   // Fetch final SOs yang belum di-invoice (filter status/has_invoice dikunci
   // karena aturan bisnis invoice; filter lain menyusul seperti menu Sales Order)
+  const soBaseParams = {
+    per_page: 1000,
+    'filter[status]': 'final',
+    'filter[has_invoice]': 'false',
+    'filter[search]': soSearchDebounced || undefined,
+    'filter[settlement_status]': soSettlement || undefined,
+    'filter[payment_status]': soPayment || undefined,
+    'filter[credit_type]': soCreditType || undefined,
+    'filter[type]': soType || undefined,
+    'filter[sales_channel_id]': soChannel === '' ? undefined : Number(soChannel),
+    'filter[date_gte]': soDateGte || undefined,
+    'filter[date_lte]': soDateLte || undefined,
+    include: 'branch,buyer_branch,customer,sales_channel,sales_order_details,additional_charges',
+    sort: '-created_at',
+  }
+  const soFilterKey = [
+    soSearchDebounced, soSettlement, soPayment, soCreditType, soType,
+    soChannel, soDateGte, soDateLte,
+  ]
+  // All outlets — feeds the per-outlet recap cards.
   const { data: soData, isLoading: soLoading } = useQuery({
-    queryKey: [
-      'sales-orders', 'final',
-      soSearchDebounced, soSettlement, soPayment, soCreditType, soType,
-      soChannel, soDateGte, soDateLte,
-    ],
-    queryFn: () => salesOrdersService.list({
-      per_page: 100,
-      'filter[status]': 'final',
-      'filter[has_invoice]': 'false',
-      'filter[search]': soSearchDebounced || undefined,
-      'filter[settlement_status]': soSettlement || undefined,
-      'filter[payment_status]': soPayment || undefined,
-      'filter[credit_type]': soCreditType || undefined,
-      'filter[type]': soType || undefined,
-      'filter[sales_channel_id]': soChannel === '' ? undefined : Number(soChannel),
-      'filter[date_gte]': soDateGte || undefined,
-      'filter[date_lte]': soDateLte || undefined,
-      include: 'branch,buyer_branch,customer,sales_channel,sales_order_details,additional_charges',
-      sort: '-created_at'
-    } as any).then(res => res.data),
+    queryKey: ['sales-orders', 'final', ...soFilterKey],
+    queryFn: () => salesOrdersService.list(soBaseParams as any).then(res => res.data),
+  })
+  // One buyer outlet, filtered on the server.
+  const { data: soOutletData, isLoading: soOutletLoading, isError: soOutletError } = useQuery({
+    queryKey: ['sales-orders', 'final', 'buyer', soOutletBuyerId, ...soFilterKey],
+    enabled: !!soOutletBuyerId,
+    retry: false,
+    queryFn: () =>
+      salesOrdersService
+        .list({ ...soBaseParams, 'filter[buyer_branch_id]': soOutletBuyerId } as any)
+        .then(res => res.data),
   })
 
   // SO tanpa satu pun baris yang bisa ditagih (belum diterima / sudah
@@ -250,6 +277,40 @@ export default function InvoiceForm() {
     (so.sales_order_details ?? []).some((line) => billableQtyOf(line) > 0),
   )
   const hiddenSoCount = fetchedSOs.length - availableSOs.length
+
+  // Per-outlet recap of what can still be invoiced — shown before the list.
+  const outletSummaries = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; count: number; billable: number }>()
+    availableSOs.forEach((so) => {
+      const key = outletKeyOf(so)
+      const entry = map.get(key) ?? { key, name: outletNameOf(so), count: 0, billable: 0 }
+      entry.count += 1
+      entry.billable += (so.sales_order_details ?? []).reduce(
+        (s, line) => s + billableQtyOf(line) * Number(line.price ?? 0),
+        0,
+      )
+      map.set(key, entry)
+    })
+    return Array.from(map.values()).sort((a, b) => b.billable - a.billable)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableSOs, branchList])
+  const isBillable = (so: InvoiceSoRow) =>
+    (so.sales_order_details ?? []).some((line) => billableQtyOf(line) > 0)
+  // Server-filtered rows when available; otherwise (own/none keys, or the
+  // filter refused) narrow the all-outlet set in the browser.
+  const outletServerSOs =
+    soOutletBuyerId && !soOutletError
+      ? ((soOutletData as unknown as { data?: InvoiceSoRow[] } | undefined)?.data ?? []).filter(isBillable)
+      : null
+  const visibleSOs = !soOutlet
+    ? availableSOs
+    : (outletServerSOs ?? availableSOs).filter((so) => outletKeyOf(so) === soOutlet)
+  const listLoading = soLoading || (!!soOutletBuyerId && soOutletLoading)
+  // Lookups for selection cover both sets.
+  const selectableSOs = outletServerSOs
+    ? [...availableSOs, ...outletServerSOs.filter((so) => !availableSOs.some((a) => a.id === so.id))]
+    : availableSOs
+  const allBillable = outletSummaries.reduce((s, o) => s + o.billable, 0)
 
   // Chart of accounts for standalone (custom) charges — required by the API.
   // Searched on the server; SearchableSelect keeps the picked label cached.
@@ -281,7 +342,7 @@ export default function InvoiceForm() {
         // Deselect
         const next = prev.filter(id => id !== soId)
         // Remove related details and charges
-        const so = availableSOs.find((s: any) => s.id === soId)
+        const so = selectableSOs.find((s: any) => s.id === soId)
         if (so) {
           setDetails(d => {
             const copy = { ...d }
@@ -297,10 +358,10 @@ export default function InvoiceForm() {
         return next
       } else {
         // First check branch rule: all must be same branch
-        const newSo = availableSOs.find((s: any) => s.id === soId)
+        const newSo = selectableSOs.find((s: any) => s.id === soId)
         if (prev.length > 0) {
           const firstSoId = prev[0]
-          const firstSo = availableSOs.find((s: any) => s.id === firstSoId)
+          const firstSo = selectableSOs.find((s: any) => s.id === firstSoId)
           if (firstSo && newSo && firstSo.branch_id !== newSo.branch_id) {
             toast.error('All selected Sales Orders must belong to the same branch.')
             return prev
@@ -530,6 +591,19 @@ export default function InvoiceForm() {
                   style={{ ...soFilterControl, width: 200 }}
                 />
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={soFilterLabel}>Outlet</span>
+                <select
+                  value={soOutlet}
+                  onChange={(e) => setSoOutlet(e.target.value)}
+                  style={{ ...soFilterControl, minWidth: 170 }}
+                >
+                  <option value="">All Outlets</option>
+                  {outletSummaries.map((o) => (
+                    <option key={o.key} value={o.key}>{o.name} ({o.count})</option>
+                  ))}
+                </select>
+              </div>
               {!isWarehouseBranch && (
               <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -598,9 +672,66 @@ export default function InvoiceForm() {
                 {hiddenSoCount} sales order disembunyikan karena barangnya belum diterima atau sudah ditagih penuh.
               </p>
             )}
-            {soLoading ? (
+            {/* Per-outlet recap — click a card to filter the list below */}
+            {!soLoading && outletSummaries.length > 0 && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                  gap: 10,
+                  marginBottom: 16,
+                }}
+              >
+                {[
+                  { key: '', name: 'All Outlets', count: availableSOs.length, billable: allBillable },
+                  ...outletSummaries,
+                ].map((o) => {
+                  const active = soOutlet === o.key
+                  return (
+                    <button
+                      key={o.key || 'all'}
+                      type="button"
+                      onClick={() => setSoOutlet(active && o.key ? '' : o.key)}
+                      style={{
+                        textAlign: 'left',
+                        padding: '12px 14px',
+                        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                        borderRadius: 'var(--radius-md)',
+                        background: active ? 'var(--accent-light-bg)' : 'var(--surface-raised)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        fontFamily: 'var(--font-sans)',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: active ? 'var(--accent)' : 'var(--foreground)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {o.name}
+                      </span>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)' }}>
+                        <PriceDisplay amount={o.billable} />
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                        {o.count} sales order{o.count === 1 ? '' : 's'} to invoice
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            {listLoading ? (
               <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading sales orders...</p>
-            ) : availableSOs.length === 0 ? (
+            ) : visibleSOs.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '12px 0', textAlign: 'center' }}>
                 No sales orders available to invoice.
               </p>
@@ -619,9 +750,9 @@ export default function InvoiceForm() {
                     </tr>
                   </thead>
                   <tbody>
-                    {availableSOs.map((so) => {
+                    {visibleSOs.map((so) => {
                       const isSelected = selectedSoIds.includes(so.id)
-                      const branchMatched = selectedSoIds.length === 0 || availableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
+                      const branchMatched = selectedSoIds.length === 0 || selectableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
                       const disabled = !isSelected && !branchMatched
 
                       return (

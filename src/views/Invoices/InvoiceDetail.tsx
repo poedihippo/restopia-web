@@ -18,6 +18,7 @@ import {
   Loader2,
   Plus
 } from 'lucide-react'
+import { getInvoiceDueInfo } from '@/utils/invoiceDue'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
@@ -230,6 +231,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         ? 'paid'
         : 'partial')
   const paymentMeta = PAYMENT_STATUS_META[paymentStatusValue] ?? PAYMENT_STATUS_META.pending
+  const due = getInvoiceDueInfo(invoice)
 
   const backBtnStyle: React.CSSProperties = {
     display: 'flex',
@@ -577,6 +579,43 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
             {invoice.date ? formatDate(invoice.date) : '—'}
+          </div>
+          <div
+            style={{
+              borderTop: '1px solid var(--border)',
+              paddingTop: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            <span style={sectionLabelStyle}>Due Date</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  fontFamily: 'var(--font-display)',
+                  color: due.isOverdue ? 'var(--destructive)' : 'var(--foreground)',
+                }}
+              >
+                {invoice.due_date ? formatDate(invoice.due_date) : '—'}
+              </span>
+              {due.isOverdue && (
+                <span
+                  style={{
+                    padding: '2px 10px',
+                    borderRadius: 99,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    background: 'var(--destructive)',
+                    color: 'white',
+                  }}
+                >
+                  Overdue {due.daysOverdue} day{due.daysOverdue === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -962,6 +1001,9 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             </div>
             <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
               <strong style={{ color: '#5c3a21' }}>Date:</strong> {invoice.date ? formatDate(invoice.date) : '-'}
+            </div>
+            <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
+              <strong style={{ color: '#5c3a21' }}>Due Date:</strong> {invoice.due_date ? formatDate(invoice.due_date) : '-'}
             </div>
             <div style={{ fontSize: '10pt', marginTop: '1.5mm', color: '#333' }}>
               <strong style={{ color: '#5c3a21' }}>From:</strong> {invoice.branch?.name || '-'}

@@ -1,6 +1,7 @@
 'use client'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
+import { getInvoiceDueInfo } from '@/utils/invoiceDue';
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -30,7 +31,10 @@ interface Invoice {
   id: number
   code: string
   date: string
+  due_date?: string
   total_price: number
+  total_payment?: number
+  payment_status?: 'pending' | 'partial' | 'paid'
   status: 'issued' | 'paid' | 'void'
   description?: string
   created_at?: string
@@ -259,6 +263,7 @@ export default function InvoicesView() {
               <th style={{ ...thStyle, width: 160 }}>Billed Branch</th>
               <th style={{ ...thStyle, width: 160 }}>Delivery</th>
               <th style={{ ...thStyle, width: 120 }}>Date</th>
+              <th style={{ ...thStyle, width: 150 }}>Due Date</th>
               <th style={{ ...thStyle, width: 140 }}>Total</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: 60 }} />
@@ -268,7 +273,7 @@ export default function InvoicesView() {
             {isLoading ? (
               Array.from({ length: 7 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 8 }).map((__, j) => (
+                  {Array.from({ length: 9 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -285,7 +290,7 @@ export default function InvoicesView() {
               ))
             ) : isError ? (
               <tr>
-                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <span style={{ fontSize: 14, color: 'var(--destructive)' }}>
                     Failed to load invoices.
                   </span>
@@ -293,7 +298,7 @@ export default function InvoicesView() {
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={9} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -311,16 +316,19 @@ export default function InvoicesView() {
             ) : (
               items.map((item, idx) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.issued
+                const due = getInvoiceDueInfo(item)
+                // Unpaid past its due date → tinted row so it stands out.
+                const rowBg = due.isOverdue ? 'var(--destructive-bg)' : 'transparent'
                 return (
                   <tr
                     key={item.id}
-                    style={{ transition: 'background 120ms' }}
+                    style={{ transition: 'background 120ms', background: rowBg }}
                     onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--background)')
+                      (e.currentTarget.style.background = due.isOverdue
+                        ? 'var(--destructive-bg)'
+                        : 'var(--background)')
                     }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = 'transparent')
-                    }
+                    onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}
                   >
                     <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
                       {(page - 1) * perPage + idx + 1}
@@ -353,6 +361,34 @@ export default function InvoicesView() {
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
                         {item.date ? formatDate(item.date) : '—'}
                       </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: due.isOverdue ? 600 : 400,
+                            color: due.isOverdue ? 'var(--destructive)' : 'var(--foreground-muted)',
+                          }}
+                        >
+                          {item.due_date ? formatDate(item.due_date) : '—'}
+                        </span>
+                        {due.isOverdue && (
+                          <span
+                            style={{
+                              alignSelf: 'flex-start',
+                              padding: '1px 8px',
+                              borderRadius: 99,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background: 'var(--destructive)',
+                              color: 'white',
+                            }}
+                          >
+                            Overdue {due.daysOverdue} day{due.daysOverdue === 1 ? '' : 's'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
