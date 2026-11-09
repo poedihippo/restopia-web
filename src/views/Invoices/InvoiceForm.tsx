@@ -117,7 +117,10 @@ interface AdditionalChargeSelection {
 export default function InvoiceForm() {
   const router = useRouter()
   const qc = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
+  // Warehouse branches don't sell over the counter — the POS-only SO filters
+  // (settlement, payment, credit type, type, sales channel) don't apply there.
+  const isWarehouseBranch = (user as any)?.branch?.type === 'warehouse'
   const canReadPrice = getCanReadPrice()
 
   const [date, setDate] = useState(todayInputDate())
@@ -516,6 +519,8 @@ export default function InvoiceForm() {
                   style={{ ...soFilterControl, width: 200 }}
                 />
               </div>
+              {!isWarehouseBranch && (
+              <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={soFilterLabel}>Settlement</span>
                 <select value={soSettlement} onChange={(e) => setSoSettlement(e.target.value)} style={soFilterControl}>
@@ -565,6 +570,8 @@ export default function InvoiceForm() {
                   ))}
                 </select>
               </div>
+              </>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span style={soFilterLabel}>Order Date</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
