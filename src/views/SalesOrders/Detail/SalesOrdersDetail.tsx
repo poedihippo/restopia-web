@@ -32,6 +32,8 @@ const SalesOrdersDetail = ({
 }: Props) => {
     const router = useRouter()
     const { data, isLoading } = useSalesOrdersDetail({ id })
+    // After partial returns the order is worth total − returned_amount.
+    const netTotal = Number(data?.total_price ?? 0) - Number((data as any)?.returned_amount ?? 0)
 
     return (
         <div>
@@ -185,7 +187,7 @@ const SalesOrdersDetail = ({
                                                     fontWeight: 600,
                                                 }}
                                             >
-                                                {formatCurrency(Number(p.amount))}
+                                                {p.type === 'refund' ? '− ' : ''}{formatCurrency(Number(p.amount))}
                                             </td>
                                             <td
                                                 style={{
@@ -227,7 +229,7 @@ const SalesOrdersDetail = ({
                                         </span>
                                         <span>
                                             Rp{' '}
-                                            {formatCurrency(Number(data.total_price ?? 0), '')}
+                                            {formatCurrency(netTotal, '')}
                                         </span>
                                     </div>
                                     <div
@@ -247,7 +249,7 @@ const SalesOrdersDetail = ({
                                             {formatCurrency(totalPaid)}
                                         </span>
                                     </div>
-                                    {totalPaid < Number(data.total_price ?? 0) && (
+                                    {totalPaid < netTotal && (
                                         <div
                                             style={{
                                                 display: 'flex',
@@ -267,11 +269,11 @@ const SalesOrdersDetail = ({
                                             >
                                                 Rp{' '}
                                                 {formatCurrency(
-                                                    Number(data.total_price ?? 0) - totalPaid, '')}
+                                                    netTotal - totalPaid, '')}
                                             </span>
                                         </div>
                                     )}
-                                    {totalPaid >= Number(data.total_price ?? 0) && (
+                                    {totalPaid >= netTotal && (
                                         <div
                                             style={{
                                                 display: 'flex',
@@ -286,7 +288,7 @@ const SalesOrdersDetail = ({
                                             >
                                                 ✓ Fully Paid
                                             </span>
-                                            {totalPaid > Number(data.total_price ?? 0) && (
+                                            {totalPaid > netTotal && (
                                                 <span
                                                     style={{
                                                         color: 'var(--foreground-muted)',
@@ -295,7 +297,7 @@ const SalesOrdersDetail = ({
                                                 >
                                                     Change: Rp{' '}
                                                     {formatCurrency(
-                                                        totalPaid - Number(data.total_price ?? 0), '')}
+                                                        totalPaid - netTotal, '')}
                                                 </span>
                                             )}
                                         </div>

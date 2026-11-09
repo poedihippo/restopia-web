@@ -48,13 +48,39 @@ interface LineItem {
   price: number
   status: 'pending' | 'process' | 'completed'
   description: string
+  /** Only an editable product uom accepts a custom price; bundles never do. */
+  price_editable: boolean
+  /** Price the saved order already carries — accepted unchanged on update. */
+  stored_price?: number
+}
+
+// A product uom's price_editable flag, wherever the row nests it.
+const priceEditableOf = (src: any): boolean =>
+  Boolean(
+    src?.product_uom_batch?.product_uom?.price_editable ??
+    src?.product_uom?.price_editable ??
+    src?.price_editable ??
+    false,
+  )
+
+// Price sent per line: editable uom -> typed price; unchanged saved line -> its
+// stored price; otherwise omitted so the server applies the price list
+// (sending a different price gives 422 "price ... is not editable").
+const linePriceForApi = (i: LineItem): number | undefined => {
+  if (i.type === 'product' && i.price_editable) return i.price
+  if (i.stored_price !== undefined && i.price === i.stored_price) return i.stored_price
+  return undefined
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SalesOrderForm({ editingOrder }: { editingOrder?: any }): React.ReactElement {
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
+  // Server-side search terms, one per select.
+  const [creditUserSearch, setCreditUserSearch] = useState('')
+  const [debouncedCreditUserSearch, setDebouncedCreditUserSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedCreditUserSearch(creditUserSearch), 400); return () => clearTimeout(t) }, [creditUserSearch])
+  const [coaChargeSearch, setCoaChargeSearch] = useState('')
+  const [debouncedCoaChargeSearch, setDebouncedCoaChargeSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedCoaChargeSearch(coaChargeSearch), 400); return () => clearTimeout(t) }, [coaChargeSearch])
   const router = useRouter()
   const qc = useQueryClient()
   const isEdit = !!editingOrder
@@ -128,14 +154,21 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   })
 
   // Chart of accounts for additional charges — required by the API.
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-all', 'charges'],
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['so-charge-coa-options', debouncedCoaChargeSearch],
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .list({ per_page: 30, sort: 'code', 'filter[is_active]': 'true', 'filter[search]': debouncedCoaChargeSearch || undefined } as any)
         .then((r) => (r.data as any)?.data ?? []),
   })
-  const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
+  // Accounts already on the order's charges stay selectable even when they
+  // are not in the current search page.
+  const coaChargeRows: any[] = (coaData as any) ?? []
+  const editingChargeCoas: any[] = (editingOrder?.additional_charges ?? [])
+    .map((c: any) => c.chart_of_account)
+    .filter((c: any) => c?.id && !coaChargeRows.some((r: any) => r.id === c.id))
+  const coaChargeOptions = [...editingChargeCoas, ...coaChargeRows].map((coa: any) => ({
     value: coa.id as number,
     label: (coa.name as string) ?? `COA #${coa.id}`,
     sublabel: (coa.code as string) ?? undefined,
@@ -184,9 +217,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         name,
         code,
         qty: d.qty,
-        price: d.price,
+        price: Number(d.price),
         status: d.status,
         description: d.description ?? '',
+        price_editable: !isBundle && (priceEditableOf(snap) || priceEditableOf(d.product_inventory)),
+        stored_price: Number(d.price),
       }
     })
   })
@@ -265,6 +300,13 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const isOnline = type === 'online'
   const isLockedOnline =
     isEdit && editingOrder?.type === 'online' && editingOrder?.settlement_status === 'settled'
+  // Credit type is fixed once the order has payments (void them first).
+  const hasPayments =
+    isEdit &&
+    (Number(editingOrder?.total_payment ?? 0) > 0 ||
+      ['partial', 'paid'].includes(editingOrder?.payment_status))
+  // A voucher discount is computed (and rounded) by the server.
+  const hasVoucher = !!voucherId
 
   const { data: paymentMethodsData } = useQuery({
     queryKey: ['so-payment-methods'],
@@ -307,14 +349,19 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
 
   const { data: creditUsersData } = useQuery({
-    queryKey: ['users-credit'],
+    queryKey: ['users-credit', debouncedCreditUserSearch],
     enabled: settlementStatus === 'credit',
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       usersService
-        .list({ per_page: 100, 'filter[type]': 'user' } as any)
+        .list({ per_page: 30, 'filter[type]': 'user', 'filter[search]': debouncedCreditUserSearch || undefined } as any)
         .then((r) => r.data),
   })
-  const creditUsers: any[] = (creditUsersData as any)?.data ?? []
+  const creditUserRows: any[] = (creditUsersData as any)?.data ?? []
+  const creditUsers: any[] =
+    editingOrder?.credit_by?.id && !creditUserRows.some((u: any) => u.id === editingOrder.credit_by.id)
+      ? [editingOrder.credit_by, ...creditUserRows]
+      : creditUserRows
 
   const { data: bundleData } = useQuery({
     queryKey: ['so-bundles', productSearchDebounced],
@@ -332,8 +379,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const bundles = (bundleData as any)?.data ?? []
 
   const { data: taxesData } = useQuery({
-    queryKey: ['taxes-all', debouncedDropdownSearch],
-    queryFn: () => taxesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 50 }).then((r) => r.data),
+    queryKey: ['taxes-all'],
+    queryFn: () => taxesService.list({ per_page: 50 }).then((r) => r.data),
   })
   const taxes = (taxesData as any)?.data ?? []
 
@@ -392,6 +439,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
 
         const newItems = poDetails.map((d: any) => {
           const inv = inventories.find((i: any) => i.product_uom_batch?.product_uom_id === d.product_uom_id)
+          const uom = inv?.product_uom_batch?.product_uom ?? inv?.product_uom ?? d.product_uom
+          const editable = priceEditableOf(inv) || priceEditableOf(d)
+          // A non-editable uom is sold at its list price, not the PO price.
+          const listPrice = Number(uom?.base_price ?? d.price ?? 0)
 
           return {
             type: 'product' as const,
@@ -406,9 +457,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               : getProductUomName(d.product_uom, d.product_uom?.product?.name) || 'Unknown Product',
             code: inv?.code ?? d.product_uom?.code ?? '',
             qty: d.qty,
-            price: d.price,
+            price: editable ? Number(d.price) : listPrice,
             status: 'completed' as const,
             description: d.description ?? '',
+            price_editable: editable,
           }
         })
 
@@ -426,7 +478,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0)
   const additionalChargesTotal = additionalCharges.reduce((sum, c) => sum + (Number(c.amount) || 0), 0)
   const taxRate = taxes.find((t: any) => t.id === taxId)?.rate ?? 0
-  const taxAmount = Math.round((subtotal * taxRate) / 100)
+  // PPN is charged after a voucher discount (server rule); this local figure is
+  // only a preview — the saved order's tax_amount/total_price are the truth.
+  const taxBase = hasVoucher ? Math.max(0, subtotal - discountPrice) : subtotal
+  const taxAmount = Math.round((taxBase * taxRate) / 100)
   const total = Math.max(0, subtotal + taxAmount + additionalChargesTotal - discountPrice)
 
   // ── Line item helpers ─────────────────────────────────────────────────────
@@ -454,6 +509,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             price,
             status: 'pending',
             description: '',
+            price_editable: priceEditableOf(p),
           },
         ]
       })
@@ -489,6 +545,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           price: b.price ?? 0,
           status: 'pending',
           description: '',
+          price_editable: false,
         },
       ]
     })
@@ -580,7 +637,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         discount_price: discountPrice,
         total_price: total,
         status,
-        settlement_status: settlementStatus,
+        // PATCH refuses a changed settlement_status — send the stored one back;
+        // settling/unsettling goes through the bulk settlement endpoint.
+        settlement_status: isEdit ? (editingOrder?.settlement_status ?? settlementStatus) : settlementStatus,
         description: description || undefined,
         tax_id: taxId,
         additional_charges: additionalCharges
@@ -597,7 +656,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           bundle_details: i.bundle_details ?? null,
           purchase_order_detail_id: i.purchase_order_detail_id || undefined,
           qty: i.qty,
-          price: i.price,
+          price: linePriceForApi(i),
           status: i.status,
           description: i.description || undefined,
         })),
@@ -836,8 +895,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             <label style={labelStyle}>Settlement Status</label>
             <select
               value={settlementStatus}
-              disabled={isOnline}
-              title={isOnline ? 'Online orders are settled from the Settle Payout screen' : undefined}
+              disabled={isOnline || isEdit}
+              title={
+                isOnline
+                  ? 'Online orders are settled from the Settle Payout screen'
+                  : isEdit
+                    ? 'Settlement status cannot be changed here — use bulk settlement on the Sales Orders list'
+                    : undefined
+              }
               onChange={(e) =>
                 setSettlementStatus(
                   e.target.value as 'pending' | 'credit' | 'settled' | 'cancelled'
@@ -850,6 +915,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               <option value="settled">Settled</option>
               <option value="cancelled">Cancelled</option>
             </select>
+            {isEdit && !isOnline && (
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', display: 'block', marginTop: 4 }}>
+                Change settlement via bulk settlement on the Sales Orders list.
+              </span>
+            )}
           </div>
           {settlementStatus === 'credit' && (
             <div
@@ -873,6 +943,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               </label>
               <select
                 value={creditType}
+                disabled={hasPayments}
+                title={hasPayments ? 'Credit type cannot be changed once the order has payments — void the payments first' : undefined}
                 onChange={(e) => {
                   const v = e.target.value as 'user' | 'customer'
                   setCreditType(v)
@@ -931,7 +1003,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     ]}
                     placeholder="Search user..."
                     searchPlaceholder="Search users..."
-                    onSearchChange={setDropdownSearch}
+                    onSearchChange={setCreditUserSearch}
                   />
                   <span
                     style={{
@@ -990,6 +1062,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               type="text"
               inputMode="numeric"
               value={formatNumber(discountPrice, getCanReadPrice())}
+              disabled={hasVoucher}
+              title={hasVoucher ? 'Discount comes from the voucher and is calculated by the server' : undefined}
               onChange={(e) => {
                 const raw = e.target.value.replace(/[^\d]/g, '')
                 setDiscountPrice(raw === '' ? 0 : parseInt(raw, 10) || 0)
@@ -1675,19 +1749,28 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                       }}
                     />
                   </td>
-                  <td style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+                  <td
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}
+                    title={
+                      item.price_editable
+                        ? undefined
+                        : item.type === 'bundle'
+                          ? 'Bundles are sold at the bundle price'
+                          : 'Price follows the price list (product uom is not price editable)'
+                    }
+                  >
                     <LocalizedNumberInput
                       value={item.price}
                       onChange={(val) => updateItem(idx, 'price', Math.max(0, val))}
                       decimals={2}
-                      disabled={!getCanReadPrice()}
+                      disabled={!getCanReadPrice() || !item.price_editable}
                       style={{
                         width: 110,
                         height: 32,
                         padding: '0 8px',
                         fontSize: 13,
-                        background: !getCanReadPrice() ? 'var(--surface)' : undefined,
-                        cursor: !getCanReadPrice() ? 'not-allowed' : undefined,
+                        background: !getCanReadPrice() || !item.price_editable ? 'var(--surface)' : undefined,
+                        cursor: !getCanReadPrice() || !item.price_editable ? 'not-allowed' : undefined,
                       }}
                     />
                   </td>
@@ -1773,6 +1856,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               placeholder="Select account... *"
               searchPlaceholder="Search account name or code..."
               loading={coaLoading}
+              onSearchChange={setCoaChargeSearch}
               triggerStyle={{ height: 38, padding: '0 12px', fontSize: 14, borderRadius: 'var(--radius-sm)' }}
             />
             {/* Plain number input (not LocalizedNumberInput): the localized

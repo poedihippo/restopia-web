@@ -795,6 +795,21 @@ export function MaterialsFieldArray({
         </div>
       </div>
 
+      {fields.length === 0 && (
+        <div
+          style={{
+            padding: '10px 12px',
+            border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 12,
+            color: 'var(--foreground-subtle)',
+            textAlign: 'center',
+          }}
+        >
+          Tanpa bahan baku (opsional) — klik Add atau Load Recipe untuk menambahkan.
+        </div>
+      )}
+
       {/* Column headers */}
       {fields.length > 0 && (
         <div
@@ -1008,13 +1023,13 @@ export function MaterialsFieldArray({
                   remove(matIndex)
                   onRemoveMaterial(detailIndex, matIndex)
                 }}
-                disabled={fields.length === 1}
+                // Materials are optional — the last row can be removed too.
                 style={{
                   padding: 5,
                   background: 'none',
                   border: 'none',
-                  cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                  color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
+                  cursor: 'pointer',
+                  color: 'var(--destructive)',
                   display: 'flex',
                   alignItems: 'center',
                 }}
@@ -1165,7 +1180,7 @@ export default function ProductionForm({
           owner_ref: null,
           stage: null,
           location_ref: null,
-          materials: [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }],
+          materials: [],
         },
       ],
     },
@@ -1186,7 +1201,7 @@ export default function ProductionForm({
       owner_ref: null,
       stage: null,
       location_ref: null,
-      materials: [{ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null }],
+      materials: [],
     })
     const nextIdx = detailFields.length
     setExpandedDetails((prev) => [...prev, nextIdx])
@@ -1883,16 +1898,17 @@ export default function ProductionForm({
       if (!d.product_uom_id || d.product_uom_id <= 0) {
         return `Item produksi #${dIndex + 1}: Produk output belum dipilih.`
       }
+      // Materials are optional: a production can be created without any.
       const materials = d.materials ?? []
-      if (materials.length === 0) {
-        return `Item produksi #${dIndex + 1}: Minimal satu material bahan baku harus diisi.`
-      }
       for (let mIndex = 0; mIndex < materials.length; mIndex++) {
         const m = materials[mIndex]
         const labelKey = `${dIndex}-${mIndex}`
-        const label = materialLabels[labelKey] || derivedMaterialLabels[labelKey] || `Material #${mIndex + 1}`
+        const knownLabel = materialLabels[labelKey] || derivedMaterialLabels[labelKey]
+        const label = knownLabel || `Material #${mIndex + 1}`
 
         if (!m.product_inventory_id || m.product_inventory_id <= 0) {
+          // An untouched blank row is skipped (buildPayload drops it too).
+          if (!knownLabel && !needsStockPick[labelKey]) continue
           if (needsStockPick[labelKey]) {
             return `Pilih stok untuk ${label} (Item produksi #${dIndex + 1})`
           }

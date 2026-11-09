@@ -10,6 +10,7 @@ import { vouchersService } from '@/services/vouchers.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import VoucherSheet from './VoucherSheet'
+import VoucherDetail from './VoucherDetail'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
@@ -61,6 +62,22 @@ export default function VouchersView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Voucher | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [detailId, setDetailId] = useState<number | null>(null)
+
+  // /sales/vouchers?detail=<id> (old detail route + journal links) opens the
+  // detail panel directly.
+  useEffect(() => {
+    const q = Number(router.query.detail)
+    if (router.isReady && q > 0) setDetailId(q)
+  }, [router.isReady, router.query.detail])
+
+  const closeDetail = () => {
+    setDetailId(null)
+    if (router.query.detail) {
+      const { detail: _detail, ...rest } = router.query
+      router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true })
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -442,7 +459,7 @@ export default function VouchersView() {
                           {isActive ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                         </button>)}
                         <button
-                          onClick={() => router.push(`/sales/vouchers/${item.id}/detail`)}
+                          onClick={() => setDetailId(item.id)}
                           style={actionBtnStyle}
                           title="View"
                         >
@@ -553,6 +570,15 @@ export default function VouchersView() {
           </div>
         </div>
       )}
+      <VoucherDetail
+        id={detailId}
+        onClose={closeDetail}
+        onEdit={(voucher) => {
+          closeDetail()
+          setEditData(voucher)
+          setSheetOpen(true)
+        }}
+      />
       {/* Sheet */}
       <VoucherSheet
         open={sheetOpen}

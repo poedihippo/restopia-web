@@ -20,6 +20,9 @@ export interface ReceiptData {
   }>
   gross: number
   discount: number
+  /** PPN (after the voucher discount); 0 hides the line. */
+  tax?: number
+  taxIncluded?: boolean
   total: number
   payment: number
   paymentMethod: string
@@ -147,6 +150,9 @@ export function buildReceiptBytes(
   // Totals.
   chunks.push(line(rsep))
   chunks.push(line(formatTotalLine('GROSS', r.gross, w)))
+  if ((r.tax ?? 0) > 0) {
+    chunks.push(line(formatTotalLine(r.taxIncluded ? 'PPN (INCL.)' : 'PPN', r.tax ?? 0, w)))
+  }
   chunks.push(line(rsep))
   chunks.push(line(formatTotalLine('TOTAL', r.total, w)))
   chunks.push(line(rsep))

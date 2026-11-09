@@ -150,16 +150,46 @@ export default function ReceiptsView() {
   })
 
   const toggleStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: 'pending' | 'final' }) =>
-      receiptsService.update(id, { status } as any),
+    // PATCH /v1/receipts/{id} (UpdateReceiptRequest) requires `details`, each
+    // row with qty + status — a bare { status } is rejected. Load the receipt
+    // and send its current lines back unchanged (matched by id) with the new
+    // header status.
+    mutationFn: async ({ id, status }: { id: number; status: 'pending' | 'final' }) => {
+      const res = await receiptsService.findById(id, { include: 'receipt_details' } as any)
+      const receipt = (res.data as any)?.data
+      const rawDetails: any[] = receipt?.receipt_details ?? receipt?.details ?? []
+      if (!rawDetails.length) throw new Error('Receipt has no detail lines to send')
+      const details = rawDetails.map((d: any) => ({
+        id: d.id ?? undefined,
+        delivery_detail_id: d.delivery_detail_id ?? undefined,
+        product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? undefined,
+        product_uom_batch_id: d.product_uom_batch_id ?? d.product_uom_batch?.id ?? undefined,
+        planned_batch_code: d.planned_batch_code || undefined,
+        planned_expiry_date: d.planned_expiry_date
+          ? String(d.planned_expiry_date).split('T')[0]
+          : undefined,
+        qty: Number(d.qty ?? 0),
+        status: d.status ?? 'success',
+        description: d.description || undefined,
+        client_ref: d.client_ref || undefined,
+      }))
+      return receiptsService.update(id, {
+        status,
+        date: receipt?.date ? String(receipt.date).split('T')[0].split(' ')[0] : undefined,
+        description: receipt?.description || undefined,
+        details,
+      } as any)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
       toast.success('Status updated')
     },
     onError: (error: any) => {
-      const msg =
-        error?.response?.data?.message ?? 'Failed to update status'
-      toast.error(msg)
+      if (error?.response) {
+        toastMutationApiError(error, 'Failed to update status')
+        return
+      }
+      toast.error(error?.message ?? 'Failed to update status')
     },
   })
 

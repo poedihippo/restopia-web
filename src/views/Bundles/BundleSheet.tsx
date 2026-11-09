@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -75,10 +75,9 @@ interface ProductUomOption {
   uom?: { name?: string; code?: string }
 }
 
-function SlotField({ nestIndex, control, register, errors, watch, productUomOptions, productUomsLoading, removeSlot, canRemoveSlot }: any) {
-  const [dropdownSearch, setDropdownSearch] = useState('');
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('');
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch]);
+// Typing in a slot's product select updates the parent's search, which drives
+// the server-side product-uoms query.
+function SlotField({ nestIndex, control, register, errors, watch, productUomOptions, productUomsLoading, removeSlot, canRemoveSlot, setDropdownSearch }: any) {
 
   const { fields, remove, append } = useFieldArray({
     control,
@@ -199,13 +198,16 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
 
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
 
-  const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
-    queryKey: ['product-uoms-all', debouncedDropdownSearch],
+  const { data: productUomsData, isFetching: productUomsLoading } = useQuery({
+    queryKey: ['bundle-product-uom-options', debouncedDropdownSearch],
+    enabled: open,
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       productUomsService
         .list({
           'filter[search]': debouncedDropdownSearch || undefined,
-          per_page: 1000,
+          per_page: 50,
           include: 'product,uom',
           'filter[is_active]': true,
         } as any)
@@ -213,7 +215,36 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
   })
   const productUoms: ProductUomOption[] = (productUomsData as any)?.data ?? []
 
-  const productUomOptions = productUoms.map((pu) => ({
+  // Selected product UOMs must keep their label when the search result set
+  // no longer contains them: remember every row seen, and fetch the rest
+  // (edit mode) by filter[ids].
+  const seenProductUomsRef = useRef(new Map<number, ProductUomOption>())
+  for (const pu of productUoms) seenProductUomsRef.current.set(pu.id, pu)
+  const selectedProductUomIds: number[] = (watch('details') || [])
+    .flatMap((d: any) => (d.items || []).map((i: any) => Number(i.product_uom_id)))
+    .filter((id: number) => id > 0)
+  const missingProductUomIds = Array.from(new Set(selectedProductUomIds)).filter((id) => !seenProductUomsRef.current.has(id))
+  const { data: selectedProductUomsData } = useQuery({
+    queryKey: ['product-uoms-by-ids', missingProductUomIds.slice().sort((a, b) => a - b).join(',')],
+    enabled: open && missingProductUomIds.length > 0,
+    queryFn: () =>
+      productUomsService
+        .list({
+          'filter[ids]': missingProductUomIds.join(','),
+          include: 'product,uom',
+          per_page: missingProductUomIds.length,
+        } as any)
+        .then((r) => r.data),
+  })
+  for (const pu of ((selectedProductUomsData as any)?.data ?? []) as ProductUomOption[]) {
+    seenProductUomsRef.current.set(pu.id, pu)
+  }
+  const extraSelected = Array.from(new Set(selectedProductUomIds))
+    .filter((id) => !productUoms.some((pu) => pu.id === id))
+    .map((id) => seenProductUomsRef.current.get(id))
+    .filter(Boolean) as ProductUomOption[]
+
+  const productUomOptions = [...extraSelected, ...productUoms].map((pu) => ({
     value: pu.id,
     label: withProductType(getProductUomName(pu, pu.product?.name) || `Product UOM #${pu.id}`, pu.product?.type),
     sublabel: pu.uom?.name ?? undefined,

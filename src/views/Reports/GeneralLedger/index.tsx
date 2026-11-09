@@ -8,6 +8,7 @@ import { reportsService } from '@/services/reports.service'
 import type { GeneralLedgerAccount, GeneralLedgerEnvelope } from '@/services/reports.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useDebounce } from '@/hooks/useDebounce'
 import { formatCurrency } from '@/utils/price'
 import { formatDate, formatDateShort, toInputDate } from '@/utils/date'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -135,32 +136,50 @@ export default function GeneralLedgerView() {
   const [perPage, setPerPage] = useState(20)
   const [isExporting, setIsExporting] = useState(false)
 
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-all'],
-    enabled: canRead,
+  // Each picker searches CoA on the server with its own term; SearchableSelect
+  // keeps the picked label cached when it drops out of the results.
+  const [accountSearch, setAccountSearch] = useState('')
+  const [startCodeSearch, setStartCodeSearch] = useState('')
+  const [endCodeSearch, setEndCodeSearch] = useState('')
+  const accountSearchDebounced = useDebounce(accountSearch, 400)
+  const startCodeSearchDebounced = useDebounce(startCodeSearch, 400)
+  const endCodeSearchDebounced = useDebounce(endCodeSearch, 400)
+
+  const coaQuery = (term: string, enabled: boolean) => ({
+    queryKey: ['chart-of-accounts-options', 'gl', term],
+    enabled: canRead && enabled,
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code' })
+        .list({ per_page: 50, sort: 'code', 'filter[search]': term || undefined } as any)
         .then((r) => r.data),
   })
-  // CoA list arrives either single-nested (data[]) or double-nested (data.data[]) depending on endpoint.
-  const rawCoA: unknown = (coaData as { data?: unknown } | undefined)?.data
-  const accounts: CoA[] = Array.isArray(rawCoA)
-    ? (rawCoA as CoA[])
-    : Array.isArray((rawCoA as { data?: unknown } | undefined)?.data)
-      ? ((rawCoA as { data: CoA[] }).data)
-      : []
+  const { data: accountCoaData, isFetching: accountCoaLoading } = useQuery(coaQuery(accountSearchDebounced, mode === 'single'))
+  const { data: startCoaData, isFetching: startCoaLoading } = useQuery(coaQuery(startCodeSearchDebounced, mode !== 'single'))
+  const { data: endCoaData, isFetching: endCoaLoading } = useQuery(coaQuery(endCodeSearchDebounced, mode !== 'single'))
 
-  const accountOptions = accounts.map((a) => ({
+  // CoA list arrives either single-nested (data[]) or double-nested (data.data[]) depending on endpoint.
+  const accountsOf = (coaData: unknown): CoA[] => {
+    const rawCoA: unknown = (coaData as { data?: unknown } | undefined)?.data
+    return Array.isArray(rawCoA)
+      ? (rawCoA as CoA[])
+      : Array.isArray((rawCoA as { data?: unknown } | undefined)?.data)
+        ? ((rawCoA as { data: CoA[] }).data)
+        : []
+  }
+
+  const accountOptions = accountsOf(accountCoaData).map((a) => ({
     value: String(a.id),
     label: a.name,
     sublabel: a.code,
   }))
-  const codeOptions = accounts.map((a) => ({
-    value: a.code,
-    label: a.code,
-    sublabel: a.name,
-  }))
+  const codeOptionsOf = (coaData: unknown) =>
+    accountsOf(coaData).map((a) => ({
+      value: a.code,
+      label: a.code,
+      sublabel: a.name,
+    }))
 
   // Client-side validation mirroring the backend 400 rules.
   const validationError: string | null = (() => {
@@ -398,7 +417,8 @@ export default function GeneralLedgerView() {
                     value={chartOfAccountId}
                     onChange={(v: string | number) => setChartOfAccountId(v ? String(v) : '')}
                     options={accountOptions}
-                    loading={coaLoading}
+                    loading={accountCoaLoading}
+                    onSearchChange={setAccountSearch}
                     placeholder="-- Select Account --"
                     searchPlaceholder="Cari kode / nama akun..."
                   />
@@ -410,8 +430,9 @@ export default function GeneralLedgerView() {
                     <SearchableSelect
                       value={startCoaCode}
                       onChange={(v: string | number) => setStartCoaCode(v ? String(v) : '')}
-                      options={codeOptions}
-                      loading={coaLoading}
+                      options={codeOptionsOf(startCoaData)}
+                      loading={startCoaLoading}
+                      onSearchChange={setStartCodeSearch}
                       placeholder="-- Start Code --"
                       searchPlaceholder="Cari kode akun..."
                     />
@@ -421,8 +442,9 @@ export default function GeneralLedgerView() {
                     <SearchableSelect
                       value={endCoaCode}
                       onChange={(v: string | number) => setEndCoaCode(v ? String(v) : '')}
-                      options={codeOptions}
-                      loading={coaLoading}
+                      options={codeOptionsOf(endCoaData)}
+                      loading={endCoaLoading}
+                      onSearchChange={setEndCodeSearch}
                       placeholder="-- End Code --"
                       searchPlaceholder="Cari kode akun..."
                     />

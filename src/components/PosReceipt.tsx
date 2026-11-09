@@ -24,6 +24,10 @@ export interface ReceiptData {
 
   grossAmount: number
   discountAmount: number
+  /** PPN from the server, charged on the price after the voucher discount. */
+  taxAmount?: number
+  /** True when PPN is already inside the prices (not added on top of the total). */
+  taxIncluded?: boolean
   totalAmount: number
 
   payments: Array<{
@@ -128,6 +132,12 @@ export default function PosReceipt({ data }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>DISCOUNT</span>
             <span>{fmt(data.discountAmount)}</span>
+          </div>
+        )}
+        {(data.taxAmount ?? 0) > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>{data.taxIncluded ? 'PPN (INCL.)' : 'PPN'}</span>
+            <span>{fmt(data.taxAmount ?? 0)}</span>
           </div>
         )}
       </div>

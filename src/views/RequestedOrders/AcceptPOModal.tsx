@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { getCanReadPrice } from '@/utils/price'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { useDebounce } from '@/hooks/useDebounce'
 import { toast } from 'sonner'
 import { taxesService } from '@/services/taxes.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
@@ -59,18 +60,49 @@ export default function AcceptPOModal({
   const taxes = (taxesData as any)?.data ?? []
 
   // Every additional charge needs a chart of account (required by the API).
-  const { data: coaData, isLoading: coaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-all', 'charges'],
+  // Searched on the server by name or code.
+  const [coaSearch, setCoaSearch] = useState('')
+  const coaSearchDebounced = useDebounce(coaSearch, 400)
+  const { data: coaData, isFetching: coaLoading } = useQuery({
+    queryKey: ['chart-of-accounts-options', 'charges', coaSearchDebounced],
+    enabled: isOpen,
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true' } as any)
+        .list({
+          per_page: 50,
+          sort: 'code',
+          'filter[is_active]': 'true',
+          'filter[search]': coaSearchDebounced || undefined,
+        } as any)
         .then((r) => (r.data as any)?.data ?? []),
   })
-  const coaOptions = ((coaData as any) ?? []).map((coa: any) => ({
+  const toCoaOption = (coa: any) => ({
     value: coa.id as number,
     label: (coa.name as string) ?? `COA #${coa.id}`,
     sublabel: (coa.code as string) ?? undefined,
-  }))
+  })
+  // Charges prefilled from the PO may point at accounts outside the current
+  // result set; /chart-of-accounts has no filter[ids], so fetch them by id.
+  const selectedCoaIds: number[] = Array.from(
+    new Set(additionalCharges.map((c) => Number(c.chart_of_account_id) || 0).filter((id) => id > 0)),
+  )
+  const missingCoaIds = selectedCoaIds.filter(
+    (id) => !((coaData as any) ?? []).some((c: any) => c.id === id),
+  )
+  const missingCoaQueries = useQueries({
+    queries: missingCoaIds.map((id) => ({
+      queryKey: ['chart-of-account', id],
+      staleTime: 300_000,
+      queryFn: () => chartOfAccountsService.findById(id).then((r) => (r.data as any)?.data),
+    })),
+  })
+  // Already-fetched by-id results come from the query cache (staleTime).
+  const coaOptions = [
+    ...((coaData as any) ?? []).map(toCoaOption),
+    ...missingCoaQueries.filter((q) => (q.data as any)?.id).map((q) => toCoaOption(q.data)),
+  ]
 
   useEffect(() => {
     if (isOpen && purchaseOrder?.purchase_order_details) {
@@ -411,6 +443,7 @@ export default function AcceptPOModal({
                               placeholder="Select account... *"
                               searchPlaceholder="Search account name or code..."
                               loading={coaLoading}
+                              onSearchChange={setCoaSearch}
                               triggerStyle={{ padding: '8px 10px', fontSize: 13, borderRadius: 8 }}
                             />
                           </td>

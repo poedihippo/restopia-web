@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
 import { usePrinter } from '@/hooks/usePrinter'
+import { buildReceiptBytes } from '@/lib/print/receiptBuilder'
+import { mapReceiptToBuilder, printReceiptViaIframe } from '../utils/receiptPrint'
+import type { CompletedTransaction } from '../components/PosTransactionCompleteModal'
 
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { productUomsService } from '@/services/product-uoms.service'
@@ -17,6 +20,7 @@ import { usersService } from '@/services/users.service'
 import api from '@/hooks/useApi'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { availableStockOf } from '@/utils/inventoryStock'
+import { useDebounce } from '@/hooks/useDebounce'
 
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
@@ -74,6 +78,24 @@ const toApiOrder = (payload: any, opts: { keepNull?: string[] } = {}) => {
   )
 }
 
+// Two requests with the same Idempotency-Key at the same moment: the second
+// gets 409 "already in progress". Retrying with the SAME key returns the stored
+// response once the first request has answered.
+const isIdempotencyInProgress = (err: any): boolean =>
+  err?.response?.status === 409 &&
+  /already in progress/i.test(String(err?.response?.data?.message ?? ''))
+
+const withIdempotencyRetry = async <T,>(fn: () => Promise<T>, attempts = 5): Promise<T> => {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (!isIdempotencyInProgress(err) || i >= attempts - 1) throw err
+      await new Promise((r) => setTimeout(r, 1000 * (i + 1)))
+    }
+  }
+}
+
 export function usePosLogic() {
   const { user } = useAuth()
   const printer = usePrinter()
@@ -111,6 +133,12 @@ export function usePosLogic() {
   const [orderType, setOrderType] = useState<'offline' | 'online'>('offline')
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null)
   const [editingOrderCode, setEditingOrderCode] = useState<string | null>(null)
+  // PATCH refuses a changed settlement_status — the stored one is sent back and
+  // any change goes through the bulk settlement endpoint.
+  const [editingOrderSettlement, setEditingOrderSettlement] = useState<string | null>(null)
+  // Blocks a second submit while the first is still preparing (customer
+  // resolve) or in flight.
+  const submitLockRef = useRef(false)
   const [batchPickerGroup, setBatchPickerGroup] = useState<any | null>(null)
   const [bundlePickerGroup, setBundlePickerGroup] = useState<any | null>(null)
   const [salesChannelId, setSalesChannelId] = useState<number | null>(null)
@@ -129,6 +157,12 @@ export function usePosLogic() {
     discount_amount: number
     voucher_id: number | null
     subtotal_at_apply: number
+    /** Channel the voucher was validated against; undefined = not tracked (loaded order). */
+    sales_channel_at_apply?: number | null
+    // Server figures from the voucher preview: PPN is charged after the
+    // discount, so never recompute it on the screen.
+    tax_amount?: number
+    total_price?: number
   } | null>(null)
   const [voucherLoading, setVoucherLoading] = useState(false)
   const discountAmount = appliedVoucher?.discount_amount ?? 0
@@ -168,6 +202,11 @@ export function usePosLogic() {
 
   // Modals & Panels State
   const [showReceipt, setShowReceipt] = useState(false)
+  // Cashier flow: cart -> review (read order back) -> payment -> complete
+  // (change, print receipt, new transaction). No page reload in between.
+  const [showReview, setShowReview] = useState(false)
+  const [completedTransaction, setCompletedTransaction] = useState<CompletedTransaction | null>(null)
+  const [isPrinting, setIsPrinting] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showPreorders, setShowPreorders] = useState(false)
   const [showPreorder, setShowPreorder] = useState(false) // For creating Pre-order
@@ -312,6 +351,8 @@ export function usePosLogic() {
         discount_amount: Number(order.discount_price ?? 0),
         voucher_id: order.voucher_id,
         subtotal_at_apply: loadedSubtotal,
+        tax_amount: order.tax_amount != null ? Number(order.tax_amount) : undefined,
+        total_price: order.total_price != null ? Number(order.total_price) : undefined,
       })
     } else {
       setVoucherCode('')
@@ -321,6 +362,7 @@ export function usePosLogic() {
     setOrderNote(order.description ?? '')
     setEditingOrderId(order.id)
     setEditingOrderCode(order.code)
+    setEditingOrderSettlement(order.settlement_status ?? null)
     // Restore credit fields when re-opening a held order
     setCreditByUserId(order.credit_by_id ?? null)
     setCreditType(order.credit_type === 'customer' ? 'customer' : 'user')
@@ -554,7 +596,15 @@ export function usePosLogic() {
   // 4. COMPUTED VALUES
   // ---------------------------------------------------------------------------
   const subtotal = cart.reduce((s: number, c: any) => s + c.price * c.qty, 0) + bundleCart.reduce((s: number, c: any) => s + c.price * c.qty, 0)
-  const total = Math.max(0, subtotal - (discountAmount ?? 0))
+  // With a voucher, PPN and total come from the server preview (PPN is charged
+  // on the price after the voucher discount).
+  const taxAmount = appliedVoucher?.tax_amount ?? 0
+  const total =
+    appliedVoucher?.total_price != null && Number.isFinite(appliedVoucher.total_price)
+      ? Math.max(0, appliedVoucher.total_price)
+      : Math.max(0, subtotal - (discountAmount ?? 0))
+  // PPN either sits inside the prices (total = subtotal − discount) or is added on top.
+  const taxIncluded = taxAmount > 0 && Math.abs(subtotal - discountAmount + taxAmount - total) > 1
 
   const selectedMethod = paymentMethods.find((pm) => pm.id === paymentMethodId)
   const isCashMethod = selectedMethod?.name?.toLowerCase().includes('cash') ?? false;
@@ -562,14 +612,31 @@ export function usePosLogic() {
   const dueAmount = paymentMode === 'partial' ? (Number(partialAmount.replace(/\D/g, '')) || 0) : total
   const change = isCashMethod ? Math.max(0, Number(cashTendered.replace(/\D/g, '')) - dueAmount) : 0;
 
+  // Credit-user picker searches on the server; users already picked (single
+  // or split payment) stay in the list so their name + credit remain known.
+  const [creditUserSearch, setCreditUserSearch] = useState('')
+  const creditUserSearchDebounced = useDebounce(creditUserSearch, 400)
   const { data: creditUsersData } = useQuery({
-    queryKey: ['pos-credit-users'],
+    queryKey: ['pos-credit-users', creditUserSearchDebounced],
+    staleTime: 30_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       usersService
-        .list({ per_page: 100, 'filter[type]': 'user' } as any)
+        .list({ 'filter[search]': creditUserSearchDebounced || undefined, per_page: 20, 'filter[type]': 'user' } as any)
         .then((r) => r.data),
   })
-  const creditUsers: any[] = (creditUsersData as any)?.data ?? []
+  const seenCreditUsersRef = useRef(new Map<number, any>())
+  const creditUsers: any[] = useMemo(() => {
+    const results: any[] = (creditUsersData as any)?.data ?? []
+    for (const u of results) seenCreditUsersRef.current.set(u.id, u)
+    const pickedIds = [creditByUserId, ...splitPayments.map((sp) => sp.creditByUserId)]
+      .filter((id): id is number => typeof id === 'number' && id > 0)
+    const extra = pickedIds
+      .filter((id, i, arr) => arr.indexOf(id) === i && !results.some((u) => u.id === id))
+      .map((id) => seenCreditUsersRef.current.get(id))
+      .filter(Boolean)
+    return [...extra, ...results]
+  }, [creditUsersData, creditByUserId, splitPayments])
 
   const quickAmounts = [
     total,
@@ -610,6 +677,9 @@ export function usePosLogic() {
     setShowReceipt(false)
     setEditingOrderId(null)
     setEditingOrderCode(null)
+    setEditingOrderSettlement(null)
+    setShowReview(false)
+    setCompletedTransaction(null)
     idemRef.current = null
   }, [])
 
@@ -740,6 +810,19 @@ export function usePosLogic() {
     }
   }, [subtotal, appliedVoucher])
 
+  // ...and for the sales channel it was validated against.
+  useEffect(() => {
+    if (
+      appliedVoucher &&
+      appliedVoucher.sales_channel_at_apply !== undefined &&
+      appliedVoucher.sales_channel_at_apply !== salesChannelId
+    ) {
+      setAppliedVoucher(null)
+      setVoucherCode('')
+      toast.info('Sales channel berubah, voucher direset. Terapkan ulang voucher.')
+    }
+  }, [salesChannelId, appliedVoucher])
+
   // Order lines in API shape. Optional ints are omitted (never null); `id` is only
   // sent when updating a held order so existing lines are matched, not recreated.
   const buildDetails = (status: 'pending' | 'completed', withIds = false) => [
@@ -855,6 +938,11 @@ export function usePosLogic() {
 
   const handleApplyVoucher = async (selectedVoucher?: { id: number; code: string }) => {
     if (!selectedVoucher) return
+    // Vouchers are validated against the sales channel — an online order must pick it first.
+    if (orderType === 'online' && !salesChannelId) {
+      toast.error('Pilih sales channel dulu sebelum menerapkan voucher')
+      return
+    }
     setVoucherLoading(true)
     try {
       const voucher = selectedVoucher
@@ -880,6 +968,9 @@ export function usePosLogic() {
           discount_amount: Number(data.discount_price),
           voucher_id: voucher.id,
           subtotal_at_apply: subtotal,
+          sales_channel_at_apply: salesChannelId,
+          tax_amount: data.tax_amount != null ? Number(data.tax_amount) : undefined,
+          total_price: data.total_price != null ? Number(data.total_price) : undefined,
         })
         toast.success('Voucher applied')
       } else {
@@ -897,21 +988,78 @@ export function usePosLogic() {
       toast.error('Cart is empty')
       return
     }
-    setShowPayment(true)
+    // Sales channel is chosen inside the payment modal — don't block here.
+    setShowReview(true)
   }
+
+  const closeReview = useCallback(() => setShowReview(false), [])
+  const clearVoucher = useCallback(() => {
+    setAppliedVoucher(null)
+    setVoucherCode('')
+  }, [])
+  const proceedFromReview = useCallback(() => {
+    setShowReview(false)
+    setShowPayment(true)
+  }, [])
+  // Payment -> back to the review step (customer / voucher / note edits).
+  const backToReview = useCallback(() => {
+    setShowPayment(false)
+    setShowReview(true)
+  }, [])
+
+  // Print a receipt: WebUSB thermal printer when connected, otherwise the
+  // browser print dialog (hidden iframe).
+  const printTransaction = useCallback(
+    async (tx: CompletedTransaction | null) => {
+      if (!tx) return
+      setIsPrinting(true)
+      try {
+        let printed = false
+        if (printer.status === 'connected') {
+          try {
+            await printer.print(buildReceiptBytes(mapReceiptToBuilder(tx.receipt)))
+            printed = true
+          } catch (e) {
+            console.error('[Print] WebUSB failed, falling back to browser print', e)
+          }
+        }
+        if (!printed) printReceiptViaIframe(tx.receipt)
+        setCompletedTransaction((prev) =>
+          prev && prev.receipt.invoiceNo === tx.receipt.invoiceNo
+            ? { ...prev, printedCount: prev.printedCount + 1 }
+            : prev,
+        )
+      } finally {
+        setIsPrinting(false)
+      }
+    },
+    [printer],
+  )
+
+  const handlePrintCompleted = useCallback(() => {
+    void printTransaction(completedTransaction)
+  }, [printTransaction, completedTransaction])
+
+  const startNewTransaction = useCallback(() => {
+    resetCart()
+  }, [resetCart])
 
   const { mutate: holdMutate, isPending: isHoldPending } = useMutation({
     mutationFn: (payload: any) => {
       if (editingOrderId) {
         return salesOrdersService.update(
           editingOrderId,
-          toApiOrder(payload, { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] }) as any,
+          toApiOrder(
+            { ...payload, settlement_status: editingOrderSettlement ?? payload.settlement_status },
+            { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] },
+          ) as any,
         )
       }
       const body = toApiOrder(payload)
-      return api
-        .post('/sales-orders', body, { headers: { 'Idempotency-Key': idemKeyFor('hold', body) } })
-        .then((r) => r.data)
+      const key = idemKeyFor('hold', body)
+      return withIdempotencyRetry(() =>
+        api.post('/sales-orders', body, { headers: { 'Idempotency-Key': key } }),
+      ).then((r) => r.data)
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
@@ -923,21 +1071,33 @@ export function usePosLogic() {
   })
 
   const handleHold = async () => {
+    if (submitLockRef.current || isHoldPending || isPending) return
+    submitLockRef.current = true
+    let dispatched = false
+    try {
+      dispatched = await prepareHold()
+    } finally {
+      if (!dispatched) submitLockRef.current = false
+    }
+  }
+
+  // Returns true once the mutation was dispatched (its onSettled releases the lock).
+  const prepareHold = async (): Promise<boolean> => {
     if (cart.length === 0 && bundleCart.length === 0) {
       toast.error('Cart is empty')
-      return
+      return false
     }
 
     if (!salesChannelId) {
       toast.error('Please select a Sales Channel first')
-      return
+      return false
     }
 
     const { creditById, settlementStatus, creditType: resolvedCreditType } = getSettlement()
 
     if (resolvedCreditType === 'user' && !creditById) {
       toast.error('Select a credit user')
-      return
+      return false
     }
     if (
       resolvedCreditType === 'customer' &&
@@ -945,7 +1105,7 @@ export function usePosLogic() {
       !manualCustomerName
     ) {
       toast.error('Select a customer or type a customer name for customer credit')
-      return
+      return false
     }
 
     const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
@@ -969,15 +1129,21 @@ export function usePosLogic() {
       details: buildDetails('pending', !!editingOrderId),
     }
 
-    holdMutate(payload)
+    holdMutate(payload, { onSettled: () => { submitLockRef.current = false } })
+    return true
   }
 
   const { mutate, isPending } = useMutation({
     mutationFn: (payload: any) => {
       if (editingOrderId) {
+        // Send the stored settlement_status back unchanged — PATCH refuses a
+        // change (422); onSuccess moves it through the bulk endpoint instead.
         return salesOrdersService.update(
           editingOrderId,
-          toApiOrder(payload, { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] }) as any,
+          toApiOrder(
+            { ...payload, settlement_status: editingOrderSettlement ?? payload.settlement_status },
+            { keepNull: ['customer_id', 'credit_type', 'credit_by_id'] },
+          ) as any,
         )
       }
       // Payment amount: full = sale total; partial (DP) = user-entered amount.
@@ -1026,17 +1192,20 @@ export function usePosLogic() {
         details: payload.details,
         payments: checkoutPayments,
       }
-      return salesOrdersService.checkout(body, idemKeyFor('checkout', body))
+      const key = idemKeyFor('checkout', body)
+      return withIdempotencyRetry(() => salesOrdersService.checkout(body, key))
     },
-    onSuccess: async (_res: any, variables: any) => {
+    onSuccess: async (res: any, variables: any) => {
       // Checkout is atomic — payment already created by the backend.
       // Only create payments separately for edited (held) orders. Online
       // orders never get a payment here: the marketplace payout settles them.
       if (editingOrderId && variables.type !== 'online') {
         const salesOrderId = editingOrderId
+        // Pay the server's total (voucher discount is rounded server-side), not a local recompute.
+        const serverTotal = Number(res?.data?.data?.total_price)
         const paidAmount = paymentMode === 'partial'
           ? Number(partialAmount.replace(/\D/g, '')) || 0
-          : variables.total_price
+          : Number.isFinite(serverTotal) ? serverTotal : variables.total_price
 
         const dateStr = new Date().toISOString().split('T')[0]
         let paymentsPayload: any[] = []
@@ -1064,16 +1233,38 @@ export function usePosLogic() {
               date: dateStr,
               payments: paymentsPayload
             }
-            await paymentsService.create(
-              paymentBody as any,
-              idemKeyFor(`pay:${salesOrderId}`, paymentBody),
-            )
+            const payKey = idemKeyFor(`pay:${salesOrderId}`, paymentBody)
+            await withIdempotencyRetry(() => paymentsService.create(paymentBody as any, payKey))
           } catch (err: any) {
             toast.error(
               'Order updated but payment recording failed: ' +
-              (err?.response?.data?.message ?? 'Unknown error'),
+              getApiErrorMessage(err, 'Unknown error'),
             )
           }
+        }
+      }
+
+      // A held order's settlement can't change through PATCH. If the payment
+      // didn't already move it to the target status, use the bulk endpoint.
+      // A partial (DP) payment never settles the order.
+      const wantsChange =
+        !!variables.settlement_status &&
+        variables.settlement_status !== editingOrderSettlement &&
+        !(paymentMode === 'partial' && variables.settlement_status === 'settled')
+      if (editingOrderId && wantsChange) {
+        try {
+          const fresh = await salesOrdersService.findById(editingOrderId)
+          const current = (fresh.data as any)?.data?.settlement_status
+          if (current !== variables.settlement_status) {
+            await salesOrdersService.bulkUpdateSettlement({
+              items: [{ sales_order_id: editingOrderId, settlement_status: variables.settlement_status }],
+            })
+          }
+        } catch (err: any) {
+          toast.error(
+            'Order updated but settlement status could not be changed: ' +
+            getApiErrorMessage(err, 'Unknown error'),
+          )
         }
       }
 
@@ -1081,23 +1272,109 @@ export function usePosLogic() {
       qc.invalidateQueries({ queryKey: ['pos-history'] })
       qc.invalidateQueries({ queryKey: ['product-inventories-pos'] })
       qc.invalidateQueries({ queryKey: ['pos-bundles'] })
+      qc.invalidateQueries({ queryKey: ['pos-credit-users'] })
+
+      // ── Transaction complete screen (replaces the old page reload) ──
+      // Totals come from the server response (voucher rounding is server-side).
+      const order = res?.data?.data ?? {}
+      const num = (v: any, fallback: number) => {
+        const n = Number(v)
+        return Number.isFinite(n) ? n : fallback
+      }
+      const isOnline = variables.type === 'online'
+      const serverTotal = num(order.total_price, variables.total_price)
+      const serverSubtotal = num(order.subtotal_price, variables.subtotal_price)
+      const serverDiscount = num(order.discount_price, variables.discount_price)
+      const serverTax = num(order.tax_amount, taxAmount)
+      const isPartial = !isOnline && paymentMode === 'partial'
+      const dueNow = isPartial ? Number(partialAmount.replace(/\D/g, '')) || 0 : serverTotal
+      const methodName = (id: number | null | undefined) =>
+        paymentMethods.find((pm: any) => pm.id === id)?.name ?? 'Payment'
+
+      let payments: { method: string; amount: number }[] = []
+      if (!isOnline) {
+        if (isSplitPayment) {
+          payments = splitPayments.map((sp) => ({ method: methodName(sp.paymentMethodId), amount: Number(sp.amount) || 0 }))
+        } else if (paymentMethodId) {
+          payments = [{ method: methodName(paymentMethodId), amount: dueNow }]
+        }
+      }
+      const tenderedCash = Number(cashTendered.replace(/\D/g, '')) || 0
+      const tendered = !isOnline && !isSplitPayment && isCashMethod && tenderedCash > 0 ? tenderedCash : dueNow
+      const change = !isOnline && !isSplitPayment && isCashMethod ? Math.max(0, tendered - dueNow) : 0
+
+      const now = new Date()
+      const branch = (user as any)?.branch ?? {}
+      const tx: CompletedTransaction = {
+        orderId: order.id ?? editingOrderId ?? null,
+        receipt: {
+          companyName: 'Dapur Cokelat Indonesia',
+          branchName: branch.name ?? 'Dapur Cokelat',
+          branchAddress: branch.address ?? '',
+          branchPhone: branch.phone ?? '',
+          invoiceNo: order.code ?? editingOrderCode ?? '',
+          date: now
+            .toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' })
+            .replace(/\//g, '-'),
+          time: now.toLocaleTimeString('id-ID'),
+          cashierName: (user as any)?.name ?? 'Kasir',
+          customerName: (selectedCustomerId ? customerSearch : variables.customer_name || guestName) || undefined,
+          orderType: variables.type,
+          items: [
+            ...cart.map((c: any) => ({ name: c.name ?? '', qty: c.qty, price: c.price, subtotal: c.qty * c.price })),
+            ...bundleCart.map((c: any) => ({ name: c.name ?? '', qty: c.qty, price: c.price, subtotal: c.qty * c.price })),
+          ],
+          grossAmount: serverSubtotal,
+          discountAmount: serverDiscount,
+          taxAmount: serverTax,
+          taxIncluded:
+            serverTax > 0 && Math.abs(serverSubtotal - serverDiscount + serverTax - serverTotal) > 1,
+          totalAmount: serverTotal,
+          payments,
+          changeAmount: change,
+          isPrinted: false,
+        },
+        tendered,
+        change,
+        isOnline,
+        isPartial,
+        remaining: isPartial ? Math.max(0, serverTotal - dueNow) : 0,
+        printedCount: 0,
+      }
+
+      setShowPayment(false)
+      setCompletedTransaction(tx)
       toast.success(editingOrderId ? 'Order updated!' : 'Order placed!')
-      resetCart()
-      
-      // Full page refresh after 1.5 seconds so user can read the success toast
-      setTimeout(() => {
-        window.location.reload()
-      }, 1500)
+
+      // A connected thermal printer prints straight away (like a real till);
+      // without one the cashier prints from the complete screen.
+      if (printer.status === 'connected' && !isOnline) {
+        void printTransaction(tx)
+      }
     },
     onError: (err: any) => {
       toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to place order')))
+      // Keep the cart and reopen payment so the cashier can fix and retry.
+      setShowPayment(true)
     },
   })
 
   const handleConfirmPayment = async () => {
+    if (submitLockRef.current || isPending || isHoldPending) return
+    submitLockRef.current = true
+    let dispatched = false
+    try {
+      dispatched = await prepareCheckout()
+    } finally {
+      if (!dispatched) submitLockRef.current = false
+    }
+  }
+
+  // Returns true once the mutation was dispatched (its onSettled releases the lock).
+  const prepareCheckout = async (): Promise<boolean> => {
     if (orderType !== 'online' && (isSplitPayment ? splitPayments.length === 0 : !paymentMethodId)) {
       toast.error('Select a payment method')
-      return
+      return false
     }
 
     const { creditById, settlementStatus, creditType: resolvedCreditType } = getSettlement()
@@ -1106,7 +1383,7 @@ export function usePosLogic() {
     // customer ⇒ a real customer_id (picked or created from a manual name).
     if (resolvedCreditType === 'user' && !creditById) {
       toast.error('Please select a credit user')
-      return
+      return false
     }
     if (
       resolvedCreditType === 'customer' &&
@@ -1114,7 +1391,7 @@ export function usePosLogic() {
       !manualCustomerName
     ) {
       toast.error('Please select a customer or type a customer name for customer credit')
-      return
+      return false
     }
 
     const payloadCustomerId = await resolvePayloadCustomerId(resolvedCreditType)
@@ -1143,7 +1420,8 @@ export function usePosLogic() {
       details: buildDetails('completed', !!editingOrderId),
     }
 
-    mutate(payload)
+    mutate(payload, { onSettled: () => { submitLockRef.current = false } })
+    return true
   }
 
   // ---------------------------------------------------------------------------
@@ -1173,6 +1451,8 @@ export function usePosLogic() {
     appliedVoucher,
     voucherLoading,
     discountAmount,
+    taxAmount,
+    taxIncluded,
     showPayment, setShowPayment,
     paymentMethodId, setPaymentMethodId,
     cashTendered, setCashTendered,
@@ -1184,6 +1464,10 @@ export function usePosLogic() {
     transactionDate, setTransactionDate,
     fulfillmentDate, setFulfillmentDate,
     showReceipt, setShowReceipt,
+    showReview, closeReview, proceedFromReview, backToReview, clearVoucher,
+    completedTransaction, isPrinting, printerConnected: printer.status === 'connected',
+    handlePrintCompleted, startNewTransaction,
+    editingOrderCode,
     showHistory, setShowHistory,
     showPreorders, setShowPreorders,
     preorderSearch, setPreorderSearch, preorderDateFrom, setPreorderDateFrom, preorderDateTo, setPreorderDateTo, preorderPage, setPreorderPage,
@@ -1199,7 +1483,7 @@ export function usePosLogic() {
     customers,
     subtotal, total, change, quickAmounts,
     selectedMethod, isCashMethod, isCreditMethod,
-    creditByUserId, setCreditByUserId, creditUsers,
+    creditByUserId, setCreditByUserId, creditUsers, setCreditUserSearch,
     creditType, setCreditType,
     isPending, isHoldPending,
 

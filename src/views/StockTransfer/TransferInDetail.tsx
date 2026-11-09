@@ -31,7 +31,6 @@ const detailSchema = z.object({
 })
 
 const schema = z.object({
-  code: z.string().min(1, 'Receipt code required'),
   date: z.string().min(1, 'Date required'),
   status: z.enum(['pending', 'final']),
   description: z.string().optional(),
@@ -116,7 +115,6 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: {
-      code: '',
       date: today,
       status: 'pending',
       description: '',
@@ -138,8 +136,8 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
       description: '',
       client_ref: `${delivery.code ?? `DEL-${id}`}-${index + 1}`,
     }))
+    // Receipt code is numbered by the backend — never derive it from the delivery code.
     reset({
-      code: `RCP-${delivery.code ?? id}`,
       date: today,
       status: 'pending',
       description: '',
@@ -156,7 +154,6 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
   const createReceiptMutation = useMutation({
     mutationFn: (values: FormValues) => {
       const payload = {
-        code: values.code,
         delivery_id: id,
         date: values.date,
         total_price: totalPrice,
@@ -570,23 +567,14 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
             <div>
               <label style={labelStyle}>
-                Receipt Code <span style={{ color: 'var(--destructive)' }}>*</span>
+                Receipt Code
               </label>
               <input
-                {...register('code')}
-                placeholder="e.g. RCP-TRF-001"
-                style={{
-                  ...inputStyle,
-                  ...(errors.code
-                    ? { border: '1px solid var(--destructive)' }
-                    : {}),
-                }}
+                value="Dibuat otomatis"
+                disabled
+                readOnly
+                style={{ ...inputStyle, color: 'var(--foreground-muted)' }}
               />
-              {errors.code && (
-                <span style={{ fontSize: 11, color: 'var(--destructive)' }}>
-                  {errors.code.message}
-                </span>
-              )}
             </div>
             <div>
               <label style={labelStyle}>

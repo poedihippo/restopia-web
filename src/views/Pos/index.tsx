@@ -5,6 +5,8 @@ import PosProductGrid from './components/PosProductGrid'
 import PosCartSidebar from './components/PosCartSidebar'
 import PosModals from './components/PosModals'
 import PosShiftBlockerModal from './components/PosShiftBlockerModal'
+import PosOrderReviewModal from './components/PosOrderReviewModal'
+import PosTransactionCompleteModal from './components/PosTransactionCompleteModal'
 // TODO: You might want to extract PosPreorderModal and PosHistoryModal later.
 
 export default function PosView() {
@@ -88,6 +90,8 @@ export default function PosView() {
         subtotal={logic.subtotal}
         total={logic.total}
         discountAmount={logic.discountAmount}
+        taxAmount={logic.taxAmount}
+        taxIncluded={logic.taxIncluded}
         appliedVoucher={logic.appliedVoucher}
         voucherCode={logic.voucherCode}
         setVoucherCode={logic.setVoucherCode}
@@ -112,6 +116,7 @@ export default function PosView() {
       <PosModals
         showPayment={logic.showPayment}
         setShowPayment={logic.setShowPayment}
+        onBackToReview={logic.backToReview}
         showReceipt={logic.showReceipt}
         setShowReceipt={logic.setShowReceipt}
         showPreorder={logic.showPreorder}
@@ -143,6 +148,7 @@ export default function PosView() {
         creditByUserId={logic.creditByUserId}
         setCreditByUserId={logic.setCreditByUserId}
         creditUsers={logic.creditUsers}
+        setCreditUserSearch={logic.setCreditUserSearch}
         creditType={logic.creditType}
         setCreditType={logic.setCreditType}
         selectedCustomerId={logic.selectedCustomerId}
@@ -194,6 +200,50 @@ export default function PosView() {
         isHistoryLoading={logic.isHistoryLoading}
       />
       
+      {/* Cashier flow: review -> payment (PosModals) -> complete */}
+      <PosOrderReviewModal
+        open={logic.showReview}
+        onBack={logic.closeReview}
+        onProceed={logic.proceedFromReview}
+        cart={logic.cart}
+        bundleCart={logic.bundleCart}
+        subtotal={logic.subtotal}
+        discountAmount={logic.discountAmount}
+        taxAmount={logic.taxAmount}
+        taxIncluded={logic.taxIncluded}
+        total={logic.total}
+        orderType={logic.orderType}
+        salesChannelId={logic.salesChannelId}
+        setSalesChannelId={logic.setSalesChannelId}
+        salesChannels={logic.salesChannels}
+        salesChannelName={
+          logic.salesChannels.find((sc: any) => sc.id === logic.salesChannelId)?.name
+        }
+        editingOrderCode={logic.editingOrderCode}
+        selectedCustomerName={logic.selectedCustomerId ? logic.customerSearch || 'Customer' : undefined}
+        onClearCustomer={logic.clearSelectedCustomer}
+        guestName={logic.guestName}
+        setGuestName={logic.setGuestName}
+        guestPhone={logic.guestPhone}
+        setGuestPhone={logic.setGuestPhone}
+        orderNote={logic.orderNote}
+        setOrderNote={logic.setOrderNote}
+        appliedVoucher={logic.appliedVoucher}
+        voucherCode={logic.voucherCode}
+        setVoucherCode={logic.setVoucherCode}
+        voucherLoading={logic.voucherLoading}
+        onApplyVoucher={logic.handleApplyVoucher}
+        onClearVoucher={logic.clearVoucher}
+      />
+
+      <PosTransactionCompleteModal
+        transaction={logic.completedTransaction}
+        isPrinting={logic.isPrinting}
+        printerConnected={logic.printerConnected}
+        onPrint={logic.handlePrintCompleted}
+        onNewTransaction={logic.startNewTransaction}
+      />
+
       <PosShiftBlockerModal />
     </div>
   )

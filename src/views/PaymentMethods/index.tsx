@@ -614,7 +614,7 @@ export default function PaymentMethodsView() {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          Edit
+                        Edit
                         </button>
                       )}
                       {canDelete && (
@@ -911,7 +911,7 @@ export default function PaymentMethodsView() {
             style={{
               position: "relative",
               zIndex: 50,
-              width: 480,
+              width: 760,
               maxWidth: "100vw",
               height: "100%",
               background: "var(--surface)",
@@ -931,17 +931,39 @@ export default function PaymentMethodsView() {
                 justifyContent: "space-between",
               }}
             >
-              <h2
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: 18,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: "var(--foreground)",
-                }}
-              >
-                Payment Method Detail
-              </h2>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <h2
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: 20,
+                      fontWeight: 500,
+                      margin: 0,
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    {selectedItem.name}
+                  </h2>
+                  {selectedItem.type && (
+                    <span
+                      style={{
+                        padding: "2px 10px",
+                        borderRadius: 99,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: "var(--accent-light-bg)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      {selectedItem.type}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 12, color: "var(--foreground-muted)" }}>
+                  ID {selectedItem.id}
+                  {selectedItem.created_at ? ` · Dibuat ${formatDateTime(selectedItem.created_at)}` : ""}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedItem(null)}
@@ -964,62 +986,49 @@ export default function PaymentMethodsView() {
                 gap: 16,
               }}
             >
-              {[
-                { label: "ID", value: selectedItem.id },
-                { label: "Name", value: selectedItem.name },
-                { label: "Type", value: selectedItem.type },
-                {
-                  label: "Chart of Account",
-                  value: selectedItem.chart_of_account
-                    ? `${selectedItem.chart_of_account.code} — ${selectedItem.chart_of_account.name}`
-                    : "—",
-                },
-                {
-                  label: "Bank Account",
-                  value: selectedItem.bank_account
-                    ? `${selectedItem.bank_account.bank_name} — ${selectedItem.bank_account.account_number} (${selectedItem.bank_account.account_name})`
-                    : selectedItem.bank_account_id
-                      ? `Linked to bank account #${selectedItem.bank_account_id}`
-                      : "—",
-                },
-                {
-                  label: "Created At",
-                  value: selectedItem.created_at
-                    ? formatDateTime(selectedItem.created_at)
-                    : "—",
-                },
-              ].map((f) => (
-                <div
-                  key={f.label}
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: "var(--foreground-muted)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.6px",
-                    }}
-                  >
-                    {f.label}
-                  </span>
-                  <span style={{ fontSize: 14, color: "var(--foreground)" }}>
-                    {f.value ?? "—"}
-                  </span>
-                </div>
-              ))}
               <div
                 style={{
-                  borderTop: "1px solid var(--border)",
-                  paddingTop: 16,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: 12,
+                  padding: 14,
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--background)",
                 }}
               >
-                <PaymentMethodBranchAccounts
-                  paymentMethodId={Number(selectedItem.id)}
-                  canEdit={canEdit}
-                />
+                {[
+                  {
+                    label: "Akun default (COA)",
+                    value: selectedItem.chart_of_account?.name ?? "—",
+                    sub: selectedItem.chart_of_account?.code,
+                  },
+                  {
+                    label: "Rekening bank",
+                    value: selectedItem.bank_account
+                      ? `${selectedItem.bank_account.bank_name} — ${selectedItem.bank_account.account_number}`
+                      : selectedItem.bank_account_id
+                        ? `Bank account #${selectedItem.bank_account_id}`
+                        : "—",
+                    sub: selectedItem.bank_account?.account_name,
+                  },
+                ].map((f) => (
+                  <div key={f.label} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground-muted)" }}>
+                      {f.label}
+                    </span>
+                    <span style={{ fontSize: 14, color: "var(--foreground)" }}>{f.value}</span>
+                    {f.sub && (
+                      <span style={{ fontSize: 11, color: "var(--foreground-muted)" }}>{f.sub}</span>
+                    )}
+                  </div>
+                ))}
               </div>
+              <PaymentMethodBranchAccounts
+                paymentMethodId={Number(selectedItem.id)}
+                canEdit={canEdit}
+                defaultAccount={selectedItem.chart_of_account}
+              />
             </div>
           </div>
         </div>

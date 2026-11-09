@@ -109,9 +109,10 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Stock Operations',
         icon: Layers,
         children: [
-          // Menu "Stock Movements" (semua tipe) tidak ditampilkan — pakai Raw / WIP.
+          // Menu "Stock Movements" (semua tipe) tidak ditampilkan — pakai Raw / WIP / Final.
           { label: 'Stock Movements Raw', href: '/products/product-inventory/stock-movements?product_types=raw', permission: 'stock-movement.menu' },
           { label: 'Stock Movements WIP', href: '/products/product-inventory/stock-movements?product_types=wip', permission: 'stock-movement.menu' },
+          { label: 'Stock Movements Final', href: '/products/product-inventory/stock-movements?product_types=final', permission: 'stock-movement.menu' },
           { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
           { label: 'SR/DN/Outlet', href: '/products/stock-per-branch', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },
           { label: 'Outlet Stock', href: '/products/outlet-stock', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },

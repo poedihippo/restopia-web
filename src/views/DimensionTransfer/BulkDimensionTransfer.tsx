@@ -9,15 +9,12 @@ import { toast } from 'sonner'
 import { dimensionTransfersService } from '@/services/dimension-transfers.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { companiesService } from '@/services/companies.service'
-import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Loader2, ArrowRightLeft, Plus, Trash2 } from 'lucide-react'
-
-const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'General (Umum)' }
 
 interface DimensionInventoryRow {
   id: number
@@ -91,7 +88,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     defaultValues: {
       items: [{ source_inventory_id: 0, qty: 1 }],
       from_owner_ref: 'GENERAL',
-      from_stage: 'GENERAL',
+      from_stage: '',
       from_location_ref: 'GENERAL',
       to_owner_ref: 'GENERAL',
       to_stage: '',
@@ -121,27 +118,11 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     (r: any) => Number(r.display_qty ?? r.stock ?? r.qty ?? 0) > 0,
   )
 
-  const { data: companiesData, isLoading: companiesLoading } = useQuery({
+  const { data: companiesData } = useQuery({
     queryKey: ['companies-all'],
     queryFn: () => companiesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
-  const companyOptions = [
-    GENERAL_OWNER_OPTION,
-    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
-  ]
-
-  // Outlet branches always hold stock under the GENERAL owner/location, so the
-  // "To" dimension is locked to GENERAL for them.
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
-    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
-  })
-  const branches: { id: number; type?: string }[] = (branchesData as any)?.data ?? []
-  const activeBranchType =
-    branches.find((b) => b.id === effectiveBranchId)?.type ??
-    (effectiveBranchId === user?.branch?.id ? (user as any)?.branch?.type : undefined)
-  const isOutletBranch = activeBranchType === 'outlet'
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
     queryKey: ['stages-all'],
@@ -174,23 +155,14 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
   const fromOwner = watch('from_owner_ref')
   const fromStage = watch('from_stage')
   const fromLocation = watch('from_location_ref') || 'GENERAL'
-  const toOwnerRef = watch('to_owner_ref')
   const toStage = watch('to_stage')
-  const toLocationRef = watch('to_location_ref') || 'GENERAL'
   const watchItems = watch('items')
 
-  // Outlet branch: owner & location tujuan selalu GENERAL (read-only).
-  useEffect(() => {
-    if (isOutletBranch) {
-      setValue('to_owner_ref', 'GENERAL')
-      setValue('to_location_ref', 'GENERAL')
-    }
-  }, [isOutletBranch, setValue])
-
-  // Only offer inventory rows that live in the selected source dimension.
+  // Only offer inventory rows that live in the selected source dimension
+  // (stage dipilih dulu; owner & lokasi dikunci GENERAL).
   const inventoryRows = useMemo(
     () =>
-      allInventoryRows.filter(
+      !fromStage ? [] : allInventoryRows.filter(
         (r) =>
           (r.owner_ref ?? 'GENERAL') === fromOwner &&
           (r.stage ?? 'GENERAL') === fromStage &&
@@ -235,12 +207,8 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     }
   }), [inventoryRows, companies])
 
-  const isSameDimension =
-    !!fromOwner &&
-    !!toOwnerRef &&
-    fromOwner === toOwnerRef &&
-    fromStage === toStage &&
-    fromLocation === toLocationRef
+  // Owner & lokasi dikunci GENERAL di kedua sisi, jadi cukup bandingkan stage.
+  const isSameDimension = !!fromStage && fromStage === toStage
 
   const createMutation = useMutation({
     mutationFn: (payload: {
@@ -257,7 +225,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
       reset({
         items: [{ source_inventory_id: 0, qty: 1 }],
         from_owner_ref: 'GENERAL',
-        from_stage: 'GENERAL',
+        from_stage: '',
         from_location_ref: 'GENERAL',
         to_owner_ref: 'GENERAL',
         to_stage: '',
@@ -302,17 +270,16 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     createMutation.mutate({
       branch_id: effectiveBranchId,
       items,
+      // Owner & lokasi dikunci GENERAL — hanya stage yang berpindah.
       from: {
-        owner_ref: values.from_owner_ref,
+        owner_ref: 'GENERAL',
         stage: values.from_stage,
-        location_ref: values.from_location_ref || 'GENERAL',
+        location_ref: 'GENERAL',
       },
       to: {
-        // Owner tujuan selalu GENERAL — backend memperlakukan owner_ref sebagai
-        // free text, jadi jangan kirim ID company.
         owner_ref: 'GENERAL',
         stage: values.to_stage,
-        location_ref: isOutletBranch ? 'GENERAL' : values.to_location_ref || 'GENERAL',
+        location_ref: 'GENERAL',
       },
       description: values.description || undefined,
     })
@@ -342,6 +309,13 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
     color: 'var(--foreground)',
     marginBottom: 4,
     display: 'block',
+  }
+
+  const lockedInputStyle: React.CSSProperties = {
+    ...inputStyle,
+    background: 'var(--muted)',
+    cursor: 'not-allowed',
+    color: 'var(--foreground-muted)',
   }
 
   const errorStyle: React.CSSProperties = {
@@ -382,24 +356,8 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
               Dimensi Asal (From)
             </span>
             <div>
-              <label style={labelStyle}>
-                Owner Asal <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <Controller
-                name="from_owner_ref"
-                control={control}
-                render={({ field }) => (
-                  <SearchableSelect
-                    value={field.value ?? ''}
-                    onChange={field.onChange}
-                    options={companyOptions}
-                    placeholder="Pilih owner..."
-                    searchPlaceholder="Cari perusahaan..."
-                    loading={companiesLoading}
-                    error={errors.from_owner_ref?.message as string | undefined}
-                  />
-                )}
-              />
+              <label style={labelStyle}>Owner Asal</label>
+              <input type="text" value="GENERAL" readOnly disabled style={lockedInputStyle} />
             </div>
             <div>
               <label style={labelStyle}>
@@ -413,7 +371,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
                     value={field.value ?? ''}
                     onChange={field.onChange}
                     options={stageOptions}
-                    placeholder="Pilih stage..."
+                    placeholder="Pilih stage asal terlebih dahulu..."
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
                     error={errors.from_stage?.message as string | undefined}
@@ -423,12 +381,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
             </div>
             <div>
               <label style={labelStyle}>Lokasi Asal</label>
-              <input
-                type="text"
-                placeholder="GENERAL"
-                {...register('from_location_ref')}
-                style={inputStyle}
-              />
+              <input type="text" value="GENERAL" readOnly disabled style={lockedInputStyle} />
             </div>
           </div>
 
@@ -448,24 +401,8 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
               Dimensi Tujuan (To)
             </span>
             <div>
-              <label style={labelStyle}>
-                Owner Tujuan <span style={{ color: 'var(--destructive)' }}>*</span>
-              </label>
-              <input
-                type="text"
-                value="GENERAL"
-                readOnly
-                placeholder="GENERAL"
-                style={{
-                  ...inputStyle,
-                  background: 'var(--muted)',
-                  cursor: 'not-allowed',
-                  color: 'var(--foreground-muted)',
-                }}
-              />
-              <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Owner tujuan selalu GENERAL
-              </span>
+              <label style={labelStyle}>Owner Tujuan</label>
+              <input type="text" value="GENERAL" readOnly disabled style={lockedInputStyle} />
             </div>
             <div>
               <label style={labelStyle}>
@@ -478,7 +415,7 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
                   <SearchableSelect
                     value={field.value ?? ''}
                     onChange={field.onChange}
-                    options={stageOptions}
+                    options={stageOptions.filter((o) => o.value !== fromStage)}
                     placeholder="Pilih stage tujuan..."
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
@@ -489,31 +426,11 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
             </div>
             <div>
               <label style={labelStyle}>Lokasi Tujuan</label>
-              <input
-                type="text"
-                placeholder="GENERAL"
-                readOnly={isOutletBranch}
-                {...register('to_location_ref')}
-                style={
-                  isOutletBranch
-                    ? {
-                        ...inputStyle,
-                        background: 'var(--muted)',
-                        cursor: 'not-allowed',
-                        color: 'var(--foreground-muted)',
-                      }
-                    : inputStyle
-                }
-              />
-              {isOutletBranch && (
-                <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                  Cabang outlet selalu menggunakan lokasi GENERAL
-                </span>
-              )}
+              <input type="text" value="GENERAL" readOnly disabled style={lockedInputStyle} />
             </div>
             {isSameDimension && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                Dimensi tujuan sama dengan dimensi asal
+                Stage tujuan sama dengan stage asal
               </span>
             )}
           </div>
@@ -565,9 +482,10 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
                       value={f.value ?? 0}
                       onChange={f.onChange}
                       options={sourceOptions}
-                      placeholder="Pilih item..."
+                      placeholder={fromStage ? 'Pilih item...' : 'Pilih stage asal dulu'}
                       searchPlaceholder="Cari produk atau batch di dimensi asal..."
                       loading={inventoryLoading}
+                      disabled={!fromStage}
                       error={errors.items?.[index]?.source_inventory_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
                     />
@@ -577,10 +495,11 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
                   type="number"
                   min="0.001"
                   step="any"
+                  disabled={!fromStage}
                   {...register(`items.${index}.qty`, { valueAsNumber: true })}
                   placeholder="Qty"
                   style={{
-                    ...inputStyle,
+                    ...(fromStage ? inputStyle : lockedInputStyle),
                     ...(errors.items?.[index]?.qty ? { border: '1px solid var(--destructive)' } : {}),
                   }}
                 />

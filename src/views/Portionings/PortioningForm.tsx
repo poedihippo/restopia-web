@@ -7,13 +7,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2, ArrowLeft, Loader2, Save, Eye } from 'lucide-react'
+import { Plus, Trash2, ArrowLeft, Loader2, Save, Eye, Scissors } from 'lucide-react'
 import { portioningsService } from '@/services/portionings.service'
 import { companiesService } from '@/services/companies.service'
 import api from '@/hooks/useApi'
 import { parseApiError, toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import { useAuth } from '@/hooks/useAuth'
+import ProductCutSheet from '@/views/ProductCuts/ProductCutSheet'
 import type { Portioning, PortioningRequest } from '@/types/api'
 import type { PortioningSource, PortioningSourceOutput } from '@/services/portionings.service'
 
@@ -408,12 +410,33 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
   // ── Sources (S1: GET /portionings/sources) ───────────────────────────────
   // This branch's stock rows of products that are the parent of at least one
   // cut. Not paged. `stock` is the only quantity.
-  const { data: sourcesData, isLoading: sourcesLoading } = useQuery({
-    queryKey: ['portioning-sources'],
+  // Re-fetched whenever the Konsumsi Dari stage/owner changes. The documented
+  // endpoint only takes product_id/include_empty, so stage/owner_ref are sent
+  // for the backend to honour once supported, and the stage is also applied
+  // client-side so the picker always matches the selected stage.
+  const sourceStage = watch('source_stage')
+  const sourceOwnerRef = watch('source_owner_ref')
+  const { data: sourcesData, isFetching: sourcesLoading } = useQuery({
+    queryKey: ['portioning-sources', sourceStage, sourceOwnerRef],
     staleTime: 30 * 1000,
-    queryFn: () => portioningsService.sources().then((r) => r.data),
+    placeholderData: (prev: any) => prev,
+    queryFn: () =>
+      portioningsService
+        .sources({ stage: sourceStage || undefined, owner_ref: sourceOwnerRef || undefined })
+        .then((r) => r.data),
   })
-  const sources: PortioningSource[] = (sourcesData as any)?.data ?? []
+  const allSources: PortioningSource[] = (sourcesData as any)?.data ?? []
+  const selectedSourceIds = new Set(
+    (watch('details') ?? []).map((d: any) => Number(d?.base_product_inventory_id)).filter((id: number) => id > 0),
+  )
+  const sources: PortioningSource[] = allSources.filter(
+    (s) =>
+      !sourceStage ||
+      !s.stage ||
+      s.stage.toLowerCase() === sourceStage.toLowerCase() ||
+      // keep rows already picked so their label/stock don't vanish
+      selectedSourceIds.has(s.product_inventory_id),
+  )
 
   const sourceOptions = sources.map((s) => ({
     value: s.product_inventory_id,
@@ -522,6 +545,11 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
 
   // ── Dimension pickers (owner + stage) ────────────────────────────────────
   const [companySearch, setCompanySearch] = useState('')
+  // Pop-up "Buat Product Cut" — cut table baru langsung terpakai di dropdown SKU hasil
+  // (sheet meng-invalidate 'portioning-source-outputs').
+  const [cutModalOpen, setCutModalOpen] = useState(false)
+  const { hasPermission } = useAuth()
+  const canCreateCut = hasPermission('product-cut.create')
   const [debouncedCompanySearch, setDebouncedCompanySearch] = useState('')
   useEffect(() => {
     const t = setTimeout(() => setDebouncedCompanySearch(companySearch), 400)
@@ -1008,6 +1036,22 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
             }}
           >
             <span style={sectionHeaderStyle}>Potongan (SKU Hasil)</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+            {canCreateCut && (
+              <button
+                type="button"
+                onClick={() => setCutModalOpen(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500,
+                  cursor: 'pointer', color: 'var(--accent)',
+                }}
+              >
+                <Scissors size={12} />
+                Buat Product Cut
+              </button>
+            )}
             <button
               type="button"
               onClick={handleAddDetail}
@@ -1021,6 +1065,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
               <Plus size={12} />
               Tambah Potongan
             </button>
+            </div>
           </div>
 
           <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1197,8 +1242,8 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
                         />
                         {invId > 0 && !outLoading && outOptions.length === 0 && (
                           <span style={{ ...hintStyle, color: 'var(--warning)' }}>
-                            Tidak ada cut table dari produk sumber ini — tambahkan baris di menu
-                            Product Cuts.
+                            Tidak ada cut table dari produk sumber ini — klik &quot;Buat Product Cut&quot;
+                            untuk menambahkannya.
                           </span>
                         )}
                       </div>
@@ -1351,6 +1396,13 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           </button>
         </div>
       </form>
+
+      {/* Di luar <form> agar form cut tidak ter-nest di form portioning */}
+      <ProductCutSheet
+        open={cutModalOpen}
+        onClose={() => setCutModalOpen(false)}
+        variant="modal"
+      />
 
       <style>{`
         @keyframes spin {

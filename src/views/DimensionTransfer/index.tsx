@@ -17,8 +17,6 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { Loader2, ArrowRightLeft, Layers } from 'lucide-react'
 import BulkDimensionTransfer from './BulkDimensionTransfer'
 
-const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'General (Umum)' }
-
 interface DimensionInventoryRow {
   id: number
   product_uom_batch_id?: number
@@ -85,13 +83,6 @@ export default function DimensionTransferView() {
   const availableBranches: any[] = isSuperadmin ? allBranches : user?.branches ?? []
   const effectiveBranchId = selectedBranchId || user?.branch?.id
 
-  // Outlet branches always hold stock under the GENERAL owner/location, so the
-  // "To" dimension is locked to GENERAL for them.
-  const activeBranchType =
-    allBranches.find((b: any) => b.id === effectiveBranchId)?.type ??
-    (effectiveBranchId === user?.branch?.id ? (user as any)?.branch?.type : undefined)
-  const isOutletBranch = activeBranchType === 'outlet'
-
   const queryClient = useQueryClient()
 
   const {
@@ -108,7 +99,7 @@ export default function DimensionTransferView() {
       source_inventory_id: 0,
       qty: 1,
       from_owner_ref: 'GENERAL',
-      from_stage: 'GENERAL',
+      from_stage: '',
       from_location_ref: 'GENERAL',
       to_owner_ref: 'GENERAL',
       to_stage: '',
@@ -136,15 +127,11 @@ export default function DimensionTransferView() {
     (r: any) => Number(r.display_qty ?? r.stock ?? r.qty ?? 0) > 0,
   )
 
-  const { data: companiesData, isLoading: companiesLoading } = useQuery({
+  const { data: companiesData } = useQuery({
     queryKey: ['companies-all'],
     queryFn: () => companiesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
-  const companyOptions = [
-    GENERAL_OWNER_OPTION,
-    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
-  ]
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
     queryKey: ['stages-all'],
@@ -177,7 +164,21 @@ export default function DimensionTransferView() {
   const sourceInventoryId = watch('source_inventory_id')
   const selectedRow = inventoryRows.find((r) => r.id === Number(sourceInventoryId))
 
-  const sourceOptions = inventoryRows.map((row) => {
+  const fromOwner = watch('from_owner_ref')
+  const fromStage = watch('from_stage')
+  const fromLocation = watch('from_location_ref') || 'GENERAL'
+
+  // Stage asal dipilih dulu → hanya tawarkan inventori di stage tersebut.
+  const stageRows = fromStage
+    ? inventoryRows.filter((r) => (r.stage ?? 'GENERAL') === fromStage)
+    : []
+
+  // Ganti stage asal membatalkan item yang sudah dipilih.
+  useEffect(() => {
+    setValue('source_inventory_id', 0)
+  }, [fromStage, setValue])
+
+  const sourceOptions = stageRows.map((row) => {
     const product =
       row.product_uom_batch?.product_uom?.product ||
       (row as any).product_uom?.product ||
@@ -204,29 +205,13 @@ export default function DimensionTransferView() {
     }
   })
 
-  const fromOwner = watch('from_owner_ref')
-  const fromStage = watch('from_stage')
-  const fromLocation = watch('from_location_ref') || 'GENERAL'
-
   const toOwnerRef = watch('to_owner_ref')
   const toStage = watch('to_stage')
   const toLocationRef = watch('to_location_ref') || 'GENERAL'
   const qtyWatched = watch('qty')
 
-  // Outlet branch: owner & location tujuan selalu GENERAL (read-only).
-  useEffect(() => {
-    if (isOutletBranch) {
-      setValue('to_owner_ref', 'GENERAL')
-      setValue('to_location_ref', 'GENERAL')
-    }
-  }, [isOutletBranch, setValue])
-
-  const isSameDimension =
-    !!fromOwner &&
-    !!toOwnerRef &&
-    fromOwner === toOwnerRef &&
-    fromStage === toStage &&
-    fromLocation === toLocationRef
+  // Owner & lokasi tujuan dikunci sama dengan asal, jadi cukup bandingkan stage.
+  const isSameDimension = !!fromStage && fromStage === toStage
 
   const targetBatchId = selectedRow?.product_uom_batch_id ?? selectedRow?.product_uom_batch?.id
   const targetRow = inventoryRows.find((r) => {
@@ -257,7 +242,7 @@ export default function DimensionTransferView() {
         source_inventory_id: 0,
         qty: 1,
         from_owner_ref: 'GENERAL',
-        from_stage: 'GENERAL',
+        from_stage: '',
         from_location_ref: 'GENERAL',
         to_owner_ref: 'GENERAL',
         to_stage: '',
@@ -292,13 +277,8 @@ export default function DimensionTransferView() {
       return
     }
 
-    const noOp =
-      values.from_owner_ref === values.to_owner_ref &&
-      values.from_stage === values.to_stage &&
-      (values.from_location_ref || 'GENERAL') === (values.to_location_ref || 'GENERAL')
-
-    if (noOp) {
-      toast.error('Dimensi tujuan harus berbeda dari dimensi asal')
+    if (values.from_stage === values.to_stage) {
+      toast.error('Stage tujuan harus berbeda dari stage asal')
       return
     }
 
@@ -311,17 +291,16 @@ export default function DimensionTransferView() {
       branch_id: effectiveBranchId,
       product_uom_batch_id: batchId,
       qty: values.qty,
+      // Owner & lokasi dikunci sama dengan stok asal — hanya stage yang berpindah.
       from: {
-        owner_ref: values.from_owner_ref,
+        owner_ref: row.owner_ref ?? 'GENERAL',
         stage: values.from_stage,
-        location_ref: values.from_location_ref || 'GENERAL',
+        location_ref: row.location_ref ?? 'GENERAL',
       },
       to: {
-        // Owner tujuan selalu GENERAL — backend memperlakukan owner_ref sebagai
-        // free text, jangan kirim ID company.
-        owner_ref: 'GENERAL',
+        owner_ref: row.owner_ref ?? 'GENERAL',
         stage: values.to_stage,
-        location_ref: isOutletBranch ? 'GENERAL' : values.to_location_ref || 'GENERAL',
+        location_ref: row.location_ref ?? 'GENERAL',
       },
       description: values.description || undefined,
     })
@@ -351,6 +330,12 @@ export default function DimensionTransferView() {
     color: 'var(--foreground)',
     marginBottom: 4,
     display: 'block',
+  }
+
+  const lockedStyle: React.CSSProperties = {
+    background: 'var(--muted)',
+    cursor: 'not-allowed',
+    color: 'var(--foreground-muted)',
   }
 
   const errorStyle: React.CSSProperties = {
@@ -383,7 +368,7 @@ export default function DimensionTransferView() {
           Dimension Transfer
         </h1>
         <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-          Pindahkan stok antar owner/stage/lokasi sesuai skema OpenAPI
+          Pindahkan stok antar stage — owner & lokasi tetap mengikuti stok asal
         </p>
       </div>
 
@@ -488,7 +473,29 @@ export default function DimensionTransferView() {
           onSubmit={handleSubmit(onSubmit, onInvalid)}
           style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
         >
-          {/* Item Sumber */}
+          {/* 1. Stage Asal — dipilih paling awal; item sumber difilter berdasarkan stage ini */}
+          <div>
+            <label style={labelStyle}>
+              Stage Asal <span style={{ color: 'var(--destructive)' }}>*</span>
+            </label>
+            <Controller
+              name="from_stage"
+              control={control}
+              render={({ field }) => (
+                <SearchableSelect
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  options={stageOptions}
+                  placeholder="Pilih stage asal terlebih dahulu..."
+                  searchPlaceholder="Cari stage..."
+                  loading={stagesLoading}
+                  error={errors.from_stage?.message as string | undefined}
+                />
+              )}
+            />
+          </div>
+
+          {/* 2. Item Sumber */}
           <div>
             <label style={labelStyle}>
               Item Sumber (Produk / Batch) <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -504,17 +511,16 @@ export default function DimensionTransferView() {
                     const row = inventoryRows.find((r) => r.id === Number(val))
                     if (row) {
                       setValue('from_owner_ref', row.owner_ref ?? 'GENERAL')
-                      setValue('from_stage', row.stage ?? 'GENERAL')
                       setValue('from_location_ref', row.location_ref ?? 'GENERAL')
-                      setValue('to_owner_ref', 'GENERAL')
-                      setValue('to_stage', '')
-                      setValue('to_location_ref', 'GENERAL')
+                      setValue('to_owner_ref', row.owner_ref ?? 'GENERAL')
+                      setValue('to_location_ref', row.location_ref ?? 'GENERAL')
                     }
                   }}
                   options={sourceOptions}
-                  placeholder="Pilih item, batch, dan dimensi sumber..."
+                  placeholder={fromStage ? 'Pilih item & batch di stage ini...' : 'Pilih stage asal dulu'}
                   searchPlaceholder="Cari produk atau batch..."
                   loading={inventoryLoading}
+                  disabled={!fromStage}
                   error={errors.source_inventory_id?.message as string | undefined}
                   onSearchChange={setDropdownSearch}
                 />
@@ -522,12 +528,12 @@ export default function DimensionTransferView() {
             />
             {selectedRow && (
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                Dimensi Asal Terdeteksi: {ownerLabel(selectedRow)} / {selectedRow.stage ?? '—'} / {selectedRow.location_ref ?? '—'} · Stok: {selectedRow.display_qty ?? selectedRow.stock ?? selectedRow.qty ?? 0}
+                Dimensi Asal: {ownerLabel(selectedRow)} / {selectedRow.stage ?? '—'} / {selectedRow.location_ref ?? '—'} · Stok: {selectedRow.display_qty ?? selectedRow.stock ?? selectedRow.qty ?? 0}
               </span>
             )}
           </div>
 
-          {/* Qty */}
+          {/* 3. Qty */}
           <div>
             <label style={labelStyle}>
               Qty <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -536,9 +542,11 @@ export default function DimensionTransferView() {
               type="number"
               min="0.001"
               step="any"
+              disabled={!fromStage}
               {...register('qty', { valueAsNumber: true })}
               style={{
                 ...inputStyle,
+                ...(!fromStage ? lockedStyle : {}),
                 ...(errors.qty ? { border: '1px solid var(--destructive)' } : {}),
               }}
             />
@@ -550,85 +558,7 @@ export default function DimensionTransferView() {
             {errors.qty && <span style={errorStyle}>{errors.qty.message}</span>}
           </div>
 
-          {/* SECTION FROM (Dimensi Asal) */}
-          <div
-            style={{
-              padding: 16,
-              background: 'var(--muted)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                Dimensi Asal (From)
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                Diisi otomatis dari inventori sumber
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              <div>
-                <label style={labelStyle}>
-                  Owner Asal (owner_ref) <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <Controller
-                  name="from_owner_ref"
-                  control={control}
-                  render={({ field }) => (
-                    <SearchableSelect
-                      value={field.value ?? ''}
-                      onChange={field.onChange}
-                      options={companyOptions}
-                      placeholder="Pilih owner..."
-                      searchPlaceholder="Cari perusahaan..."
-                      loading={companiesLoading}
-                      error={errors.from_owner_ref?.message as string | undefined}
-                    />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>
-                  Stage Asal (stage) <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <Controller
-                  name="from_stage"
-                  control={control}
-                  render={({ field }) => (
-                    <SearchableSelect
-                      value={field.value ?? ''}
-                      onChange={field.onChange}
-                      options={stageOptions}
-                      placeholder="Pilih stage..."
-                      searchPlaceholder="Cari stage..."
-                      loading={stagesLoading}
-                      error={errors.from_stage?.message as string | undefined}
-                    />
-                  )}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>
-                  Lokasi Asal (location_ref)
-                </label>
-                <input
-                  type="text"
-                  placeholder="GENERAL"
-                  {...register('from_location_ref')}
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION TO (Dimensi Tujuan) */}
+          {/* 4. Dimensi Tujuan — owner & lokasi dikunci, hanya stage yang bisa diubah */}
           <div
             style={{
               padding: 16,
@@ -645,30 +575,20 @@ export default function DimensionTransferView() {
                 Dimensi Tujuan (To)
               </span>
               <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                Target perpindahan stok barang
+                Hanya stage yang dapat diubah
               </span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               <div>
-                <label style={labelStyle}>
-                  Owner Tujuan (owner_ref) <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
+                <label style={labelStyle}>Owner (owner_ref)</label>
                 <input
                   type="text"
-                  value="GENERAL"
+                  value={selectedRow ? ownerLabel(selectedRow) : fromOwner}
                   readOnly
-                  placeholder="GENERAL"
-                  style={{
-                    ...inputStyle,
-                    background: 'var(--muted)',
-                    cursor: 'not-allowed',
-                    color: 'var(--foreground-muted)',
-                  }}
+                  disabled
+                  style={{ ...inputStyle, ...lockedStyle }}
                 />
-                <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                  Owner tujuan selalu GENERAL
-                </span>
               </div>
 
               <div>
@@ -682,7 +602,7 @@ export default function DimensionTransferView() {
                     <SearchableSelect
                       value={field.value ?? ''}
                       onChange={field.onChange}
-                      options={stageOptions}
+                      options={stageOptions.filter((o) => o.value !== fromStage)}
                       placeholder="Pilih stage tujuan..."
                       searchPlaceholder="Cari stage..."
                       loading={stagesLoading}
@@ -693,36 +613,20 @@ export default function DimensionTransferView() {
               </div>
 
               <div>
-                <label style={labelStyle}>
-                  Lokasi Tujuan (location_ref)
-                </label>
+                <label style={labelStyle}>Lokasi (location_ref)</label>
                 <input
                   type="text"
-                  placeholder="GENERAL"
-                  readOnly={isOutletBranch}
-                  {...register('to_location_ref')}
-                  style={
-                    isOutletBranch
-                      ? {
-                          ...inputStyle,
-                          background: 'var(--muted)',
-                          cursor: 'not-allowed',
-                          color: 'var(--foreground-muted)',
-                        }
-                      : inputStyle
-                  }
+                  value={fromLocation}
+                  readOnly
+                  disabled
+                  style={{ ...inputStyle, ...lockedStyle }}
                 />
-                {isOutletBranch && (
-                  <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                    Cabang outlet selalu menggunakan lokasi GENERAL
-                  </span>
-                )}
               </div>
             </div>
 
             {isSameDimension && (
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                ⚠️ Dimensi tujuan sama persis dengan dimensi asal. Harap ubah owner, stage, atau lokasi tujuan.
+                ⚠️ Stage tujuan sama dengan stage asal. Pilih stage tujuan yang berbeda.
               </span>
             )}
 

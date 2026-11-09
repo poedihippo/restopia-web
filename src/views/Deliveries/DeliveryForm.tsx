@@ -23,6 +23,10 @@ import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
+import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import { convertUp, convertDown, type ConversionEntry } from '@/utils/unitDisplay'
+
+const fmtQty = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 
@@ -100,12 +104,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // "type in product dropdown → /v1/companies & /v1/branches get hit"
   // cross-fire that happens when one global search state is shared by all
   // SearchableSelect components and all queries.
-  const [productSearch, setProductSearch] = useState('')
   const [productSearchDebounced, setProductSearchDebounced] = useState('')
-  useEffect(() => {
-    const t = setTimeout(() => setProductSearchDebounced(productSearch), 400)
-    return () => clearTimeout(t)
-  }, [productSearch])
+  const productSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const handleProductSearchChange = React.useCallback((value: string) => {
+    if (productSearchTimer.current) clearTimeout(productSearchTimer.current)
+    productSearchTimer.current = setTimeout(() => setProductSearchDebounced(value.trim()), 400)
+  }, [])
+  useEffect(() => () => {
+    if (productSearchTimer.current) clearTimeout(productSearchTimer.current)
+  }, [])
 
   const [branchSearch, setBranchSearch] = useState('')
   const [branchSearchDebounced, setBranchSearchDebounced] = useState('')
@@ -149,6 +156,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     control,
     setValue,
     getValues,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -222,10 +231,34 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryFn: () => companiesService.list({ 'filter[search]': companySearchDebounced || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
   const companies: { id: number; name: string }[] = (companiesData as any)?.data ?? []
-  const companyOptions = [
-    GENERAL_OWNER_OPTION,
-    ...companies.map((c) => ({ value: String(c.id), label: c.name })),
-  ]
+
+  // "Owner Tujuan" (dimension transfer) searches on its own so typing there
+  // doesn't narrow the source-owner list, and vice versa.
+  const [targetCompanySearch, setTargetCompanySearch] = useState('')
+  const [targetCompanySearchDebounced, setTargetCompanySearchDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setTargetCompanySearchDebounced(targetCompanySearch), 400)
+    return () => clearTimeout(t)
+  }, [targetCompanySearch])
+  const { data: targetCompaniesData, isFetching: targetCompaniesLoading } = useQuery({
+    queryKey: ['companies-all', targetCompanySearchDebounced],
+    enabled: enableDimensionTransfer,
+    placeholderData: (prev: any) => prev,
+    queryFn: () => companiesService.list({ 'filter[search]': targetCompanySearchDebounced || undefined,  per_page: 100 } as any).then((r) => r.data),
+  })
+  const targetCompanies: { id: number; name: string }[] = (targetCompaniesData as any)?.data ?? []
+
+  // Remember every company name seen so a selected owner keeps its label
+  // after the search narrows the result set.
+  const companyLabelsRef = useRef(new Map<string, string>())
+  for (const c of [...companies, ...targetCompanies]) companyLabelsRef.current.set(String(c.id), c.name)
+  const buildCompanyOptions = (list: { id: number; name: string }[], selected?: string) => {
+    const opts = [GENERAL_OWNER_OPTION, ...list.map((c) => ({ value: String(c.id), label: c.name }))]
+    if (selected && !opts.some((o) => o.value === selected) && companyLabelsRef.current.has(selected)) {
+      opts.push({ value: selected, label: companyLabelsRef.current.get(selected)! })
+    }
+    return opts
+  }
 
   const { data: stagesData, isLoading: stagesLoading } = useQuery({
     queryKey: ['stages-all'],
@@ -293,10 +326,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const { data: linePuomsData } = useQuery({
     queryKey: ['line-product-uoms-for-inv', lineProductUomIds.slice().sort((a, b) => a - b).join(',')],
     enabled: lineProductUomIds.length > 0,
+    placeholderData: (prev: any) => prev,
+    staleTime: 60_000,
     queryFn: () =>
       productUomsService
         .list({
           'filter[ids]': lineProductUomIds.join(','),
+          include: 'product,uom',
           per_page: lineProductUomIds.length,
         } as any)
         .then((r) => r.data),
@@ -314,6 +350,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const { data: inventoryData, isLoading: inventoryLoading, isFetching: inventoryFetching, isFetched: inventoryFetched } = useQuery({
     queryKey: ['source-branch-inventory', sourceBranchId, lineProductIds.slice().sort((a, b) => a - b).join(','), watchSourceOwnerRef, watchSourceStage],
     enabled: !!sourceBranchId && lineProductIds.length > 0,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       productInventoriesService
         .list({
@@ -326,7 +363,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         } as any)
         .then((r) => r.data),
   })
-  const sourceInventory = (inventoryData as any)?.data ?? []
+  const sourceInventory: any[] = useMemo(() => (inventoryData as any)?.data ?? [], [inventoryData])
 
   // Available qty shown in the batch picker must be in the LINE's own uom
   // (e.g. "240 PACK"), but the matched batch row is the BASE-uom row (e.g.
@@ -373,7 +410,19 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // product_id resolution uses scalar FKs + puomToProduct map instead of
   // relying on nested includes (product_uom_batch.product_uom.product.id
   // can be null when the include is missing).
-  const getBatchOptionsForUom = (productUomId: number) => {
+  // Cache of computed batch options per product uom. Rebuilt only when the
+  // underlying data changes (see batchOptionsCache below) — with ~100 rows
+  // the old per-render full scan of sourceInventory froze the page.
+  const batchOptionsCacheRef = useRef<Map<number, any[]>>(new Map())
+  const getBatchOptionsForUom = (productUomId: number): any[] => {
+    const cached = batchOptionsCacheRef.current.get(productUomId)
+    if (cached) return cached
+    const result = computeBatchOptionsForUom(productUomId)
+    batchOptionsCacheRef.current.set(productUomId, result)
+    return result
+  }
+
+  const computeBatchOptionsForUom = (productUomId: number) => {
     const lineProductId = puomToProduct.get(productUomId)
 
     const stockBatches = sourceInventory
@@ -414,36 +463,53 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
         return false
       })
-      .map((inv: any) => ({
-        batchId: inv.product_uom_batch.id as number,
-        code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
-        expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
-        stock: inv.display_qty ?? inv.stock ?? inv.qty ?? 0,
-      }))
+      .map((inv: any) => {
+        const rawStock = Number(inv.display_qty ?? inv.stock ?? inv.qty ?? 0)
+        const baseStock = inv.base_stock !== undefined && inv.base_stock !== null ? Number(inv.base_stock) : undefined
+        const baseUom: string =
+          inv.base_uom_code ??
+          inv.product_uom_batch?.product_uom?.uom?.code ??
+          ''
+        const line = lineUomInfo(productUomId)
+        // Convert base stock -> line uom; null when the chain can't reach it.
+        const converted =
+          baseStock !== undefined && baseUom && line.code
+            ? convertUp(baseStock, baseUom, line.code, line.conversions)
+            : null
+        return {
+          batchId: inv.product_uom_batch.id as number,
+          code: (inv.product_uom_batch.batch_code || inv.product_uom_batch.code) as string | undefined,
+          expiry_date: inv.product_uom_batch.expiry_date as string | undefined,
+          stock: converted ?? (baseStock ?? rawStock),
+          unit: converted !== null ? line.code : baseUom || undefined,
+          baseStock,
+          baseUom: baseUom || undefined,
+        }
+      })
 
     const stored = storedBatchesByUomId.get(productUomId) ?? []
-    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number }>()
+    const merged = new Map<number, { batchId: number; code?: string; expiry_date?: string; stock?: number; unit?: string; baseStock?: number; baseUom?: string }>()
     for (const b of stored) merged.set(b.batchId, { ...b, stock: undefined })
     for (const b of stockBatches) merged.set(b.batchId, { ...merged.get(b.batchId), ...b })
-
-    // Temporary debug: flag when product_id resolved but zero batches matched
-    // despite sourceInventory being non-empty
-    if (lineProductId != null && merged.size === 0 && sourceInventory.length > 0) {
-      console.warn(
-        `[DeliveryForm] No batch matched for product_uom_id=${productUomId} ` +
-        `(product_id=${lineProductId}) despite ${sourceInventory.length} inventory rows.`,
-        { puomToProductSize: puomToProduct.size, sampleInv: sourceInventory.slice(0, 3) }
-      )
-    }
 
     return Array.from(merged.values())
   }
 
+  const sourceTypeForPickers = watch('source_type')
   const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
-    queryKey: ['purchase-orders-linkable'],
+    queryKey: ['purchase-orders-linkable', poSearchDebounced],
+    enabled:
+      sourceTypeForPickers === 'po_from_supplier' || sourceTypeForPickers === 'po_from_branch',
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       purchaseOrdersService
-        .list({ per_page: 1000, include: 'supplier,supplier_branch', sort: '-id' } as any)
+        .list({
+          'filter[search]': poSearchDebounced || undefined,
+          per_page: 50,
+          include: 'supplier,supplier_branch',
+          sort: '-id',
+        } as any)
         .then((r) => r.data),
   })
   const allPurchaseOrders: any[] = (purchaseOrdersData as any)?.data ?? []
@@ -453,6 +519,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const { data: salesOrdersData, isLoading: salesOrdersLoading } = useQuery({
     queryKey: ['sales-orders-pending', soSearchDebounced],
+    enabled: sourceTypeForPickers === 'so_to_branch',
+    staleTime: 60_000,
     queryFn: () =>
       salesOrdersService
         .list({
@@ -501,7 +569,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     queryFn: () =>
       purchaseOrdersService
         .findById(watchPurchaseOrderId as number, {
-          include: 'purchase_order_details,purchase_order_details.product_uom',
+          include: 'supplier,supplier_branch,purchase_order_details,purchase_order_details.product_uom',
         })
         .then((r) => r.data),
     enabled: !!watchPurchaseOrderId && (watchPurchaseOrderId as number) > 0,
@@ -544,11 +612,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // needed to look up additional items beyond the PO's pre-filled list.)
   const { data: dropdownProductUomsData } = useQuery({
     queryKey: ['product-uoms-all', productSearchDebounced],
+    staleTime: 60_000,
+    placeholderData: (prev: any) => prev,
     queryFn: () =>
       productUomsService
         .list({
           'filter[search]': productSearchDebounced || undefined,
-          per_page: 1000,
+          per_page: 100,
           include: 'product,uom',
           'filter[is_active]': true,
         } as any)
@@ -568,23 +638,28 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         .then((r) => r.data),
   })
 
-  const linkedProductUoms: any[] = (linkedProductUomsData as any)?.data ?? []
-  const dropdownProductUoms: any[] = (dropdownProductUomsData as any)?.data ?? []
+  const linkedProductUoms: any[] = useMemo(() => (linkedProductUomsData as any)?.data ?? [], [linkedProductUomsData])
+  const dropdownProductUoms: any[] = useMemo(() => (dropdownProductUomsData as any)?.data ?? [], [dropdownProductUomsData])
   // Loading = either query is still resolving. Both run in parallel.
   const productUomsLoading =
-    linkedProductUomsData === undefined || dropdownProductUomsData === undefined
+    (linkedProductUomIds.length > 0 && linkedProductUomsData === undefined) ||
+    dropdownProductUomsData === undefined
 
   // Merge for the puomToProduct lookup + dropdown options
+  const lineProductUoms: any[] = useMemo(() => (linePuomsData as any)?.data ?? [], [linePuomsData])
   const productUoms = useMemo(() => {
     const map = new Map<number, any>()
     for (const pu of linkedProductUoms) {
+      if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
+    }
+    for (const pu of lineProductUoms) {
       if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
     }
     for (const pu of dropdownProductUoms) {
       if (pu?.id && !map.has(pu.id)) map.set(pu.id, pu)
     }
     return Array.from(map.values())
-  }, [linkedProductUoms, dropdownProductUoms])
+  }, [linkedProductUoms, dropdownProductUoms, lineProductUoms])
 
   // Authoritative lookup: product_uom_id -> product_id, built from the
   // productUoms list which is already loaded with include 'product,uom'.
@@ -612,6 +687,34 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     }
     return map
   }, [productUoms, sourceInventory])
+
+  // product_uom_id -> product uom (with product.conversions + uom), used to
+  // show batch stock in the LINE's unit (e.g. 20.420 GR -> 9 CAN), the same
+  // way the Product Inventory page converts base stock.
+  const productUomById = useMemo(() => {
+    const map = new Map<number, any>()
+    for (const pu of productUoms) if (pu?.id) map.set(Number(pu.id), pu)
+    return map
+  }, [productUoms])
+
+  // Reset the batch-options cache during render when any input changes, so
+  // the first lookup after a change recomputes with fresh data.
+  const batchCacheDeps = useRef<unknown[]>([])
+  {
+    const deps = [sourceInventory, puomToProduct, productUomById, initialData, mode]
+    if (deps.some((d, i) => d !== batchCacheDeps.current[i])) {
+      batchCacheDeps.current = deps
+      batchOptionsCacheRef.current = new Map()
+    }
+  }
+
+  const lineUomInfo = (productUomId: number) => {
+    const pu = productUomById.get(Number(productUomId))
+    return {
+      code: (pu?.uom?.code ?? '') as string,
+      conversions: (pu?.product?.conversions ?? undefined) as ConversionEntry[] | undefined,
+    }
+  }
 
   useEffect(() => {
     if (!poDetail?.purchase_order_details?.length) return
@@ -774,16 +877,22 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const soProductUoms = (soDetail?.sales_order_details ?? [])
     .map((d: any) => d.product_uom)
     .filter(Boolean)
-  const productUomOptionsMap = new Map<number, ReturnType<typeof toProductUomOption>>()
-  ;[...productUoms, ...poProductUoms, ...soProductUoms].forEach((pu: any) => {
-    if (pu?.id && !productUomOptionsMap.has(pu.id)) {
-      productUomOptionsMap.set(pu.id, toProductUomOption(pu))
-    }
-  })
-  const productUomOptions = Array.from(productUomOptionsMap.values())
+  const productUomOptions = useMemo(() => {
+    const map = new Map<number, ReturnType<typeof toProductUomOption>>()
+    ;[...productUoms, ...poProductUoms, ...soProductUoms].forEach((pu: any) => {
+      if (pu?.id && !map.has(pu.id)) map.set(pu.id, toProductUomOption(pu))
+    })
+    return Array.from(map.values())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productUoms, poDetail, soDetail])
+  // The selected PO stays listed even when the current search result set
+  // doesn't contain it (poDetail is fetched by id).
   const purchaseOrderOptions = [
     { value: 0, label: 'No linked PO' },
-    ...purchaseOrders.map((po: any) => ({
+    ...[
+      ...(poDetail && !purchaseOrders.some((po: any) => po.id === poDetail.id) ? [poDetail] : []),
+      ...purchaseOrders,
+    ].map((po: any) => ({
       value: po.id as number,
       label: `${po.code ?? `PO-${po.id}`} - ${po.supplier?.name ?? po.supplier_branch?.name ?? 'Internal / No Supplier'}`,
       sublabel: po.date ? po.date : undefined,
@@ -905,7 +1014,75 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     },
   })
 
+  // Frontend stock check (create only — an edited delivery already holds its
+  // own stock). Lines sharing a batch are summed in the base unit, so two
+  // lines of 5 CAN against a 9 CAN batch are caught too. The server still
+  // validates; this only stops an obviously short delivery before submitting.
+  const getStockShortages = (details: FormValues['details']) => {
+    const shortages = new Map<number, string>()
+    if (mode !== 'create' || !requiresBatch) return shortages
+
+    const perBatch = new Map<number, { need: number; available: number; baseUom: string; lines: number[] }>()
+    details.forEach((d, i) => {
+      const batchId = Number(d?.product_uom_batch_id ?? 0)
+      const qty = Number(d?.qty ?? 0)
+      if (!batchId || !(qty > 0) || !d?.product_uom_id) return
+      const batch: any = getBatchOptionsForUom(Number(d.product_uom_id)).find((b: any) => b.batchId === batchId)
+      if (!batch) return
+
+      if (batch.baseStock !== undefined && batch.baseUom) {
+        const line = lineUomInfo(Number(d.product_uom_id))
+        const needBase = line.code ? convertDown(qty, line.code, batch.baseUom, line.conversions) : null
+        if (needBase === null) {
+          // Can't reach the base unit — compare in the line's unit directly.
+          if (batch.unit && batch.unit === line.code && qty > batch.stock) {
+            shortages.set(i, `Stok tidak cukup — tersedia ${fmtQty(batch.stock)} ${batch.unit}`)
+          }
+          return
+        }
+        const agg = perBatch.get(batchId) ?? { need: 0, available: batch.baseStock, baseUom: batch.baseUom, lines: [] as number[] }
+        agg.need += needBase
+        agg.lines.push(i)
+        perBatch.set(batchId, agg)
+        return
+      }
+
+      if (batch.stock !== undefined && qty > batch.stock) {
+        shortages.set(i, `Stok tidak cukup — tersedia ${fmtQty(batch.stock)}${batch.unit ? ` ${batch.unit}` : ''}`)
+      }
+    })
+
+    for (const agg of perBatch.values()) {
+      // Small tolerance for float conversion noise.
+      if (agg.need <= agg.available + 1e-6) continue
+      for (const i of agg.lines) {
+        const d = details[i]
+        const batch: any = getBatchOptionsForUom(Number(d.product_uom_id)).find(
+          (b: any) => b.batchId === Number(d.product_uom_batch_id),
+        )
+        const shared = agg.lines.length > 1 ? ' (batch dipakai di beberapa baris)' : ''
+        shortages.set(
+          i,
+          `Stok tidak cukup — tersedia ${fmtQty(batch?.stock ?? 0)}${batch?.unit ? ` ${batch.unit}` : ''}${shared}`,
+        )
+      }
+    }
+    return shortages
+  }
+
+  const stockShortages = getStockShortages(watchDetails ?? [])
+
   const onSubmit = (values: FormValues) => {
+    const shortages = getStockShortages(values.details)
+    if (shortages.size > 0) {
+      shortages.forEach((message, i) => {
+        setError(`details.${i}.qty` as any, { type: 'stock', message })
+      })
+      const rows = Array.from(shortages.keys()).map((i) => i + 1).join(', ')
+      toast.error(`Stok tidak cukup pada baris ${rows}. Kurangi qty atau pilih batch lain.`)
+      scrollToRowField('qty', Math.min(...Array.from(shortages.keys())))
+      return
+    }
     console.log('DeliveryForm onSubmit called', { ...values, total_price: totalPrice })
     if (mode === 'edit' && deliveryId) {
       updateMutation.mutate(values)
@@ -914,9 +1091,51 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     }
   }
 
-  const onInvalid = (errs: any) => {
+  // Bring a problem row into view and focus its control, so the user sees
+  // why the delivery can't be created (rows can be far down a long list).
+  const scrollToRowField = (field: 'batch' | 'qty', index: number) => {
+    const el = document.querySelector<HTMLElement>(`[data-${field}-row="${index}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => el.focus({ preventScroll: true }), 300)
+  }
 
-    console.log('DeliveryForm validation errors:', errs)
+  // Add Item button + Ctrl+B / Cmd+B shortcut: append a row and bring it into view.
+  const handleAddItem = () => {
+    const newIndex = fields.length
+    append({
+      product_uom_id: 0,
+      product_uom_batch_id: undefined,
+      purchase_order_detail_id: undefined,
+      sales_order_detail_id: undefined,
+      qty: 1,
+      price: 0,
+      status: 'packed',
+      description: '',
+    })
+    setTimeout(() => {
+      document
+        .querySelector<HTMLElement>(`[data-qty-row="${newIndex}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
+  }
+
+  useFormKeyboardNavigation({ onAddItem: handleAddItem })
+
+  const onInvalid = (errs: any) => {
+    const detailErrs: any[] = Array.isArray(errs?.details) ? errs.details : []
+    const missingBatchRows = detailErrs
+      .map((e, i) => (e?.product_uom_batch_id ? i : -1))
+      .filter((i) => i >= 0)
+    if (missingBatchRows.length > 0) {
+      toast.error(
+        `Batch belum dipilih pada baris ${missingBatchRows.map((i) => i + 1).join(', ')}`,
+      )
+      scrollToRowField('batch', missingBatchRows[0])
+      return
+    }
+    const qtyRow = detailErrs.findIndex((e) => e?.qty)
+    if (qtyRow >= 0) scrollToRowField('qty', qtyRow)
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
@@ -1003,7 +1222,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     const rawCode = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
     const shortCode = rawCode.length > 7 ? `${rawCode.substring(0, 7)}...` : rawCode
     if (b.stock !== undefined) {
-      return `${shortCode} (${b.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })})`
+      return `${shortCode} (${fmtQty(b.stock)}${b.unit ? ` ${b.unit}` : ''})`
     }
     return shortCode
   }
@@ -1296,7 +1515,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     <SearchableSelect
                       value={field.value ?? 'GENERAL'}
                       onChange={field.onChange}
-                      options={companyOptions}
+                      options={buildCompanyOptions(companies, field.value)}
                       placeholder="Pilih owner..."
                       searchPlaceholder="Cari perusahaan..."
                       loading={companiesLoading}
@@ -1323,7 +1542,6 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
                     error={errors.source_stage?.message as string | undefined}
-                    onSearchChange={setCompanySearch}
                     // Stage dropdown filters client-side only — no server-side search needed
                   />
                 )}
@@ -1396,10 +1614,11 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 <SearchableSelect
                   value={dimTransferToOwner}
                   onChange={setDimTransferToOwner}
-                  options={companyOptions}
+                  options={buildCompanyOptions(targetCompanies, dimTransferToOwner)}
                   placeholder="Pilih owner tujuan..."
                   searchPlaceholder="Cari perusahaan..."
-                  loading={companiesLoading}
+                  loading={targetCompaniesLoading}
+                  onSearchChange={setTargetCompanySearch}
                 />
               </div>
 
@@ -1455,18 +1674,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             <span style={sectionLabelStyle}>Delivery Items</span>
             <button
               type="button"
-              onClick={() =>
-                append({
-                  product_uom_id: 0,
-                  product_uom_batch_id: undefined,
-                  purchase_order_detail_id: undefined,
-                  sales_order_detail_id: undefined,
-                  qty: 1,
-                  price: 0,
-                  status: 'packed',
-                  description: '',
-                })
-              }
+              onClick={handleAddItem}
+              title="Add Item (Ctrl+B)"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1587,7 +1796,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         | string
                         | undefined
                       }
-                      onSearchChange={setProductSearch}
+                      onSearchChange={handleProductSearchChange}
                     />
                   )}
                 />
@@ -1605,16 +1814,24 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       f.value && !batches.some((b: any) => b.batchId === f.value)
                         ? [...batches, { batchId: f.value, code: undefined, expiry_date: undefined, stock: undefined }]
                         : batches
-                    const batchError = errors.details?.[index]?.product_uom_batch_id
-                      ?.message as string | undefined
+                    const batchError = f.value
+                      ? undefined
+                      : (errors.details?.[index]?.product_uom_batch_id?.message as string | undefined)
                     // Show spinner when ANY of these are true:
                     // 1. sourceBranchId not yet resolved (poSourceBranchData still loading for fulfill flow)
                     // 2. inventory query has never fetched or is currently fetching
                     // 3. productUoms not yet loaded (puomToProduct map not ready)
                     // 4. linked order form data not yet applied to form (PO/SO useEffect replace() pending)
                     const sourceBranchPending = showLinkedPO && poSourceBranchLoading
-                    const inventoryPending = !inventoryFetched || inventoryFetching
-                    const showBatchLoading = sourceBranchPending || inventoryPending || productUomsLoading || !linkedOrderFormReady
+                    const rowHasProduct = Number(watchDetails[index]?.product_uom_id) > 0
+                    const inventoryPending =
+                      (!inventoryFetched && inventoryData === undefined) ||
+                      (inventoryFetching && rowHasProduct && batches.length === 0)
+                    const showBatchLoading =
+                      sourceBranchPending ||
+                      inventoryPending ||
+                      (productUomsLoading && rowHasProduct && batches.length === 0) ||
+                      !linkedOrderFormReady
                     return (
                       <div
                         style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}
@@ -1645,13 +1862,22 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                           </div>
                         ) : (
                           <select
+                            data-batch-row={index}
                             value={f.value ?? 0}
-                            onChange={(e) =>
-                              f.onChange(Number(e.target.value) || undefined)
-                            }
+                            onChange={(e) => {
+                              const v = Number(e.target.value) || undefined
+                              f.onChange(v)
+                              if (v) clearErrors(`details.${index}.product_uom_batch_id`)
+                            }}
                             style={{
                               ...lineInputStyle,
-                              border: `1px solid ${batchError ? 'var(--destructive)' : 'var(--border)'}`,
+                              ...(batchError || (!f.value && Number(watchDetails[index]?.product_uom_id) > 0)
+                                ? {
+                                    border: '1px solid var(--destructive)',
+                                    background: 'var(--destructive-bg)',
+                                    color: 'var(--destructive)',
+                                  }
+                                : { border: '1px solid var(--border)' }),
                               cursor: 'pointer',
                             }}
                           >
@@ -1662,7 +1888,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                             </option>
                             {batchOptions.map((b: any) => {
                               const stockTitle = b.stock !== undefined
-                                ? ` | Stock: ${b.stock.toLocaleString('id-ID', { maximumFractionDigits: 2 })}`
+                                ? ` | Stock: ${fmtQty(b.stock)}${b.unit ? ` ${b.unit}` : ''}` +
+                                  (b.baseStock !== undefined && b.unit !== b.baseUom
+                                    ? ` (${fmtQty(b.baseStock)} ${b.baseUom ?? ''})`
+                                    : '')
                                 : ''
                               return (
                                 <option
@@ -1689,14 +1918,32 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 />
               )}
 
-              <input
-                type="number"
-                min={0.001}
-                step={0.001}
-                {...register(`details.${index}.qty`, { valueAsNumber: true })}
-                style={lineInputStyle}
-                onWheel={(e) => (e.target as HTMLElement).blur()}
-              />
+              {(() => {
+                const shortage = stockShortages.get(index)
+                const qtyError = errors.details?.[index]?.qty?.message as string | undefined
+                const message = shortage ?? qtyError
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                    <input
+                      type="number"
+                      min={0.001}
+                      step={0.001}
+                      data-qty-row={index}
+                      {...register(`details.${index}.qty`, { valueAsNumber: true })}
+                      style={{
+                        ...lineInputStyle,
+                        border: `1px solid ${message ? 'var(--destructive)' : 'var(--border)'}`,
+                      }}
+                      onWheel={(e) => (e.target as HTMLElement).blur()}
+                    />
+                    {message && (
+                      <span style={{ fontSize: 10, color: 'var(--destructive)', lineHeight: 1.3 }}>
+                        {message}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
 
               <Controller
                 name={`details.${index}.status`}
