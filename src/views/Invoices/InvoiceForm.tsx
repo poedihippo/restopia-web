@@ -119,9 +119,12 @@ export default function InvoiceForm() {
   const router = useRouter()
   const qc = useQueryClient()
   const { hasPermission, user } = useAuth()
-  // Warehouse branches don't sell over the counter — the POS-only SO filters
-  // (settlement, payment, credit type, type, sales channel) don't apply there.
-  const isWarehouseBranch = (user as any)?.branch?.type === 'warehouse'
+  // Warehouse and production branches don't sell over the counter — the
+  // POS-only SO filters (settlement, payment, credit type, type, sales
+  // channel) don't apply there.
+  const isWarehouseBranch = ['warehouse', 'production'].includes(
+    String((user as any)?.branch?.type ?? ''),
+  )
   const canReadPrice = getCanReadPrice()
 
   const [date, setDate] = useState(todayInputDate())
@@ -310,6 +313,32 @@ export default function InvoiceForm() {
   const selectableSOs = outletServerSOs
     ? [...availableSOs, ...outletServerSOs.filter((so) => !availableSOs.some((a) => a.id === so.id))]
     : availableSOs
+
+  // "Select all" over the visible list. One invoice covers one (seller)
+  // branch, so only rows matching the current selection's branch — or the
+  // first visible row's branch when nothing is picked yet — are taken.
+  const anchorBranchId =
+    selectedSoIds.length > 0
+      ? selectableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id
+      : visibleSOs[0]?.branch_id
+  const bulkSelectableSOs = visibleSOs.filter((so) => so.branch_id === anchorBranchId)
+  const allVisibleSelected =
+    bulkSelectableSOs.length > 0 && bulkSelectableSOs.every((so) => selectedSoIds.includes(so.id))
+  const toggleAllVisible = () => {
+    if (allVisibleSelected) {
+      bulkSelectableSOs.forEach((so) => handleSoSelection(so.id))
+      return
+    }
+    bulkSelectableSOs
+      .filter((so) => !selectedSoIds.includes(so.id))
+      .forEach((so) => handleSoSelection(so.id))
+    const skipped = visibleSOs.length - bulkSelectableSOs.length
+    if (skipped > 0) {
+      toast.info(
+        `${skipped} sales order${skipped === 1 ? '' : 's'} from another branch skipped — one invoice covers one branch.`,
+      )
+    }
+  }
   const allBillable = outletSummaries.reduce((s, o) => s + o.billable, 0)
 
   // Chart of accounts for standalone (custom) charges — required by the API.
@@ -737,11 +766,52 @@ export default function InvoiceForm() {
               </p>
             ) : (
               /* List SO berbentuk tabel (bukan kartu) */
+              <>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  marginBottom: 8,
+                }}
+              >
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  {selectedSoIds.length} of {visibleSOs.length} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleAllVisible}
+                  disabled={bulkSelectableSOs.length === 0}
+                  style={{
+                    height: 32,
+                    padding: '0 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--surface-raised)',
+                    color: 'var(--accent)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: bulkSelectableSOs.length === 0 ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {allVisibleSelected ? 'Clear selection' : `Select all (${bulkSelectableSOs.length})`}
+                </button>
+              </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
                   <thead>
                     <tr>
-                      <th style={{ ...soTh, width: 40 }} />
+                      <th style={{ ...soTh, width: 40, textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          aria-label="Select all sales orders"
+                          checked={allVisibleSelected}
+                          disabled={bulkSelectableSOs.length === 0}
+                          onChange={toggleAllVisible}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </th>
                       <th style={soTh}>Code</th>
                       <th style={soTh}>Branch</th>
                       <th style={{ ...soTh, width: 210 }}>Outlet</th>
@@ -769,8 +839,17 @@ export default function InvoiceForm() {
                           <td style={{ ...soTd, textAlign: 'center' }}>
                             <input type="checkbox" readOnly checked={isSelected} style={{ pointerEvents: 'none' }} />
                           </td>
-                          <td style={{ ...soTd, fontWeight: 600, color: isSelected ? 'var(--accent)' : 'var(--foreground)' }}>
-                            {so.code}
+                          <td style={{ ...soTd, fontWeight: 600 }}>
+                            {/* Opens the SO detail in a new tab without toggling the row */}
+                            <a
+                              href={`/sales/sales-orders/${so.id}/detail`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                            >
+                              {so.code}
+                            </a>
                           </td>
                           <td style={{ ...soTd, color: 'var(--foreground-muted)' }}>{so.branch?.name ?? '—'}</td>
                           {/* Outlet yang mau di-invoice — resolve dari buyer_branch_id */}
@@ -785,6 +864,7 @@ export default function InvoiceForm() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
 
