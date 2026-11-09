@@ -10,33 +10,33 @@ const COMPANY = {
   npwp: '71.008.539.0-411.000',
 }
 
-const BRANCH_FALLBACK = {
-  branchName: 'DAPUR COKELAT',
-  branchCity: 'CIBUBUR',
-  branchAddress: 'Jl. Alternatif Cibubur Km 6, Cileungsi - Nagrak',
-  branchCity2: 'Bogor',
-  branchPhone: '021-8248 6446',
-}
+const BRANCH_FALLBACK_NAME = 'DAPUR COKELAT'
 
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
 
 /** Convert the on-screen receipt into the ESC/POS (WebUSB) builder shape. */
 export function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
-  const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
-  const paymentMethod = r.payments[0]?.method?.toUpperCase() || 'CASH'
+  const isOnline = r.orderType === 'online'
+  // Online orders are paid on the marketplace: PAYMENT = total, and the method
+  // line names the merchant (e.g. "SHOPEE FOOD").
+  const paymentTotal = isOnline ? r.totalAmount : r.payments.reduce((s, p) => s + p.amount, 0)
+  const paymentMethod = isOnline
+    ? (r.salesChannelName || 'ONLINE').toUpperCase()
+    : r.payments.map((p) => p.method.toUpperCase()).join(' + ') || 'CASH'
   return {
     companyName: COMPANY.name,
     companyAddress: COMPANY.address,
     npwp: COMPANY.npwp,
-    branchName: r.branchName?.toUpperCase() || BRANCH_FALLBACK.branchName,
-    branchCity: BRANCH_FALLBACK.branchCity,
-    branchAddress: r.branchAddress || BRANCH_FALLBACK.branchAddress,
-    branchCity2: BRANCH_FALLBACK.branchCity2,
-    branchPhone: r.branchPhone || BRANCH_FALLBACK.branchPhone,
+    branchName: r.branchName?.toUpperCase() || BRANCH_FALLBACK_NAME,
+    // Address comes from the branch record (branch.address); no hard-coded fallback,
+    // so one outlet never prints another outlet's address.
+    branchAddress: r.branchAddress ?? '',
+    branchPhone: r.branchPhone ?? '',
     invoiceNo: r.invoiceNo,
     datetime: `${r.date} ${r.time}`,
     cashier: r.cashierName,
+    reprintNote: r.isPrinted && r.reprintBy ? `Reprint by ${r.reprintBy} on ${r.reprintAt ?? ''}` : '',
     items: r.items,
     gross: r.grossAmount,
     discount: r.discountAmount,
@@ -45,83 +45,68 @@ export function mapReceiptToBuilder(r: ReceiptData): PrinterReceiptData {
     total: r.totalAmount,
     payment: paymentTotal,
     paymentMethod,
+    change: r.changeAmount ?? 0,
   }
 }
 
 /** Printable HTML mirroring PosReceipt's layout (used by the iframe fallback). */
 export function buildReceiptHtml(r: ReceiptData): string {
-  const divider = '--------------------------------------'
-  const thin = '- - - - - - - - - - - - - - - - - - - -'
+  // CSS borders always fit the paper width; dash strings wrap on narrow rolls.
+  const divider = '<div style="border-top:1px dashed #000;margin:4px 0;"></div>'
   const fmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
-  const row = (left: string, right: string) =>
-    `<div style="display:flex;justify-content:space-between;"><span>${left}</span><span>${right}</span></div>`
-  const paymentTotal = r.payments.reduce((s, p) => s + p.amount, 0)
+  const b = mapReceiptToBuilder(r)
+  // Amount rows: label column ends where the item prices end, value column on the right.
+  const amountRow = (label: string, value: string, bold = false) =>
+    `<div style="display:grid;grid-template-columns:1fr 34%;${bold ? 'font-weight:bold;' : ''}"><span style="text-align:right;">${label}</span><span style="text-align:right;">${value}</span></div>`
+  const valueRule = '<div style="display:grid;grid-template-columns:1fr 34%;"><span></span><span style="border-top:1px dashed #000;margin:3px 0;"></span></div>'
+  const center = (html: string) => `<div style="text-align:center;margin:4px 0;">${html}</div>`
 
   return `
-    <div style="text-align:center;margin-bottom:6px;font-size:11px;">
-      ${COMPANY.name}<br>
-      ${COMPANY.address}<br>
-      NPWP: ${COMPANY.npwp}
+    ${center(`${escapeHtml(b.companyName)}<br>${escapeHtml(b.companyAddress)}<br>NPWP: ${escapeHtml(b.npwp)}`)}
+    <div style="text-align:center;margin:8px 0 4px;">
+      DAPUR COKELAT<br>
+      ${escapeHtml(b.branchName)}<br>
+      ${b.branchAddress ? `${escapeHtml(b.branchAddress)}<br>` : ''}
+      ${b.branchPhone ? escapeHtml(b.branchPhone) : ''}
     </div>
-    <div style="text-align:center;margin-bottom:6px;">
-      <strong style="font-size:14px;">DAPUR COKELAT</strong><br>
-      <strong>${escapeHtml(r.branchName.toUpperCase())}</strong><br>
-      ${r.branchAddress ? `<span style="font-size:11px;">${escapeHtml(r.branchAddress)}</span><br>` : ''}
-      ${r.branchPhone ? escapeHtml(r.branchPhone) : ''}
-    </div>
-    <div>${divider}</div>
+    ${divider}
     <div style="margin:4px 0;">
-      ${r.date} ${r.time}<br>
-      ${escapeHtml(r.invoiceNo)}<br>
-      ${escapeHtml(r.cashierName)}
-      ${r.customerName ? `<br>${escapeHtml(r.customerName)}` : ''}
+      ${escapeHtml(b.datetime)}<br>
+      ${escapeHtml(b.invoiceNo)}<br>
+      ${escapeHtml(b.cashier)}
     </div>
-    <div>${divider}</div>
-    ${r.isPrinted && r.reprintBy
-      ? `<div style="margin:4px 0;">Reprint by ${escapeHtml(r.reprintBy)} on<br>${r.reprintAt ?? ''}</div><div>${divider}</div>`
-      : ''}
+    ${divider}
+    ${b.reprintNote ? `<div style="margin:4px 0;">${escapeHtml(b.reprintNote)}</div>${divider}` : ''}
     <div style="margin:4px 0;">
-      ${r.items
+      ${b.items
         .map(
           (item) => `
             <div>${escapeHtml(item.name)}</div>
-            <div style="display:flex;justify-content:space-between;">
-              <span>${fmt(item.qty)} x ${fmt(item.price)}</span>
-              <span>${fmt(item.subtotal)}</span>
+            <div style="display:grid;grid-template-columns:auto 1fr 34%;">
+              <span>&nbsp;${fmt(item.qty)} x</span>
+              <span style="text-align:right;">${fmt(item.price)}</span>
+              <span style="text-align:right;">${fmt(item.subtotal)}</span>
             </div>`,
         )
         .join('')}
     </div>
-    <div>${thin}</div>
-    <div style="margin:4px 0;">
-      ${row('GROSS', fmt(r.grossAmount))}
-      ${r.discountAmount > 0 ? row('DISCOUNT', fmt(r.discountAmount)) : ''}
-      ${(r.taxAmount ?? 0) > 0 ? row(r.taxIncluded ? 'PPN (INCL.)' : 'PPN', fmt(r.taxAmount ?? 0)) : ''}
-    </div>
-    <div>${thin}</div>
-    <div style="margin:4px 0;">
-      <div style="display:flex;justify-content:space-between;font-weight:bold;">
-        <span>TOTAL</span><span>${fmt(r.totalAmount)}</span>
-      </div>
-      ${r.payments.map((p) => row(escapeHtml(p.method.toUpperCase()), fmt(p.amount))).join('')}
-      ${r.changeAmount && r.changeAmount > 0 ? row('KEMBALI', fmt(r.changeAmount)) : ''}
-    </div>
-    <div>${thin}</div>
-    <div style="display:flex;justify-content:space-between;font-weight:bold;margin:4px 0;">
-      <span>PAYMENT</span><span>${fmt(paymentTotal)}</span>
-    </div>
-    <div style="margin:4px 0;">${escapeHtml(r.branchName.toUpperCase())} – ${escapeHtml(r.orderType.toUpperCase())}</div>
-    <div>${divider}</div>
-    <div style="text-align:center;font-size:11px;margin:6px 0;">
-      ChocoCall : 0811-1920-9900<br>
-      ALL ABOUT CHOCOLATES &amp; CAKES
-    </div>
-    <div>${divider}</div>
-    <div style="text-align:center;font-size:11px;margin:4px 0;">Harga sudah termasuk pajak</div>
-    <div>${divider}</div>
-    <div style="text-align:center;font-size:11px;margin:4px 0;">
-      Keluhan mengenai produk dapat diterima maksimal 1x24 jam sejak tanggal pembelian
-    </div>
+    ${valueRule}
+    ${amountRow('SUBTOTAL', fmt(b.gross))}
+    ${(b.tax ?? 0) > 0 && !b.taxIncluded ? amountRow('PPN', fmt(b.tax ?? 0)) : ''}
+    ${valueRule}
+    ${amountRow('TOTAL', fmt(b.total))}
+    ${valueRule}
+    ${amountRow('PAYMENT', fmt(b.payment))}
+    ${(b.change ?? 0) > 0 ? amountRow('KEMBALIAN', fmt(b.change ?? 0)) : ''}
+    <div style="margin:2px 0 4px;">${escapeHtml(b.paymentMethod)}</div>
+    ${divider}
+    ${center('Informasi diskon tidak ditampilkan pada struk. Adapun diskon yang diterima customer mengikuti yang ada di aplikasi customer.')}
+    ${divider}
+    ${center('Dapur Cokelat Delivery : 0811-1920-9900<br>ALL ABOUT CHOCOLATES &amp; CAKES')}
+    ${divider}
+    ${center('Harga sudah termasuk pajak.')}
+    ${divider}
+    ${center('Keluhan mengenai produk dapat diterima maksimal 1x24 jam sejak tanggal pembelian')}
   `
 }
 
@@ -154,7 +139,7 @@ export function printReceiptViaIframe(receipt: ReceiptData): void {
           padding: 4mm;
           font-family: 'Courier New', Courier, monospace;
           font-size: 11px;
-          line-height: 1.3;
+          line-height: 1.5;
           width: 70mm;
           word-wrap: break-word;
           overflow-wrap: break-word;

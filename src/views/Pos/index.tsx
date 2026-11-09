@@ -130,6 +130,7 @@ export default function PosView() {
         paymentMethodId={logic.paymentMethodId}
         setPaymentMethodId={logic.setPaymentMethodId}
         cashTendered={logic.cashTendered}
+        paymentError={logic.paymentError}
         setCashTendered={logic.setCashTendered}
         isSplitPayment={logic.isSplitPayment}
         setIsSplitPayment={logic.setIsSplitPayment}
@@ -221,13 +222,27 @@ export default function PosView() {
         }
         editingOrderCode={logic.editingOrderCode}
         selectedCustomerName={logic.selectedCustomerId ? logic.customerSearch || 'Customer' : undefined}
-        onClearCustomer={logic.clearSelectedCustomer}
+        onClearCustomer={() => {
+          logic.clearSelectedCustomer()
+          logic.setGuestName('')
+          logic.setGuestPhone('')
+        }}
+        onSelectCustomer={(c) => {
+          logic.setSelectedCustomerId(c.id)
+          logic.setCustomerSearch(c.name)
+          logic.setGuestName(c.name)
+          logic.setGuestPhone(c.phone ?? '')
+        }}
         guestName={logic.guestName}
         setGuestName={logic.setGuestName}
         guestPhone={logic.guestPhone}
         setGuestPhone={logic.setGuestPhone}
         orderNote={logic.orderNote}
         setOrderNote={logic.setOrderNote}
+        transactionDate={logic.transactionDate}
+        setTransactionDate={logic.setTransactionDate}
+        fulfillmentDate={logic.fulfillmentDate}
+        setFulfillmentDate={logic.setFulfillmentDate}
         appliedVoucher={logic.appliedVoucher}
         voucherCode={logic.voucherCode}
         setVoucherCode={logic.setVoucherCode}

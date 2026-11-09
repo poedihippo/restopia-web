@@ -28,6 +28,8 @@ interface PosModalsProps {
   paymentMethodId: number | null
   setPaymentMethodId: (val: number | null) => void
   cashTendered: string
+  /** Tender/change 422 from the server, shown above the confirm button. */
+  paymentError?: string | null
   setCashTendered: (val: string) => void
   isSplitPayment?: boolean
   setIsSplitPayment?: (val: boolean) => void
@@ -124,6 +126,7 @@ export default function PosModals({
   paymentMethodId,
   setPaymentMethodId,
   cashTendered,
+  paymentError,
   setCashTendered,
   isSplitPayment = false,
   setIsSplitPayment,
@@ -1087,6 +1090,23 @@ export default function PosModals({
               </>
             )}
             </>
+            )}
+
+            {paymentError && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 12,
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--destructive-bg)',
+                  color: 'var(--destructive)',
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                {paymentError}
+              </div>
             )}
 
             {/* Back + Confirm */}

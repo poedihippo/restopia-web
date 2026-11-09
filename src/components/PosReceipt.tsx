@@ -14,6 +14,8 @@ export interface ReceiptData {
   cashierName: string
   customerName?: string
   orderType: string
+  /** Sales channel / merchant (GrabFood, GoFood, ShopeeFood…) shown at the bottom of online receipts. */
+  salesChannelName?: string
 
   items: Array<{
     name: string
@@ -45,8 +47,9 @@ interface Props {
   data: ReceiptData
 }
 
-const divider = '----------------------------------------'
-const thinDivider = '- - - - - - - - - - - - - - - - - -'
+// CSS borders always fit the receipt width; dash strings wrap on narrow rolls.
+const Divider = () => <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }} />
+const ThinDivider = () => <div style={{ borderTop: '1px dotted #000', margin: '4px 0' }} />
 
 export default function PosReceipt({ data }: Props) {
   const fmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
@@ -61,7 +64,7 @@ export default function PosReceipt({ data }: Props) {
         padding: '8px',
         color: '#000',
         background: '#fff',
-        lineHeight: '1.4',
+        lineHeight: '1.55',
       }}
     >
       <div style={{ textAlign: 'center', marginBottom: 8 }}>
@@ -84,7 +87,7 @@ export default function PosReceipt({ data }: Props) {
         {data.branchPhone && <div>{data.branchPhone}</div>}
       </div>
 
-      <div>{divider}</div>
+      <Divider />
 
       <div style={{ margin: '4px 0' }}>
         <div>
@@ -95,7 +98,7 @@ export default function PosReceipt({ data }: Props) {
         {data.customerName && <div>{data.customerName}</div>}
       </div>
 
-      <div>{divider}</div>
+      <Divider />
 
       {data.isPrinted && data.reprintBy && (
         <>
@@ -103,7 +106,7 @@ export default function PosReceipt({ data }: Props) {
             <div>Reprint by {data.reprintBy} on</div>
             <div>{data.reprintAt}</div>
           </div>
-          <div>{divider}</div>
+          <Divider />
         </>
       )}
 
@@ -121,11 +124,11 @@ export default function PosReceipt({ data }: Props) {
         ))}
       </div>
 
-      <div>{thinDivider}</div>
+      <ThinDivider />
 
       <div style={{ margin: '4px 0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>GROSS</span>
+          <span>SUBTOTAL</span>
           <span>{fmt(data.grossAmount)}</span>
         </div>
         {data.discountAmount > 0 && (
@@ -142,7 +145,7 @@ export default function PosReceipt({ data }: Props) {
         )}
       </div>
 
-      <div>{thinDivider}</div>
+      <ThinDivider />
 
       <div style={{ margin: '4px 0' }}>
         <div
@@ -168,13 +171,13 @@ export default function PosReceipt({ data }: Props) {
 
         {data.changeAmount !== undefined && data.changeAmount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>KEMBALI</span>
+            <span>KEMBALIAN</span>
             <span>{fmt(data.changeAmount)}</span>
           </div>
         )}
       </div>
 
-      <div>{thinDivider}</div>
+      <ThinDivider />
 
       <div
         style={{
@@ -192,20 +195,26 @@ export default function PosReceipt({ data }: Props) {
         {data.branchName.toUpperCase()} – {data.orderType.toUpperCase()}
       </div>
 
-      <div>{divider}</div>
+      {data.salesChannelName && (
+        <div style={{ margin: '4px 0', fontWeight: 'bold' }}>
+          VIA {data.salesChannelName.toUpperCase()}
+        </div>
+      )}
+
+      <Divider />
 
       <div style={{ textAlign: 'center', margin: '8px 0', fontSize: 11 }}>
-        <div>ChocoCall : 0811-1920-9900</div>
+        <div>Dapur Cokelat Delivery : 0811-1920-9900</div>
         <div>ALL ABOUT CHOCOLATES &amp; CAKES</div>
       </div>
 
-      <div>{divider}</div>
+      <Divider />
 
       <div style={{ textAlign: 'center', margin: '4px 0', fontSize: 11 }}>
         Harga sudah termasuk pajak
       </div>
 
-      <div>{divider}</div>
+      <Divider />
 
       <div style={{ textAlign: 'center', margin: '4px 0', fontSize: 11 }}>
         Keluhan mengenai produk dapat diterima maksimal 1x24 jam sejak tanggal

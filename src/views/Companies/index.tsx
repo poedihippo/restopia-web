@@ -28,6 +28,7 @@ interface Company {
   address?: string | null
   credit_reset_cron?: string
   credit_reset_amount?: number
+  product_types?: string | null
   created_at?: string
 }
 
@@ -310,6 +311,22 @@ export default function CompaniesView() {
                         {item.name}
                       </span>
                     </div>
+                    {item.address && (
+                      <div
+                        title={item.address}
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--foreground-muted)',
+                          marginTop: 2,
+                          maxWidth: 420,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {item.address}
+                      </div>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -542,6 +559,13 @@ export default function CompaniesView() {
                 { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Address', value: selectedItem.address || '—' },
+                { label: 'Product Types', value: selectedItem.product_types || 'All' },
+                {
+                  label: 'Credit Reset',
+                  value: selectedItem.credit_reset_cron
+                    ? `Rp ${Number(selectedItem.credit_reset_amount ?? 0).toLocaleString('id-ID')} · ${selectedItem.credit_reset_cron}`
+                    : '—',
+                },
                 {
                   label: 'Created At',
                   value: selectedItem.created_at

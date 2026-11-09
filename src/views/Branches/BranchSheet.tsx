@@ -23,6 +23,8 @@ const schema = z.object({
   is_default: z.boolean().default(false),
   format: z.enum(['premiere', 'pickup_point']).default('premiere'),
   parent_id: z.coerce.number().optional().nullable(),
+  address: z.string().optional(),
+  stock_display_mode: z.enum(['base', 'purchase']).default('base'),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -39,6 +41,8 @@ interface BranchSheetProps {
     price_list_id?: number | null
     format?: 'premiere' | 'pickup_point'
     parent_id?: number | null
+    address?: string | null
+    stock_display_mode?: 'base' | 'purchase' | null
   } | null
 }
 
@@ -69,7 +73,8 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
     defaultValues: { code: '', name: '',
-      type: 'outlet', timezone: 'Asia/Jakarta', is_default: false, format: 'premiere', parent_id: null },
+      type: 'outlet', timezone: 'Asia/Jakarta', is_default: false, format: 'premiere', parent_id: null,
+      address: '', stock_display_mode: 'base' },
   })
 
   useEffect(() => {
@@ -83,6 +88,8 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
         is_default: editData.is_default ?? false,
         format: editData.format ?? 'premiere',
         parent_id: editData.parent_id ?? null,
+        address: editData.address ?? '',
+        stock_display_mode: editData.stock_display_mode ?? 'base',
       })
     } else {
       reset({ code: '', name: '',
@@ -91,7 +98,9 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
         price_list_id: null,
         is_default: false,
         format: 'premiere',
-        parent_id: null })
+        parent_id: null,
+        address: '',
+        stock_display_mode: 'base' })
     }
   }, [editData, open, reset])
 
@@ -286,6 +295,19 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
               </div>
             </div>
 
+            {/* Address */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={labelStyle}>Address</label>
+              <textarea
+                {...register('address')}
+                rows={3}
+                placeholder="e.g. Jl. Ir. H. Juanda No. 26, Depok"
+                style={{ ...(errors.address ? inputErrorStyle : inputStyle), resize: 'vertical', minHeight: 72 }}
+              />
+              {errors.address && <div style={errorStyle}>{errors.address.message}</div>}
+              <div style={hintStyle}>Printed on POS receipts for this branch</div>
+            </div>
+
             {/* Timezone */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={labelStyle}>Timezone</label>
@@ -360,6 +382,19 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
                 <div style={hintStyle}>Must be a premiere (non-pickup-point) branch in the same company</div>
               </div>
             )}
+
+            {/* Stock display mode */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={labelStyle}>Stock Display</label>
+              <select
+                {...register('stock_display_mode')}
+                style={errors.stock_display_mode ? inputErrorStyle : inputStyle}
+              >
+                <option value="base">Base unit</option>
+                <option value="purchase">Purchase unit</option>
+              </select>
+              <div style={hintStyle}>Unit used when showing stock quantities for this branch</div>
+            </div>
 
             {/* Price List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

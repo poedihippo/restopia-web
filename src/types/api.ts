@@ -44,8 +44,8 @@ export interface ChangeActiveBranchRequest {
 export interface CompanyRequest {
   name: string
   address?: string
-  phone?: string
-  email?: string
+  credit_reset_amount?: number
+  credit_reset_cron?: string
   product_types?: string | null
 }
 

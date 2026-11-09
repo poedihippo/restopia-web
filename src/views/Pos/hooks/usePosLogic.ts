@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePrinter } from '@/hooks/usePrinter'
 import { buildReceiptBytes } from '@/lib/print/receiptBuilder'
 import { mapReceiptToBuilder, printReceiptViaIframe } from '../utils/receiptPrint'
+import { receiptDate, receiptTime } from '../utils/receiptFromOrder'
 import type { CompletedTransaction } from '../components/PosTransactionCompleteModal'
 
 import { productInventoriesService } from '@/services/product-inventories.service'
@@ -17,6 +18,7 @@ import { paymentsService } from '@/services/payments.service'
 import { vouchersService } from '@/services/vouchers.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { usersService } from '@/services/users.service'
+import { branchesService } from '@/services/branches.service'
 import api from '@/hooks/useApi'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { availableStockOf } from '@/utils/inventoryStock'
@@ -169,6 +171,8 @@ export function usePosLogic() {
 
   // Payment State
   const [showPayment, setShowPayment] = useState(false)
+  // 422 on payments[n].amount (change / tender rules) — shown inside the payment step.
+  const [paymentError, setPaymentError] = useState<string | null>(null)
   const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null)
   const [cashTendered, setCashTendered] = useState<string>('')
   const [creditByUserId, setCreditByUserId] = useState<number | null>(null)
@@ -197,7 +201,7 @@ export function usePosLogic() {
     new Date().toLocaleDateString('en-CA')
   )
   const [fulfillmentDate, setFulfillmentDate] = useState<string>(
-    new Date().toISOString().slice(0, 16)
+    new Date().toLocaleDateString('en-CA')
   )
 
   // Modals & Panels State
@@ -406,6 +410,17 @@ export function usePosLogic() {
       paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any).then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
+
+  // Active branch record — the receipt header prints its address. auth/me's
+  // embedded branch can be stale or lack the address, so read it fresh.
+  const activeBranchId = Number((user as any)?.branch?.id ?? (user as any)?.branch_id ?? 0)
+  const { data: activeBranchData } = useQuery({
+    queryKey: ['pos-active-branch', activeBranchId],
+    queryFn: () => branchesService.findById(activeBranchId).then((r) => r.data),
+    enabled: activeBranchId > 0,
+    staleTime: 5 * 60_000,
+  })
+  const activeBranch: any = (activeBranchData as any)?.data ?? null
 
   // Sales channels query — filtered by selected sales order type
   const { data: salesChannelsData } = useQuery({
@@ -666,7 +681,7 @@ export function usePosLogic() {
     setVoucherLoading(false)
     setOrderNote('')
     setTransactionDate(new Date().toLocaleDateString('en-CA'))
-    setFulfillmentDate(new Date().toISOString().slice(0, 16))
+    setFulfillmentDate(new Date().toLocaleDateString('en-CA'))
     setOrderType('offline')
     setSalesChannelId(null)
     setShowPayment(false)
@@ -1147,10 +1162,14 @@ export function usePosLogic() {
         )
       }
       // Payment amount: full = sale total; partial (DP) = user-entered amount.
-      // cashTendered is only used for change calculation in the UI.
+      // Cash in full mode is sent as handed over — the API keeps the excess as
+      // change_amount and records only what pays the order.
+      const tenderedCash = Number(cashTendered.replace(/\D/g, '')) || 0
       const paidAmount = paymentMode === 'partial'
         ? Number(partialAmount.replace(/\D/g, '')) || 0
-        : payload.total_price
+        : isCashMethod && tenderedCash > payload.total_price
+          ? tenderedCash
+          : payload.total_price
       const isOnline = payload.type === 'online'
       const paymentStatus = isOnline ? 'pending' : paymentMode === 'partial' ? 'partial' : 'paid'
       let checkoutPayments: {
@@ -1301,10 +1320,24 @@ export function usePosLogic() {
       }
       const tenderedCash = Number(cashTendered.replace(/\D/g, '')) || 0
       const tendered = !isOnline && !isSplitPayment && isCashMethod && tenderedCash > 0 ? tenderedCash : dueNow
-      const change = !isOnline && !isSplitPayment && isCashMethod ? Math.max(0, tendered - dueNow) : 0
+      const localChange = !isOnline && !isSplitPayment && isCashMethod ? Math.max(0, tendered - dueNow) : 0
+      // The server keeps the change (change_amount); held-order edits pay
+      // through /payments, which has no change, so they use the local value.
+      // null/absent (API without change support) falls back to the local value.
+      const change = isOnline ? 0 : order.change_amount == null ? localChange : num(order.change_amount, localChange)
+      // Receipt shows the tender as handed over (applied amount + change).
+      if (change > 0 && payments.length === 1) {
+        payments = [{ ...payments[0], amount: payments[0].amount + change }]
+      }
+      const channelId = order.sales_channel_id ?? variables.sales_channel_id ?? salesChannelId
+      const salesChannelName = isOnline
+        ? order.sales_channel?.name ??
+          salesChannels.find((c: any) => Number(c.id) === Number(channelId))?.name ??
+          undefined
+        : undefined
 
       const now = new Date()
-      const branch = (user as any)?.branch ?? {}
+      const branch = { ...((user as any)?.branch ?? {}), ...(activeBranch ?? {}) }
       const tx: CompletedTransaction = {
         orderId: order.id ?? editingOrderId ?? null,
         receipt: {
@@ -1313,13 +1346,12 @@ export function usePosLogic() {
           branchAddress: branch.address ?? '',
           branchPhone: branch.phone ?? '',
           invoiceNo: order.code ?? editingOrderCode ?? '',
-          date: now
-            .toLocaleDateString('id-ID', { year: 'numeric', month: '2-digit', day: '2-digit' })
-            .replace(/\//g, '-'),
-          time: now.toLocaleTimeString('id-ID'),
+          date: receiptDate(now),
+          time: receiptTime(now),
           cashierName: (user as any)?.name ?? 'Kasir',
           customerName: (selectedCustomerId ? customerSearch : variables.customer_name || guestName) || undefined,
           orderType: variables.type,
+          salesChannelName,
           items: [
             ...cart.map((c: any) => ({ name: c.name ?? '', qty: c.qty, price: c.price, subtotal: c.qty * c.price })),
             ...bundleCart.map((c: any) => ({ name: c.name ?? '', qty: c.qty, price: c.price, subtotal: c.qty * c.price })),
@@ -1353,7 +1385,13 @@ export function usePosLogic() {
       }
     },
     onError: (err: any) => {
-      toast.error(withAdjustStockHint(getApiErrorMessage(err, 'Failed to place order')))
+      const errors = err?.response?.data?.errors
+      const tenderKey = errors && typeof errors === 'object'
+        ? Object.keys(errors).find((k) => /^payments\.\d+\.amount$/.test(k))
+        : undefined
+      const tenderMsg = tenderKey ? [].concat(errors[tenderKey])[0] : undefined
+      setPaymentError(tenderMsg ? String(tenderMsg) : null)
+      toast.error(withAdjustStockHint(tenderMsg ?? getApiErrorMessage(err, 'Failed to place order')))
       // Keep the cart and reopen payment so the cashier can fix and retry.
       setShowPayment(true)
     },
@@ -1361,6 +1399,7 @@ export function usePosLogic() {
 
   const handleConfirmPayment = async () => {
     if (submitLockRef.current || isPending || isHoldPending) return
+    setPaymentError(null)
     submitLockRef.current = true
     let dispatched = false
     try {
@@ -1456,6 +1495,7 @@ export function usePosLogic() {
     showPayment, setShowPayment,
     paymentMethodId, setPaymentMethodId,
     cashTendered, setCashTendered,
+    paymentError,
     isSplitPayment, setIsSplitPayment,
     splitPayments, setSplitPayments,
     paymentMode, setPaymentMode,

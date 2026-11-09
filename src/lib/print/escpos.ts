@@ -47,6 +47,12 @@ export function size(width = 1, height = 1): Uint8Array {
 
 // GS V 0 — full cut. Harmless on TM-U220 (no auto-cutter); the printer
 // ignores the command rather than mis-printing.
+// ESC 3 n — line spacing in the printer's vertical motion units
+// (1/144" on TM-U220, where the default 1/6" is n=24).
+export function lineSpacing(n: number): Uint8Array {
+  return new Uint8Array([ESC, 0x33, Math.max(0, Math.min(255, n))])
+}
+
 export function cut(): Uint8Array {
   return new Uint8Array([GS, 0x56, 0x00])
 }

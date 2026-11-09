@@ -29,6 +29,10 @@ interface Branch {
   is_default?: boolean
   format?: 'premiere' | 'pickup_point'
   parent_id?: number | null
+  address?: string | null
+  type?: 'warehouse' | 'production' | 'outlet' | 'other'
+  timezone?: string
+  stock_display_mode?: 'base' | 'purchase' | null
   created_at?: string
 }
 
@@ -314,6 +318,22 @@ export default function BranchesView() {
                     >
                       {item.name}
                     </span>
+                    {item.address && (
+                      <div
+                        title={item.address}
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--foreground-muted)',
+                          marginTop: 2,
+                          maxWidth: 360,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {item.address}
+                      </div>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <span
@@ -571,6 +591,11 @@ export default function BranchesView() {
                 { label: 'ID', value: selectedItem.id },
                 { label: 'Code', value: selectedItem.code },
                 { label: 'Name', value: selectedItem.name },
+                { label: 'Address', value: selectedItem.address || '—' },
+                { label: 'Type', value: selectedItem.type ?? '—' },
+                { label: 'Format', value: selectedItem.format === 'pickup_point' ? 'Pickup Point' : 'Premiere' },
+                { label: 'Timezone', value: selectedItem.timezone ?? '—' },
+                { label: 'Stock Display', value: selectedItem.stock_display_mode === 'purchase' ? 'Purchase unit' : 'Base unit' },
                 { label: 'Is Default', value: selectedItem.is_default ? 'Yes' : 'No' },
                 {
                   label: 'Created At',

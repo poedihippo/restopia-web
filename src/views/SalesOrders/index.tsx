@@ -352,8 +352,8 @@ export default function SalesOrdersView() {
     )
     if (onlineSelected.length > 0 && bulkSettlement === 'settled') {
       toast.error(
-        `${onlineSelected.map((o: any) => o.code).join(', ')}: online orders are settled from the Settle Payout screen.`,
-        { action: { label: 'Settle Payout', onClick: () => router.push('/sales/settle-payout') } },
+        `${onlineSelected.map((o: any) => o.code).join(', ')}: online orders are settled from the Unpaid Online Orders screen.`,
+        { action: { label: 'Unpaid Online Orders', onClick: () => router.push('/sales/settle-payout') } },
       )
       return
     }

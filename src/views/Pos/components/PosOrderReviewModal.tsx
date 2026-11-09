@@ -2,11 +2,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, X } from 'lucide-react'
+import { Loader2, Search, User, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/price'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import SearchableSelect from '@/components/SearchableSelect'
 import { vouchersService } from '@/services/vouchers.service'
+import { customersService } from '@/services/customers.service'
 import { useDebounce } from '@/hooks/useDebounce'
 
 interface PosOrderReviewModalProps {
@@ -33,12 +34,20 @@ interface PosOrderReviewModalProps {
   // Editable order details (moved here from the cart sidebar)
   selectedCustomerName?: string
   onClearCustomer: () => void
+  /** Pick an existing customer from the suggestions (sets customer_id). */
+  onSelectCustomer: (c: { id: number; name: string; phone?: string | null }) => void
   guestName: string
   setGuestName: (v: string) => void
   guestPhone: string
   setGuestPhone: (v: string) => void
   orderNote: string
   setOrderNote: (v: string) => void
+  /** Order date, YYYY-MM-DD. */
+  transactionDate: string
+  setTransactionDate: (v: string) => void
+  /** Fulfillment date (YYYY-MM-DD; only the date part is sent). */
+  fulfillmentDate: string
+  setFulfillmentDate: (v: string) => void
   appliedVoucher: { code: string; voucher_id: number | null } | null
   voucherCode: number | ''
   setVoucherCode: (v: number | '') => void
@@ -49,7 +58,8 @@ interface PosOrderReviewModalProps {
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
-  padding: '8px 10px',
+  height: 36,
+  padding: '0 10px',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-sm)',
   fontSize: 13,
@@ -62,9 +72,232 @@ const fieldStyle: React.CSSProperties = {
 
 const fieldLabel: React.CSSProperties = {
   fontSize: 12,
+  fontWeight: 500,
   color: 'var(--foreground-muted)',
-  marginBottom: 4,
+  marginBottom: 6,
   display: 'block',
+}
+
+const chipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  height: 22,
+  padding: '0 8px',
+  borderRadius: 999,
+  fontSize: 11,
+  fontWeight: 600,
+  background: 'var(--accent-light-bg)',
+  color: 'var(--accent)',
+  whiteSpace: 'nowrap',
+}
+
+/**
+ * Customer name + phone with suggestions from existing customers. Picking a
+ * suggestion links the order to that customer (customer_id); otherwise the
+ * typed name/phone are sent as free text.
+ */
+function CustomerField({
+  open,
+  selectedName,
+  onClear,
+  onSelect,
+  name,
+  setName,
+  phone,
+  setPhone,
+}: {
+  open: boolean
+  selectedName?: string
+  onClear: () => void
+  onSelect: (c: { id: number; name: string; phone?: string | null }) => void
+  name: string
+  setName: (v: string) => void
+  phone: string
+  setPhone: (v: string) => void
+}) {
+  const [focused, setFocused] = useState<'name' | 'phone' | null>(null)
+  const [highlight, setHighlight] = useState(0)
+  const term = (focused === 'phone' ? phone : name).trim()
+  const termDebounced = useDebounce(term, 300)
+  const { data, isFetching } = useQuery({
+    queryKey: ['pos-customer-suggest', termDebounced],
+    enabled: open && !selectedName && termDebounced.length >= 2,
+    staleTime: 30_000,
+    queryFn: () =>
+      customersService
+        .list({ per_page: 8, 'filter[search]': termDebounced } as any)
+        .then((r) => r.data),
+  })
+  const suggestions: any[] = termDebounced.length >= 2 ? (data as any)?.data ?? [] : []
+  const showList = !!focused && term.length >= 2 && (suggestions.length > 0 || isFetching)
+
+  const pick = (c: any) => {
+    onSelect({ id: Number(c.id), name: String(c.name ?? ''), phone: c.phone ?? null })
+    setFocused(null)
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showList || suggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHighlight((h) => (h + 1) % suggestions.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlight((h) => (h - 1 + suggestions.length) % suggestions.length)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      pick(suggestions[Math.min(highlight, suggestions.length - 1)])
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      setFocused(null)
+    }
+  }
+
+  if (selectedName) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '8px 10px',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--surface)',
+        }}
+      >
+        <span
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: '50%',
+            background: 'var(--accent-light-bg)',
+            color: 'var(--accent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <User size={14} />
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selectedName}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+            {phone ? `${phone} · ` : ''}Customer terdaftar
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Ganti customer"
+          title="Ganti customer"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex', padding: 4 }}
+        >
+          <X size={14} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 8 }}>
+        <div style={{ position: 'relative' }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-subtle)', pointerEvents: 'none' }} />
+          <input
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              setHighlight(0)
+            }}
+            onFocus={() => setFocused('name')}
+            onBlur={() => setTimeout(() => setFocused((f) => (f === 'name' ? null : f)), 150)}
+            onKeyDown={onKeyDown}
+            placeholder="Cari / ketik nama customer"
+            autoComplete="off"
+            style={{ ...fieldStyle, paddingLeft: 30 }}
+          />
+        </div>
+        <input
+          value={phone}
+          onChange={(e) => {
+            setPhone(e.target.value)
+            setHighlight(0)
+          }}
+          onFocus={() => setFocused('phone')}
+          onBlur={() => setTimeout(() => setFocused((f) => (f === 'phone' ? null : f)), 150)}
+          onKeyDown={onKeyDown}
+          placeholder="No. HP"
+          inputMode="tel"
+          autoComplete="off"
+          style={fieldStyle}
+        />
+      </div>
+
+      {showList && (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            maxHeight: 240,
+            overflowY: 'auto',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          {isFetching && suggestions.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--foreground-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Loader2 size={12} className="animate-spin" /> Mencari customer…
+            </div>
+          ) : (
+            suggestions.map((c: any, i: number) => (
+              <button
+                key={c.id}
+                type="button"
+                role="option"
+                aria-selected={i === highlight}
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setHighlight(i)}
+                onClick={() => pick(c)}
+                style={{
+                  display: 'flex',
+                  width: '100%',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '8px 12px',
+                  border: 'none',
+                  borderBottom: '1px solid var(--border)',
+                  background: i === highlight ? 'var(--accent-light-bg)' : 'transparent',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.name}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)', flexShrink: 0 }}>{c.phone || c.code || ''}</span>
+              </button>
+            ))
+          )}
+          <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--foreground-subtle)', background: 'var(--background)' }}>
+            Tidak ada di daftar? Lanjut ketik — disimpan sebagai teks bebas.
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const fmtQty = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
@@ -93,12 +326,17 @@ export default function PosOrderReviewModal({
   editingOrderCode,
   selectedCustomerName,
   onClearCustomer,
+  onSelectCustomer,
   guestName,
   setGuestName,
   guestPhone,
   setGuestPhone,
   orderNote,
   setOrderNote,
+  transactionDate,
+  setTransactionDate,
+  fulfillmentDate,
+  setFulfillmentDate,
   appliedVoucher,
   voucherCode,
   setVoucherCode,
@@ -193,13 +431,6 @@ export default function PosOrderReviewModal({
     cart.reduce((s, c) => s + Number(c.qty || 0), 0) +
     bundleCart.reduce((s, c) => s + Number(c.qty || 0), 0)
 
-  const metaRow = (label: string, value?: React.ReactNode) =>
-    value ? (
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
-        <span style={{ color: 'var(--foreground-muted)' }}>{label}</span>
-        <span style={{ color: 'var(--foreground)', fontWeight: 500, textAlign: 'right' }}>{value}</span>
-      </div>
-    ) : null
 
   return (
     <div
@@ -247,6 +478,17 @@ export default function PosOrderReviewModal({
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
               Bacakan ulang pesanan ke customer sebelum pembayaran
             </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+              <span style={chipStyle}>{editingOrderCode ? `${editingOrderCode} · pending` : 'Order baru'}</span>
+              <span style={{ ...chipStyle, background: 'var(--background)', color: 'var(--foreground-muted)' }}>
+                {orderType === 'online' ? 'Online' : 'Offline'}
+              </span>
+              {orderType !== 'online' && salesChannelName && (
+                <span style={{ ...chipStyle, background: 'var(--background)', color: 'var(--foreground-muted)' }}>
+                  {salesChannelName}
+                </span>
+              )}
+            </div>
           </div>
           <button
             type="button"
@@ -258,21 +500,19 @@ export default function PosOrderReviewModal({
           </button>
         </div>
 
-        {/* Order meta */}
+        {/* Order details */}
         <div
           style={{
-            padding: '14px 24px',
+            padding: '16px 24px',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             flexDirection: 'column',
-            gap: 6,
+            gap: 14,
             background: 'var(--background)',
           }}
         >
-          {metaRow('Order', editingOrderCode ? `${editingOrderCode} (pending)` : 'Baru')}
-          {metaRow('Tipe', orderType === 'online' ? 'Online' : 'Offline')}
-          {orderType === 'online' && setSalesChannelId ? (
-            <div style={{ marginTop: 6 }}>
+          {orderType === 'online' && setSalesChannelId && (
+            <div>
               <span style={fieldLabel}>
                 Sales Channel <span style={{ color: 'var(--destructive)' }}>*</span>
               </span>
@@ -292,49 +532,49 @@ export default function PosOrderReviewModal({
                 ))}
               </select>
             </div>
-          ) : (
-            metaRow('Sales Channel', salesChannelName)
           )}
 
           {/* Customer */}
-          <div style={{ marginTop: 6 }}>
+          <div>
             <span style={fieldLabel}>Customer</span>
-            {selectedCustomerName ? (
-              <div
-                style={{
-                  ...fieldStyle,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+            <CustomerField
+              open={open}
+              selectedName={selectedCustomerName}
+              onClear={onClearCustomer}
+              onSelect={onSelectCustomer}
+              name={guestName}
+              setName={setGuestName}
+              phone={guestPhone}
+              setPhone={setGuestPhone}
+            />
+          </div>
+
+          {/* Dates — both default to today */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label style={{ display: 'block' }}>
+              <span style={fieldLabel}>Tanggal order</span>
+              <input
+                type="date"
+                value={transactionDate}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setTransactionDate(v)
+                  // Fulfillment can't be before the order date.
+                  if (v && fulfillmentDate.slice(0, 10) < v) setFulfillmentDate(v)
                 }}
-              >
-                <span style={{ fontWeight: 500 }}>{selectedCustomerName}</span>
-                <button
-                  type="button"
-                  onClick={onClearCustomer}
-                  aria-label="Hapus customer"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  placeholder="Nama customer (opsional)"
-                  style={{ ...fieldStyle, flex: 3 }}
-                />
-                <input
-                  value={guestPhone}
-                  onChange={(e) => setGuestPhone(e.target.value)}
-                  placeholder="No. HP"
-                  inputMode="tel"
-                  style={{ ...fieldStyle, flex: 2 }}
-                />
-              </div>
-            )}
+                style={fieldStyle}
+              />
+            </label>
+            <label style={{ display: 'block' }}>
+              <span style={fieldLabel}>Tanggal fulfillment</span>
+              <input
+                type="date"
+                value={fulfillmentDate.slice(0, 10)}
+                min={transactionDate || undefined}
+                onChange={(e) => setFulfillmentDate(e.target.value)}
+                style={fieldStyle}
+              />
+            </label>
           </div>
 
           {/* Voucher */}
@@ -485,7 +725,7 @@ export default function PosOrderReviewModal({
               onChange={(e) => setOrderNote(e.target.value)}
               placeholder="Catatan untuk order ini (opsional)"
               rows={2}
-              style={{ ...fieldStyle, resize: 'none' }}
+              style={{ ...fieldStyle, height: 'auto', padding: '8px 10px', resize: 'none' }}
             />
           </div>
         </div>

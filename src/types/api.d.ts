@@ -3859,6 +3859,8 @@ export interface components {
             updated_by_id?: number;
         };
         BranchResponse: {
+            /** @example Jl. Sudirman No. 1 */
+            address?: string | null;
             /** @example BR-001 */
             code?: string;
             company?: components["schemas"]["CompanySimpleResponse"];
@@ -3912,6 +3914,8 @@ export interface components {
             updated_by_id?: number;
         };
         BranchSimpleResponse: {
+            /** @example Jl. Sudirman No. 1 */
+            address?: string | null;
             /** @example BR-001 */
             code?: string;
             company?: components["schemas"]["CompanySimpleResponse"];
@@ -4448,6 +4452,8 @@ export interface components {
             description?: string;
         };
         CreateBranchRequest: {
+            /** @example Jl. Sudirman No. 1 */
+            address?: string | null;
             /** @example BR-001 */
             code: string;
             /**
@@ -8799,6 +8805,8 @@ export interface components {
             description?: string;
         };
         UpdateBranchRequest: {
+            /** @example Jl. Sudirman No. 1 */
+            address?: string | null;
             /** @example BR-001 */
             code?: string;
             /**

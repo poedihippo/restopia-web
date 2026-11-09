@@ -158,15 +158,16 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: ReceiptText,
         children: [
           { label: 'Sales Orders', href: '/sales/sales-orders', permission: 'sales-order.menu' },
+          { label: 'Unpaid Offline Orders', href: '/sales/unpaid-offline-orders', permission: 'sales-order.menu' },
+          {
+            label: 'Unpaid Online Orders',
+            href: '/sales/settle-payout',
+            permission: ['sales-order.bulk-update-settlement-status', 'payment.create'],
+          },
           { label: 'Sales Channels', href: '/sales/sales-channels', permission: 'sales-channel.menu' },
           { label: 'Customers', href: '/sales/customers', permission: 'customer.menu' },
           { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.menu' },
           { label: 'Payments', href: '/sales/payments', permission: 'payment.menu' },
-          {
-            label: 'Settle Payout',
-            href: '/sales/settle-payout',
-            permission: ['sales-order.bulk-update-settlement-status', 'payment.create'],
-          },
         ],
       },
       { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.menu' },

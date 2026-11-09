@@ -26,6 +26,21 @@ export interface ReturnSalesOrderRequest {
 }
 
 export const salesOrdersService = {
+  /** Every page of a filtered list (for client-side Excel exports). */
+  listAll: async (params: Record<string, any>, perPage = 500): Promise<any[]> => {
+    const out: any[] = []
+    for (let page = 1; ; page++) {
+      const r = await api.get<any>('/sales-orders', { params: { ...params, page, per_page: perPage } })
+      // List responses are { data: [...], meta } (older envelopes nest it under data).
+      const body = r.data
+      const rows = Array.isArray(body?.data) ? body.data : body?.data?.data ?? []
+      out.push(...rows)
+      const lastPage = Number((body?.meta ?? body?.data?.meta)?.last_page ?? 1)
+      if (page >= lastPage || page >= 100) break
+    }
+    return out
+  },
+
   list: (params?: ListParams) =>
     api.get<ApiResponse<PaginatedData<unknown>>>('/sales-orders', { params }),
 

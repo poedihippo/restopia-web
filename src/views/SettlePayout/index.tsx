@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Inbox, Loader2, Undo2, X } from 'lucide-react'
+import { FileSpreadsheet, Inbox, Loader2, Undo2, X } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { branchesService } from '@/services/branches.service'
@@ -13,6 +13,7 @@ import { paymentsService } from '@/services/payments.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { formatCurrency } from '@/utils/price'
 import { formatDateShort, toInputDate } from '@/utils/date'
+import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -168,25 +169,25 @@ export default function SettlePayoutView() {
       (!m.type || m.type === 'all' || m.type === 'sales_orders'),
   )
 
+  const listFilters = {
+    sort: '-date',
+    include: 'branch,sales_channel',
+    'filter[type]': 'online',
+    'filter[settlement_status]': tab === 'pending' ? 'pending' : 'settled',
+    'filter[search]': searchDebounced || undefined,
+    'filter[sales_channel_id]': channelId || undefined,
+    'filter[branch_id]': branchId || undefined,
+    'filter[date_gte]': dateGte || undefined,
+    'filter[date_lte]': dateLte || undefined,
+  }
+
   const { data, isLoading, isError } = useQuery({
     queryKey: [
       'settle-payout-orders', tab, page, perPage, searchDebounced, channelId, branchId, dateGte, dateLte,
     ],
     queryFn: () =>
       salesOrdersService
-        .list({
-          page,
-          per_page: perPage,
-          sort: '-date',
-          include: 'branch,sales_channel',
-          'filter[type]': 'online',
-          'filter[settlement_status]': tab === 'pending' ? 'pending' : 'settled',
-          'filter[search]': searchDebounced || undefined,
-          'filter[sales_channel_id]': channelId || undefined,
-          'filter[branch_id]': branchId || undefined,
-          'filter[date_gte]': dateGte || undefined,
-          'filter[date_lte]': dateLte || undefined,
-        } as any)
+        .list({ ...listFilters, page, per_page: perPage } as any)
         .then((r) => r.data),
   })
   const rawItems: any[] = (data as any)?.data ?? []
@@ -337,9 +338,63 @@ export default function SettlePayoutView() {
 
   const colCount = 7
 
+  // Exports every order of the current tab + filters (all pages).
+  const [exporting, setExporting] = useState(false)
+  const exportExcel = async () => {
+    setExporting(true)
+    try {
+      const fetched = await salesOrdersService.listAll(listFilters)
+      const all = tab === 'pending' ? fetched.filter((o) => o.payment_status !== 'paid') : fetched
+      if (all.length === 0) {
+        toast.info('Tidak ada order untuk diexport')
+        return
+      }
+      const channelName = onlineChannels.find((c: any) => c.id === channelId)?.name
+      const branchName = branches.find((b: any) => b.id === branchId)?.name
+      const rows: ExcelRow[] = [
+        ...reportHeader({
+          title: `Unpaid Online Orders — ${tab === 'pending' ? 'Menunggu Payout' : 'Sudah Settle'}`,
+          branch: branchName,
+          period: dateGte || dateLte ? `${dateGte || '…'} – ${dateLte || '…'}` : undefined,
+          extra: [
+            ...(channelName ? [`Channel : ${channelName}`] : []),
+            ...(searchDebounced ? [`Search : ${searchDebounced}`] : []),
+          ],
+        }),
+        ['No', 'Kode', 'Tanggal', 'Channel', 'Outlet', 'Settlement', 'Total', tab === 'pending' ? 'Outstanding' : 'Dibayar'],
+        ...all.map((o: any, i: number) => [
+          i + 1,
+          o.code,
+          formatDateShort(o.date),
+          o.sales_channel?.name ?? '',
+          o.branch?.name ?? '',
+          o.settlement_status ?? '',
+          money(o.total_price),
+          money(tab === 'pending' ? outstandingOf(o) : o.total_payment),
+        ]),
+        [],
+        ['', '', '', '', '', 'Total',
+          money(all.reduce((s: number, o: any) => s + Number(o.total_price ?? 0), 0)),
+          money(all.reduce(
+            (s: number, o: any) => s + (tab === 'pending' ? outstandingOf(o) : Number(o.total_payment ?? 0)),
+            0,
+          ))],
+      ]
+      downloadExcel(
+        `unpaid-online-orders-${tab}-${new Date().toLocaleDateString('en-CA')}.xlsx`,
+        [{ name: tab === 'pending' ? 'Menunggu Payout' : 'Sudah Settle', rows, cols: [5, 22, 12, 18, 20, 12, 14, 14] }],
+      )
+    } catch (err: any) {
+      toastMutationApiError(err, 'Gagal export Excel')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)' }}>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
         <h1
           style={{
             fontFamily: 'var(--font-display)',
@@ -349,11 +404,26 @@ export default function SettlePayoutView() {
             margin: 0,
           }}
         >
-          Settle Payout
+          Unpaid Online Orders
         </h1>
         <p style={{ color: 'var(--foreground-muted)', fontSize: 14, marginTop: 4 }}>
           Catat pencairan dana marketplace (GoFood, Grab Food, Shopee Food) untuk order online yang masih pending
         </p>
+        </div>
+        <button
+          type="button"
+          onClick={exportExcel}
+          disabled={exporting}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px',
+            border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)',
+            color: 'var(--foreground)', fontSize: 13, fontWeight: 500, cursor: exporting ? 'wait' : 'pointer',
+            opacity: exporting ? 0.6 : 1,
+          }}
+        >
+          {exporting ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} />}
+          Export Excel
+        </button>
       </div>
 
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>

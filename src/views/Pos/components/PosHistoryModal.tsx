@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { formatCurrency } from '@/utils/price';
 import { useAuth } from '@/hooks/useAuth'
 import ReturnOrderModal from '@/views/SalesOrders/ReturnOrderModal'
+import { useReprintReceipt } from '../hooks/useReprintReceipt'
 
 const SETTLEMENT_META: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
@@ -45,6 +46,7 @@ export default function PosHistoryModal({
   const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
   // Whole or line-by-line return (with refund) happens in the return modal.
   const [returnTarget, setReturnTarget] = useState<{ id: number; code?: string } | null>(null)
+  const { reprint, printingId } = useReprintReceipt()
 
   if (!showHistory) return null
 
@@ -253,6 +255,29 @@ export default function PosHistoryModal({
                     <span>{formatCurrency(Number(order.total_price) - Number(order.returned_amount))}</span>
                   </div>
                 </div>
+              )}
+
+              {order.status === 'final' && (
+                <button
+                  type="button"
+                  onClick={() => reprint(order.id)}
+                  disabled={printingId === order.id}
+                  style={{
+                    marginTop: 8,
+                    width: '100%',
+                    padding: '6px 12px',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--surface)',
+                    color: 'var(--foreground)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: printingId === order.id ? 'wait' : 'pointer',
+                    opacity: printingId === order.id ? 0.6 : 1,
+                  }}
+                >
+                  {printingId === order.id ? 'Printing…' : '🖨 Reprint Receipt'}
+                </button>
               )}
 
               {/* Return button — only for final orders without deliveries/invoices, not already cancelled */}

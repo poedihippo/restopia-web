@@ -2,33 +2,222 @@
 import { formatCurrency } from '@/utils/price';
 
 import { useState, useMemo } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useRouter } from 'next/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Loader2, Trash2, Check, User, Printer } from 'lucide-react';
+import { Plus, Loader2, Trash2, Check, User, Printer, ArrowLeft, Pencil, RotateCcw, Receipt } from 'lucide-react';
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service';
 import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
-import SalesOrdersDetail from './Detail/SalesOrdersDetail';
 import ReturnOrderModal from './ReturnOrderModal';
 import { useAuth } from '@/hooks/useAuth';
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { formatNumberId } from '@/utils/numberFormat'
+import { formatDate, formatDateTime } from '@/utils/date'
+import { lineNameOf, parseSnapshot } from '@/views/Pos/utils/receiptFromOrder'
+import { useReprintReceipt } from '@/views/Pos/hooks/useReprintReceipt'
 
-const sectionStyle: CSSProperties = {
+const cardStyle: CSSProperties = {
   background: 'var(--surface)',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-lg)',
-  padding: 24,
-  marginTop: 16,
+  boxShadow: 'var(--shadow-sm)',
+  overflow: 'hidden',
 }
 
-const SETTLEMENT_META: Record<
-  string,
-  { label: string; color: string; bg: string }
-> = {
+const cardHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '12px 20px',
+  minHeight: 52,
+  borderBottom: '1px solid var(--border)',
+}
+
+const cardTitleStyle: CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }
+
+const labelStyle: CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)' }
+
+const thStyle: CSSProperties = {
+  padding: '10px 14px',
+  textAlign: 'left',
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'var(--foreground-muted)',
+  background: 'var(--background)',
+  borderBottom: '1px solid var(--border)',
+  whiteSpace: 'nowrap',
+}
+
+const tdStyle: CSSProperties = {
+  padding: '12px 14px',
+  fontSize: 13,
+  color: 'var(--foreground)',
+  borderBottom: '1px solid var(--border)',
+  verticalAlign: 'top',
+}
+
+const dlStyle: CSSProperties = { margin: 0, padding: '4px 20px' }
+
+const noteStyle: CSSProperties = {
+  padding: '10px 20px',
+  fontSize: 12,
+  lineHeight: 1.5,
+  borderBottom: '1px solid var(--border)',
+}
+
+const fieldStyle: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 }
+
+const inputStyle: CSSProperties = {
+  height: 38,
+  padding: '0 12px',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--surface)',
+  color: 'var(--foreground)',
+  fontSize: 13,
+  outline: 'none',
+  boxSizing: 'border-box',
+  width: '100%',
+}
+
+const buttonBase: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  height: 36,
+  padding: '0 14px',
+  borderRadius: 'var(--radius-md)',
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+}
+
+const secondaryButtonStyle: CSSProperties = {
+  ...buttonBase,
+  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  color: 'var(--foreground)',
+}
+
+const primaryButtonStyle: CSSProperties = {
+  ...buttonBase,
+  border: '1px solid var(--accent)',
+  background: 'var(--accent)',
+  color: '#fff',
+}
+
+const iconButtonStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 36,
+  height: 36,
+  flexShrink: 0,
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--surface)',
+  color: 'var(--foreground)',
+  cursor: 'pointer',
+}
+
+type BadgeMeta = { label: string; color: string; bg: string }
+
+const ORDER_STATUS_META: Record<string, BadgeMeta> = {
+  final: { label: 'Final', color: 'var(--success)', bg: 'var(--success-bg)' },
+  pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+}
+
+const DETAIL_STATUS_META: Record<string, BadgeMeta> = {
+  pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  process: { label: 'In Progress', color: 'var(--info)', bg: 'var(--info-bg)' },
+  completed: { label: 'Completed', color: 'var(--success)', bg: 'var(--success-bg)' },
+}
+
+function Badge({ label, color, bg }: BadgeMeta) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        height: 22,
+        padding: '0 8px',
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 600,
+        color,
+        background: bg,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: '9px 0',
+        borderBottom: '1px dashed var(--border)',
+        fontSize: 13,
+      }}
+    >
+      <dt style={{ color: 'var(--foreground-muted)', flexShrink: 0 }}>{label}</dt>
+      <dd style={{ margin: 0, fontWeight: 500, color: 'var(--foreground)', textAlign: 'right', minWidth: 0, overflowWrap: 'anywhere' }}>
+        {value}
+      </dd>
+    </div>
+  )
+}
+
+function TotalRow({ label, value }: { label: ReactNode; value: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+      <span style={{ color: 'var(--foreground-muted)' }}>{label}</span>
+      <span style={{ color: 'var(--foreground)' }}>{value}</span>
+    </div>
+  )
+}
+
+function Stamp({ who, when }: { who?: string; when?: string }) {
+  return (
+    <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+      <span>{who || '—'}</span>
+      {when && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)' }}>{formatDateTime(when)}</span>}
+    </span>
+  )
+}
+
+const titleCase = (v?: string | null) =>
+  v ? String(v).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—'
+
+function lineCodeOf(d: any): string {
+  const snap = parseSnapshot(d.product_inventory_snapshot)
+  const uomSnap = d.product_uom_snapshot
+  return (
+    uomSnap?.product?.code ??
+    uomSnap?.code ??
+    snap?.product_uom_batch?.product_uom?.product?.code ??
+    snap?.product_uom?.product?.code ??
+    snap?.code ??
+    d.product_inventory?.code ??
+    d.product_uom_batch?.product_uom?.code ??
+    d.bundle?.code ??
+    '—'
+  )
+}
+
+const SETTLEMENT_META: Record<string, BadgeMeta> = {
   pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
   credit: { label: 'Credit', color: 'var(--warning)', bg: 'var(--warning-bg)' },
   settled: { label: 'Settled', color: 'var(--success)', bg: 'var(--success-bg)' },
@@ -56,13 +245,12 @@ export default function SalesOrderDetail() {
       salesOrderService
         .findById(id, {
           include:
-            'branch,customer,created_by,purchase_order,credit_by,sales_order_details,sales_channel',
+            'branch,buyer_branch,customer,created_by,updated_by,purchase_order,credit_by,sales_order_details,sales_channel,media,additional_charges',
         })
         .then((r) => r.data),
   });
   const order = (data as any)?.data;
   const details = order?.sales_order_details ?? []
-  const isDetailsLoading = isLoading
 
   const subtotal = Number(order?.subtotal_price ?? 0)
   const discount = Number(order?.discount_price ?? 0)
@@ -91,6 +279,8 @@ export default function SalesOrderDetail() {
         amount: a.amount,
         // Marketplace fee taken from this order's share of an online payout.
         fee_amount: Number(a.fee_amount ?? 0),
+        // Cash change given on this tender; tendered = amount + change.
+        change_amount: Number(a.payment?.change_amount ?? 0),
         description: a.payment?.payment_number ?? '',
         created_at: a.payment?.created_at ?? a.payment?.date,
         date: a.payment?.date,
@@ -138,6 +328,7 @@ export default function SalesOrderDetail() {
 
   const { hasPermission } = useAuth()
   const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
+  const { reprint, printingId } = useReprintReceipt()
   const [showReturn, setShowReturn] = useState(false)
 
   const { data: paymentMethodsData } = useQuery({
@@ -211,1268 +402,583 @@ export default function SalesOrderDetail() {
     );
   }
 
+  const settlementMeta = order?.settlement_status
+    ? SETTLEMENT_META[order.settlement_status as string] ?? SETTLEMENT_META.pending
+    : null
+  const paymentBadge = isFullyPaid
+    ? { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' }
+    : totalPaid > 0
+      ? { label: 'Partially paid', color: 'var(--warning)', bg: 'var(--warning-bg)' }
+      : { label: 'Unpaid', color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
+  const statusBadge = ORDER_STATUS_META[order?.status as string] ?? {
+    label: order?.status ? String(order.status) : '—',
+    color: 'var(--foreground-muted)',
+    bg: 'var(--background)',
+  }
+  const customerName = order?.customer_name || order?.customer?.name || 'Walk-in customer'
+  const customerPhone = order?.customer_phone || order?.customer?.phone || ''
+  // Cash change (kembalian) kept by the server; handed over = total_payment + change_amount.
+  const changeAmount = Number(order?.change_amount ?? 0)
+  const media: any[] = order?.media ?? []
+  const isOnlinePendingPayout = order?.type === 'online' && order?.settlement_status === 'pending'
+  const canAddPayment = !isFullyPaid && !isOnlinePendingPayout
+
+  const orderInfo: { label: string; value: ReactNode }[] = [
+    { label: 'Order date', value: formatDate(order?.date) },
+    { label: 'Fulfillment', value: order?.fulfillment_date ? formatDateTime(order.fulfillment_date) : '—' },
+    { label: 'Type', value: titleCase(order?.type) },
+    ...(order?.sales_channel_id
+      ? [{ label: 'Sales channel', value: order.sales_channel?.name ?? `Channel #${order.sales_channel_id}` }]
+      : []),
+    { label: 'Branch', value: order?.branch?.name ?? '—' },
+    ...(order?.buyer_branch_id
+      ? [{ label: 'Buyer branch', value: order.buyer_branch?.name ?? `Branch #${order.buyer_branch_id}` }]
+      : []),
+    ...(order?.purchase_order_id
+      ? [{ label: 'Linked PO', value: order.purchase_order?.code ?? `PO-${order.purchase_order_id}` }]
+      : []),
+    ...(settlementMeta
+      ? [{ label: 'Settlement', value: <Badge {...settlementMeta} /> }]
+      : []),
+    ...(order?.settlement_status === 'credit' && order?.credit_type === 'customer'
+      ? [{ label: 'Credit', value: 'Customer credit' }]
+      : []),
+    ...(order?.credit_by_id
+      ? [{
+          label: 'Credit by',
+          value: (
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <span>{order.credit_by?.name ?? `User #${order.credit_by_id}`}</span>
+              <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)' }}>
+                Limit Rp {Number(order.credit_by?.credit ?? 0).toLocaleString('id-ID')}
+              </span>
+            </span>
+          ),
+        }]
+      : []),
+  ]
+
   return (
-    <div>
-      <div
-        style={{
-          padding: '16px 24px',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          gap: 12,
-          borderBottom: '1px solid var(--border)',
-          background: 'var(--surface)',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => window.print()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 38,
-            padding: '0 16px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--surface)',
-            color: 'var(--foreground)',
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          <Printer size={15} />
-          Download Invoice
-        </button>
-        {canReturn &&
-          order?.status === 'final' &&
-          order?.settlement_status !== 'cancelled' &&
-          !order?.has_delivery &&
-          !order?.has_invoice && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
           <button
             type="button"
-            onClick={() => setShowReturn(true)}
-            style={{
-              height: 38,
-              padding: '0 16px',
-              border: '1px solid var(--destructive)',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--destructive-bg)',
-              color: 'var(--destructive)',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 500,
-            }}
+            onClick={() => router.push('/sales/sales-orders')}
+            title="Back to sales orders"
+            style={{ ...iconButtonStyle, marginTop: 2 }}
           >
-            {hasPartialReturns ? '↩ Return Remaining Items' : '↩ Return'}
+            <ArrowLeft size={16} />
           </button>
-        )}
-        {/* An order with partial returns can no longer be edited or voided. */}
-        {!hasPartialReturns && (<>
-        <button
-          type="button"
-          onClick={() => router.push(`/sales/sales-orders/${id}/edit`)}
-          style={{
-            height: 38,
-            padding: '0 16px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--surface)',
-            color: 'var(--foreground)',
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          Edit Order
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowDelete(true)}
-          style={{
-            height: 38,
-            padding: '0 16px',
-            border: '1px solid var(--destructive)',
-            borderRadius: 'var(--radius-md)',
-            background: 'transparent',
-            color: 'var(--destructive)',
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
-          }}
-        >
-          Delete
-        </button>
-        </>)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--foreground)' }}>
+                {isLoading ? 'Loading…' : order?.code ?? '—'}
+              </h1>
+              {order && <Badge {...statusBadge} />}
+              {order && <Badge {...paymentBadge} />}
+              {hasPartialReturns && <Badge label="Partially returned" color="var(--warning)" bg="var(--warning-bg)" />}
+            </div>
+            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+              {order
+                ? [formatDate(order.date), order.branch?.name, order.created_by?.name && `by ${order.created_by.name}`]
+                    .filter(Boolean)
+                    .join(' · ')
+                : ' '}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" onClick={() => window.print()} style={secondaryButtonStyle}>
+            <Printer size={15} />
+            Print Invoice
+          </button>
+          {order?.status === 'final' && (
+            <button
+              type="button"
+              onClick={() => reprint(id)}
+              disabled={printingId === id}
+              style={{ ...secondaryButtonStyle, opacity: printingId === id ? 0.6 : 1 }}
+            >
+              {printingId === id ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Receipt size={15} />}
+              Print Receipt
+            </button>
+          )}
+          {canReturn &&
+            order?.status === 'final' &&
+            order?.settlement_status !== 'cancelled' &&
+            !order?.has_delivery &&
+            !order?.has_invoice && (
+            <button type="button" onClick={() => setShowReturn(true)} style={secondaryButtonStyle}>
+              <RotateCcw size={15} />
+              {hasPartialReturns ? 'Return Remaining' : 'Return'}
+            </button>
+          )}
+          {/* An order with partial returns can no longer be edited or voided. */}
+          {!hasPartialReturns && (
+            <>
+              <button
+                type="button"
+                onClick={() => router.push(`/sales/sales-orders/${id}/edit`)}
+                style={secondaryButtonStyle}
+              >
+                <Pencil size={15} />
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDelete(true)}
+                style={{ ...secondaryButtonStyle, color: 'var(--destructive)' }}
+              >
+                <Trash2 size={15} />
+                Delete
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      {(order?.purchase_order_id || order?.buyer_branch_id || order?.sales_channel_id || order?.credit_by_id) && (
-        <div
-          style={{
-            ...sectionStyle,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 24,
-            flexWrap: 'wrap',
-          }}
-        >
-          {order?.purchase_order_id && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.6,
-                }}
-              >
-                Linked PO
-              </span>
-              <span
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--accent)',
-                }}
-              >
-                {order.purchase_order?.code ?? `PO-${order.purchase_order_id}`}
-              </span>
-            </div>
-          )}
-          {order?.buyer_branch_id && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: 0.6,
-                }}
-              >
-                Buyer Branch
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                {order.buyer_branch?.name ?? `Branch #${order.buyer_branch_id}`}
-              </span>
-            </div>
-          )}
-          {order?.sales_channel_id && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--accent)',
-                  background: 'var(--accent-light-bg)',
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-sm)',
-                }}
-              >
-                Sales Channel
-              </span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                {order.sales_channel?.name ?? `Channel #${order.sales_channel_id}`}
-              </span>
-            </div>
-          )}
-          {order?.settlement_status === 'credit' && order?.credit_type === 'customer' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 99,
-                  background: 'var(--info-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <User size={14} color="var(--info)" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--foreground-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.6,
-                  }}
-                >
-                  Credit Type
-                </span>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--foreground)',
-                  }}
-                >
-                  Customer Credit
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--foreground-muted)',
-                  }}
-                >
-                  {order.customer?.name ?? `Customer #${order.customer_id ?? '—'}`}
-                  {' · no user balance tracked'}
-                </span>
-              </div>
-            </div>
-          )}
-          {order?.credit_by_id && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 99,
-                  background: 'var(--accent-light-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <User size={14} color="var(--accent-light)" />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    color: 'var(--foreground-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: 0.6,
-                  }}
-                >
-                  Credit By
-                </span>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--foreground)',
-                  }}
-                >
-                  {order.credit_by?.name ?? `User #${order.credit_by_id}`}
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--foreground-muted)',
-                  }}
-                >
-                  Limit: Rp{' '}
-                  {Number(order.credit_by?.credit ?? 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {order?.settlement_status && (
-        <div
-          style={{
-            ...sectionStyle,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--foreground-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: 0.6,
-              }}
-            >
-              Settlement
-            </span>
-            {(() => {
-              const settlementMeta =
-                SETTLEMENT_META[order.settlement_status as string] ??
-                SETTLEMENT_META.pending
-              return (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '4px 12px',
-                    borderRadius: 99,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    background: settlementMeta.bg,
-                    color: settlementMeta.color,
-                  }}
-                >
-                  {settlementMeta.label}
-                </span>
-              )
-            })()}
-          </div>
-          {order.settlement_status === 'credit' && (
-            <span
-              style={{
-                fontSize: 11,
-                color: 'var(--warning)',
-                marginTop: 2,
-              }}
-            >
-              ⚠ Paid via credit — awaiting settlement
-            </span>
-          )}
-        </div>
-      )}
-
-      <div style={sectionStyle}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 16,
-            flexWrap: 'wrap',
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span
-              style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}
-            >
-              Payments
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-              {payments.length} payment(s) recorded
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 20,
-              flexWrap: 'wrap',
-            }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                Order Total
-              </span>
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--foreground)',
-                }}
-              >
-                Rp {effectiveTotal.toLocaleString('id-ID')}
-              </span>
-              {hasPartialReturns && (
-                <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                  of Rp {total.toLocaleString('id-ID')} · returned Rp {returnedAmount.toLocaleString('id-ID')}
-                </span>
-              )}
-            </div>
-
-            {refundedAmount > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                  Refunded
-                </span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
-                  Rp {refundedAmount.toLocaleString('id-ID')}
-                </span>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                Paid
-              </span>
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--success)',
-                }}
-              >
-                Rp {totalPaid.toLocaleString('id-ID')}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-                Remaining
-              </span>
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color:
-                    remaining > 0 ? 'var(--destructive)' : 'var(--success)',
-                }}
-              >
-                Rp {Math.max(0, remaining).toLocaleString('id-ID')}
-              </span>
-            </div>
-
-            {isFullyPaid ? (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '6px 12px',
-                  background: 'var(--success-bg)',
-                  color: 'var(--success)',
-                  border: '1px solid var(--success)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                <Check size={13} />
-                Fully Paid
-              </span>
-            ) : order?.type === 'online' && order?.settlement_status === 'pending' ? (
-              // Marketplace orders are paid by a payout — recording a payment here
-              // would mark them paid while settlement stays pending.
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(
-                    `/sales/settle-payout?search=${encodeURIComponent(order.code ?? '')}`,
-                  )
-                }
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '6px 12px',
-                  background: 'var(--accent-light-bg)',
-                  color: 'var(--accent)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
-                Settle via Payout
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowPaymentForm(!showPaymentForm)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '6px 12px',
-                  background: 'var(--accent-light-bg)',
-                  color: 'var(--accent)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
-              >
-                {!showPaymentForm && <Plus size={13} />}
-                {showPaymentForm ? 'Cancel' : 'Add Payment'}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {order?.settlement_status === 'credit' && order?.credit_type === 'user' && order?.credit_by_id && (
-          <div
-            style={{
-              background: 'var(--warning-bg)',
-              border: '1px solid var(--warning)',
-              borderRadius: 'var(--radius-md)',
-              padding: '10px 14px',
-              marginBottom: 12,
-              fontSize: 12,
-              color: 'var(--warning)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span>
-              ⚠ This order uses staff credit for {order.credit_by?.name ?? 'a user'}. To deduct from their credit balance, record a payment using the &apos;Credit&apos; method.
-            </span>
-          </div>
-        )}
-        {order?.settlement_status === 'credit' && order?.credit_type === 'customer' && (
-          <div
-            style={{
-              background: 'var(--info-bg)',
-              border: '1px solid var(--info)',
-              borderRadius: 'var(--radius-md)',
-              padding: '10px 14px',
-              marginBottom: 12,
-              fontSize: 12,
-              color: 'var(--info)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span>
-              Customer credit — no user balance is tracked for this order.
-            </span>
-          </div>
-        )}
-
-        {showPaymentForm && (
-          <div
-            style={{
-              padding: 16,
-              background: 'var(--background)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              marginBottom: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: 'var(--foreground)',
-                  }}
-                >
-                  Payment Method
-                </label>
-                <select
-                  value={paymentMethodId}
-                  onChange={(e) => setPaymentMethodId(Number(e.target.value))}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 13,
-                    background: 'var(--surface)',
-                    outline: 'none',
-                    fontFamily: 'var(--font-sans)',
-                    color: 'var(--foreground)',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <option value={0} disabled>
-                    Select method
-                  </option>
-                  {paymentMethods.map((pm: any) => (
-                    <option key={pm.id} value={pm.id}>
-                      {pm.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: 'var(--foreground)',
-                  }}
-                >
-                  Amount (Rp)
-                </label>
-                <LocalizedNumberInput
-                  value={paymentAmount}
-                  onChange={setPaymentAmount}
-                  decimals={2}
-                  placeholder={`Rp ${formatNumberId(order?.total_price ?? 0, 2)}`}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 13,
-                    background: 'var(--surface)',
-                    outline: 'none',
-                    fontFamily: 'var(--font-sans)',
-                    color: 'var(--foreground)',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                }}
-              >
-                Description (optional)
-              </label>
-              <input
-                type="text"
-                value={paymentDescription}
-                onChange={(e) => setPaymentDescription(e.target.value)}
-                placeholder="e.g. Cash payment, Transfer BCA"
-                style={{
-                  width: '100%',
-                  padding: '8px 10px',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  background: 'var(--surface)',
-                  outline: 'none',
-                  fontFamily: 'var(--font-sans)',
-                  color: 'var(--foreground)',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="so-detail-grid">
+        {/* ── Main column ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          {/* Items */}
+          <section style={cardStyle} aria-busy={isLoading}>
+            <div style={cardHeaderStyle}>
+              <span style={cardTitleStyle}>Items</span>
               <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                Quick fill:
+                {details.length} line{details.length === 1 ? '' : 's'}
               </span>
-              <button
-                type="button"
-                onClick={() => setPaymentAmount(Math.max(0, remaining))}
-                style={{
-                  padding: '4px 10px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  color: 'var(--foreground-muted)',
-                }}
-              >
-                Remaining (Rp {Math.max(0, remaining).toLocaleString('id-ID')})
-              </button>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setShowPaymentForm(false)}
-                style={{
-                  padding: '7px 14px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => createPaymentMutation.mutate()}
-                disabled={
-                  paymentMethodId === 0 ||
-                  paymentAmount <= 0 ||
-                  createPaymentMutation.isPending
-                }
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--accent)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor:
-                    paymentMethodId === 0 ||
-                      paymentAmount <= 0 ||
-                      createPaymentMutation.isPending
-                      ? 'not-allowed'
-                      : 'pointer',
-                  opacity:
-                    paymentMethodId === 0 ||
-                      paymentAmount <= 0 ||
-                      createPaymentMutation.isPending
-                      ? 0.7
-                      : 1,
-                }}
-              >
-                {createPaymentMutation.isPending && (
-                  <Loader2 size={13} className="animate-spin" />
-                )}
-                Record Payment
-              </button>
-            </div>
-          </div>
-        )}
-
-        {payments.length > 0 ? (
-          <div
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              overflow: 'hidden',
-            }}
-          >
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--background)' }}>
-                  {[
-                    { label: 'Date', width: 170 },
-                    { label: 'Method', width: 160 },
-                    { label: 'Amount', width: 160 },
-                    { label: 'Description', width: undefined },
-                    { label: '', width: 48 },
-                  ].map((col, i) => (
-                    <th
-                      key={i}
-                      style={{
-                        padding: '10px 14px',
-                        textAlign:
-                          col.label === 'Amount' ? 'right' : 'left',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: 'var(--foreground-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        borderBottom: '1px solid var(--border)',
-                        whiteSpace: 'nowrap',
-                        ...(col.width ? { width: col.width } : {}),
-                      }}
-                    >
-                      {col.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((p: any) => {
-                  const dateSrc = p.created_at ?? p.date
-                  const dateStr = dateSrc
-                    ? dateSrc
-                    : '-'
-                  const isDeleting =
-                    deletePaymentMutation.isPending &&
-                    (deletePaymentMutation.variables as any) === p.id
-                  return (
-                    <tr
-                      key={p.id}
-                      style={{ borderTop: '1px solid var(--border)' }}
-                    >
-                      <td
-                        style={{
-                          padding: '10px 14px',
-                          fontSize: 13,
-                          color: 'var(--foreground-muted)',
-                        }}
-                      >
-                        {dateStr}
-                      </td>
-                      <td
-                        style={{
-                          padding: '10px 14px',
-                          fontSize: 13,
-                          color: 'var(--foreground)',
-                        }}
-                      >
-                        {p.payment_method?.name ?? '—'}
-                        {p.type === 'refund' && (
-                          <span
-                            style={{
-                              marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 6px',
-                              borderRadius: 'var(--radius-sm)',
-                              background: 'var(--destructive-bg)', color: 'var(--destructive)',
-                            }}
-                          >
-                            Refund
-                          </span>
-                        )}
-                      </td>
-                      <td
-                        style={{
-                          padding: '10px 14px',
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: p.type === 'refund' ? 'var(--destructive)' : 'var(--foreground)',
-                          textAlign: 'right',
-                          fontFamily: 'var(--font-display)',
-                        }}
-                      >
-                        {p.type === 'refund' ? '− ' : ''}Rp {Number(p.amount ?? 0).toLocaleString('id-ID')}
-                        {p.fee_amount > 0 && (
-                          <div
-                            style={{
-                              fontFamily: 'var(--font-sans)',
-                              fontSize: 11,
-                              fontWeight: 400,
-                              color: 'var(--foreground-muted)',
-                              marginTop: 2,
-                            }}
-                          >
-                            Fee −Rp {p.fee_amount.toLocaleString('id-ID')} · Net Rp{' '}
-                            {(Number(p.amount ?? 0) - p.fee_amount).toLocaleString('id-ID')}
-                          </div>
-                        )}
-                      </td>
-                      <td
-                        style={{
-                          padding: '10px 14px',
-                          fontSize: 12,
-                          color: 'var(--foreground-muted)',
-                        }}
-                      >
-                        {p.description || '—'}
-                      </td>
-                      <td style={{ padding: '8px 14px', textAlign: 'right' }}>
-                        {/* A refund, or a payment of an order that was refunded, can't be deleted. */}
-                        {p.type !== 'refund' && refundedAmount <= 0 && (
-                        <button
-                          type="button"
-                          onClick={() => deletePaymentMutation.mutate(p.id)}
-                          disabled={isDeleting}
-                          title="Delete payment"
-                          style={{
-                            padding: 6,
-                            background: 'none',
-                            border: 'none',
-                            borderRadius: 'var(--radius-sm)',
-                            cursor: isDeleting ? 'not-allowed' : 'pointer',
-                            color: 'var(--destructive)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            opacity: isDeleting ? 0.5 : 1,
-                          }}
-                        >
-                          {isDeleting ? (
-                            <Loader2
-                              size={14}
-                              style={{ animation: 'spin 1s linear infinite' }}
-                            />
-                          ) : (
-                            <Trash2 size={14} />
-                          )}
-                        </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div
-            style={{
-              padding: 24,
-              textAlign: 'center',
-              border: '1px dashed var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              fontSize: 13,
-              color: 'var(--foreground-muted)',
-            }}
-          >
-            No payments recorded yet
-          </div>
-        )}
-
-        <style>{`
-          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        `}</style>
-      </div>
-
-      <SalesOrdersDetail
-        id={id}
-        payments={payments}
-        totalPaid={totalPaid}
-        lineItemsSlot={
-          <div
-            style={sectionStyle}
-            aria-busy={isLoading || isDetailsLoading}
-          >
-            <h2
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 16,
-                fontWeight: 700,
-                marginBottom: 20,
-                color: 'var(--foreground)',
-              }}
-            >
-              Line Items
-            </h2>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  {['#', 'Product', 'Code', 'Qty', 'Unit Price', 'Status', 'Subtotal'].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: '8px 12px',
-                          textAlign: 'left',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: 'var(--foreground-muted)',
-                          borderBottom: '1px solid var(--border)',
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {isDetailsLoading &&
-                  Array.from({ length: 4 }).map((_, skIdx) => (
-                    <tr key={`sk-${skIdx}`}>
-                      {[1, 2, 3, 4, 5, 6, 7].map((c) => (
-                        <td
-                          key={c}
-                          style={{
-                            padding: '12px 12px',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              height: 14,
-                              borderRadius: 'var(--radius-sm)',
-                              background: 'var(--border)',
-                              opacity: 0.65,
-                              width: c === 2 ? '70%' : c === 1 ? '40%' : '55%',
-                            }}
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                {!isDetailsLoading && details.length === 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
                   <tr>
-                    <td
-                      colSpan={7}
-                      style={{
-                        padding: 32,
-                        textAlign: 'center',
-                        color: 'var(--foreground-muted)',
-                        fontSize: 14,
-                      }}
-                    >
-                      No line items
-                    </td>
+                    <th style={{ ...thStyle, width: 40 }}>#</th>
+                    <th style={thStyle}>Product</th>
+                    <th style={{ ...thStyle, textAlign: 'right', width: 70 }}>Qty</th>
+                    <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>Unit price</th>
+                    <th style={{ ...thStyle, width: 120 }}>Status</th>
+                    <th style={{ ...thStyle, textAlign: 'right', width: 150 }}>Amount</th>
                   </tr>
-                )}
-                {!isDetailsLoading &&
-                  details.map((d: any, idx: number) => {
-                    const isBundle = !!d.bundle_id
-                    let snap = d.product_inventory_snapshot
-                    if (typeof snap === 'string') {
-                      try { snap = JSON.parse(snap) } catch (e) { }
-                    }
-                    // Prefer product_uom_snapshot (frozen at order time) over
-                    // product_inventory_snapshot which may be null.
-                    const uomSnap = d.product_uom_snapshot
-                    const name =
-                      uomSnap?.product?.name ??
-                      snap?.product_uom?.product?.name ??
-                      snap?.product_uom_batch?.product_uom?.product?.name ??
-                      snap?.name ??
-                      d.product_inventory?.product_uom?.product?.name ??
-                      d.product_uom_batch?.product_uom?.product?.name ??
-                      d.bundle?.name ??
-                      (isBundle ? 'Bundle' : `Item ${d.id ?? idx + 1}`)
-                    const code =
-                      uomSnap?.product?.code ??
-                      uomSnap?.code ??
-                      snap?.product_uom_batch?.product_uom?.product?.code ??
-                      snap?.product_uom?.product?.code ??
-                      snap?.code ??
-                      d.product_inventory?.code ??
-                      d.product_uom_batch?.product_uom?.code ??
-                      d.bundle?.code ??
-                      '—'
-                    const DETAIL_STATUS_META: Record<
-                      string,
-                      { label: string; color: string; bg: string }
-                    > = {
-                      pending: {
-                        label: 'Pending',
-                        color: 'var(--warning)',
-                        bg: 'var(--warning-bg)',
-                      },
-                      process: {
-                        label: 'In Progress',
-                        color: 'var(--info)',
-                        bg: 'var(--info-bg)',
-                      },
-                      completed: {
-                        label: 'Completed',
-                        color: 'var(--success)',
-                        bg: 'var(--success-bg)',
-                      },
-                    }
-                    const statusVal = d.status || snap?.status;
-                    const statusMeta =
-                      DETAIL_STATUS_META[statusVal] ?? {
+                </thead>
+                <tbody>
+                  {isLoading &&
+                    Array.from({ length: 4 }).map((_, skIdx) => (
+                      <tr key={`sk-${skIdx}`}>
+                        {Array.from({ length: 6 }).map((__, c) => (
+                          <td key={c} style={tdStyle}>
+                            <div style={{ height: 12, borderRadius: 4, background: 'var(--background)' }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  {!isLoading && details.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: 32, color: 'var(--foreground-muted)' }}>
+                        No line items
+                      </td>
+                    </tr>
+                  )}
+                  {!isLoading &&
+                    details.map((d: any, idx: number) => {
+                      const isBundle = !!d.bundle_id
+                      const statusVal = d.status || parseSnapshot(d.product_inventory_snapshot)?.status
+                      const statusMeta = DETAIL_STATUS_META[statusVal] ?? {
                         label: statusVal ?? '—',
                         color: 'var(--foreground-muted)',
                         bg: 'var(--background)',
                       }
-                    return (
-                      <tr key={d.id ?? idx}>
-                        <td
-                          style={{
-                            padding: '12px 12px',
-                            fontSize: 13,
-                            color: 'var(--foreground-muted)',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          {idx + 1}
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 12px',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                            }}
-                          >
-                            {isBundle && (
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  color: 'var(--accent)',
-                                  background: 'var(--accent-light-bg)',
-                                  padding: '1px 5px',
-                                  borderRadius: 'var(--radius-sm)',
-                                }}
-                              >
-                                Bundle
-                              </span>
-                            )}
-                            <span style={{ fontSize: 14, fontWeight: 500 }}>{name}</span>
-                          </div>
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 12px',
-                            fontSize: 12,
-                            color: 'var(--foreground-muted)',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          {code}
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 12px',
-                            fontSize: 14,
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          {d.qty}
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 12px',
-                            fontSize: 14,
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          Rp {Number(d.price).toLocaleString('id-ID')}
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 12px',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 11,
-                              fontWeight: 600,
-                              padding: '2px 8px',
-                              borderRadius: 'var(--radius-xl)',
-                              background: statusMeta.bg,
-                              color: statusMeta.color,
-                            }}
-                          >
-                            {statusMeta.label}
-                          </span>
-                        </td>
-                        <td
-                          style={{
-                            padding: '12px 12px',
-                            fontSize: 14,
-                            fontWeight: 600,
-                            color: 'var(--accent)',
-                            borderBottom: '1px solid var(--border)',
-                          }}
-                        >
-                          {(() => {
-                            // Line total = dpp − discount_amount (voucher share) + tax_amount (PPN after discount).
-                            const dpp = Number(d.dpp ?? Number(d.price) * Number(d.qty))
-                            const lineDiscount = Number(d.discount_amount ?? 0)
-                            const lineTax = Number(d.tax_amount ?? 0)
-                            const lineTotal =
-                              d.total_price != null ? Number(d.total_price) : dpp - lineDiscount + lineTax
-                            if (lineDiscount <= 0 && lineTax <= 0) {
-                              return <>Rp {dpp.toLocaleString('id-ID')}</>
-                            }
-                            return (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                <span>Rp {lineTotal.toLocaleString('id-ID')}</span>
-                                <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)' }}>
-                                  DPP Rp {dpp.toLocaleString('id-ID')}
-                                  {lineDiscount > 0 && <> · Disc −Rp {lineDiscount.toLocaleString('id-ID')}</>}
-                                  {lineTax > 0 && <> · PPN Rp {lineTax.toLocaleString('id-ID')}</>}
-                                </span>
+                      // Line total = dpp − discount_amount (voucher share) + tax_amount (PPN after discount).
+                      const dpp = Number(d.dpp ?? Number(d.price) * Number(d.qty))
+                      const lineDiscount = Number(d.discount_amount ?? 0)
+                      const lineTax = Number(d.tax_amount ?? 0)
+                      const lineTotal =
+                        d.total_price != null ? Number(d.total_price) : dpp - lineDiscount + lineTax
+                      const hasBreakdown = lineDiscount > 0 || lineTax > 0
+                      return (
+                        <tr key={d.id ?? idx}>
+                          <td style={{ ...tdStyle, color: 'var(--foreground-subtle)' }}>{idx + 1}</td>
+                          <td style={tdStyle}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {isBundle && <Badge label="Bundle" color="var(--info)" bg="var(--info-bg)" />}
+                              <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>{lineNameOf(d, idx)}</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2 }}>{lineCodeOf(d)}</div>
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>{d.qty}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>Rp {Number(d.price).toLocaleString('id-ID')}</td>
+                          <td style={tdStyle}>
+                            <Badge {...statusMeta} />
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600 }}>
+                            Rp {(hasBreakdown ? lineTotal : dpp).toLocaleString('id-ID')}
+                            {hasBreakdown && (
+                              <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                                DPP {dpp.toLocaleString('id-ID')}
+                                {lineDiscount > 0 && <> · Disc −{lineDiscount.toLocaleString('id-ID')}</>}
+                                {lineTax > 0 && <> · PPN {lineTax.toLocaleString('id-ID')}</>}
                               </div>
-                            )
-                          })()}
-                        </td>
-                      </tr>
-                    )
-                  })}
-              </tbody>
-            </table>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-              <div style={{ width: 280 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginBottom: 8,
-                    fontSize: 14,
-                  }}
-                >
-                  <span style={{ color: 'var(--foreground-muted)' }}>Subtotal</span>
-                  <span>Rp {subtotal.toLocaleString('id-ID')}</span>
-                </div>
+            {/* Totals */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+                <TotalRow label="Subtotal" value={`Rp ${subtotal.toLocaleString('id-ID')}`} />
                 {(order?.additional_charges || []).map((c: any, i: number) => (
-                  <div
+                  <TotalRow
                     key={i}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: 8,
-                      fontSize: 14,
-                    }}
-                  >
-                    <span style={{ color: 'var(--foreground-muted)' }}>
-                      {c.name} {c.tax ? `(Incl. ${c.tax.name} ${c.tax.rate}%)` : ''}
-                      {c.description ? <span style={{display: 'block', fontSize: 11}}>{c.description}</span> : null}
-                    </span>
-                    <span>Rp {Number(c.amount ?? 0).toLocaleString('id-ID')}</span>
-                  </div>
+                    label={
+                      <>
+                        {c.name} {c.tax ? `(Incl. ${c.tax.name} ${c.tax.rate}%)` : ''}
+                        {c.description ? <span style={{ display: 'block', fontSize: 11 }}>{c.description}</span> : null}
+                      </>
+                    }
+                    value={`Rp ${Number(c.amount ?? 0).toLocaleString('id-ID')}`}
+                  />
                 ))}
-                <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: 8,
-                        fontSize: 14,
-                      }}
-                    >
-                      <span style={{ color: 'var(--foreground-muted)' }}>Tax</span>
-                      <span>Rp {Number((order as any)?.tax_amount ?? 0).toLocaleString('id-ID')}</span>
-                    </div>
-                  {discount > 0 && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: 8,
-                        fontSize: 14,
-                      }}
-                    >
-                      <span style={{ color: 'var(--foreground-muted)' }}>Discount</span>
-                    <span style={{ color: 'var(--success)' }}>
-                      - Rp {discount.toLocaleString('id-ID')}
-                    </span>
-                  </div>
+                {Number(order?.tax_amount ?? 0) > 0 && (
+                  <TotalRow label="Tax" value={`Rp ${Number(order?.tax_amount ?? 0).toLocaleString('id-ID')}`} />
                 )}
-                <div
-                  style={{
-                    borderTop: '1px solid var(--border)',
-                    paddingTop: 10,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}
-                >
-                  <span style={{ fontWeight: 700, fontSize: 16 }}>Total</span>
-                  <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>
-                    Rp {total.toLocaleString('id-ID')}
-                  </span>
+                {discount > 0 && (
+                  <TotalRow
+                    label="Discount"
+                    value={<span style={{ color: 'var(--success)' }}>− Rp {discount.toLocaleString('id-ID')}</span>}
+                  />
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 10, marginTop: 2, borderTop: '1px solid var(--border)' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+                  <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--accent)' }}>Rp {total.toLocaleString('id-ID')}</span>
                 </div>
                 {hasPartialReturns && (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 14 }}>
-                      <span style={{ color: 'var(--foreground-muted)' }}>Returned</span>
-                      <span style={{ color: 'var(--warning)' }}>
-                        - Rp {returnedAmount.toLocaleString('id-ID')}
-                      </span>
-                    </div>
-                    {refundedAmount > 0 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 13 }}>
-                        <span style={{ color: 'var(--foreground-muted)' }}>Refunded to customer</span>
-                        <span style={{ color: 'var(--destructive)' }}>
-                          Rp {refundedAmount.toLocaleString('id-ID')}
-                        </span>
-                      </div>
-                    )}
-                    <div
-                      style={{
-                        borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8,
-                        display: 'flex', justifyContent: 'space-between',
-                      }}
-                    >
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>Net Total</span>
-                      <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--accent)' }}>
-                        Rp {effectiveTotal.toLocaleString('id-ID')}
-                      </span>
+                    <TotalRow
+                      label="Returned"
+                      value={<span style={{ color: 'var(--warning)' }}>− Rp {returnedAmount.toLocaleString('id-ID')}</span>}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                      <span>Net total</span>
+                      <span style={{ color: 'var(--accent)' }}>Rp {effectiveTotal.toLocaleString('id-ID')}</span>
                     </div>
                   </>
                 )}
               </div>
             </div>
-          </div>
-        }
-      />
+          </section>
 
+          {/* Payments */}
+          <section style={cardStyle}>
+            <div style={cardHeaderStyle}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={cardTitleStyle}>Payments</span>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{payments.length} recorded</span>
+              </div>
+              {isFullyPaid ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--success)' }}>
+                  <Check size={14} /> Fully paid
+                </span>
+              ) : isOnlinePendingPayout ? (
+                // Marketplace orders are paid by a payout — recording a payment here
+                // would mark them paid while settlement stays pending.
+                <button
+                  type="button"
+                  onClick={() => router.push(`/sales/settle-payout?search=${encodeURIComponent(order.code ?? '')}`)}
+                  style={primaryButtonStyle}
+                >
+                  Settle via Payout
+                </button>
+              ) : canAddPayment && !showPaymentForm ? (
+                <button type="button" onClick={() => setShowPaymentForm(true)} style={primaryButtonStyle}>
+                  <Plus size={14} /> Add Payment
+                </button>
+              ) : null}
+            </div>
+
+            {order?.settlement_status === 'credit' && order?.credit_type === 'user' && order?.credit_by_id && (
+              <div style={{ ...noteStyle, color: 'var(--warning)', background: 'var(--warning-bg)' }}>
+                This order uses staff credit for {order.credit_by?.name ?? 'a user'}. To deduct from their credit
+                balance, record a payment using the &apos;Credit&apos; method.
+              </div>
+            )}
+            {order?.settlement_status === 'credit' && order?.credit_type === 'customer' && (
+              <div style={{ ...noteStyle, color: 'var(--info)', background: 'var(--info-bg)' }}>
+                Customer credit — no user balance is tracked for this order.
+              </div>
+            )}
+
+            {showPaymentForm && (
+              <div style={{ padding: 20, borderBottom: '1px solid var(--border)', background: 'var(--background)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                  <label style={fieldStyle}>
+                    <span style={labelStyle}>Payment method</span>
+                    <select
+                      value={paymentMethodId}
+                      onChange={(e) => setPaymentMethodId(Number(e.target.value))}
+                      style={inputStyle}
+                    >
+                      <option value={0} disabled>Select method</option>
+                      {paymentMethods.map((pm: any) => (
+                        <option key={pm.id} value={pm.id}>{pm.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={fieldStyle}>
+                    <span style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between' }}>
+                      Amount (Rp)
+                      <button
+                        type="button"
+                        onClick={() => setPaymentAmount(Math.max(0, remaining))}
+                        style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}
+                      >
+                        Fill remaining
+                      </button>
+                    </span>
+                    <LocalizedNumberInput
+                      value={paymentAmount}
+                      onChange={setPaymentAmount}
+                      decimals={2}
+                      placeholder={`Rp ${formatNumberId(Math.max(0, remaining), 2)}`}
+                    />
+                  </label>
+                </div>
+                <label style={fieldStyle}>
+                  <span style={labelStyle}>Description (optional)</span>
+                  <input
+                    type="text"
+                    value={paymentDescription}
+                    onChange={(e) => setPaymentDescription(e.target.value)}
+                    placeholder="e.g. Cash payment, Transfer BCA"
+                    style={inputStyle}
+                  />
+                </label>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button type="button" onClick={() => setShowPaymentForm(false)} style={secondaryButtonStyle}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => createPaymentMutation.mutate()}
+                    disabled={paymentMethodId === 0 || paymentAmount <= 0 || createPaymentMutation.isPending}
+                    style={{
+                      ...primaryButtonStyle,
+                      opacity: paymentMethodId === 0 || paymentAmount <= 0 || createPaymentMutation.isPending ? 0.6 : 1,
+                      cursor: paymentMethodId === 0 || paymentAmount <= 0 || createPaymentMutation.isPending ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {createPaymentMutation.isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                    Record Payment
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {payments.length > 0 ? (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...thStyle, width: 170 }}>Date</th>
+                      <th style={{ ...thStyle, width: 170 }}>Method</th>
+                      <th style={thStyle}>Reference</th>
+                      <th style={{ ...thStyle, textAlign: 'right', width: 170 }}>Amount</th>
+                      <th style={{ ...thStyle, width: 48 }} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((p: any) => {
+                      const isDeleting =
+                        deletePaymentMutation.isPending && (deletePaymentMutation.variables as any) === p.id
+                      return (
+                        <tr key={p.allocation_id ?? p.id}>
+                          <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
+                            {formatDateTime(p.created_at ?? p.date)}
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              {p.payment_method?.name ?? '—'}
+                              {p.type === 'refund' && <Badge label="Refund" color="var(--destructive)" bg="var(--destructive-bg)" />}
+                            </span>
+                          </td>
+                          <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>{p.description || '—'}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: p.type === 'refund' ? 'var(--destructive)' : 'var(--foreground)' }}>
+                            {p.type === 'refund' ? '− ' : ''}Rp {Number(p.amount ?? 0).toLocaleString('id-ID')}
+                            {p.change_amount > 0 && (
+                              <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                                Tendered {(Number(p.amount ?? 0) + p.change_amount).toLocaleString('id-ID')} · Change{' '}
+                                {p.change_amount.toLocaleString('id-ID')}
+                              </div>
+                            )}
+                            {p.fee_amount > 0 && (
+                              <div style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                                Fee −{p.fee_amount.toLocaleString('id-ID')} · Net{' '}
+                                {(Number(p.amount ?? 0) - p.fee_amount).toLocaleString('id-ID')}
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ ...tdStyle, textAlign: 'right' }}>
+                            {/* A refund, or a payment of an order that was refunded, can't be deleted. */}
+                            {p.type !== 'refund' && refundedAmount <= 0 && (
+                              <button
+                                type="button"
+                                onClick={() => deletePaymentMutation.mutate(p.id)}
+                                disabled={isDeleting}
+                                title="Delete payment"
+                                style={{ ...iconButtonStyle, width: 30, height: 30, border: 'none', color: 'var(--destructive)' }}
+                              >
+                                {isDeleting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={14} />}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ padding: '28px 20px', textAlign: 'center', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                No payments recorded yet
+              </div>
+            )}
+          </section>
+
+          {order?.description && (
+            <section style={cardStyle}>
+              <div style={cardHeaderStyle}>
+                <span style={cardTitleStyle}>Notes</span>
+              </div>
+              <p style={{ margin: 0, padding: '14px 20px', fontSize: 13, lineHeight: 1.6, color: 'var(--foreground)', whiteSpace: 'pre-wrap' }}>
+                {order.description}
+              </p>
+            </section>
+          )}
+
+          {media.length > 0 && (
+            <section style={cardStyle}>
+              <div style={cardHeaderStyle}>
+                <span style={cardTitleStyle}>Images</span>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{media.length}</span>
+              </div>
+              <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12 }}>
+                {media.map((item: any, index: number) => (
+                  <button
+                    key={item.id ?? index}
+                    type="button"
+                    onClick={() => window.open(item.url)}
+                    title={item.file_name ?? ''}
+                    style={{ position: 'relative', aspectRatio: '1 / 1', padding: 0, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--background)', cursor: 'pointer' }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.url ?? ''} alt={item.file_name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* ── Side column ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          {/* Payment summary */}
+          <section style={cardStyle}>
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={labelStyle}>{hasPartialReturns ? 'Net total' : 'Order total'}</span>
+              <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--foreground)' }}>
+                Rp {effectiveTotal.toLocaleString('id-ID')}
+              </span>
+              {hasPartialReturns && (
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  of Rp {total.toLocaleString('id-ID')} · returned Rp {returnedAmount.toLocaleString('id-ID')}
+                </span>
+              )}
+            </div>
+            <dl style={dlStyle}>
+              {changeAmount > 0 && (
+                <InfoRow label="Tendered" value={`Rp ${(totalPaid + changeAmount).toLocaleString('id-ID')}`} />
+              )}
+              <InfoRow label="Paid" value={<span style={{ color: 'var(--success)' }}>Rp {totalPaid.toLocaleString('id-ID')}</span>} />
+              {refundedAmount > 0 && (
+                <InfoRow label="Refunded" value={<span style={{ color: 'var(--destructive)' }}>Rp {refundedAmount.toLocaleString('id-ID')}</span>} />
+              )}
+              <InfoRow
+                label="Remaining"
+                value={
+                  <span style={{ color: remaining > 0 ? 'var(--destructive)' : 'var(--success)' }}>
+                    Rp {Math.max(0, remaining).toLocaleString('id-ID')}
+                  </span>
+                }
+              />
+              {changeAmount > 0 && (
+                <InfoRow label="Change" value={`Rp ${changeAmount.toLocaleString('id-ID')}`} />
+              )}
+            </dl>
+          </section>
+
+          {/* Customer */}
+          <section style={cardStyle}>
+            <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-light-bg)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <User size={16} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span style={labelStyle}>Customer</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {customerName}
+                </span>
+                {customerPhone && <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{customerPhone}</span>}
+              </div>
+            </div>
+          </section>
+
+          {/* Order info */}
+          <section style={cardStyle}>
+            <div style={cardHeaderStyle}>
+              <span style={cardTitleStyle}>Order info</span>
+            </div>
+            <dl style={dlStyle}>
+              {orderInfo.map((row) => (
+                <InfoRow key={row.label} label={row.label} value={row.value} />
+              ))}
+            </dl>
+            {order?.settlement_status === 'credit' && (
+              <div style={{ ...noteStyle, borderTop: '1px solid var(--border)', borderBottom: 'none', color: 'var(--warning)', background: 'var(--warning-bg)' }}>
+                Paid via credit — awaiting settlement
+              </div>
+            )}
+          </section>
+
+          {/* Activity */}
+          <section style={cardStyle}>
+            <div style={cardHeaderStyle}>
+              <span style={cardTitleStyle}>Activity</span>
+            </div>
+            <dl style={dlStyle}>
+              <InfoRow
+                label="Created"
+                value={<Stamp who={order?.created_by?.name} when={order?.created_at} />}
+              />
+              <InfoRow
+                label="Updated"
+                value={<Stamp who={order?.updated_by?.name} when={order?.updated_at} />}
+              />
+            </dl>
+          </section>
+        </div>
+      </div>
+
+      <style>{`
+        .so-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+        @media (max-width: 1100px) { .so-detail-grid { grid-template-columns: minmax(0, 1fr); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
       {showReturn && (
         <ReturnOrderModal
           orderId={id}
