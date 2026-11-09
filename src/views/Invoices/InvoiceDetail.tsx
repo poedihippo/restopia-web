@@ -8,13 +8,9 @@ import { invoicesService } from '@/services/invoices.service'
 import { useAuth } from '@/hooks/useAuth'
 import {
   ArrowLeft,
-  Calendar,
-  Building2,
-  Truck,
-  FileText,
   Printer,
+  FileSpreadsheet,
   PackageSearch,
-  Wallet,
   Loader2,
   Plus
 } from 'lucide-react'
@@ -27,6 +23,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import Link from 'next/link'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { formatNumberId } from '@/utils/numberFormat'
+import { downloadExcel, money, type ExcelRow } from '@/utils/excelExport'
 
 interface InvoiceDetailProps {
   id: number
@@ -103,31 +100,20 @@ interface OrderRow {
   poCode: string
   soCode: string
   date?: string
-  /** Supplier (PO external) atau branch supplier (PO internal). */
-  source: string
-  sourceKind: 'Supplier' | 'Branch' | ''
-  buyer: string
   total: number
 }
-
-const partyLabel = (p?: PartyRef | null) => (p ? p.name || p.code || `#${p.id}` : '')
 
 /** Satu baris per SO yang ditagihkan, dengan data PO asalnya. */
 function buildOrderRows(refs: InvoiceSalesOrderRef[] | undefined): OrderRow[] {
   return (refs ?? []).map((ref, i) => {
     const so = ref.sales_order
     const po = so?.purchase_order
-    const supplier = partyLabel(po?.supplier)
-    const supplierBranch = partyLabel(po?.supplier_branch)
     return {
       key: String(ref.id ?? ref.sales_order_id ?? i),
       poId: po?.id,
       poCode: po?.code || '—',
       soCode: so?.code || (ref.sales_order_id ? `SO #${ref.sales_order_id}` : '—'),
       date: po?.date ?? so?.date,
-      source: supplier || supplierBranch || '—',
-      sourceKind: supplier ? 'Supplier' : supplierBranch ? 'Branch' : '',
-      buyer: partyLabel(po?.buyer) || '—',
       total: Number(so?.total_price ?? po?.total_price ?? 0),
     }
   })
@@ -232,6 +218,67 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         : 'partial')
   const paymentMeta = PAYMENT_STATUS_META[paymentStatusValue] ?? PAYMENT_STATUS_META.pending
   const due = getInvoiceDueInfo(invoice)
+  const infoValueStyle: React.CSSProperties = {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--foreground)',
+  }
+
+  // Excel copy of what the page shows: header info, orders, totals, payments.
+  const exportExcel = () => {
+    if (!invoice) return
+    const totalPaid = Number(invoice.total_payment ?? 0)
+    const rows: ExcelRow[] = [
+      ['Invoice', invoice.code],
+      ['Dapur Cokelat Indonesia'],
+      [],
+      ['Billed branch', invoice.billed_branch?.name ?? ''],
+      ['Seller branch', invoice.branch?.name ?? ''],
+      ['Invoice status', statusMeta.label],
+      ['Payment status', paymentMeta.label],
+      ['Invoice date', invoice.date ? formatDate(invoice.date) : ''],
+      ['Due date', invoice.due_date ? formatDate(invoice.due_date) : ''],
+      ...(due.isOverdue ? [['Overdue', `${due.daysOverdue} day(s)`] as ExcelRow] : []),
+      ...(invoice.description ? [['Notes', invoice.description] as ExcelRow] : []),
+      [],
+      ['No', 'PO', 'SO', 'Date', 'Total'],
+      ...orderRows.map((row, i) => [
+        i + 1,
+        row.poCode,
+        row.soCode,
+        row.date ? formatDate(row.date) : '',
+        money(row.total),
+      ]),
+      [],
+      ['', '', '', 'Subtotal', money(invoice.subtotal_price ?? 0)],
+      ...((invoice.discount_price ?? 0) > 0
+        ? [['', '', '', 'Discount', money(-Number(invoice.discount_price))] as ExcelRow]
+        : []),
+      ...(invoice.additional_charges ?? []).map(
+        (ac) => ['', '', '', ac.name, money(ac.amount)] as ExcelRow,
+      ),
+      ['', '', '', 'Tax', money(Math.round(Number(invoice.tax_amount ?? 0)))],
+      ['', '', '', 'Total', money(invoice.total_price)],
+      ['', '', '', 'Total paid', money(totalPaid)],
+      ['', '', '', 'Balance due', money(Number(invoice.total_price ?? 0) - totalPaid)],
+    ]
+    if (payments.length > 0) {
+      rows.push([], ['Payments'], ['No', 'Date', 'Method', 'Reference', 'Amount'])
+      payments.forEach((p: any, i: number) => {
+        const allocation = p.allocations?.find((a: any) => a.invoice_id === invoice.id)
+        rows.push([
+          i + 1,
+          p.date ? formatDate(p.date) : '',
+          p.payment_method?.name ?? '',
+          p.reference_number ?? '',
+          money(allocation?.amount ?? p.amount),
+        ])
+      })
+    }
+    downloadExcel(`invoice-${invoice.code ?? invoice.id}.xlsx`, [
+      { name: 'Invoice', rows, cols: [16, 22, 22, 16, 18] },
+    ])
+  }
 
   const backBtnStyle: React.CSSProperties = {
     display: 'flex',
@@ -367,6 +414,27 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           </div>
         </div>
 
+        <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={exportExcel}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 14px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--foreground)',
+            cursor: 'pointer',
+          }}
+        >
+          <FileSpreadsheet size={13} />
+          Export Excel
+        </button>
         <button
           type="button"
           onClick={() => window.print()}
@@ -387,237 +455,86 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           <Printer size={13} />
           Print Invoice
         </button>
+        </div>
       </div>
 
-      {/* Info grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-        {/* Billed Branch */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Building2 size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Billed Branch</span>
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
-            {invoice.billed_branch?.name ?? '—'}
-          </div>
-        </div>
-
-        {/* Seller Branch */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Building2 size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Seller Branch</span>
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
-            {invoice.branch?.name ?? '—'}
-          </div>
-        </div>
-
-        {/* Delivery box removed */}
-
-        {/* Invoice Status */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FileText size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Invoice Status</span>
-          </div>
-          <span
-            style={{
-              alignSelf: 'flex-start',
-              padding: '4px 12px',
-              borderRadius: 99,
-              fontSize: 13,
-              fontWeight: 600,
-              background: statusMeta.bg,
-              color: statusMeta.color,
-            }}
-          >
-            {statusMeta.label}
-          </span>
-        </div>
-
-        {/* Payment Status */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Wallet size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Payment Status</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span
-              style={{
-                padding: '4px 12px',
-                borderRadius: 99,
-                fontSize: 13,
-                fontWeight: 600,
-                background: paymentMeta.bg,
-                color: paymentMeta.color,
-              }}
-            >
-              {paymentMeta.label}
-            </span>
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-              {rp(invoice.total_payment ?? 0)} / {rp(invoice.total_price)}
-            </span>
-          </div>
-        </div>
-
-        {/* Date */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Invoice Date</span>
-          </div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
-            {invoice.date ? formatDate(invoice.date) : '—'}
-          </div>
-          <div
-            style={{
-              borderTop: '1px solid var(--border)',
-              paddingTop: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-            }}
-          >
-            <span style={sectionLabelStyle}>Due Date</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  fontFamily: 'var(--font-display)',
-                  color: due.isOverdue ? 'var(--destructive)' : 'var(--foreground)',
-                }}
-              >
-                {invoice.due_date ? formatDate(invoice.due_date) : '—'}
+      {/* Info strip — one row of small bordered tiles */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+          gap: 10,
+        }}
+      >
+        {[
+          { label: 'Billed Branch', value: <span style={infoValueStyle}>{invoice.billed_branch?.name ?? '—'}</span> },
+          { label: 'Seller Branch', value: <span style={infoValueStyle}>{invoice.branch?.name ?? '—'}</span> },
+          { label: 'Invoice Date', value: <span style={infoValueStyle}>{invoice.date ? formatDate(invoice.date) : '—'}</span> },
+          {
+            label: 'Due Date',
+            value: (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ ...infoValueStyle, color: due.isOverdue ? 'var(--destructive)' : 'var(--foreground)' }}>
+                  {invoice.due_date ? formatDate(invoice.due_date) : '—'}
+                </span>
+                {due.isOverdue && (
+                  <span
+                    style={{
+                      padding: '1px 8px',
+                      borderRadius: 99,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      background: 'var(--destructive)',
+                      color: 'white',
+                    }}
+                  >
+                    Overdue {due.daysOverdue} day{due.daysOverdue === 1 ? '' : 's'}
+                  </span>
+                )}
               </span>
-              {due.isOverdue && (
+            ),
+          },
+          {
+            label: 'Payment',
+            value: (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span
                   style={{
-                    padding: '2px 10px',
+                    padding: '1px 8px',
                     borderRadius: 99,
                     fontSize: 11,
                     fontWeight: 600,
-                    background: 'var(--destructive)',
-                    color: 'white',
+                    background: paymentMeta.bg,
+                    color: paymentMeta.color,
                   }}
                 >
-                  Overdue {due.daysOverdue} day{due.daysOverdue === 1 ? '' : 's'}
+                  {paymentMeta.label}
                 </span>
-              )}
-            </div>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  {rp(invoice.total_payment ?? 0)} / {rp(invoice.total_price)}
+                </span>
+              </span>
+            ),
+          },
+        ].map((f) => (
+          <div
+            key={f.label}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              minWidth: 0,
+              padding: '12px 14px',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <span style={sectionLabelStyle}>{f.label}</span>
+            {f.value}
           </div>
-        </div>
+        ))}
       </div>
 
       {/* Description block */}
@@ -667,8 +584,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
               <th style={{ ...thStyle, width: 50 }}>#</th>
               <th style={thStyle}>PO / SO</th>
-              <th style={thStyle}>Supplier</th>
-              <th style={thStyle}>Buyer</th>
               <th style={thStyle}>Date</th>
               <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Total</th>
             </tr>
@@ -676,7 +591,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           <tbody>
             {orderRows.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
+                <td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
                   No orders found
                 </td>
               </tr>
@@ -696,15 +611,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                       <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>{row.soCode}</span>
                     </div>
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontWeight: 500 }}>{row.source}</span>
-                      {row.sourceKind && (
-                        <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>{row.sourceKind}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>{row.buyer}</td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
                     {row.date ? formatDate(row.date) : '—'}
                   </td>
@@ -717,7 +623,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
 
             {/* Totals */}
             <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-              <td colSpan={5} style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+              <td colSpan={3} style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                 Subtotal
               </td>
               <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -726,7 +632,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             </tr>
             {(invoice.discount_price ?? 0) > 0 && (
               <tr style={{ background: 'var(--background)' }}>
-                <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   Discount
                 </td>
                 <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -737,7 +643,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             {invoice.additional_charges?.length ? (
               invoice.additional_charges.map((ac) => (
                 <tr key={`ac-${ac.id}`} style={{ background: 'var(--background)' }}>
-                  <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                     {ac.name || 'Additional Charges'}
                   </td>
                   <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -747,7 +653,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
               ))
             ) : (invoice.additional_charge_price ?? 0) !== 0 ? (
               <tr style={{ background: 'var(--background)' }}>
-                <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+                <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   Additional Charges
                 </td>
                 <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -756,7 +662,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
               </tr>
             ) : null}
             <tr style={{ background: 'var(--background)' }}>
-              <td colSpan={5} style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
+              <td colSpan={3} style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
                 Tax
               </td>
               <td style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
@@ -764,7 +670,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
               </td>
             </tr>
             <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-              <td colSpan={5} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+              <td colSpan={3} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)' }}>
                 Grand Total
               </td>
               <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -776,7 +682,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
             {invoice.total_payment ? (
               <>
                 <tr style={{ background: 'var(--surface)' }}>
-                  <td colSpan={5} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--success)' }}>
+                  <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--success)' }}>
                     Total Paid
                   </td>
                   <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>
@@ -784,7 +690,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                   </td>
                 </tr>
                 <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-                  <td colSpan={5} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
+                  <td colSpan={3} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
                     Balance Due
                   </td>
                   <td style={{ padding: '14px 16px', textAlign: 'right' }}>
@@ -1035,7 +941,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
             <thead>
               <tr style={{ backgroundColor: '#f0e6d2', color: '#5c3a21' }}>
-                {['No', 'PO / SO', 'Supplier', 'Buyer', 'Date'].map((h) => (
+                {['No', 'PO / SO', 'Date'].map((h) => (
                   <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '10pt', fontWeight: 700, borderBottom: '2px solid #5c3a21' }}>
                     {h}
                   </th>
@@ -1053,8 +959,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                     {row.poCode}
                     <div style={{ fontSize: '8pt', color: '#777', fontWeight: 400 }}>{row.soCode}</div>
                   </td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{row.source}</td>
-                  <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{row.buyer}</td>
                   <td style={{ padding: '10px 12px', fontSize: '10pt', color: '#444' }}>{row.date ? formatDate(row.date) : '-'}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: '10pt', color: '#222', fontWeight: 600 }}>
                     {rp(row.total)}

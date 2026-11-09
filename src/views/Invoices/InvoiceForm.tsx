@@ -106,6 +106,17 @@ function billableQtyOf(line: InvoiceSoLine): number {
   return Math.max(0, Number(line.received_qty ?? 0) - Number(line.invoiced_qty ?? 0))
 }
 
+/** Display name of an SO line: product (UOM), falling back to older snapshots. */
+function lineNameOf(line: InvoiceSoLine): string {
+  const productName =
+    line.product_uom_snapshot?.product?.name
+    || line.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name
+    || line.bundle_snapshot?.name
+    || `Item #${line.id}`
+  const uomName = line.product_uom_snapshot?.uom?.name
+  return uomName ? `${productName} (${uomName})` : productName
+}
+
 interface AdditionalChargeSelection {
   sales_order_component_id?: number
   name: string
@@ -153,6 +164,10 @@ export default function InvoiceForm() {
   const [soDateLte, setSoDateLte] = useState('')
   // Outlet filter — key from outletKeyOf ('buyer:<id>' | 'own:<id>' | 'none')
   const [soOutlet, setSoOutlet] = useState('')
+  // POS-only filters (outlet branches) live behind a "More filters" toggle
+  const [showMoreSoFilters, setShowMoreSoFilters] = useState(false)
+  // Sales order shown in the detail popup (clicked from its code)
+  const [previewSo, setPreviewSo] = useState<InvoiceSoRow | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setSoSearchDebounced(soSearch), 400)
@@ -407,15 +422,7 @@ export default function InvoiceForm() {
               // ("has not been received yet — nothing to bill").
               // Baris dengan 0 → input disabled & tidak ikut payload.
               const maxQty = billableQtyOf(line)
-              // Nama produk dari snapshot product-UOM (payload SO selalu
-              // membawanya); fallback ke snapshot inventory/bundle lama.
-              const productName =
-                line.product_uom_snapshot?.product?.name
-                || line.product_inventory_snapshot?.product_uom_batch?.product_uom?.product?.name
-                || line.bundle_snapshot?.name
-                || `Item #${line.id}`
-              const uomName = line.product_uom_snapshot?.uom?.name
-              const displayName = uomName ? `${productName} (${uomName})` : productName
+              const displayName = lineNameOf(line)
 
               copy[line.id] = {
                 sales_order_detail_id: line.id,
@@ -530,46 +537,122 @@ export default function InvoiceForm() {
     }
   })
 
-  return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200, margin: '0 auto', fontFamily: 'var(--font-sans)' }}>
-      <button
-        onClick={() => router.back()}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          background: 'none',
-          border: 'none',
-          color: 'var(--foreground-muted)',
-          cursor: 'pointer',
-          padding: 0,
-          marginBottom: 20,
-          fontSize: 14,
-        }}
-      >
-        <ChevronLeft size={16} /> Back
-      </button>
+  // ── Layout styles ──────────────────────────────────────────────────────────
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-lg)',
+    padding: '18px 20px',
+  }
+  const stepHeaderStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
+  }
+  const stepBadgeStyle = (active: boolean): React.CSSProperties => ({
+    width: 22,
+    height: 22,
+    borderRadius: 99,
+    background: active ? 'var(--accent)' : 'var(--accent-light-bg)',
+    color: active ? 'white' : 'var(--accent)',
+    fontSize: 12,
+    fontWeight: 600,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  })
+  const stepTitleStyle: React.CSSProperties = {
+    fontSize: 15,
+    fontWeight: 600,
+    margin: 0,
+    color: 'var(--foreground)',
+  }
+  const stepHintStyle: React.CSSProperties = {
+    fontSize: 12,
+    color: 'var(--foreground-muted)',
+  }
+  const fieldLabelStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--foreground-muted)',
+    display: 'block',
+    marginBottom: 6,
+  }
+  const fieldInputStyle: React.CSSProperties = {
+    width: '100%',
+    height: 36,
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    padding: '0 10px',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    background: 'var(--surface-raised)',
+    boxSizing: 'border-box',
+    outline: 'none',
+    fontFamily: 'var(--font-sans)',
+  }
+  const smallInputStyle: React.CSSProperties = { ...fieldInputStyle, height: 32 }
+  const summaryRowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: 12,
+    fontSize: 13,
+    padding: '5px 0',
+  }
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
+  const firstSelectedSo = selectableSOs.find((s) => s.id === selectedSoIds[0])
+  const billingTo = firstSelectedSo ? outletNameOf(firstSelectedSo) : null
+  const hasMoreFilters = !isWarehouseBranch
+  const activeMoreFilters = [soSettlement, soPayment, soCreditType, soType, soChannel].filter((v) => v !== '').length
+
+  return (
+    <div style={{ padding: '24px 32px 48px', maxWidth: 1280, margin: '0 auto', fontFamily: 'var(--font-sans)' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Back"
+          style={{
+            width: 34,
+            height: 34,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--surface)',
+            color: 'var(--foreground-muted)',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          <ChevronLeft size={16} />
+        </button>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, margin: 0, color: 'var(--foreground)' }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--foreground)' }}>
             Create Invoice
           </h1>
-          <p style={{ color: 'var(--foreground-muted)', fontSize: 14, marginTop: 4 }}>
-            Bill sales orders and additional charges
+          <p style={{ color: 'var(--foreground-muted)', fontSize: 13, margin: '2px 0 0' }}>
+            Bill received goods from sales orders to an outlet
           </p>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
-        {/* Left Col */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Header Data */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>General Info</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 20, alignItems: 'start' }}>
+        {/* ── Left: steps ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+          {/* 1. Invoice details */}
+          <div style={cardStyle}>
+            <div style={stepHeaderStyle}>
+              <span style={stepBadgeStyle(true)}>1</span>
+              <h3 style={stepTitleStyle}>Invoice details</h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
-                <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Date *</label>
+                <label style={fieldLabelStyle}>Invoice date *</label>
                 <input
                   type="date"
                   value={date}
@@ -578,141 +661,174 @@ export default function InvoiceForm() {
                     setDate(val)
                     if (val) setDueDate(calculateDueDate(val))
                   }}
-                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
+                  style={fieldInputStyle}
                 />
               </div>
               <div>
-                <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Due Date *</label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
-                />
-                <div style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginTop: 4, lineHeight: 1.3 }}>
+                <label style={fieldLabelStyle}>Due date</label>
+                {/* Derived from the invoice date (backend sets the real one) — not editable */}
+                <div
+                  style={{
+                    ...fieldInputStyle,
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: 'var(--background)',
+                    color: dueDate ? 'var(--foreground)' : 'var(--foreground-subtle)',
+                    cursor: 'default',
+                  }}
+                >
+                  {dueDate ? formatDate(dueDate) : '—'}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4, lineHeight: 1.4 }}>
                   Patokan: Tgl 1-7 (14), 8-14 (21), 15-21 (28), 22-akhir (7 bulan dpn)
                 </div>
               </div>
-              <div>
-                <label style={{ fontSize: 13, color: 'var(--foreground-muted)', display: 'block', marginBottom: 6 }}>Description</label>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={fieldLabelStyle}>Note</label>
                 <input
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Optional note"
-                  style={{ width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box' }}
+                  style={fieldInputStyle}
                 />
               </div>
             </div>
           </div>
 
-          {/* Sales Orders */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>Sales Orders</h3>
-
-            {/* Filter — disamakan dengan menu Sales Orders */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginBottom: 16 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Search</span>
-                <input
-                  value={soSearch}
-                  onChange={(e) => setSoSearch(e.target.value)}
-                  placeholder="Code / customer..."
-                  style={{ ...soFilterControl, width: 200 }}
-                />
+          {/* 2. Choose sales orders */}
+          <div style={cardStyle}>
+            <div style={{ ...stepHeaderStyle, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={stepBadgeStyle(true)}>2</span>
+                <h3 style={stepTitleStyle}>Choose sales orders</h3>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Outlet</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative' }}>
+                  <Search
+                    size={14}
+                    style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-subtle)' }}
+                  />
+                  <input
+                    value={soSearch}
+                    onChange={(e) => setSoSearch(e.target.value)}
+                    placeholder="Search code or customer"
+                    style={{ ...soFilterControl, height: 32, width: 200, paddingLeft: 30 }}
+                  />
+                </div>
                 <select
                   value={soOutlet}
                   onChange={(e) => setSoOutlet(e.target.value)}
-                  style={{ ...soFilterControl, minWidth: 170 }}
+                  aria-label="Outlet"
+                  style={{ ...soFilterControl, height: 32, minWidth: 150 }}
                 >
-                  <option value="">All Outlets</option>
+                  <option value="">All outlets</option>
                   {outletSummaries.map((o) => (
                     <option key={o.key} value={o.key}>{o.name} ({o.count})</option>
                   ))}
                 </select>
-              </div>
-              {!isWarehouseBranch && (
-              <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Settlement</span>
-                <select value={soSettlement} onChange={(e) => setSoSettlement(e.target.value)} style={soFilterControl}>
-                  <option value="">All Settlements</option>
-                  <option value="pending">Pending</option>
-                  <option value="credit">Credit</option>
-                  <option value="settled">Settled</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Payment</span>
-                <select value={soPayment} onChange={(e) => setSoPayment(e.target.value)} style={soFilterControl}>
-                  <option value="">All Payments</option>
-                  <option value="pending">Unpaid</option>
-                  <option value="partial">Partial</option>
-                  <option value="paid">Paid</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Credit Type</span>
-                <select value={soCreditType} onChange={(e) => setSoCreditType(e.target.value)} style={soFilterControl}>
-                  <option value="">All Credit Types</option>
-                  <option value="user">Staff (user)</option>
-                  <option value="customer">Customer</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Type</span>
-                <select value={soType} onChange={(e) => setSoType(e.target.value)} style={soFilterControl}>
-                  <option value="">All Types</option>
-                  <option value="offline">Offline</option>
-                  <option value="online">Online</option>
-                  <option value="franchise">Franchise</option>
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Sales Channel</span>
-                <select
-                  value={soChannel === '' ? '' : String(soChannel)}
-                  onChange={(e) => setSoChannel(e.target.value ? Number(e.target.value) : '')}
-                  style={{ ...soFilterControl, minWidth: 150 }}
-                >
-                  <option value="">All Channels</option>
-                  {channelOptions.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              </>
-              )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={soFilterLabel}>Order Date</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input type="date" value={soDateGte} onChange={(e) => setSoDateGte(e.target.value)} style={soFilterControl} />
-                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>–</span>
-                  <input type="date" value={soDateLte} onChange={(e) => setSoDateLte(e.target.value)} style={soFilterControl} />
-                </div>
+                <input type="date" value={soDateGte} onChange={(e) => setSoDateGte(e.target.value)} aria-label="Order date from" style={{ ...soFilterControl, height: 32 }} />
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>–</span>
+                <input type="date" value={soDateLte} onChange={(e) => setSoDateLte(e.target.value)} aria-label="Order date to" style={{ ...soFilterControl, height: 32 }} />
+                {hasMoreFilters && (
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreSoFilters((v) => !v)}
+                    style={{
+                      height: 32,
+                      padding: '0 10px',
+                      border: `1px solid ${showMoreSoFilters || activeMoreFilters > 0 ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 'var(--radius-md)',
+                      background: showMoreSoFilters ? 'var(--accent-light-bg)' : 'var(--surface-raised)',
+                      color: activeMoreFilters > 0 ? 'var(--accent)' : 'var(--foreground)',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    More filters{activeMoreFilters > 0 ? ` (${activeMoreFilters})` : ''}
+                  </button>
+                )}
               </div>
             </div>
 
-            {!soLoading && hiddenSoCount > 0 && (
-              <p style={{ fontSize: 12, color: 'var(--warning)', margin: '0 0 8px' }}>
-                {hiddenSoCount} sales order disembunyikan karena barangnya belum diterima atau sudah ditagih penuh.
-              </p>
+            {/* POS-only filters — outlet branches only, tucked away by default */}
+            {hasMoreFilters && showMoreSoFilters && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  alignItems: 'flex-end',
+                  padding: 12,
+                  marginBottom: 16,
+                  background: 'var(--background)',
+                  borderRadius: 'var(--radius-md)',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={soFilterLabel}>Settlement</span>
+                  <select value={soSettlement} onChange={(e) => setSoSettlement(e.target.value)} style={{ ...soFilterControl, height: 32 }}>
+                    <option value="">All Settlements</option>
+                    <option value="pending">Pending</option>
+                    <option value="credit">Credit</option>
+                    <option value="settled">Settled</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={soFilterLabel}>Payment</span>
+                  <select value={soPayment} onChange={(e) => setSoPayment(e.target.value)} style={{ ...soFilterControl, height: 32 }}>
+                    <option value="">All Payments</option>
+                    <option value="pending">Unpaid</option>
+                    <option value="partial">Partial</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={soFilterLabel}>Credit Type</span>
+                  <select value={soCreditType} onChange={(e) => setSoCreditType(e.target.value)} style={{ ...soFilterControl, height: 32 }}>
+                    <option value="">All Credit Types</option>
+                    <option value="user">Staff (user)</option>
+                    <option value="customer">Customer</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={soFilterLabel}>Type</span>
+                  <select value={soType} onChange={(e) => setSoType(e.target.value)} style={{ ...soFilterControl, height: 32 }}>
+                    <option value="">All Types</option>
+                    <option value="offline">Offline</option>
+                    <option value="online">Online</option>
+                    <option value="franchise">Franchise</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={soFilterLabel}>Sales Channel</span>
+                  <select
+                    value={soChannel === '' ? '' : String(soChannel)}
+                    onChange={(e) => setSoChannel(e.target.value ? Number(e.target.value) : '')}
+                    style={{ ...soFilterControl, height: 32, minWidth: 150 }}
+                  >
+                    <option value="">All Channels</option>
+                    {channelOptions.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             )}
+
             {/* Per-outlet recap — click a card to filter the list below */}
             {!soLoading && outletSummaries.length > 0 && (
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                  gap: 10,
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
+                  gap: 8,
                   marginBottom: 16,
                 }}
               >
                 {[
-                  { key: '', name: 'All Outlets', count: availableSOs.length, billable: allBillable },
+                  { key: '', name: 'All outlets', count: availableSOs.length, billable: allBillable },
                   ...outletSummaries,
                 ].map((o) => {
                   const active = soOutlet === o.key
@@ -723,22 +839,23 @@ export default function InvoiceForm() {
                       onClick={() => setSoOutlet(active && o.key ? '' : o.key)}
                       style={{
                         textAlign: 'left',
-                        padding: '12px 14px',
+                        padding: '10px 12px',
                         border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
                         borderRadius: 'var(--radius-md)',
                         background: active ? 'var(--accent-light-bg)' : 'var(--surface-raised)',
                         cursor: 'pointer',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 4,
+                        gap: 2,
                         fontFamily: 'var(--font-sans)',
+                        minWidth: 0,
                       }}
                     >
                       <span
                         style={{
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: 600,
-                          color: active ? 'var(--accent)' : 'var(--foreground)',
+                          color: active ? 'var(--accent)' : 'var(--foreground-muted)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -746,11 +863,11 @@ export default function InvoiceForm() {
                       >
                         {o.name}
                       </span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)' }}>
+                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--foreground)' }}>
                         <PriceDisplay amount={o.billable} />
                       </span>
-                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                        {o.count} sales order{o.count === 1 ? '' : 's'} to invoice
+                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                        {o.count} order{o.count === 1 ? '' : 's'} to invoice
                       </span>
                     </button>
                   )
@@ -758,335 +875,520 @@ export default function InvoiceForm() {
               </div>
             )}
 
+            {!soLoading && hiddenSoCount > 0 && (
+              <p style={{ fontSize: 12, color: 'var(--warning)', margin: '0 0 8px' }}>
+                {hiddenSoCount} sales order disembunyikan karena barangnya belum diterima atau sudah ditagih penuh.
+              </p>
+            )}
+
             {listLoading ? (
-              <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Loading sales orders...</p>
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '16px 0', textAlign: 'center', margin: 0 }}>
+                Loading sales orders...
+              </p>
             ) : visibleSOs.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '12px 0', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '16px 0', textAlign: 'center', margin: 0 }}>
                 No sales orders available to invoice.
               </p>
             ) : (
-              /* List SO berbentuk tabel (bukan kartu) */
               <>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  marginBottom: 8,
-                }}
-              >
-                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  {selectedSoIds.length} of {visibleSOs.length} selected
-                </span>
-                <button
-                  type="button"
-                  onClick={toggleAllVisible}
-                  disabled={bulkSelectableSOs.length === 0}
-                  style={{
-                    height: 32,
-                    padding: '0 12px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--surface-raised)',
-                    color: 'var(--accent)',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: bulkSelectableSOs.length === 0 ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {allVisibleSelected ? 'Clear selection' : `Select all (${bulkSelectableSOs.length})`}
-                </button>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...soTh, width: 40, textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          aria-label="Select all sales orders"
-                          checked={allVisibleSelected}
-                          disabled={bulkSelectableSOs.length === 0}
-                          onChange={toggleAllVisible}
-                          style={{ cursor: 'pointer' }}
-                        />
-                      </th>
-                      <th style={soTh}>Code</th>
-                      <th style={soTh}>Branch</th>
-                      <th style={{ ...soTh, width: 210 }}>Outlet</th>
-                      <th style={soTh}>Order Date</th>
-                      <th style={{ ...soTh, textAlign: 'right' }}>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleSOs.map((so) => {
-                      const isSelected = selectedSoIds.includes(so.id)
-                      const branchMatched = selectedSoIds.length === 0 || selectableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
-                      const disabled = !isSelected && !branchMatched
-
-                      return (
-                        <tr
-                          key={so.id}
-                          onClick={() => !disabled && handleSoSelection(so.id)}
-                          style={{
-                            borderBottom: '1px solid var(--border)',
-                            background: isSelected ? 'var(--accent-light-bg)' : 'transparent',
-                            cursor: disabled ? 'not-allowed' : 'pointer',
-                            opacity: disabled ? 0.5 : 1,
-                          }}
-                        >
-                          <td style={{ ...soTd, textAlign: 'center' }}>
-                            <input type="checkbox" readOnly checked={isSelected} style={{ pointerEvents: 'none' }} />
-                          </td>
-                          <td style={{ ...soTd, fontWeight: 600 }}>
-                            {/* Opens the SO detail in a new tab without toggling the row */}
-                            <a
-                              href={`/sales/sales-orders/${so.id}/detail`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2 }}
-                            >
-                              {so.code}
-                            </a>
-                          </td>
-                          <td style={{ ...soTd, color: 'var(--foreground-muted)' }}>{so.branch?.name ?? '—'}</td>
-                          {/* Outlet yang mau di-invoice — resolve dari buyer_branch_id */}
-                          <td style={{ ...soTd, fontWeight: 600 }}>{outletNameOf(so)}</td>
-                          <td style={{ ...soTd, whiteSpace: 'nowrap' }}>{so.date ? formatDate(so.date) : '—' }</td>
-                          <td style={{ ...soTd, textAlign: 'right' }}>
-                            <PriceDisplay amount={so.total_price} />
-                          </td>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                    {selectedSoIds.length} of {visibleSOs.length} selected
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleAllVisible}
+                    disabled={bulkSelectableSOs.length === 0}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: 'var(--accent)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: bulkSelectableSOs.length === 0 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {allVisibleSelected ? 'Clear selection' : `Select all (${bulkSelectableSOs.length})`}
+                  </button>
+                </div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                        <tr>
+                          <th style={{ ...soTh, width: 40, textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              aria-label="Select all sales orders"
+                              checked={allVisibleSelected}
+                              disabled={bulkSelectableSOs.length === 0}
+                              onChange={toggleAllVisible}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </th>
+                          <th style={soTh}>Order</th>
+                          <th style={soTh}>Outlet</th>
+                          <th style={{ ...soTh, width: 120 }}>Order date</th>
+                          <th style={{ ...soTh, width: 150, textAlign: 'right' }}>Total</th>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {visibleSOs.map((so) => {
+                          const isSelected = selectedSoIds.includes(so.id)
+                          const branchMatched = selectedSoIds.length === 0 || selectableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
+                          const disabled = !isSelected && !branchMatched
+
+                          return (
+                            <tr
+                              key={so.id}
+                              onClick={() => !disabled && handleSoSelection(so.id)}
+                              title={disabled ? `Different branch (${so.branch?.name ?? '—'}) — one invoice covers one branch` : undefined}
+                              style={{
+                                background: isSelected ? 'var(--accent-light-bg)' : 'transparent',
+                                cursor: disabled ? 'not-allowed' : 'pointer',
+                                opacity: disabled ? 0.45 : 1,
+                              }}
+                            >
+                              <td style={{ ...soTd, textAlign: 'center' }}>
+                                <input type="checkbox" readOnly checked={isSelected} style={{ pointerEvents: 'none' }} />
+                              </td>
+                              <td style={{ ...soTd, fontWeight: 600 }}>
+                                {/* Opens the SO detail popup without toggling the row */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setPreviewSo(so)
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: 0,
+                                    color: 'var(--accent)',
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    textDecoration: 'underline',
+                                    textUnderlineOffset: 2,
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  {so.code}
+                                </button>
+                              </td>
+                              {/* Outlet yang mau di-invoice — resolve dari buyer_branch_id */}
+                              <td style={soTd}>{outletNameOf(so)}</td>
+                              <td style={{ ...soTd, whiteSpace: 'nowrap', color: 'var(--foreground-muted)' }}>
+                                {so.date ? formatDate(so.date) : '—'}
+                              </td>
+                              <td style={{ ...soTd, textAlign: 'right' }}>
+                                <PriceDisplay amount={so.total_price} />
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </>
             )}
           </div>
 
-          {/* Details */}
-          {selectedSoIds.length > 0 && (
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-              <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>Lines to Bill</h3>
-              {Object.values(details).length === 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>No billable lines remaining in selected orders.</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {Object.values(details).map(d => {
-                    const isBillable = d.max_qty > 0
-                    return (
-                      <div key={d.sales_order_detail_id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 12, alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>{d.product_name}</div>
-                          <div style={{ fontSize: 12, color: isBillable ? 'var(--foreground-muted)' : 'var(--foreground-subtle)' }}>
-                            {isBillable
-                              ? `Max: ${d.max_qty} (diterima, belum ditagih)`
-                              : 'Belum bisa ditagih (belum diterima / sudah ditagih penuh)'}
-                          </div>
-                        </div>
-                        <div>
-                          <input
-                            type="number"
-                            value={d.qty}
-                            min="0"
-                            max={d.max_qty}
-                            disabled={!isBillable}
-                            onChange={e => setDetails({
-                              ...details,
-                              [d.sales_order_detail_id]: {
-                                ...d,
-                                qty: Math.max(0, Math.min(Number(e.target.value), d.max_qty)),
-                              },
-                            })}
-                            style={{
-                              width: '100%',
-                              height: 32,
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius-sm)',
-                              padding: '0 8px',
-                              fontSize: 13,
-                              color: 'var(--foreground)',
-                              background: isBillable ? 'var(--surface-raised)' : 'var(--surface)',
-                              cursor: isBillable ? 'text' : 'not-allowed',
-                            }}
-                          />
-                        </div>
-                        <div style={{ fontSize: 13, textAlign: 'right' }}>
-                          <PriceDisplay amount={d.price} />
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'right' }}>
-                          <PriceDisplay amount={d.qty * d.price} />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+          {/* 3. Additional charges */}
+          <div style={cardStyle}>
+            <div style={{ ...stepHeaderStyle, justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={stepBadgeStyle(Object.values(soCharges).length > 0 || freeCharges.length > 0)}>3</span>
+                <h3 style={stepTitleStyle}>Additional charges</h3>
+                <span style={stepHintStyle}>Optional</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFreeCharges(f => [...f, { id: Math.random().toString(), name: '', chart_of_account_id: 0, amount: 0, description: '' }])}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  color: 'var(--accent)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                <Plus size={14} /> Add charge
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* Right Col */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Additional Charges */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>Additional Charges</h3>
+            {Object.values(soCharges).length === 0 && freeCharges.length === 0 && (
+              <p style={{ fontSize: 12, color: 'var(--foreground-subtle)', margin: 0 }}>
+                No charges. Charges from the selected sales orders appear here automatically.
+              </p>
+            )}
 
-            {/* SO Charges */}
+            {/* From sales orders */}
             {Object.values(soCharges).length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', marginBottom: 8 }}>From Sales Orders</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: freeCharges.length > 0 ? 16 : 0 }}>
+                <span style={soFilterLabel}>From sales orders</span>
                 {Object.values(soCharges).map(c => (
-                  <div key={c.sales_order_component_id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={c.included} onChange={e => setSoCharges({ ...soCharges, [c.sales_order_component_id as number]: { ...c, included: e.target.checked } })} />
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>{c.name}</span>
-                      </label>
-                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Max: <PriceDisplay amount={c.max_amount} /></span>
-                    </div>
-                    {c.included && (
-                      <input
-                        type="number"
-                        step="any"
-                        value={c.amount}
-                        onChange={e => {
-                          const max = Number(c.max_amount ?? 0)
-                          const raw = Number(e.target.value)
-                          let v = Number.isFinite(raw) ? raw : 0
-                          // Same sign as the remaining amount, never larger
-                          if (v !== 0 && max !== 0 && Math.sign(v) !== Math.sign(max)) v = 0
-                          if (max !== 0 && Math.abs(v) > Math.abs(max)) v = max
-                          setSoCharges({ ...soCharges, [c.sales_order_component_id as number]: { ...c, amount: v } })
-                        }}
-                        style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
-                      />
-                    )}
+                  <div
+                    key={c.sales_order_component_id}
+                    style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: 12, alignItems: 'center' }}
+                  >
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minWidth: 0 }}>
+                      <input type="checkbox" checked={c.included} onChange={e => setSoCharges({ ...soCharges, [c.sales_order_component_id as number]: { ...c, included: e.target.checked } })} />
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
+                        max <PriceDisplay amount={c.max_amount} />
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={c.amount}
+                      disabled={!c.included}
+                      onChange={e => {
+                        const max = Number(c.max_amount ?? 0)
+                        const raw = Number(e.target.value)
+                        let v = Number.isFinite(raw) ? raw : 0
+                        // Same sign as the remaining amount, never larger
+                        if (v !== 0 && max !== 0 && Math.sign(v) !== Math.sign(max)) v = 0
+                        if (max !== 0 && Math.abs(v) > Math.abs(max)) v = max
+                        setSoCharges({ ...soCharges, [c.sales_order_component_id as number]: { ...c, amount: v } })
+                      }}
+                      style={{ ...smallInputStyle, textAlign: 'right', opacity: c.included ? 1 : 0.5 }}
+                    />
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Free form charges */}
-            <div>
-              <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Custom Charges</h4>
-              {freeCharges.map((fc, idx) => (
-                <div key={fc.id} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 12, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            {/* Custom charges */}
+            {freeCharges.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <span style={soFilterLabel}>Custom charges</span>
+                {freeCharges.map((fc, idx) => (
+                  <div
+                    key={fc.id}
+                    style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 140px minmax(0, 1.2fr) 32px', gap: 8, alignItems: 'start' }}
+                  >
                     <input
-                      placeholder="Charge Name"
+                      placeholder="Charge name"
                       value={fc.name}
                       onChange={e => {
                         const copy = [...freeCharges]; copy[idx].name = e.target.value; setFreeCharges(copy)
                       }}
-                      style={{ width: '60%', height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
+                      style={smallInputStyle}
                     />
-                    <button onClick={() => setFreeCharges(f => f.filter(x => x.id !== fc.id))} style={{ background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer' }}>
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <input
-                    type="number"
-                    step="any"
-                    placeholder="Amount (0 = none, negative = deduction)"
-                    value={fc.amount}
-                    onChange={e => {
-                      const copy = [...freeCharges]; copy[idx].amount = Number(e.target.value) || 0; setFreeCharges(copy)
-                    }}
-                    style={{ width: '100%', height: 32, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 8px', fontSize: 13 }}
-                  />
-                  <div>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder="Amount"
+                      title="0 = none, negative = deduction"
+                      value={fc.amount}
+                      onChange={e => {
+                        const copy = [...freeCharges]; copy[idx].amount = Number(e.target.value) || 0; setFreeCharges(copy)
+                      }}
+                      style={{ ...smallInputStyle, textAlign: 'right' }}
+                    />
                     <SearchableSelect
                       value={fc.chart_of_account_id || 0}
                       onChange={v => {
                         const copy = [...freeCharges]; copy[idx].chart_of_account_id = Number(v) || 0; setFreeCharges(copy)
                       }}
                       options={coaChargeOptions}
-                      placeholder="Select account... *"
+                      placeholder="Account *"
                       searchPlaceholder="Search account name or code..."
                       loading={coaLoading}
                       onSearchChange={setCoaSearch}
-                      triggerStyle={{ height: 32, padding: '0 8px', fontSize: 13, borderRadius: 'var(--radius-sm)' }}
+                      triggerStyle={{ height: 32, padding: '0 8px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
                     />
-                    <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4 }}>
-                      Required — account used to record this charge.
-                    </div>
+                    <button
+                      type="button"
+                      aria-label="Remove charge"
+                      onClick={() => setFreeCharges(f => f.filter(x => x.id !== fc.id))}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'none',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--destructive)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={() => setFreeCharges(f => [...f, { id: Math.random().toString(), name: '', chart_of_account_id: 0, amount: 0, description: '' }])}
-                style={{ width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--foreground-muted)', cursor: 'pointer', fontSize: 13 }}
-              >
-                <Plus size={14} /> Add Custom Charge
-              </button>
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 16px', color: 'var(--foreground)' }}>Summary</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 14 }}>
-              <span style={{ color: 'var(--foreground-muted)' }}>Subtotal</span>
-              <span><PriceDisplay amount={subtotalPrice} /></span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, fontSize: 14 }}>
-              <span style={{ color: 'var(--foreground-muted)' }}>Additional Charges</span>
-              <span><PriceDisplay amount={additionalChargePrice} /></span>
-            </div>
-            <div style={{ borderTop: '1px solid var(--border)', margin: '16px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, fontSize: 18, fontWeight: 700 }}>
-              <span>Total</span>
-              <span><PriceDisplay amount={totalPrice} /></span>
-            </div>
-
-            <button
-              onClick={() => {
-                if (selectedSoIds.length === 0) return toast.error('Select at least one Sales Order')
-                const missingAccount = freeCharges.find(c => c.name.trim() && !(c.chart_of_account_id > 0))
-                if (missingAccount) return toast.error(`Custom charge "${missingAccount.name.trim()}" needs a chart of account`)
-                // Mirror the billing rules: keep the remaining amount's sign
-                // and never exceed it in absolute value.
-                const wrongSign = Object.values(soCharges).find(
-                  c => c.included && Number(c.amount) !== 0 && Number(c.max_amount ?? 0) !== 0 &&
-                    Math.sign(Number(c.amount)) !== Math.sign(Number(c.max_amount))
-                )
-                if (wrongSign) return toast.error(`Charge "${wrongSign.name}" must keep the sign of the remaining amount`)
-                const tooLarge = Object.values(soCharges).find(
-                  c => c.included && Math.abs(Number(c.amount)) > Math.abs(Number(c.max_amount ?? 0))
-                )
-                if (tooLarge) return toast.error(`Charge "${tooLarge.name}" exceeds the remaining amount`)
-                create()
-              }}
-              disabled={isPending || selectedSoIds.length === 0}
-              style={{
-                width: '100%',
-                height: 44,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: isPending || selectedSoIds.length === 0 ? 'not-allowed' : 'pointer',
-                opacity: isPending || selectedSoIds.length === 0 ? 0.7 : 1
-              }}
-            >
-              {isPending && <Loader2 size={16} className="animate-spin" />}
-              Save Invoice
-            </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
+
+        {/* ── Right: sticky summary ── */}
+        <div style={{ ...cardStyle, position: 'sticky', top: 16, display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Billing to</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: billingTo ? 'var(--foreground)' : 'var(--foreground-subtle)', margin: '2px 0 14px' }}>
+            {billingTo ?? 'No sales order selected'}
+          </span>
+
+          <div style={summaryRowStyle}>
+            <span style={{ color: 'var(--foreground-muted)' }}>
+              Subtotal · {selectedSoIds.length} order{selectedSoIds.length === 1 ? '' : 's'}
+            </span>
+            <span><PriceDisplay amount={subtotalPrice} /></span>
+          </div>
+          <div style={summaryRowStyle}>
+            <span style={{ color: 'var(--foreground-muted)' }}>Additional charges</span>
+            <span><PriceDisplay amount={additionalChargePrice} /></span>
+          </div>
+
+          <div style={{ borderTop: '1px dashed var(--border)', margin: '10px 0 12px' }} />
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Total</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--accent)', lineHeight: 1.3 }}>
+            <PriceDisplay amount={totalPrice} />
+          </span>
+          {dueDate && (
+            <span style={{ fontSize: 12, color: 'var(--foreground-subtle)', marginTop: 2 }}>
+              Due {formatDate(dueDate)}
+            </span>
+          )}
+
+          <button
+            onClick={() => {
+              if (selectedSoIds.length === 0) return toast.error('Select at least one Sales Order')
+              const missingAccount = freeCharges.find(c => c.name.trim() && !(c.chart_of_account_id > 0))
+              if (missingAccount) return toast.error(`Custom charge "${missingAccount.name.trim()}" needs a chart of account`)
+              // Mirror the billing rules: keep the remaining amount's sign
+              // and never exceed it in absolute value.
+              const wrongSign = Object.values(soCharges).find(
+                c => c.included && Number(c.amount) !== 0 && Number(c.max_amount ?? 0) !== 0 &&
+                  Math.sign(Number(c.amount)) !== Math.sign(Number(c.max_amount))
+              )
+              if (wrongSign) return toast.error(`Charge "${wrongSign.name}" must keep the sign of the remaining amount`)
+              const tooLarge = Object.values(soCharges).find(
+                c => c.included && Math.abs(Number(c.amount)) > Math.abs(Number(c.max_amount ?? 0))
+              )
+              if (tooLarge) return toast.error(`Charge "${tooLarge.name}" exceeds the remaining amount`)
+              create()
+            }}
+            disabled={isPending || selectedSoIds.length === 0}
+            style={{
+              width: '100%',
+              height: 42,
+              marginTop: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              background: 'var(--accent)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: isPending || selectedSoIds.length === 0 ? 'not-allowed' : 'pointer',
+              opacity: isPending || selectedSoIds.length === 0 ? 0.6 : 1
+            }}
+          >
+            {isPending && <Loader2 size={16} className="animate-spin" />}
+            Save Invoice
+          </button>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            style={{
+              marginTop: 8,
+              height: 36,
+              background: 'none',
+              border: 'none',
+              color: 'var(--foreground-muted)',
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
       </div>
+
+      {/* ── Sales order detail popup ── */}
+      {previewSo && (() => {
+        const so = previewSo
+        const isSelected = selectedSoIds.includes(so.id)
+        const branchMatched =
+          selectedSoIds.length === 0 ||
+          selectableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
+        const canToggle = isSelected || branchMatched
+        const lines = so.sales_order_details ?? []
+        const charges = so.additional_charges ?? []
+        const th: React.CSSProperties = { ...soTh, position: 'static' }
+        return (
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          >
+            <div
+              onClick={() => setPreviewSo(null)}
+              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Sales order ${so.code ?? ''}`}
+              style={{
+                position: 'relative',
+                width: 720,
+                maxWidth: '100%',
+                maxHeight: '85vh',
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-xl)',
+                boxShadow: 'var(--shadow-lg)',
+              }}
+            >
+              {/* Header */}
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--foreground)' }}>
+                    {so.code}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                    {so.date ? formatDate(so.date) : '—'}
+                    {so.sales_channel?.name ? ` · ${so.sales_channel.name}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={() => setPreviewSo(null)}
+                  style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+                  {[
+                    { label: 'Outlet', value: outletNameOf(so) },
+                    { label: 'Branch', value: so.branch?.name ?? '—' },
+                    { label: 'Order total', value: <PriceDisplay amount={so.total_price} /> },
+                  ].map((f) => (
+                    <div key={f.label} style={{ background: 'var(--background)', borderRadius: 'var(--radius-md)', padding: '10px 12px', minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginBottom: 2 }}>{f.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {f.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={th}>Item</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Ordered</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Received</th>
+                        <th style={{ ...th, textAlign: 'right' }}>To bill</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Price</th>
+                        <th style={{ ...th, textAlign: 'right' }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ ...soTd, textAlign: 'center', color: 'var(--foreground-muted)' }}>No lines</td>
+                        </tr>
+                      ) : (
+                        lines.map((line) => {
+                          const billable = billableQtyOf(line)
+                          return (
+                            <tr key={line.id}>
+                              <td style={soTd}>{lineNameOf(line)}</td>
+                              <td style={{ ...soTd, textAlign: 'right' }}>{Number(line.qty ?? 0)}</td>
+                              <td style={{ ...soTd, textAlign: 'right', color: 'var(--foreground-muted)' }}>{Number(line.received_qty ?? 0)}</td>
+                              <td style={{ ...soTd, textAlign: 'right', fontWeight: 600, color: billable > 0 ? 'var(--success)' : 'var(--foreground-subtle)' }}>
+                                {billable}
+                              </td>
+                              <td style={{ ...soTd, textAlign: 'right', color: 'var(--foreground-muted)' }}>
+                                <PriceDisplay amount={line.price} />
+                              </td>
+                              <td style={{ ...soTd, textAlign: 'right' }}>
+                                <PriceDisplay amount={Number(line.qty ?? 0) * Number(line.price ?? 0)} />
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {charges.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span style={soFilterLabel}>Additional charges</span>
+                    {charges.map((c) => (
+                      <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                        <span style={{ color: 'var(--foreground-muted)' }}>{c.name ?? 'Charge'}</span>
+                        <span><PriceDisplay amount={c.amount} /></span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                  {canToggle ? '' : 'Different branch from your selection — one invoice covers one branch.'}
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewSo(null)}
+                    style={{ height: 36, padding: '0 16px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canToggle}
+                    onClick={() => {
+                      handleSoSelection(so.id)
+                      setPreviewSo(null)
+                    }}
+                    style={{
+                      height: 36,
+                      padding: '0 16px',
+                      border: 'none',
+                      borderRadius: 'var(--radius-md)',
+                      background: isSelected ? 'var(--destructive)' : 'var(--accent)',
+                      color: 'white',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: canToggle ? 'pointer' : 'not-allowed',
+                      opacity: canToggle ? 1 : 0.5,
+                    }}
+                  >
+                    {isSelected ? 'Remove from invoice' : 'Add to invoice'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       <style>{`
         .animate-spin {
