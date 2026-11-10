@@ -169,7 +169,7 @@ export default function DimensionTransferRequestsView() {
 
   // Lookups: Branches
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
+    queryKey: ['branches-all', 'basic'],
     queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []
@@ -195,7 +195,7 @@ export default function DimensionTransferRequestsView() {
 
   // Main Requests Query
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['dimension-transfer-requests', page, perPage, statusFilter, branchFilter],
+    queryKey: ['dimension-transfer-requests', page, perPage, statusFilter, branchFilter, debouncedSearch.trim()],
     queryFn: () =>
       dimensionTransferRequestsService
         .list({
@@ -205,6 +205,9 @@ export default function DimensionTransferRequestsView() {
           sort: '-created_at',
           'filter[branch_id]': branchFilter || undefined,
           'filter[status]': statusFilter || undefined,
+          // Server-side: description, reject reason, movement ref, from/to
+          // owner/stage/location, and the batch's product name/code/batch code.
+          'filter[search]': debouncedSearch.trim() || undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -277,36 +280,10 @@ export default function DimensionTransferRequestsView() {
         }
       }
 
-      // Search Filter
-      if (debouncedSearch.trim()) {
-        const q = debouncedSearch.toLowerCase().trim()
-        const { productName, productCode, batchCode } = resolveProductInfo(item)
-        const requester = item.requested_by?.name || item.created_by?.name || ''
-        const fromCompany = resolveOwnerName(fromOwner).name.toLowerCase()
-        const toCompany = resolveOwnerName(toOwner).name.toLowerCase()
-        const fromStage = (item.from?.stage || item.from_stage || '').toLowerCase()
-        const toStage = (item.to?.stage || item.to_stage || '').toLowerCase()
-        const reason = (item.reject_reason || '').toLowerCase()
-        const branchName = (item.branch?.name || '').toLowerCase()
-
-        const match =
-          productName.toLowerCase().includes(q) ||
-          (productCode && productCode.toLowerCase().includes(q)) ||
-          batchCode.toLowerCase().includes(q) ||
-          requester.toLowerCase().includes(q) ||
-          fromCompany.includes(q) ||
-          toCompany.includes(q) ||
-          fromStage.includes(q) ||
-          toStage.includes(q) ||
-          reason.includes(q) ||
-          branchName.includes(q)
-
-        if (!match) return false
-      }
 
       return true
     })
-  }, [rawItems, directionTab, activeCompanyId, activeBranchId, companyFilter, debouncedSearch, batchMap, companyMap, stageMap])
+  }, [rawItems, directionTab, activeCompanyId, activeBranchId, companyFilter, batchMap, companyMap, stageMap])
 
   // Counts for tabs
   const tabCounts = useMemo(() => {
@@ -644,7 +621,7 @@ export default function DimensionTransferRequestsView() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari produk, batch, peminta..."
+            placeholder="Cari produk, batch, owner, stage, lokasi, catatan..."
             style={{
               ...inputBase,
               width: 260,

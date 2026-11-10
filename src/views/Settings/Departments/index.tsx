@@ -252,6 +252,7 @@ export default function DepartmentsView() {
     mutationFn: (data: DepartmentRequest) => departmentsService.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['departments-active'] })
       toast.success('Department created successfully')
       setSheetOpen(false)
     },
@@ -262,6 +263,7 @@ export default function DepartmentsView() {
     mutationFn: (data: DepartmentRequest) => departmentsService.update(editData!.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['departments-active'] })
       toast.success('Department updated successfully')
       setSheetOpen(false)
     },
@@ -272,6 +274,7 @@ export default function DepartmentsView() {
     mutationFn: (id: number) => departmentsService.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['departments-active'] })
       toast.success('Department deleted successfully')
       setDeleteConfirmId(null)
     },

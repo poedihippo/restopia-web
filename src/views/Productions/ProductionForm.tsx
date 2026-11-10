@@ -18,6 +18,7 @@ import {
   Plus,
   Trash2,
   ArrowLeft,
+  ArrowRight,
   Loader2,
   Save,
   ChevronDown,
@@ -34,6 +35,8 @@ const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
 const materialSchema = z.object({
+  // Existing row id (edit) so the update patches it instead of recreating it.
+  id: z.number().optional(),
   product_inventory_id: z.coerce.number().min(0),
   qty: z.coerce.number().min(0.001),
   base_ratio: z.number().optional(),
@@ -43,6 +46,8 @@ const materialSchema = z.object({
 })
 
 const detailSchema = z.object({
+  id: z.number().optional(),
+  recipe_id: z.number().optional(),
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   qty: z.coerce.number().min(0.001, 'Qty required'),
   status: z.enum(['pending', 'final']),
@@ -77,16 +82,19 @@ interface ProductionFormProps {
   initialData?: any
   productionId?: number
   initialMaterialLabels?: Record<string, string>
+  /** Edit mode: "Product — UOM" per detail index for the finished-product picker. */
+  initialDetailLabels?: Record<number, string>
 }
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
 const fieldInputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '6px 8px',
+  height: 34,
+  padding: '0 10px',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
-  fontSize: 12,
+  fontSize: 13,
   color: 'var(--foreground)',
   background: 'var(--surface-raised)',
   outline: 'none',
@@ -95,16 +103,42 @@ const fieldInputStyle: React.CSSProperties = {
 }
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 500,
   color: 'var(--foreground)',
-  marginBottom: 2,
+  marginBottom: 6,
   display: 'block',
+}
+
+// Card shell + title shared by every section of the form.
+const sectionCardStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-xl)',
+  boxShadow: 'var(--shadow-sm)',
+  overflow: 'visible',
+}
+
+const sectionHeadStyle: React.CSSProperties = {
+  padding: '12px 16px',
+  borderBottom: '1px solid var(--border)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 8,
+}
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 13.5,
+  fontWeight: 500,
+  color: 'var(--foreground)',
 }
 
 const sectionHeaderStyle: React.CSSProperties = {
   fontSize: 10,
-  fontWeight: 700,
+  fontWeight: 500,
   color: 'var(--foreground-muted)',
   textTransform: 'uppercase',
   letterSpacing: '0.6px',
@@ -418,17 +452,17 @@ export function MaterialPicker({
         onClick={() => (open ? close() : openPicker())}
         style={{
           width: '100%',
-          height: 30,
+          height: 34,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 6,
-          padding: '0 8px',
+          padding: '0 10px',
           border: `1px solid ${open ? 'var(--accent-light)' : 'var(--border)'}`,
           borderRadius: 'var(--radius-md)',
           background: 'var(--surface-raised)',
           cursor: 'pointer',
-          fontSize: 11,
+          fontSize: 13,
           textAlign: 'left',
           color: label && !label.startsWith('Material #') ? 'var(--foreground)' : 'var(--foreground-subtle)',
           fontFamily: 'var(--font-sans)',
@@ -513,7 +547,7 @@ export function MaterialPicker({
                       onMouseEnter={() => setHighlightIndex(i)}
                       style={optionRowStyle(i === highlightIndex)}
                     >
-                      <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{withProductType(p.name, p.type)}</span>
+                      <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>{withProductType(p.name, p.type)}</span>
                       <span style={{ color: 'var(--foreground-muted)', fontSize: 10 }}>{p.code}</span>
                     </button>
                   ))
@@ -643,7 +677,7 @@ export function MaterialPicker({
                               color: 'var(--accent)',
                               borderRadius: 'var(--radius-sm)',
                               fontSize: 9,
-                              fontWeight: 600,
+                              fontWeight: 500,
                               flexShrink: 0,
                             }}
                           >
@@ -663,7 +697,7 @@ export function MaterialPicker({
                         <span
                           style={{
                             fontSize: 10,
-                            fontWeight: 600,
+                            fontWeight: 500,
                             color: stock > 0 ? 'var(--success)' : 'var(--destructive)',
                             flexShrink: 0,
                           }}
@@ -741,55 +775,60 @@ export function MaterialsFieldArray({
   // Which row's picker popover is open (boosts z-index above sibling rows)
   const [openMatIndex, setOpenMatIndex] = useState<number | null>(null)
 
+  // Source Owner + Source Location sit behind "Allocation" (Stage stays in the
+  // row). Opens on its own when a material already carries a custom value.
+  const [showAllocation, setShowAllocation] = useState(false)
+  const hasCustomAllocation = (watchedMaterials ?? []).some(
+    (m: any) => (m?.owner_ref && m.owner_ref !== 'GENERAL') || (m?.location_ref && m.location_ref !== 'GENERAL'),
+  )
+  useEffect(() => {
+    if (hasCustomAllocation) setShowAllocation(true)
+  }, [hasCustomAllocation])
+
+  const cols = '24px minmax(0, 1fr) 170px 90px 104px 28px'
+  const colHead: React.CSSProperties = { ...sectionHeaderStyle, fontSize: 10 }
+  const hint = (text: string, color: string) => (
+    <span style={{ fontSize: 11, color, marginTop: 3, display: 'block', fontWeight: 500 }}>{text}</span>
+  )
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
         <span style={sectionHeaderStyle}>Bahan Baku</span>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {fields.length > 0 && (
+            <button
+              type="button"
+              className="alloc-toggle"
+              aria-expanded={showAllocation}
+              onClick={() => setShowAllocation((v) => !v)}
+              title="Show Source Owner and Source Location on each material"
+            >
+              <span className="v2-link">Allocation</span>
+              {!showAllocation && <span className="alloc-summary">{hasCustomAllocation ? 'custom' : 'GENERAL'}</span>}
+              <ChevronDown size={14} style={{ transform: showAllocation ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onLoadFromRecipe(detailIndex)}
             disabled={isLoadingRecipe}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '3px 8px',
-              background: 'var(--accent-light-bg)',
-              color: 'var(--accent)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 10,
-              fontWeight: 500,
-              cursor: isLoadingRecipe ? 'not-allowed' : 'pointer',
-              opacity: isLoadingRecipe ? 0.7 : 1,
-            }}
+            className="v2-btn v2-btn-ghost v2-btn-sm"
           >
             {isLoadingRecipe ? (
-              <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+              <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
             ) : (
-              <BookOpen size={10} />
+              <BookOpen size={13} />
             )}
             {isLoadingRecipe ? 'Loading...' : 'Load Recipe'}
           </button>
           <button
             type="button"
             onClick={() => append({ product_inventory_id: 0, qty: 1, owner_ref: null, stage: null, location_ref: null })}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 3,
-              padding: '3px 8px',
-              background: 'var(--surface)',
-              color: 'var(--foreground-muted)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 10,
-              cursor: 'pointer',
-            }}
+            className="v2-btn v2-btn-outline v2-btn-sm"
           >
-            <Plus size={10} />
+            <Plus size={13} />
             Add
           </button>
         </div>
@@ -798,7 +837,7 @@ export function MaterialsFieldArray({
       {fields.length === 0 && (
         <div
           style={{
-            padding: '10px 12px',
+            padding: '14px 12px',
             border: '1px dashed var(--border)',
             borderRadius: 'var(--radius-md)',
             fontSize: 12,
@@ -810,93 +849,81 @@ export function MaterialsFieldArray({
         </div>
       )}
 
-      {/* Column headers */}
       {fields.length > 0 && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '24px 1fr 90px 92px 32px',
-            gap: 8,
-            padding: '0 2px',
-          }}
-        >
-          <span />
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Bahan Baku
-          </span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Qty
-          </span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Stok
-          </span>
-          <span />
-        </div>
-      )}
-
-      {/* Rows */}
-      {fields.map((field, matIndex) => {
-        const labelKey = `${detailIndex}-${matIndex}`
-        const existingLabel =
-          materialLabels[labelKey] ?? `Material #${matIndex + 1}`
-
-        const currentMat = watchedMaterials?.[matIndex]
-        const invId = currentMat?.product_inventory_id
-        const inv = inventories.find((i: any) => i.id === invId)
-        const availableStock = inv ? Number(inv.display_qty ?? inv.stock ?? 0) : 0
-        const reqQty = Number(currentMat?.qty ?? 0)
-        const hasNoInventory = !invId || invId <= 0
-        const isOutOfStock = inv && availableStock <= 0
-        const isInsufficient = inv && availableStock > 0 && availableStock < reqQty
-        const hasValue = !!invId && invId > 0
-        const hasLabel = existingLabel && existingLabel !== `Material #${matIndex + 1}`
-        const stockBadge = hasNoInventory
-          ? hasLabel
-            ? { text: 'Blm ada stok', color: 'var(--destructive)' }
-            : null
-          : isOutOfStock
-          ? { text: 'Stok: 0', color: 'var(--destructive)' }
-          : isInsufficient
-          ? { text: `Stok: ${availableStock}`, color: 'var(--warning)' }
-          : inv
-          ? { text: `Stok: ${availableStock}`, color: 'var(--success)' }
-          : null
-
-        return (
+        <div className="mat-table" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)' }}>
+          {/* Column headers */}
           <div
-            key={field.id}
+            className="mat-row"
             style={{
-              position: 'relative',
               display: 'grid',
-              gridTemplateColumns: '24px 1fr 90px 92px 32px',
+              gridTemplateColumns: cols,
               gap: 8,
+              padding: '8px 12px',
               alignItems: 'center',
-              paddingBottom: 8,
-              borderBottom: matIndex < fields.length - 1 ? '1px solid var(--border)' : 'none',
+              background: 'var(--surface-muted, var(--background))',
+              borderBottom: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
             }}
           >
-            {/* Material Row Index */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: 30,
-                fontSize: 10,
-                fontWeight: 600,
-                color: 'var(--foreground-muted)',
-              }}
-            >
-              {matIndex + 1}
-            </div>
+            <span style={{ ...colHead, textAlign: 'center' }}>#</span>
+            <span style={colHead}>Bahan Baku</span>
+            <span style={colHead}>Source Stage</span>
+            <span style={{ ...colHead, textAlign: 'right' }}>Qty</span>
+            <span style={colHead}>Stok</span>
+            <span />
+          </div>
 
-            {/* Material picker (trigger + popover) */}
-            <div
-              style={{
-                position: 'relative',
-                minWidth: 0,
-              }}
-            >
+          {/* Rows */}
+          {fields.map((field, matIndex) => {
+            const labelKey = `${detailIndex}-${matIndex}`
+            const existingLabel =
+              materialLabels[labelKey] ?? `Material #${matIndex + 1}`
+
+            const currentMat = watchedMaterials?.[matIndex]
+            const invId = currentMat?.product_inventory_id
+            const inv = inventories.find((i: any) => i.id === invId)
+            const availableStock = inv ? Number(inv.display_qty ?? inv.stock ?? 0) : 0
+            const reqQty = Number(currentMat?.qty ?? 0)
+            const hasNoInventory = !invId || invId <= 0
+            const isOutOfStock = inv && availableStock <= 0
+            const isInsufficient = inv && availableStock > 0 && availableStock < reqQty
+            const hasValue = !!invId && invId > 0
+            const hasLabel = existingLabel && existingLabel !== `Material #${matIndex + 1}`
+            const stockBadge = hasNoInventory
+              ? hasLabel
+                ? { text: 'Blm ada stok', color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
+                : null
+              : isOutOfStock
+              ? { text: 'Stok: 0', color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
+              : isInsufficient
+              ? { text: `Stok: ${availableStock}`, color: 'var(--warning)', bg: 'var(--warning-bg)' }
+              : inv
+              ? { text: `Stok: ${availableStock}`, color: 'var(--success)', bg: 'var(--success-bg)' }
+              : null
+
+            return (
+              <div
+                key={field.id}
+                className="mat-row"
+                style={{
+                  position: 'relative',
+                  zIndex: openMatIndex === matIndex ? 30 : 1,
+                  display: 'grid',
+                  gridTemplateColumns: cols,
+                  columnGap: 8,
+                  rowGap: 8,
+                  alignItems: 'start',
+                  padding: '10px 12px',
+                  borderBottom: matIndex < fields.length - 1 ? '1px solid var(--border)' : 'none',
+                }}
+              >
+                {/* Index */}
+                <div style={{ height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--foreground-subtle)' }}>
+                  {matIndex + 1}
+                </div>
+
+                {/* Material picker (trigger + popover) + stock hint */}
+                <div style={{ position: 'relative', minWidth: 0 }}>
               <MaterialPicker
                 label={existingLabel}
                 hasValue={hasValue}
@@ -940,132 +967,19 @@ export function MaterialsFieldArray({
                 })()}
               />
 
-              {needsStockPick[`${detailIndex}-${matIndex}`] ? (
-                <span style={{ fontSize: 9, color: 'var(--warning)', marginTop: 1, display: 'block', fontWeight: 500 }}>
-                  Ada {inventories.filter((i: any) => Number(i.product_uom_batch?.product_uom_id) === Number(materialProductUomIds[`${detailIndex}-${matIndex}`])).length} pilihan stok, silakan pilih
-                </span>
-              ) : hasNoInventory && existingLabel && existingLabel !== `Material #${matIndex + 1}` ? (
-                <span style={{ fontSize: 9, color: 'var(--destructive)', marginTop: 1, display: 'block', fontWeight: 500 }}>
-                  Stok belum ada
-                </span>
-              ) : null}
-              {isOutOfStock && (
-                <span style={{ fontSize: 9, color: 'var(--destructive)', marginTop: 1, display: 'block', fontWeight: 500 }}>
-                  Stok habis (0)
-                </span>
-              )}
-              {isInsufficient && (
-                <span style={{ fontSize: 9, color: 'var(--warning)', marginTop: 1, display: 'block', fontWeight: 500 }}>
-                  Stok kurang ({availableStock})
-                </span>
-              )}
-              {inv && availableStock >= reqQty && availableStock > 0 && (
-                <span style={{ fontSize: 9, color: 'var(--foreground-muted)', marginTop: 1, display: 'block' }}>
-                  Stok: {availableStock}
-                </span>
-              )}
-            </div>
+                  {needsStockPick[`${detailIndex}-${matIndex}`]
+                    ? hint(
+                        `Ada ${inventories.filter((i: any) => Number(i.product_uom_batch?.product_uom_id) === Number(materialProductUomIds[`${detailIndex}-${matIndex}`])).length} pilihan stok, silakan pilih`,
+                        'var(--warning)',
+                      )
+                    : hasNoInventory && hasLabel
+                      ? hint('Stok belum ada', 'var(--destructive)')
+                      : null}
+                  {isOutOfStock && hint('Stok habis (0)', 'var(--destructive)')}
+                  {isInsufficient && hint(`Stok kurang (${availableStock})`, 'var(--warning)')}
+                </div>
 
-            {(() => {
-              const reg = register(
-                `details.${detailIndex}.materials.${matIndex}.qty` as any,
-                { valueAsNumber: true }
-              )
-              return (
-                <input
-                  type="number"
-                  min={0.001}
-                  step={0.001}
-                  {...reg}
-                  onChange={(e) => {
-                    reg.onChange(e)
-                    setValue(`details.${detailIndex}.materials.${matIndex}.base_ratio` as any, undefined)
-                  }}
-                  placeholder="Qty"
-                  style={{
-                    padding: '5px 8px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 11,
-                    outline: 'none',
-                    width: '100%',
-                    color: 'var(--foreground)',
-                    background: 'var(--surface-raised)',
-                    fontFamily: 'var(--font-sans)',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              )
-            })()}
-
-            {/* Stock badge */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                height: 34,
-                fontSize: 10,
-                fontWeight: 600,
-                color: stockBadge?.color ?? 'var(--foreground-subtle)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title={stockBadge?.text}
-            >
-              {stockBadge?.text ?? '—'}
-            </div>
-
-            <div style={{ position: 'relative', zIndex: 20, flexShrink: 0 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  remove(matIndex)
-                  onRemoveMaterial(detailIndex, matIndex)
-                }}
-                // Materials are optional — the last row can be removed too.
-                style={{
-                  padding: 5,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--destructive)',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <Trash2 size={13} />
-              </button>
-            </div>
-            {/* Per-material source dimension overrides */}
-            <div
-              style={{
-                gridColumn: '1 / -1',
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr 1fr',
-                gap: 6,
-                alignItems: 'center',
-                marginTop: 2,
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ fontSize: 9, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Source Owner</label>
-                <Controller
-                  name={`details.${detailIndex}.materials.${matIndex}.owner_ref` as any}
-                  control={control}
-                  render={({ field }) => (
-                    <SearchableSelect
-                      value={field.value ?? ''}
-                      onChange={(v) => field.onChange(v || null)}
-                      options={[{ value: 'GENERAL', label: 'General' }, ...companyOptions.filter(o => o.value !== 'GENERAL')]}
-                      placeholder="Ikuti header..."
-                      searchPlaceholder="Cari owner..."
-                    />
-                  )}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ fontSize: 9, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Source Stage</label>
+                {/* Source stage (Owner + Location live behind Allocation) */}
                 <Controller
                   name={`details.${detailIndex}.materials.${matIndex}.stage` as any}
                   control={control}
@@ -1079,27 +993,119 @@ export function MaterialsFieldArray({
                     />
                   )}
                 />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ fontSize: 9, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Source Location</label>
-                <Controller
-                  name={`details.${detailIndex}.materials.${matIndex}.location_ref` as any}
-                  control={control}
-                  render={({ field }) => (
-                    <SearchableSelect
-                      value={field.value ?? ''}
-                      onChange={(v) => field.onChange(v || null)}
-                      options={[{ value: 'GENERAL', label: 'General' }]}
-                      placeholder="Ikuti header..."
-                      searchPlaceholder="Cari lokasi..."
+
+                {(() => {
+                  const reg = register(
+                    `details.${detailIndex}.materials.${matIndex}.qty` as any,
+                    { valueAsNumber: true }
+                  )
+                  return (
+                    <input
+                      type="number"
+                      min={0.001}
+                      step={0.001}
+                      {...reg}
+                      onChange={(e) => {
+                        reg.onChange(e)
+                        setValue(`details.${detailIndex}.materials.${matIndex}.base_ratio` as any, undefined)
+                      }}
+                      placeholder="Qty"
+                      style={{ ...fieldInputStyle, textAlign: 'right' }}
                     />
+                  )
+                })()}
+
+                {/* Stock */}
+                <div style={{ height: 34, display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                  {stockBadge ? (
+                    <span
+                      title={stockBadge.text}
+                      style={{
+                        maxWidth: '100%',
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: stockBadge.color,
+                        background: stockBadge.bg,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {stockBadge.text}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>—</span>
                   )}
-                />
+                </div>
+
+                <div style={{ height: 34, display: 'flex', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="v2-icon-btn"
+                    data-tone="danger"
+                    title="Remove material"
+                    onClick={() => {
+                      remove(matIndex)
+                      onRemoveMaterial(detailIndex, matIndex)
+                    }}
+                    // Materials are optional — the last row can be removed too.
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+
+                {/* Allocation: per-material Source Owner + Source Location */}
+                {showAllocation && (
+                  <div
+                    className="mat-alloc"
+                    style={{
+                      gridColumn: '2 / -1',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                      gap: 8,
+                    }}
+                  >
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: 11, color: 'var(--foreground-muted)', marginBottom: 4 }}>Source Owner</label>
+                      <Controller
+                        name={`details.${detailIndex}.materials.${matIndex}.owner_ref` as any}
+                        control={control}
+                        render={({ field }) => (
+                          <SearchableSelect
+                            value={field.value ?? ''}
+                            onChange={(v) => field.onChange(v || null)}
+                            options={[{ value: 'GENERAL', label: 'General' }, ...companyOptions.filter(o => o.value !== 'GENERAL')]}
+                            placeholder="Ikuti header..."
+                            searchPlaceholder="Cari owner..."
+                          />
+                        )}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, fontSize: 11, color: 'var(--foreground-muted)', marginBottom: 4 }}>Source Location</label>
+                      <Controller
+                        name={`details.${detailIndex}.materials.${matIndex}.location_ref` as any}
+                        control={control}
+                        render={({ field }) => (
+                          <SearchableSelect
+                            value={field.value ?? ''}
+                            onChange={(v) => field.onChange(v || null)}
+                            options={[{ value: 'GENERAL', label: 'General' }]}
+                            placeholder="Ikuti header..."
+                            searchPlaceholder="Cari lokasi..."
+                          />
+                        )}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-        )
-      })}
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -1111,6 +1117,7 @@ export default function ProductionForm({
   initialData,
   productionId,
   initialMaterialLabels,
+  initialDetailLabels,
 }: ProductionFormProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -1232,6 +1239,29 @@ export default function ProductionForm({
   const watchSourceStage = watch('source_stage')
   const watchSourceLocationRef = watch('source_location_ref')
 
+  // Owner + Location ("Allocation") are collapsed by default — Stage is the
+  // usual choice. Opens on its own when a loaded record uses a non-GENERAL value.
+  const [showAllocation, setShowAllocation] = useState(false)
+  const allocationValues = [
+    watchSourceOwnerRef,
+    watchSourceLocationRef,
+    watch('output_owner_ref'),
+    watch('output_location_ref'),
+  ]
+  const hasCustomAllocation = allocationValues.some((v) => v && v !== 'GENERAL')
+  useEffect(() => {
+    if (hasCustomAllocation) setShowAllocation(true)
+  }, [hasCustomAllocation])
+
+  // Same idea for the per-item Output Owner / Output Location overrides.
+  const [showItemAllocation, setShowItemAllocation] = useState(false)
+  const hasCustomItemAllocation = (watch('details') ?? []).some(
+    (d: any) => (d?.owner_ref && d.owner_ref !== 'GENERAL') || (d?.location_ref && d.location_ref !== 'GENERAL'),
+  )
+  useEffect(() => {
+    if (hasCustomItemAllocation) setShowItemAllocation(true)
+  }, [hasCustomItemAllocation])
+
   // Track per-material stage/owner overrides via a form subscription.
   // This avoids useWatch (which re-renders on every keystroke) and
   // avoids useMemo on the watch() proxy (which never detects changes).
@@ -1334,7 +1364,7 @@ export default function ProductionForm({
   // type=final — NOT filtered by branch inventory, so brand-new products this
   // branch has never produced can still be selected. /product-uoms has no
   // Finished product search (Step 1)
-  const { data: prodItemData } = useQuery({
+  const { data: prodItemData, isFetching: isFetchingProdItems } = useQuery({
     queryKey: ['prod-item-product-search', sharedProductSearchDebounced, detailProductTypes],
     enabled: sharedProductSearchDebounced.length >= 2,
     queryFn: () =>
@@ -1350,9 +1380,11 @@ export default function ProductionForm({
         .then((r) => r.data),
   })
   const prodItemProducts = unwrapList(prodItemData)
+  // Still typing (debounce pending) or waiting on the API → show "searching", not "not found".
+  const isSearchingProdItems = isFetchingProdItems || sharedProductSearch !== sharedProductSearchDebounced
 
   // UOMs for selected finished product (Step 2)
-  const { data: prodItemUomData } = useQuery({
+  const { data: prodItemUomData, isFetching: isFetchingProdItemUoms } = useQuery({
     queryKey: ['prod-item-uoms', sharedSelectedProductId],
     enabled: !!sharedSelectedProductId,
     queryFn: () =>
@@ -1369,14 +1401,16 @@ export default function ProductionForm({
   const prodItemUoms = unwrapList(prodItemUomData)
 
   const { data: inventoriesData, isFetching: isFetchingInventories } = useQuery({
-    queryKey: ['product-inventories-all', activeBranchId, debouncedDropdownSearch, effectiveOwnerFilter, effectiveStagesFilter],
+    // Not tied to dropdownSearch: that text belongs to the owner/stage pickers,
+    // and filtering this list by it broke material validation, load-from-recipe
+    // and the dimension re-check. MaterialPicker does its own per-product search.
+    queryKey: ['product-inventories-all', activeBranchId, effectiveOwnerFilter, effectiveStagesFilter],
     enabled: !!activeBranchId,
     refetchOnMount: 'always',
     staleTime: 0,
     queryFn: () =>
       productInventoriesService
         .list({
-          'filter[search]': debouncedDropdownSearch || undefined,
           per_page: 1000,
           include:
             'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product,product_uom_batch.product_uom.uom',
@@ -1405,8 +1439,12 @@ export default function ProductionForm({
       if (initialMaterialLabels && Object.keys(initialMaterialLabels).length > 0) {
         setMaterialLabels(initialMaterialLabels)
       }
+      // Saved finished products show their name instead of the placeholder.
+      if (initialDetailLabels && Object.keys(initialDetailLabels).length > 0) {
+        setDetailLabels(initialDetailLabels)
+      }
     }
-  }, [mode, initialData, reset])
+  }, [mode, initialData, reset]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleDetail = (index: number) => {
     setExpandedDetails((prev) =>
@@ -1845,10 +1883,15 @@ export default function ProductionForm({
     output_location_ref: values.output_location_ref || 'GENERAL',
     details: (values.details ?? [])
       .map((d) => ({
+        id: d.id,
+        recipe_id: d.recipe_id,
         product_uom_id: d.product_uom_id,
         qty: d.qty,
         status: d.status,
-        expiry_date: d.expiry_date || undefined,
+        // Update only accepts planned_expiry_date; create accepts both, so
+        // expiry_date is kept there for backward compatibility.
+        planned_expiry_date: d.expiry_date || undefined,
+        ...(mode === 'create' ? { expiry_date: d.expiry_date || undefined } : {}),
         planned_batch_code: d.planned_batch_code || undefined,
         description: d.description || undefined,
         owner_ref: d.owner_ref ?? undefined,
@@ -1856,6 +1899,7 @@ export default function ProductionForm({
         location_ref: d.location_ref ?? undefined,
         materials: (d.materials ?? [])
           .map((m) => ({
+            id: m.id,
             product_inventory_id: m.product_inventory_id,
             qty: m.qty,
             owner_ref: m.owner_ref ?? undefined,
@@ -1885,6 +1929,7 @@ export default function ProductionForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productions'] })
       queryClient.invalidateQueries({ queryKey: ['production', productionId] })
+      queryClient.invalidateQueries({ queryKey: ['production-detail', productionId] })
       toast.success('Production updated')
       router.push(`/production/${productionId}/detail`)
     },
@@ -1905,6 +1950,16 @@ export default function ProductionForm({
         const labelKey = `${dIndex}-${mIndex}`
         const knownLabel = materialLabels[labelKey] || derivedMaterialLabels[labelKey]
         const label = knownLabel || `Material #${mIndex + 1}`
+
+        // Edit: a saved material left unchanged was already validated (and its
+        // stock may since have been consumed by this very production) — skip it.
+        if (mode === 'edit' && m.id) {
+          // Match by material id across all saved details — positions shift when an item is removed.
+          const saved = (initialData?.details ?? [])
+            .flatMap((x: any) => x?.materials ?? [])
+            .find((x: any) => x.id === m.id)
+          if (saved && Number(saved.product_inventory_id) === Number(m.product_inventory_id) && Number(saved.qty) === Number(m.qty)) continue
+        }
 
         if (!m.product_inventory_id || m.product_inventory_id <= 0) {
           // An untouched blank row is skipped (buildPayload drops it too).
@@ -1966,36 +2021,12 @@ export default function ProductionForm({
   const isPending = createMutation.isPending || updateMutation.isPending
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 1000 }}>
+    <div className="v2-form" style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1120 }}>
 
       {/* Top bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 12px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            cursor: 'pointer',
-            color: 'var(--foreground-muted)',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button type="button" className="v2-btn v2-btn-ghost" onClick={() => router.back()} aria-label="Back" style={{ width: 34, height: 34, padding: 0, justifyContent: 'center' }}>
+          <ArrowLeft size={15} />
         </button>
         <div>
           <h1
@@ -2009,7 +2040,7 @@ export default function ProductionForm({
           >
             {mode === 'edit' ? 'Edit Production' : 'New Production'}
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '2px 0 0' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0' }}>
             {mode === 'edit'
               ? 'Update production order details'
               : 'Create a new factory production order'}
@@ -2020,265 +2051,268 @@ export default function ProductionForm({
       {/* Form */}
       <form
         onSubmit={handleSubmit(onSubmit, onInvalid)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
           <span style={{ color: 'var(--destructive)' }}>*</span>
           <span>Required fields</span>
         </div>
-        {/* Section 1 — Production Details */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            overflow: 'visible',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          <div
-            style={{
-              padding: '14px 20px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            <span style={sectionHeaderStyle}>Production Details</span>
-          </div>
-
-          <div
-            style={{
-              padding: 20,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 16,
-            }}
-          >
-
-            {/* Date */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Production Date
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <input
-                type="date"
-                {...register('date')}
-                style={{
-                  ...fieldInputStyle,
-                  border: `1px solid ${errors.date ? 'var(--destructive)' : 'var(--border)'}`,
-                }}
-              />
-              {errors.date && (
-                <span style={{ fontSize: 11, color: 'var(--destructive)', marginTop: 3 }}>
-                  {errors.date.message}
-                </span>
-              )}
+        {/* Production Details + Dimensi Produksi share one row on wide screens */}
+        <div className="prod-top-row">
+          {/* Section 1 — Production Details */}
+          <div style={sectionCardStyle}>
+            <div style={sectionHeadStyle}>
+              <span style={sectionTitleStyle}>Production Details</span>
             </div>
 
-            {/* Status */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Status
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
-              </label>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field }) => (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {(['pending', 'final'] as const).map((s) => {
-                      const isSel = field.value === s
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => field.onChange(s)}
-                          style={{
-                            padding: '6px 14px',
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 13,
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            border: isSel
-                              ? s === 'final'
-                                ? '1px solid var(--success)'
-                                : '1px solid var(--warning)'
-                              : '1px solid var(--border)',
-                            background: isSel
-                              ? s === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)'
-                              : 'var(--surface)',
-                            color: isSel
-                              ? s === 'final' ? 'var(--success)' : 'var(--warning)'
-                              : 'var(--foreground-muted)',
-                          }}
-                        >
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </button>
-                      )
-                    })}
-                  </div>
+            <div
+              className="v2-form-grid"
+              style={{
+                padding: 16,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                gap: 14,
+              }}
+            >
+
+              {/* Date */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Production Date
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  {...register('date')}
+                  style={{
+                    ...fieldInputStyle,
+                    border: `1px solid ${errors.date ? 'var(--destructive)' : 'var(--border)'}`,
+                  }}
+                />
+                {errors.date && (
+                  <span style={{ fontSize: 11, color: 'var(--destructive)', marginTop: 3 }}>
+                    {errors.date.message}
+                  </span>
                 )}
-              />
-            </div>
+              </div>
 
-            {/* Description */}
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
-              <label style={labelStyle}>Notes</label>
-              <textarea
-                {...register('description')}
-                rows={2}
-                placeholder="Optional notes"
-                style={{
-                  ...fieldInputStyle,
-                  resize: 'vertical',
-                  fontFamily: 'var(--font-sans)',
-                }}
-              />
-            </div>
-          </div>
-        </div>
+              {/* Status */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  Status
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
+                <Controller
+                  name="status"
+                  control={control}
+                  render={({ field }) => (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {(['pending', 'final'] as const).map((s) => {
+                        const isSel = field.value === s
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => field.onChange(s)}
+                            style={{
+                              height: 34,
+                              padding: '0 16px',
+                              borderRadius: 'var(--radius-md)',
+                              fontSize: 13,
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              border: isSel
+                                ? s === 'final'
+                                  ? '1px solid var(--success)'
+                                  : '1px solid var(--warning)'
+                                : '1px solid var(--border)',
+                              background: isSel
+                                ? s === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)'
+                                : 'var(--surface)',
+                              color: isSel
+                                ? s === 'final' ? 'var(--success)' : 'var(--warning)'
+                                : 'var(--foreground-muted)',
+                            }}
+                          >
+                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                />
+              </div>
 
-        {/* Section 1b — Dimension Pickers */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            overflow: 'visible',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          <div
-            style={{
-              padding: '10px 16px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
-            }}
-          >
-            <span style={sectionHeaderStyle}>Dimensi Produksi</span>
-          </div>
-
-          <div
-            style={{
-              padding: '10px 16px',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 12,
-            }}
-          >
-            {/* Konsumsi Dari */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ ...sectionHeaderStyle, fontSize: 9 }}>Konsumsi Dari</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                <div>
-                  <label style={labelStyle}>
-                    Owner <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="source_owner_ref"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={companyOptions}
-                        placeholder="Pilih owner..."
-                        searchPlaceholder="Cari perusahaan..."
-                        loading={companiesLoading}
-                        error={errors.source_owner_ref?.message as string | undefined}
-                        onSearchChange={setDropdownSearch}
-/>
-                    )}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>
-                    Stage <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="source_stage"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={stageOptions}
-                        placeholder="Pilih stage..."
-                        searchPlaceholder="Cari stage..."
-                        loading={stagesLoading}
-                        error={errors.source_stage?.message as string | undefined}
-                        onSearchChange={setDropdownSearch}
-/>
-                    )}
-                  />
-                </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={labelStyle}>Lokasi</label>
-                  <input
-                    type="text"
-                    placeholder="GENERAL"
-                    {...register('source_location_ref')}
-                    style={fieldInputStyle}
-                  />
-                </div>
+              {/* Description */}
+              <div style={{ display: 'flex', flexDirection: 'column', gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Notes</label>
+                <textarea
+                  {...register('description')}
+                  rows={2}
+                  placeholder="Optional notes"
+                  style={{
+                    ...fieldInputStyle,
+                    height: 'auto',
+                    minHeight: 64,
+                    padding: '8px 10px',
+                    lineHeight: 1.5,
+                    resize: 'vertical',
+                    display: 'block',
+                  }}
+                />
               </div>
             </div>
+          </div>
 
-            {/* Output Ke */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ ...sectionHeaderStyle, fontSize: 9 }}>Output Ke</span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                <div>
-                  <label style={labelStyle}>
-                    Owner <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="output_owner_ref"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={companyOptions}
-                        placeholder="Pilih owner..."
-                        searchPlaceholder="Cari perusahaan..."
-                        loading={companiesLoading}
-                        error={errors.output_owner_ref?.message as string | undefined}
-                        onSearchChange={setDropdownSearch}
-/>
-                    )}
-                  />
+          {/* Section 1b — Dimension Pickers */}
+          <div style={sectionCardStyle}>
+            <div style={sectionHeadStyle}>
+              <span style={sectionTitleStyle}>Dimensi Produksi</span>
+              <button
+                type="button"
+                className="alloc-toggle"
+                aria-expanded={showAllocation}
+                onClick={() => setShowAllocation((v) => !v)}
+                title="Show Owner and Location"
+              >
+                <span className="v2-link">Allocation</span>
+                {!showAllocation && (
+                  <span className="alloc-summary">{hasCustomAllocation ? 'custom' : 'GENERAL'}</span>
+                )}
+                <ChevronDown size={14} style={{ transform: showAllocation ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }} />
+              </button>
+            </div>
+
+            <div
+              className="v2-form-grid"
+              style={{
+                padding: 16,
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                columnGap: 32,
+                rowGap: 16,
+              }}
+            >
+              {/* Konsumsi Dari */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="dim-side-head" data-side="source">Konsumsi Dari</span>
+                {/* Stage stays full width on top; Allocation adds Owner + Lokasi below it. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 1 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="source_owner_ref"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={companyOptions}
+                          placeholder="Pilih owner..."
+                          searchPlaceholder="Cari perusahaan..."
+                          loading={companiesLoading}
+                          error={errors.source_owner_ref?.message as string | undefined}
+                          onSearchChange={setDropdownSearch}
+  />
+                      )}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', order: 0 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="source_stage"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={stageOptions}
+                          placeholder="Pilih stage..."
+                          searchPlaceholder="Cari stage..."
+                          loading={stagesLoading}
+                          error={errors.source_stage?.message as string | undefined}
+                          onSearchChange={setDropdownSearch}
+  />
+                      )}
+                    />
+                  </div>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 2 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>Lokasi</label>
+                    <input
+                      type="text"
+                      placeholder="GENERAL"
+                      {...register('source_location_ref')}
+                      style={fieldInputStyle}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={labelStyle}>
-                    Stage <span style={{ color: 'var(--destructive)' }}>*</span>
-                  </label>
-                  <Controller
-                    name="output_stage"
-                    control={control}
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? 'GENERAL'}
-                        onChange={field.onChange}
-                        options={stageOptions}
-                        placeholder="Pilih stage..."
-                        searchPlaceholder="Cari stage..."
-                        loading={stagesLoading}
-                        error={errors.output_stage?.message as string | undefined}
-                        onSearchChange={setDropdownSearch}
-/>
-                    )}
-                  />
-                </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={labelStyle}>Lokasi</label>
-                  <input
-                    type="text"
-                    placeholder="GENERAL"
-                    {...register('output_location_ref')}
-                    style={fieldInputStyle}
-                  />
+              </div>
+
+              {/* Source → output direction marker */}
+              <div className="dim-arrow" aria-hidden>
+                <ArrowRight size={22} strokeWidth={1.75} />
+              </div>
+
+              {/* Output Ke */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span className="dim-side-head" data-side="output">Output Ke</span>
+                {/* Stage stays full width on top; Allocation adds Owner + Lokasi below it. */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 1 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Owner <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="output_owner_ref"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={companyOptions}
+                          placeholder="Pilih owner..."
+                          searchPlaceholder="Cari perusahaan..."
+                          loading={companiesLoading}
+                          error={errors.output_owner_ref?.message as string | undefined}
+                          onSearchChange={setDropdownSearch}
+  />
+                      )}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', order: 0 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>
+                      Stage <span style={{ color: 'var(--destructive)' }}>*</span>
+                    </label>
+                    <Controller
+                      name="output_stage"
+                      control={control}
+                      render={({ field }) => (
+                        <SearchableSelect
+                          value={field.value ?? 'GENERAL'}
+                          onChange={field.onChange}
+                          options={stageOptions}
+                          placeholder="Pilih stage..."
+                          searchPlaceholder="Cari stage..."
+                          loading={stagesLoading}
+                          error={errors.output_stage?.message as string | undefined}
+                          onSearchChange={setDropdownSearch}
+  />
+                      )}
+                    />
+                  </div>
+                  <div style={{ display: showAllocation ? undefined : 'none', order: 2 }}>
+                    <label style={{ ...labelStyle, textAlign: 'center' }}>Lokasi</label>
+                    <input
+                      type="text"
+                      placeholder="GENERAL"
+                      {...register('output_location_ref')}
+                      style={fieldInputStyle}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -2286,68 +2320,50 @@ export default function ProductionForm({
         </div>
 
         {/* Section 2 — Production Items */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          <div
-            style={{
-              padding: '10px 16px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
-              borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
-            <span style={sectionHeaderStyle}>Production Items</span>
+        <div style={sectionCardStyle}>
+          <div style={sectionHeadStyle}>
+            <span style={sectionTitleStyle}>Production Items</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
               type="button"
-              onClick={handleAddDetail}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '4px 10px',
-                background: 'var(--accent-light-bg)',
-                color: 'var(--accent)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
+              className="alloc-toggle"
+              aria-expanded={showItemAllocation}
+              onClick={() => setShowItemAllocation((v) => !v)}
+              title="Show Output Owner and Output Location on each item"
             >
-              <Plus size={12} />
+              <span className="v2-link">Allocation</span>
+              {!showItemAllocation && (
+                <span className="alloc-summary">{hasCustomItemAllocation ? 'custom' : 'GENERAL'}</span>
+              )}
+              <ChevronDown size={14} style={{ transform: showItemAllocation ? 'rotate(180deg)' : 'none', transition: 'transform 150ms ease' }} />
+            </button>
+            <button type="button" className="v2-btn v2-btn-outline" onClick={handleAddDetail} style={{ height: 30 }}>
+              <Plus size={13} />
               Add Item
-              <kbd style={{ fontSize: 9, opacity: 0.7, background: 'var(--muted)', padding: '1px 4px', borderRadius: 3, border: '1px solid var(--border)' }}>
+              <kbd style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-subtle)', background: 'var(--surface-muted, var(--background))', padding: '1px 5px', borderRadius: 4, border: '1px solid var(--border)', fontFamily: 'var(--font-sans)' }}>
                 Ctrl+B
               </kbd>
             </button>
+            </div>
           </div>
 
           {detailFields.length > 0 && (
             <div
               style={{
-                padding: '8px 20px',
+                padding: '8px 16px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
+                gap: 8,
                 borderBottom: '1px solid var(--border)',
-                background: 'var(--background)',
+                background: 'var(--surface-muted, var(--background))',
               }}
             >
-              <span style={{ ...sectionHeaderStyle, fontSize: 10, minWidth: 24, textAlign: 'center' }}>#</span>
-              <span style={{ width: 24 }} />
-              <span style={{ ...sectionHeaderStyle, fontSize: 10, flex: 1 }}>Produk</span>
-              <span style={{ ...sectionHeaderStyle, fontSize: 10, width: 100 }}>Qty</span>
-              <span style={{ ...sectionHeaderStyle, fontSize: 10, width: 96 }}>Status</span>
-              <span style={{ width: 22 }} />
+              <span style={{ ...sectionHeaderStyle, minWidth: 20, textAlign: 'center' }}>#</span>
+              <span style={{ width: 22, flexShrink: 0 }} />
+              <span style={{ ...sectionHeaderStyle, flex: 1 }}>Produk</span>
+              <span style={{ ...sectionHeaderStyle, width: 90 }}>Qty</span>
+              <span style={{ ...sectionHeaderStyle, width: 112 }}>Status</span>
+              <span style={{ width: 26 }} />
             </div>
           )}
 
@@ -2358,23 +2374,24 @@ export default function ProductionForm({
                 <div
                   key={field.id}
                   data-prod-detail-index={detailIndex}
-                  style={{ borderBottom: '1px solid var(--border)' }}
+                  // No bottom border on the last item: the card's own rounded border closes it.
+                  style={{ borderBottom: detailIndex < detailFields.length - 1 ? '1px solid var(--border)' : 'none' }}
                 >
                   {/* Detail header row */}
                   <div
                     style={{
-                      padding: '8px 16px',
+                      padding: '14px 16px 10px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
-                      background: isExpanded ? 'var(--accent-light-bg)' : 'var(--background)',
+                      background: 'transparent',
                     }}
                   >
                     {/* Item Number */}
                     <span
                       style={{
                         fontSize: 11,
-                        fontWeight: 600,
+                        fontWeight: 500,
                         color: 'var(--foreground-muted)',
                         minWidth: 20,
                         textAlign: 'center',
@@ -2387,10 +2404,11 @@ export default function ProductionForm({
                     <div
                       onClick={() => toggleDetail(detailIndex)}
                       style={{
-                        width: 20,
-                        height: 20,
-                        background: 'var(--border)',
-                        borderRadius: 'var(--radius-sm)',
+                        width: 22,
+                        height: 22,
+                        background: 'var(--surface-muted, var(--background))',
+                        border: '1px solid var(--border)',
+                        borderRadius: 6,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -2469,12 +2487,17 @@ export default function ProductionForm({
                                   zIndex: 300,
                                 }}
                               >
-                                {prodItemProducts.length === 0 && (
+                                {isSearchingProdItems ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', fontSize: 13, color: 'var(--foreground-muted)' }}>
+                                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                    Looking for products…
+                                  </div>
+                                ) : prodItemProducts.length === 0 && (
                                   <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                                     No products found
                                   </div>
                                 )}
-                                {prodItemProducts.map((p: any) => (
+                                {!isSearchingProdItems && prodItemProducts.map((p: any) => (
                                   <button
                                     key={p.id}
                                     type="button"
@@ -2528,7 +2551,12 @@ export default function ProductionForm({
                                 <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginBottom: 8 }}>
                                   Select UOM for <strong>{sharedSelectedProductName}</strong>:
                                 </div>
-                                {prodItemUoms.length === 0 && (
+                                {isFetchingProdItemUoms ? (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--foreground-muted)' }}>
+                                    <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                                    Looking for units…
+                                  </div>
+                                ) : prodItemUoms.length === 0 && (
                                   <div style={{ fontSize: 12, color: 'var(--destructive)' }}>
                                     No UOM found for this product.
                                   </div>
@@ -2596,7 +2624,7 @@ export default function ProductionForm({
 
                     {/* Qty */}
                     <div
-                      style={{ width: 80 }}
+                      style={{ width: 90 }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       {(() => {
@@ -2624,30 +2652,19 @@ export default function ProductionForm({
                               })
                             }}
                             placeholder="Qty"
-                            style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius-md)',
-                              fontSize: 11,
-                              outline: 'none',
-                              color: 'var(--foreground)',
-                              background: 'var(--surface-raised)',
-                              fontFamily: 'var(--font-sans)',
-                              boxSizing: 'border-box',
-                            }}
+                            style={{ ...fieldInputStyle, textAlign: 'right' }}
                           />
                         )
                       })()}
                     </div>
 
                     {/* Per-detail status */}
-                    <div onClick={(e) => e.stopPropagation()}>
+                    <div onClick={(e) => e.stopPropagation()} style={{ width: 112 }}>
                       <Controller
                         name={`details.${detailIndex}.status` as any}
                         control={control}
                         render={({ field: f }) => (
-                          <div style={{ display: 'flex', gap: 3 }}>
+                          <div style={{ display: 'flex', gap: 2, padding: 2, height: 34, boxSizing: 'border-box', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-muted, var(--background))' }}>
                             {(['pending', 'final'] as const).map((s) => {
                               const isSel = f.value === s
                               return (
@@ -2656,15 +2673,15 @@ export default function ProductionForm({
                                   type="button"
                                   onClick={() => f.onChange(s)}
                                   style={{
-                                    padding: '3px 8px',
-                                    fontSize: 10,
-                                    fontWeight: 600,
-                                    borderRadius: 'var(--radius-sm)',
+                                    flex: 1,
+                                    fontSize: 11.5,
+                                    fontWeight: 500,
+                                    borderRadius: 6,
                                     border: 'none',
                                     cursor: 'pointer',
                                     background: isSel
                                       ? s === 'final' ? 'var(--success-bg)' : 'var(--warning-bg)'
-                                      : 'var(--surface)',
+                                      : 'transparent',
                                     color: isSel
                                       ? s === 'final' ? 'var(--success)' : 'var(--warning)'
                                       : 'var(--foreground-subtle)',
@@ -2687,8 +2704,13 @@ export default function ProductionForm({
                         removeDetail(detailIndex)
                       }}
                       disabled={detailFields.length === 1}
+                      className="v2-icon-btn"
+                      data-tone="danger"
                       style={{
-                        padding: 4,
+                        padding: 0,
+                        width: 26,
+                        height: 26,
+                        justifyContent: 'center',
                         background: 'none',
                         border: 'none',
                         cursor: detailFields.length === 1 ? 'not-allowed' : 'pointer',
@@ -2708,21 +2730,24 @@ export default function ProductionForm({
                   {/* Detail expanded body */}
                   {isExpanded && (
                     <div
+                      className="item-body"
                       style={{
-                        padding: '12px 16px 16px',
-                        background: 'var(--surface)',
-                        borderTop: '1px solid var(--border)',
+                        // Left edge lines up with the product selector in the row above
+                        // (16 padding + 20 index + 8 gap + 22 expander + 8 gap).
+                        padding: '4px 16px 16px 74px',
+                        background: 'transparent',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 10,
+                        gap: 14,
                       }}
                     >
                       {/* Batch + Expiry + description row */}
                       <div
+                        className="v2-form-grid"
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '1fr 1fr 1fr',
-                          gap: 8,
+                          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                          gap: 12,
                         }}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -2749,18 +2774,35 @@ export default function ProductionForm({
                             style={fieldInputStyle}
                           />
                         </div>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <label style={labelStyle}>Output Stage</label>
+                          <Controller
+                            name={`details.${detailIndex}.stage` as any}
+                            control={control}
+                            render={({ field }) => (
+                              <SearchableSelect
+                                value={field.value ?? ''}
+                                onChange={(v) => field.onChange(v || null)}
+                                options={[{ value: 'GENERAL', label: 'General' }, ...stageOptions.filter(o => o.value !== 'GENERAL')]}
+                                placeholder="Ikuti header..."
+                                searchPlaceholder="Cari stage..."
+                              />
+                            )}
+                          />
+                        </div>
                       </div>
 
-                      {/* Per-detail output dimension overrides */}
+                      {/* Per-detail Owner + Location overrides (item Allocation) */}
                       <div
+                        className="v2-form-grid"
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 1fr 1fr',
-                          gap: 8,
+                          display: showItemAllocation ? 'grid' : 'none',
+                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                          gap: 12,
                         }}
                       >
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <label style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Output Owner</label>
+                          <label style={labelStyle}>Output Owner</label>
                           <Controller
                             name={`details.${detailIndex}.owner_ref` as any}
                             control={control}
@@ -2776,23 +2818,7 @@ export default function ProductionForm({
                           />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <label style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Output Stage</label>
-                          <Controller
-                            name={`details.${detailIndex}.stage` as any}
-                            control={control}
-                            render={({ field }) => (
-                              <SearchableSelect
-                                value={field.value ?? ''}
-                                onChange={(v) => field.onChange(v || null)}
-                                options={[{ value: 'GENERAL', label: 'General' }, ...stageOptions.filter(o => o.value !== 'GENERAL')]}
-                                placeholder="Ikuti header..."
-                                searchPlaceholder="Cari stage..."
-                              />
-                            )}
-                          />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <label style={{ fontSize: 10, color: 'var(--foreground-subtle)', marginBottom: 1 }}>Output Location</label>
+                          <label style={labelStyle}>Output Location</label>
                           <Controller
                             name={`details.${detailIndex}.location_ref` as any}
                             control={control}
@@ -2852,44 +2878,14 @@ export default function ProductionForm({
           style={{
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: 10,
-            paddingTop: 4,
+            gap: 8,
+            paddingTop: 2,
           }}
         >
-          <button
-            type="button"
-            onClick={() => router.back()}
-            style={{
-              padding: '9px 20px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-              color: 'var(--foreground)',
-            }}
-          >
+          <button type="button" className="v2-btn v2-btn-ghost" onClick={() => router.back()} style={{ height: 36, padding: '0 18px' }}>
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={isPending}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '9px 20px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-              opacity: isPending ? 0.7 : 1,
-            }}
-          >
+          <button type="submit" className="v2-btn v2-btn-primary" disabled={isPending} style={{ height: 36, padding: '0 18px' }}>
             {isPending ? (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
             ) : (
@@ -2903,6 +2899,42 @@ export default function ProductionForm({
       </form>
 
       <style>{`
+        /* Shared dropdowns match the 34px inputs of this form. */
+        .prod-top-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+        @media (max-width: 1100px) { .prod-top-row { grid-template-columns: minmax(0, 1fr); } }
+        .v2-form .ss-trigger { min-height: 34px; padding: 0 10px !important; font-size: 13px !important; }
+        /* Side headers: tinted chips so "from" and "to" read as headings. */
+        .dim-side-head {
+          align-self: center; margin-bottom: 6px; padding: 4px 12px; border-radius: 999px;
+          font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+        }
+        .dim-side-head[data-side="source"] { color: var(--accent); background: var(--accent-light-bg); border: 1px solid rgba(198, 139, 78, 0.3); }
+        .dim-side-head[data-side="output"] { color: var(--success); background: var(--success-bg); border: 1px solid rgba(28, 148, 102, 0.25); }
+        /* Plain direction marker (not a button): no fill, no border. */
+        .dim-arrow {
+          align-self: center; display: inline-flex; align-items: center; justify-content: center;
+          color: var(--accent-light);
+        }
+        @media (max-width: 700px) {
+          .dim-arrow { justify-self: center; transform: rotate(90deg); }
+        }
+        .alloc-toggle {
+          display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 8px;
+          border: none; border-radius: 6px; background: none; cursor: pointer;
+          font-size: 12px; font-family: var(--font-sans); color: var(--accent);
+          transition: background 150ms ease;
+        }
+        .alloc-toggle:hover { background: var(--surface-muted, var(--background)); }
+        .alloc-summary {
+          font-size: 10.5px; font-weight: 500; padding: 1px 6px; border-radius: 999px;
+          color: var(--foreground-muted); background: var(--surface-muted, var(--background)); border: 1px solid var(--border);
+        }
+        @media (max-width: 700px) {
+          .v2-form .v2-form-grid { grid-template-columns: minmax(0, 1fr) !important; }
+          .v2-form .item-body { padding-left: 16px !important; }
+          .v2-form .mat-table { overflow-x: auto; }
+          .v2-form .mat-row { min-width: 620px; }
+        }
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }

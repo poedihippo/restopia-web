@@ -18,7 +18,7 @@ import {
   Calendar,
   Building2,
   Truck,
-  FileText,
+  FileText, ArrowUpRight,
 } from 'lucide-react'
 
 interface ReceiptDetailProps {
@@ -377,7 +377,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                 textDecoration: 'none',
               }}
             >
-              {receipt.delivery.code}
+              <span className="v2-link">{receipt.delivery.code}<ArrowUpRight size={12} /></span>
             </Link>
           ) : (
             <div

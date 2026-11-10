@@ -16,7 +16,8 @@ export default function SalesOrderEdit() {
       salesOrderService
         .findById(id, {
           include:
-            'customer,purchase_order,' +
+            'customer,purchase_order,additional_charges,credit_by,' +
+            // sales_order_details carries sales_order_detail_bundles already (POS relies on it).
             'sales_order_details,sales_order_details.product_inventory,sales_order_details.bundle',
         })
         .then((r) => r.data),
@@ -34,7 +35,7 @@ export default function SalesOrderEdit() {
     <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)', color: 'var(--foreground-muted)' }}>
       Order not found.{' '}
       <button onClick={() => router.back()} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-        Go back
+        <span className="v2-link">Go back</span>
       </button>
     </div>
   );

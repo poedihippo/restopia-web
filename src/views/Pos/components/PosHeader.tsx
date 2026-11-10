@@ -10,7 +10,6 @@ interface PosHeaderProps {
   setSearch: (val: string) => void
   setProductPage: (val: number) => void
   setShowHistory: (val: boolean) => void
-  setShowPreorder: (val: boolean) => void
   setShowPreorders: (val: boolean) => void
 }
 
@@ -19,7 +18,6 @@ export default function PosHeader({
   setSearch,
   setProductPage,
   setShowHistory,
-  setShowPreorder,
   setShowPreorders,
 }: PosHeaderProps) {
   const qc = useQueryClient()
@@ -71,7 +69,7 @@ export default function PosHeader({
             gap: 6,
           }}
         >
-          ⬅ Back
+          Back
         </button>
         <span
           style={{
@@ -124,11 +122,11 @@ export default function PosHeader({
             flexShrink: 0,
           }}
         >
-          🧾 History
+          History
         </button>
         <button
           type="button"
-          onClick={() => setShowPreorder(true)}
+          onClick={() => setShowPreorders(true)}
           style={{
             height: 36,
             padding: '0 14px',
@@ -145,28 +143,7 @@ export default function PosHeader({
             flexShrink: 0,
           }}
         >
-          📋 Pre-order
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowPreorders(true)}
-          style={{
-            height: 36,
-            padding: '0 14px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--surface)',
-            color: 'var(--foreground)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            flexShrink: 0,
-          }}
-        >
-          🗂 Pending
+          Pending Order
         </button>
         <button
           type="button"
@@ -179,9 +156,9 @@ export default function PosHeader({
           style={{
             height: 36,
             padding: '0 14px',
-            border: '1px solid var(--destructive)',
+            border: '1px solid var(--border)',
             borderRadius: 'var(--radius-md)',
-            background: 'var(--destructive-bg)',
+            background: 'var(--surface)',
             color: 'var(--destructive)',
             fontSize: 13,
             fontWeight: 500,
@@ -193,7 +170,7 @@ export default function PosHeader({
             opacity: closeShiftMutation.isPending || !hasActiveShift ? 0.5 : 1,
           }}
         >
-          {closeShiftMutation.isPending ? 'Closing...' : '🔒 Close Shift'}
+          {closeShiftMutation.isPending ? 'Closing...' : 'Close Shift'}
         </button>
       </div>
       <PrinterStatusBar />

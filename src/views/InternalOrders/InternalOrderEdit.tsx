@@ -38,10 +38,13 @@ export default function InternalOrderEdit({ id }: InternalOrderEditProps) {
       supplier_branch_id:
         order.supplier_branch?.id ?? order.supplier_branch_id ?? 0,
       date: parseDate(order.date),
+      fulfillment_date: order.fulfillment_date ? parseDate(order.fulfillment_date) : undefined,
       status: order.status,
       description: order.description ?? '',
       details: rawDetails.length
         ? rawDetails.map((d: any) => ({
+          id: d.id ?? undefined,
+          price: d.price ?? undefined,
           product_uom_id:
             d.product_uom_id ?? d.product_uom?.id ?? 0,
           qty: d.qty ?? 1,

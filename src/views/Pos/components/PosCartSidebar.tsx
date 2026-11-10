@@ -48,8 +48,8 @@ interface PosCartSidebarProps {
   setBundleCart: (val: any) => void
   editingOrderId: number | null
   editingOrderCode: string | null
-  setEditingOrderId: (val: number | null) => void
-  setEditingOrderCode: (val: string | null) => void
+  /** Leave edit mode — clears the cart so the held order isn't re-created as a new one. */
+  onCancelEdit: () => void
   subtotal: number
   total: number
   discountAmount: number
@@ -88,16 +88,20 @@ export default function PosCartSidebar({
   setBundleCart,
   editingOrderId,
   editingOrderCode,
-  setEditingOrderId,
-  setEditingOrderCode,
+  onCancelEdit,
   subtotal,
   total,
   discountAmount,
   taxAmount,
   taxIncluded,
   appliedVoucher,
-  // voucher / sales channel / note / dates props are still accepted but now
-  // edited in the review step and payment modal, not in the sidebar.
+  // voucher / sales channel props are still accepted but now edited in the
+  // review step and payment modal; dates + note are also set in the hold dialog.
+  orderNote,
+  setOrderNote,
+  transactionDate,
+  fulfillmentDate,
+  setFulfillmentDate,
   handleHold,
   handleCharge,
   isHoldPending = false,
@@ -109,6 +113,11 @@ export default function PosCartSidebar({
   // Order details (customer, voucher, note) are filled in the review step
   // before payment; sales channel is picked in the payment modal.
   const [lotPickerFor, setLotPickerFor] = useState<number | null>(null)
+  // Holding an order always asks when it will be picked up / delivered.
+  const [showHoldDialog, setShowHoldDialog] = useState(false)
+  // Hover / press feedback for the footer actions (inline styles have no :hover).
+  const [hoverBtn, setHoverBtn] = useState<'hold' | 'charge' | null>(null)
+  const [pressBtn, setPressBtn] = useState<'hold' | 'charge' | null>(null)
 
 
   const changeCartLot = (currentInventoryId: number, targetLot: any) => {
@@ -124,6 +133,22 @@ export default function PosCartSidebar({
   const busy = isPending || isHoldPending
   const holdDisabled = busy || cartEmpty
   const chargeDisabled = busy || cartEmpty || noMethods
+
+  const actionMotion = (key: 'hold' | 'charge', disabled: boolean): React.CSSProperties => {
+    const lifted = !disabled && hoverBtn === key
+    const pressed = lifted && pressBtn === key
+    return {
+      transform: pressed ? 'translateY(0) scale(0.98)' : lifted ? 'translateY(-2px)' : 'none',
+      boxShadow: pressed ? 'var(--shadow-sm)' : lifted ? 'var(--shadow-md)' : 'none',
+      transition: 'transform 140ms ease, box-shadow 140ms ease, background 140ms ease, border-color 140ms ease',
+    }
+  }
+  const motionHandlers = (key: 'hold' | 'charge') => ({
+    onMouseEnter: () => setHoverBtn(key),
+    onMouseLeave: () => { setHoverBtn(null); setPressBtn(null) },
+    onMouseDown: () => setPressBtn(key),
+    onMouseUp: () => setPressBtn(null),
+  })
 
   return (
     <div
@@ -194,7 +219,7 @@ export default function PosCartSidebar({
             borderRadius: 'var(--radius-sm)',
           }}
         >
-          ✕ Clear
+          Clear
         </button>
       </div>
 
@@ -206,11 +231,11 @@ export default function PosCartSidebar({
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         }}>
           <span style={{ fontSize: 12, color: 'var(--warning)', fontWeight: 500 }}>
-            ✏️ Editing pre-order: {editingOrderCode}
+            Editing held order: {editingOrderCode}
           </span>
           <button
             type="button"
-            onClick={() => { setEditingOrderId(null); setEditingOrderCode(null) }}
+            onClick={onCancelEdit}
             style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--warning)', cursor: 'pointer' }}
           >
             Cancel edit
@@ -526,15 +551,17 @@ export default function PosCartSidebar({
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
           <button
             type="button"
-            onClick={handleHold}
+            onClick={() => setShowHoldDialog(true)}
             disabled={holdDisabled}
+            {...motionHandlers('hold')}
             style={{
+              ...actionMotion('hold', holdDisabled),
               flex: '0 0 auto',
               height: 48,
               padding: '0 18px',
-              background: holdDisabled ? 'var(--border)' : 'var(--surface)',
-              color: holdDisabled ? 'var(--foreground-muted)' : 'var(--foreground)',
-              border: `1px solid ${holdDisabled ? 'var(--border)' : 'var(--border-strong)'}`,
+              background: holdDisabled ? 'var(--border)' : 'var(--accent-light-bg)',
+              color: holdDisabled ? 'var(--foreground-muted)' : 'var(--accent)',
+              border: `1px solid ${holdDisabled ? 'var(--border)' : hoverBtn === 'hold' ? 'var(--accent)' : 'var(--accent-light)'}`,
               borderRadius: 'var(--radius-md)',
               fontSize: 14,
               fontWeight: 600,
@@ -542,16 +569,18 @@ export default function PosCartSidebar({
               opacity: isHoldPending ? 0.7 : 1,
             }}
           >
-            {isHoldPending ? 'Holding…' : '🗂 Hold'}
+            {isHoldPending ? 'Holding…' : 'Hold Order'}
           </button>
           <button
             type="button"
             onClick={handleCharge}
             disabled={chargeDisabled}
+            {...motionHandlers('charge')}
             style={{
+              ...actionMotion('charge', chargeDisabled),
               flex: 1,
               height: 48,
-              background: chargeDisabled ? 'var(--border)' : 'var(--accent)',
+              background: chargeDisabled ? 'var(--border)' : hoverBtn === 'charge' ? 'var(--accent-hover)' : 'var(--accent)',
               color: chargeDisabled ? 'var(--foreground-muted)' : 'white',
               border: 'none',
               borderRadius: 'var(--radius-md)',
@@ -561,11 +590,188 @@ export default function PosCartSidebar({
               opacity: isPending ? 0.7 : 1,
             }}
           >
-            {isPending ? 'Processing...' : `Charge ${formatCurrency(total)}`}
+            {isPending ? 'Processing...' : 'Charge Now'}
+          </button>
+        </div>
+      </div>
+
+      {showHoldDialog && (
+        <HoldOrderDialog
+          transactionDate={transactionDate}
+          fulfillmentDate={fulfillmentDate}
+          setFulfillmentDate={setFulfillmentDate}
+          orderNote={orderNote}
+          setOrderNote={setOrderNote}
+          isEditing={!!editingOrderId}
+          onCancel={() => setShowHoldDialog(false)}
+          onConfirm={() => {
+            setShowHoldDialog(false)
+            handleHold()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+const dateOffset = (from: string, days: number): string => {
+  const d = new Date(`${from}T00:00:00`)
+  d.setDate(d.getDate() + days)
+  return d.toLocaleDateString('en-CA')
+}
+
+const holdFieldLabel: React.CSSProperties = {
+  display: 'block',
+  fontSize: 13,
+  fontWeight: 500,
+  color: 'var(--foreground-muted)',
+  marginBottom: 6,
+}
+
+const holdFieldStyle: React.CSSProperties = {
+  width: '100%',
+  height: 40,
+  padding: '0 12px',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--surface)',
+  color: 'var(--foreground)',
+  fontSize: 14,
+  boxSizing: 'border-box',
+}
+
+function HoldOrderDialog({
+  transactionDate,
+  fulfillmentDate,
+  setFulfillmentDate,
+  orderNote,
+  setOrderNote,
+  isEditing,
+  onCancel,
+  onConfirm,
+}: {
+  transactionDate: string
+  fulfillmentDate: string
+  setFulfillmentDate: (val: string) => void
+  orderNote: string
+  setOrderNote: (val: string) => void
+  isEditing: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const today = new Date().toLocaleDateString('en-CA')
+  const base = transactionDate || today
+  const value = fulfillmentDate.slice(0, 10)
+  const quickPicks = [
+    { label: 'Today', date: base },
+    { label: 'Tomorrow', date: dateOffset(base, 1) },
+    { label: 'In 2 days', date: dateOffset(base, 2) },
+  ]
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={onCancel} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 400,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, margin: 0, color: 'var(--foreground)' }}>
+              {isEditing ? 'Update Held Order' : 'Hold Order'}
+            </h2>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--foreground-muted)' }}>
+              The order is saved unpaid. Open it from Pending to edit or charge it later.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close"
+            style={{ background: 'none', border: 'none', fontSize: 22, lineHeight: 1, cursor: 'pointer', color: 'var(--foreground-muted)' }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <span style={holdFieldLabel}>Pickup / delivery date</span>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              {quickPicks.map((q) => {
+                const active = value === q.date
+                return (
+                  <button
+                    key={q.label}
+                    type="button"
+                    onClick={() => setFulfillmentDate(q.date)}
+                    style={{
+                      flex: 1,
+                      height: 34,
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: 'var(--radius-md)',
+                      background: active ? 'var(--accent-light-bg)' : 'var(--surface)',
+                      color: active ? 'var(--accent)' : 'var(--foreground)',
+                      fontSize: 13,
+                      fontWeight: active ? 600 : 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {q.label}
+                  </button>
+                )
+              })}
+            </div>
+            <input
+              type="date"
+              value={value}
+              min={transactionDate || undefined}
+              onChange={(e) => setFulfillmentDate(e.target.value)}
+              style={holdFieldStyle}
+            />
+          </div>
+
+          <label style={{ display: 'block' }}>
+            <span style={holdFieldLabel}>Note (optional)</span>
+            <textarea
+              value={orderNote}
+              onChange={(e) => setOrderNote(e.target.value)}
+              rows={3}
+              placeholder="e.g. cake writing, pickup time…"
+              style={{ ...holdFieldStyle, height: 'auto', padding: '8px 12px', resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </label>
+        </div>
+
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{ height: 40, padding: '0 16px', background: 'var(--surface)', color: 'var(--foreground)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!value}
+            style={{ height: 40, padding: '0 16px', background: value ? 'var(--accent)' : 'var(--border)', color: value ? 'white' : 'var(--foreground-muted)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600, cursor: value ? 'pointer' : 'not-allowed' }}
+          >
+            {isEditing ? 'Save Changes' : 'Hold Order'}
           </button>
         </div>
       </div>
     </div>
   )
 }
-

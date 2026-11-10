@@ -7,11 +7,7 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { productionsService } from '@/services/productions.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
-import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
-import SearchableSelect from '@/components/SearchableSelect'
-import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
@@ -56,7 +52,6 @@ export default function ProductionsView() {
   const canCreate = hasPermission('production.create')
   const canEdit = hasPermission('production.update')
   const canDelete = hasPermission('production.delete')
-  const activeProductTypes = useActiveBranchProductTypes()
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState<number>(1)
@@ -64,36 +59,23 @@ export default function ProductionsView() {
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [productFilter, setProductFilter] = useState<number | ''>('')
-  const [productSearch, setProductSearch] = useState('')
-  const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(search)
-      setDebouncedProductSearch(productSearch)
     }, 400)
     return () => clearTimeout(t)
-  }, [search, productSearch])
+  }, [search])
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo, productFilter])
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo])
 
-  const { data: productsData } = useQuery({
-    queryKey: ['products-finished', debouncedProductSearch, activeProductTypes],
-    queryFn: () => productsService.list({ per_page: 1000, 'filter[types]': 'final', 'filter[search]': debouncedProductSearch || undefined, 'filter[is_active]': true } as any).then((r) => r.data),
-  })
-  
-  const productOptions = (productsData as any)?.data?.map((p: any) => ({
-    value: p.id,
-    label: withProductType(p.name, p.type),
-  })) ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['productions', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, productFilter],
+    queryKey: ['productions', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo],
     queryFn: () =>
       productionsService
         .list({
@@ -103,9 +85,10 @@ export default function ProductionsView() {
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
-          'filter[start_date]': dateFrom || undefined,
-          'filter[end_date]': dateTo || undefined,
-          'filter[product_id]': productFilter || undefined,
+          // GET /v1/productions filters: branch_id, date_gte, date_lte, search, status
+          // (no product filter, so the product picker was removed).
+          'filter[date_gte]': dateFrom || undefined,
+          'filter[date_lte]': dateTo || undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -208,19 +191,6 @@ export default function ProductionsView() {
               outline: 'none',
             fontFamily: 'var(--font-sans)',
             }}
-          />
-        </div>
-
-        <div style={{ width: 220 }}>
-          <SearchableSelect
-            value={productFilter}
-            onChange={(val) => {
-              setProductFilter(val)
-              setPage(1)
-            }}
-            onSearchChange={(val) => setProductSearch(val)}
-            options={[{ value: '', label: 'All Finished Products' }, ...productOptions]}
-            placeholder="Filter by Product"
           />
         </div>
 
@@ -331,7 +301,7 @@ export default function ProductionsView() {
                 background: 'var(--background)',
               }}
             >
-              {['No.', 'Code', 'Branch', 'Date', 'Status', 'Items', 'Created', ''].map((h, i) => (
+              {['No.', 'Code', 'Date', 'Status', 'Items', 'Created', ''].map((h, i) => (
                 <th
                   key={i}
                   style={{
@@ -342,18 +312,7 @@ export default function ProductionsView() {
                     color: 'var(--foreground-muted)',
                     textTransform: 'uppercase',
                     letterSpacing: '0.6px',
-                    width: i === 0 ? 50 : i === 1 ? 160
-                        : i === 1
-                          ? 160
-                          : i === 2
-                            ? 130
-                            : i === 3
-                              ? 110
-                              : i === 4
-                                ? 80
-                                : i === 5
-                                  ? 140
-                                  : 100,
+                    width: i === 0 ? 50 : i === 1 ? 160 : i === 2 ? 110 : i === 3 ? 80 : i === 4 ? 140 : 100,
                   }}
                 >
                   {h}
@@ -364,7 +323,7 @@ export default function ProductionsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={8} style={{ padding: '48px 16px', textAlign: 'center' }}>
+                <td colSpan={7} style={{ padding: '48px 16px', textAlign: 'center' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -391,7 +350,7 @@ export default function ProductionsView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={7}
                   style={{
                     padding: '48px 16px',
                     textAlign: 'center',
@@ -405,7 +364,7 @@ export default function ProductionsView() {
             )}
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={7}>
                   <div
                     style={{
                       padding: 48,
@@ -449,9 +408,6 @@ export default function ProductionsView() {
                     >
                       {item.code}
                     </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {canRead ? item.branch?.name ?? '—' : "***"}
                   </td>
                   <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
                     {canRead ? item.date

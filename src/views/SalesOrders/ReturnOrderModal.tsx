@@ -66,10 +66,10 @@ export default function ReturnOrderModal({ orderId, orderCode, onClose, onReturn
   const details: any[] = order?.sales_order_details ?? []
 
   const { data: methodsData } = useQuery({
-    queryKey: ['payment-methods-all'],
+    queryKey: ['payment-methods-all', 'sales_orders'],
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': 'all,sales_orders' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
         .then((r) => r.data),
   })
   // The Credit tender can never pay a refund.

@@ -100,8 +100,9 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
   const roles: RoleOption[] = (rolesData as any)?.data ?? []
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
-    queryFn: () => branchesService.list({ per_page: 100, include: 'company' } as any).then((r) => r.data),
+    // Same shape as the top-bar switcher query — keys must only be shared by identical queryFns.
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
   })
   const branches: BranchOption[] = (branchesData as any)?.data ?? []
 
@@ -118,7 +119,7 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         email: editData.email,
         password: '',
         nik: editData.nik ?? '',
-        type: 'user',
+        type: editData.type ?? 'user',
         phone: editData.phone ?? '',
         birth: editData.birth ?? '',
         gender: editData.gender ?? undefined,
@@ -171,7 +172,8 @@ export default function UserSheet({ open, onClose, editData }: UserSheetProps) {
         name: values.name,
         email: values.email,
         nik: values.nik || undefined,
-        type: values.type,
+        // `type` is not part of UpdateUserRequest — never send it, so editing
+        // a superadmin can't demote them.
         phone: values.phone || undefined,
         birth: values.birth || undefined,
         gender: values.gender || undefined,

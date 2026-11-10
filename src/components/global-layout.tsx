@@ -7,7 +7,10 @@ import { useShortcut } from '@/hooks/useShortcut';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/hooks/useAuth';
 import PermissionDenied from '@/components/PermissionDenied';
+import PageLoader from '@/components/PageLoader';
 import { auditNavPermissions } from '@/lib/permissions';
+import { isUiV2Route } from '@/lib/uiPreview';
+import DatePopover from '@/components/DatePopover';
 
 type Props = {
   children: React.ReactNode;
@@ -17,9 +20,43 @@ export default function GlobalLayout({ children }: Props) {
   const router = useRouter();
   const { user, isLoading, hasPermission, isSuperadmin } = useAuth();
   const [isNavigating, setIsNavigating] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Ctrl+F / ⌘F focuses the current screen's search box (lists are paginated,
+  // so the browser's find bar would only see one page; the box searches the
+  // server). Falls back to the browser's find when there is no box, or when
+  // the box is already focused.
+  useEffect(() => {
+    const SEARCH_SELECTOR = [
+      'main input[data-search]',
+      'main input[type="search"]',
+      'main input[placeholder*="search" i]',
+      'main input[placeholder*="cari" i]',
+    ].join(', ');
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'f') return;
+      const box = Array.from(document.querySelectorAll<HTMLInputElement>(SEARCH_SELECTOR)).find(
+        (el) => !el.disabled && el.offsetParent !== null,
+      );
+      if (!box || document.activeElement === box) return;
+      e.preventDefault();
+      box.focus();
+      box.select();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMobileNavOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobileNavOpen]);
 
   useEffect(() => {
     const handleStart = (url: string) => {
+      setMobileNavOpen(false);
       const targetPath = url.split('?')[0];
       const currentPath = router.asPath.split('?')[0];
       if (targetPath !== currentPath) {
@@ -78,6 +115,22 @@ export default function GlobalLayout({ children }: Props) {
   };
 
   const isCheckingAuth = isLoading || !router.isReady;
+  const uiV2 = isUiV2Route(currentPath);
+
+  // While the page area shows its loading spinner, the sidebar glow stays hidden.
+  const pageLoading = isCheckingAuth || isNavigating;
+  useEffect(() => {
+    const root = document.documentElement;
+    if (pageLoading) root.dataset.pageLoading = '';
+    else delete root.dataset.pageLoading;
+  }, [pageLoading]);
+
+  // The attribute lives on <html> so portaled overlays pick up the v2 tokens too.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (uiV2) root.dataset.ui = 'v2';
+    else delete root.dataset.ui;
+  }, [uiV2]);
   const isDenied =
     !isCheckingAuth &&
     !isNavigating &&
@@ -124,6 +177,11 @@ export default function GlobalLayout({ children }: Props) {
   return (
     <>
       <style>{`
+        /* Footer sticks to the bottom on short pages: <main> is a column and the
+           footer takes the leftover space as top margin. Page roots must not shrink. */
+        .app-main { display: flex; flex-direction: column; }
+        .app-main > * { flex-shrink: 0; }
+        .app-footer { margin-top: auto !important; }
         @keyframes page-spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
@@ -149,6 +207,26 @@ export default function GlobalLayout({ children }: Props) {
           background: var(--accent);
           border-radius: 2px;
           animation: nav-progress 1.2s ease-in-out infinite;
+        }
+        /* Phones: sidebar becomes an off-canvas drawer opened from the top bar. */
+        .topbar-menu-btn { display: none; }
+        .mobile-nav-backdrop { display: none; }
+        @media (max-width: 767px) {
+          .app-sidebar {
+            position: fixed !important; top: 0; left: 0; bottom: 0; z-index: 80;
+            width: 264px !important; height: 100dvh !important;
+            transform: translateX(-100%); transition: transform 220ms ease !important;
+          }
+          .app-sidebar[data-mobile-open="true"] { transform: none; box-shadow: 12px 0 40px rgba(0, 0, 0, 0.18); }
+          .app-sidebar-collapse { display: none; }
+          .topbar > nav { flex: 1; min-width: 0; overflow: hidden; }
+          .mobile-nav-backdrop { display: block; position: fixed; inset: 0; z-index: 79; background: rgba(24, 20, 30, 0.32); }
+          .topbar-menu-btn {
+            display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+            width: 34px; height: 34px; margin-right: 6px; border: none; border-radius: 8px;
+            background: transparent; color: var(--foreground); cursor: pointer;
+          }
+          .topbar-menu-btn:hover { background: var(--background); }
         }
         @media print {
           #__next {
@@ -177,6 +255,7 @@ export default function GlobalLayout({ children }: Props) {
           }
         }
       `}</style>
+      {uiV2 && <DatePopover />}
       {isNavigating && (
         <div
           style={{
@@ -203,8 +282,9 @@ export default function GlobalLayout({ children }: Props) {
           background: 'var(--background)',
         }}
       >
+        {mobileNavOpen && <div className="mobile-nav-backdrop print-hidden" onClick={() => setMobileNavOpen(false)} />}
         <div className="print-hidden">
-          <AppSidebar />
+          <AppSidebar mobileOpen={mobileNavOpen} />
         </div>
 
         <div
@@ -218,44 +298,43 @@ export default function GlobalLayout({ children }: Props) {
           }}
         >
           <div className="print-hidden">
-            <TopBar />
+            <TopBar onMenuClick={() => setMobileNavOpen(true)} />
           </div>
 
           <main
+            className="app-main"
             style={{
               flex: 1,
               overflowY: 'auto',
               background: 'var(--background)',
-              padding: '28px 32px',
+              padding: uiV2 ? '20px 24px' : '28px 32px',
             }}
           >
             {isCheckingAuth || isNavigating ? (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  minHeight: '360px',
-                  gap: 16,
-                }}
-              >
-                <div className="global-page-spinner" />
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: 'var(--foreground-muted)',
-                  }}
-                >
-                  Memuat halaman...
-                </span>
-              </div>
+              <PageLoader />
             ) : isDenied ? (
               <PermissionDenied />
             ) : (
-              children
+              <>
+                {children}
+                <div aria-hidden style={{ height: 32 }} />
+                <footer
+                  className="print-hidden app-footer"
+                  style={{
+                    // Negative side/bottom margins cancel <main>'s padding so the gray bar spans edge to edge;
+                    // top margin is auto (.app-footer) with a 32px minimum gap kept by the spacer below.
+                    margin: uiV2 ? '0 -24px -20px' : '0 -32px -28px',
+                    padding: '14px 24px',
+                    background: 'var(--surface-muted, var(--muted))',
+                    borderTop: '1px solid var(--border)',
+                    textAlign: 'center',
+                    fontSize: 12,
+                    color: 'var(--foreground-subtle)',
+                  }}
+                >
+                  {new Date().getFullYear()} © Dapur Cokelat
+                </footer>
+              </>
             )}
           </main>
         </div>

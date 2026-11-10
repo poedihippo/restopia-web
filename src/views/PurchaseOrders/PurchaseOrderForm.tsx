@@ -44,12 +44,19 @@ const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
 }
 
 const detailSchema = z.object({
+  // Existing row id (edit only) — sent back so the backend updates the row in
+  // place instead of recreating it.
+  id: z.coerce.number().optional(),
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
   price: z.coerce.number().min(0, 'Price required'),
   description: z.string().optional(),
   is_price_locked: z.boolean().optional(),
   is_taxable: z.boolean().optional(),
+  discount_type: z.enum(['percent', 'nominal']).nullable().optional(),
+  discount_value: z.coerce.number().min(0).nullable().optional(),
+  // Read-only, from the API: qty already delivered/received on this row.
+  delivered_qty: z.coerce.number().optional(),
 })
 
 const schema = z.object({
@@ -62,7 +69,9 @@ const schema = z.object({
   buyer_id: z.coerce.number().min(0).optional(),
   date: z.string().min(1, 'Date is required'),
   fulfillment_date: z.string().min(1, 'Fulfillment Date is required'),
-  status: z.enum(['pending', 'final']),
+  // Only pending/final are offered as choices, but an edited PO keeps its
+  // stored status (accepted, partially_delivered, …) so it must validate.
+  status: z.enum(['pending', 'final', 'accepted', 'rejected', 'partially_delivered', 'delivered']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
   additional_charges: z.array(z.object({
@@ -440,7 +449,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     base_price: pu.base_price ?? 0,
   }))
 
-  const hasFinalDelivery = initialData?.deliveries?.some((d: any) => d.status === 'final')
+  // A row that has already been (partly) delivered/received keeps its qty.
+  const isRowQtyLocked = (index: number) =>
+    mode === 'edit' && Number(watchDetails?.[index]?.delivered_qty ?? 0) > 0
   const isDelivered = mode === 'edit' && initialData?.status === 'delivered'
 
   useEffect(() => {
@@ -478,10 +489,13 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
+        id: mode === 'edit' ? d.id || undefined : undefined,
         product_uom_id: d.product_uom_id,
         qty: d.qty,
         price: d.price,
         is_taxable: Boolean(d.is_taxable),
+        discount_type: d.discount_type || undefined,
+        discount_value: d.discount_type ? Number(d.discount_value ?? 0) : undefined,
         description: d.description || undefined,
       })),
   })
@@ -510,6 +524,22 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     onError: (err: any) =>
       toastMutationApiError(err, 'Failed to update purchase order'),
   })
+
+  // Never let a rejected submit be silent — surface the first error message
+  // (including nested details.N.field errors).
+  const onInvalid = (errs: any) => {
+    const findMessage = (e: any): string | undefined => {
+      if (!e || typeof e !== 'object') return undefined
+      if (typeof e.message === 'string') return e.message
+      for (const [k, v] of Object.entries(e)) {
+        if (k === 'ref') continue
+        const m = findMessage(v)
+        if (m) return m
+      }
+      return undefined
+    }
+    toast.error(findMessage(errs) ?? 'Please review the form')
+  }
 
   const onSubmit = (values: FormValues) => {
     if (values.type === 'supplier' && !values.supplier_id) {
@@ -676,7 +706,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
       {/* Form */}
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
@@ -899,6 +929,22 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                         </button>
                       )
                     })}
+                    {field.value && field.value !== 'pending' && field.value !== 'final' && (
+                      <span
+                        title="Current status — kept when saving"
+                        style={{
+                          padding: '6px 16px',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          background: 'var(--info-bg)',
+                          color: 'var(--info)',
+                          border: '1px solid var(--info)',
+                        }}
+                      >
+                        {field.value.charAt(0).toUpperCase() + field.value.slice(1).replace(/_/g, ' ')}
+                      </span>
+                    )}
                   </div>
                 )}
               />
@@ -1107,10 +1153,10 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       onChange={field.onChange}
                       decimals={2}
                       padDecimals={false}
-                      disabled={hasFinalDelivery}
+                      disabled={isRowQtyLocked(index)}
                       style={{
                         ...lineInputStyle,
-                        ...(hasFinalDelivery ? { background: 'var(--surface)', cursor: 'not-allowed' } : {})
+                        ...(isRowQtyLocked(index) ? { background: 'var(--surface)', cursor: 'not-allowed' } : {})
                       }}
                     />
                   )}

@@ -34,7 +34,7 @@ interface RequestedPO {
   additional_charge_price?: number
   tax_amount?: number
   discount_amount?: number
-  status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final'
+  status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final' | 'partially_delivered' | 'delivered'
   description?: string
   created_at?: string
   created_by?: { id: number; name: string }
@@ -522,7 +522,7 @@ export default function RequestedOrdersView() {
                         Reject
                       </button>
                     )}
-                    {item.status === 'accepted' && (
+                    {(item.status === 'accepted' || item.status === 'partially_delivered') && (
                       <button
                         type="button"
                         onClick={() =>

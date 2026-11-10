@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
-import { FileSpreadsheet, Inbox, Loader2, Receipt, Search, Wallet } from 'lucide-react'
+import { FileSpreadsheet, Inbox, Loader2, Receipt, Search, Wallet, ArrowUpRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { formatCurrency } from '@/utils/price'
@@ -294,7 +294,7 @@ export default function UnpaidOfflineOrdersView() {
                           onClick={() => openOrder(o.id)}
                           style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--accent)', textAlign: 'left' }}
                         >
-                          {o.code}
+                          <span className="v2-link">{o.code}<ArrowUpRight size={12} /></span>
                         </button>
                         {o.branch?.name && (
                           <div style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 2 }}>{o.branch.name}</div>

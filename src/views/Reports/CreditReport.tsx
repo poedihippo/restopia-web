@@ -112,6 +112,13 @@ export default function CreditReport() {
   >('credit')
   const branchName = useReportBranchName(branchFilter)
   const [enabled, setEnabled] = useState(false)
+  // filter[search]: order code, customer name or phone (server-side).
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(t)
+  }, [search])
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {
@@ -127,6 +134,7 @@ export default function CreditReport() {
       dateTo,
       branchFilter,
       settlementFilter,
+      debouncedSearch,
     ],
     queryFn: () =>
       fetchAllPages((page) =>
@@ -142,6 +150,7 @@ export default function CreditReport() {
             'filter[date_gte]': dateFrom,
             'filter[date_lte]': dateTo,
             'filter[branch_id]': branchFilter || undefined,
+            'filter[search]': debouncedSearch || undefined,
             sort: 'date',
           } as any)
           .then((r) => r.data),
@@ -428,6 +437,17 @@ export default function CreditReport() {
               value={branchFilter}
               onChange={setBranchFilter}
               style={inputStyle}
+            />
+          </div>
+          <div style={{ flex: '1 1 200px', maxWidth: 300 }}>
+            <label style={labelStyle}>Search</label>
+            <input
+              type="search"
+              data-search
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Order code, customer or phone…"
+              style={{ ...inputStyle, width: '100%' }}
             />
           </div>
           <button

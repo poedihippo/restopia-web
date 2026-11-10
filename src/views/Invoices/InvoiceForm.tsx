@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, X, Search, ChevronLeft, Loader2 } from 'lucide-react'
+import { Plus, X, Search, ChevronLeft, Loader2, ArrowUpRight } from 'lucide-react'
 import { invoicesService } from '@/services/invoices.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
@@ -17,7 +17,8 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import { useDebounce } from '@/hooks/useDebounce'
 
-const todayInputDate = () => new Date().toISOString().split('T')[0]
+// Local calendar day (toISOString would give yesterday before 07:00 WIB).
+const todayInputDate = () => new Date().toLocaleDateString('en-CA')
 
 function calculateDueDate(invoiceDateStr: string): string {
   if (!invoiceDateStr) return ''
@@ -527,6 +528,9 @@ export default function InvoiceForm() {
     onSuccess: (res: any) => {
       toast.success('Invoice created')
       qc.invalidateQueries({ queryKey: ['invoices'] })
+      // Invoiced lines change billable_qty / has_invoice on the source orders.
+      qc.invalidateQueries({ queryKey: ['sales-orders'] })
+      qc.invalidateQueries({ queryKey: ['sales-order-detail'] })
       const newId = res?.data?.data?.id ?? res?.data?.id
       if (newId) router.push(`/transfer/invoices/${newId}`)
       else router.push('/transfer/invoices')
@@ -909,7 +913,7 @@ export default function InvoiceForm() {
                       cursor: bulkSelectableSOs.length === 0 ? 'not-allowed' : 'pointer',
                     }}
                   >
-                    {allVisibleSelected ? 'Clear selection' : `Select all (${bulkSelectableSOs.length})`}
+                    <span className="v2-link">{allVisibleSelected ? 'Clear selection' : `Select all (${bulkSelectableSOs.length})`}</span>
                   </button>
                 </div>
                 <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
@@ -973,7 +977,7 @@ export default function InvoiceForm() {
                                     cursor: 'pointer',
                                   }}
                                 >
-                                  {so.code}
+                                  <span className="v2-link">{so.code}<ArrowUpRight size={12} /></span>
                                 </button>
                               </td>
                               {/* Outlet yang mau di-invoice — resolve dari buyer_branch_id */}
@@ -1019,7 +1023,7 @@ export default function InvoiceForm() {
                   cursor: 'pointer',
                 }}
               >
-                <Plus size={14} /> Add charge
+                <Plus size={14} /> <span className="v2-link">Add charge</span>
               </button>
             </div>
 

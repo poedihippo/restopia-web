@@ -23,8 +23,15 @@ interface SupplierPO {
   code: string
   date: string
   total_price: number
+  status?: string
+  total_payment?: number
+  remaining_payment?: number
   supplier?: { id: number; name: string }
 }
+
+// A PO becomes a payable debt only once it is finalized — pending (draft)
+// and rejected POs are never payable.
+const NON_PAYABLE_PO_STATUSES = ['pending', 'rejected']
 
 interface DisbursePayment {
   id: number
@@ -117,7 +124,7 @@ export default function POPaymentsView() {
   }))
 
   const { data: paymentMethodsData } = useQuery({
-    queryKey: ['payment-methods-all', debouncedDropdownSearch],
+    queryKey: ['payment-methods-all', 'purchase_orders', debouncedDropdownSearch],
     queryFn: () =>
       paymentMethodsService.list({
         'filter[search]': debouncedDropdownSearch || undefined,
@@ -147,42 +154,22 @@ export default function POPaymentsView() {
   })
   const supplierPOs: SupplierPO[] = (posData as any)?.data ?? []
 
-  // ── All disburse payments, fetched once — used to derive paid/outstanding ──
-  const { data: disburseData, isLoading: disburseLoading } = useQuery({
-    queryKey: ['po-disburse-payments'],
-    queryFn: () =>
-      paymentsService
-        .list({
-          per_page: 200,
-          include: 'allocations',
-          'filter[type]': 'disburse',
-        } as any)
-        .then((r) => r.data),
-  })
-  const disbursePayments: DisbursePayment[] = (disburseData as any)?.data ?? []
-
-  const paidByPoId = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const p of disbursePayments) {
-      if (p.is_reversed) continue
-      for (const a of p.allocations ?? []) {
-        if (a.purchase_order_id == null) continue
-        const poId = Number(a.purchase_order_id)
-        map.set(poId, (map.get(poId) ?? 0) + Number(a.amount ?? 0))
-      }
-    }
-    return map
-  }, [disbursePayments])
-
+  // Paid / outstanding come straight from the PO (total_payment /
+  // remaining_payment) — summing a capped payments list undercounted once
+  // there were more payments than one page.
   const poRows = useMemo(() => {
     return supplierPOs
+      .filter((po) => !NON_PAYABLE_PO_STATUSES.includes(String(po.status ?? '')))
       .map((po) => {
-        const totalPaid = paidByPoId.get(Number(po.id)) ?? 0
-        const outstanding = Number(po.total_price ?? 0) - totalPaid
+        const totalPaid = Number(po.total_payment ?? 0)
+        const outstanding =
+          po.remaining_payment != null
+            ? Number(po.remaining_payment)
+            : Number(po.total_price ?? 0) - totalPaid
         return { po, totalPaid, outstanding }
       })
       .filter((row) => row.outstanding > 0)
-  }, [supplierPOs, paidByPoId])
+  }, [supplierPOs])
 
   const totalPayment = useMemo(
     () => Object.values(allocations).reduce((s, v) => s + Number(v || 0), 0),
@@ -223,6 +210,8 @@ export default function POPaymentsView() {
     qc.invalidateQueries({ queryKey: ['po-disburse-payments'] })
     qc.invalidateQueries({ queryKey: ['po-payments-pos', supplierId] })
     qc.invalidateQueries({ queryKey: ['po-payments-history'] })
+    qc.invalidateQueries({ queryKey: ['supplier-debts-pos'] })
+    qc.invalidateQueries({ queryKey: ['supplier-debt-detail-pos'] })
   }
 
   const createMutation = useMutation({
@@ -234,10 +223,12 @@ export default function POPaymentsView() {
           payment_method_id: paymentMethodId,
           amount: totalPayment,
           description: description || undefined,
-          allocations: Object.entries(allocations).map(([poId, amount]) => ({
-            purchase_order_id: Number(poId),
-            amount,
-          })),
+          allocations: Object.entries(allocations)
+            .filter(([, amount]) => Number(amount) > 0)
+            .map(([poId, amount]) => ({
+              purchase_order_id: Number(poId),
+              amount,
+            })),
         }]
       } as any),
     onSuccess: () => {
@@ -277,7 +268,7 @@ export default function POPaymentsView() {
 
   // ── Past PO payments history ─────────────────────────────────────────────
   const { data: historyData, isLoading: historyLoading } = useQuery({
-    queryKey: ['po-payments-history'],
+    queryKey: ['po-payments-history', debouncedDropdownSearch],
     queryFn: () =>
       paymentsService
         .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
@@ -367,7 +358,7 @@ export default function POPaymentsView() {
                 </span>
               </div>
 
-              {posLoading || disburseLoading ? (
+              {posLoading ? (
                 <div style={{ padding: 24, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
                   Loading purchase orders...
                 </div>

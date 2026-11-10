@@ -1,6 +1,9 @@
 'use client'
+import { ArrowUpRight } from 'lucide-react'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { parseApiDate } from '@/utils/date';
+import { parseDate } from '@/helper/parseDate';
+import { availableStockOf } from '@/utils/inventoryStock';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/router'
@@ -37,10 +40,12 @@ const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface LineItem {
+  /** Saved sales_order_detail id — sent on update so the line is matched, not recreated. */
+  id?: number
   type: 'product' | 'bundle'
   product_inventory_id?: number | null
   bundle_id?: number | null
-  bundle_details?: { product_inventory_id: number; qty: number }[] | null
+  bundle_details?: { product_inventory_id: number; bundle_detail_item_id: number }[] | null
   purchase_order_detail_id?: number
   name: string
   code: string
@@ -86,13 +91,14 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const isEdit = !!editingOrder
 
   // ── Header state ───────────────────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10)
+  // Local calendar day (toISOString would give yesterday before 07:00 WIB).
+  const today = new Date().toLocaleDateString('en-CA')
 
   const [code, setCode] = useState(editingOrder?.code ?? `SO-${Date.now()}`)
   const [type, setType] = useState<'offline' | 'online'>(editingOrder?.type ?? 'offline')
-  const [date, setDate] = useState(editingOrder?.date ?? today)
+  const [date, setDate] = useState(parseDate(editingOrder?.date) || today)
   const [fulfillmentDate, setFulfillmentDate] = useState(
-    editingOrder?.fulfillment_date ?? today
+    parseDate(editingOrder?.fulfillment_date) || today
   )
   const [salesChannelId, setSalesChannelId] = useState<number | undefined>(
     editingOrder?.sales_channel_id ?? undefined
@@ -206,6 +212,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         d.bundle?.code ??
         ''
       return {
+        id: d.id ?? undefined,
         type: isBundle ? 'bundle' : 'product',
         // Same defensive fallback as the delivery-form fix (5524569): don't
         // rely solely on a flat product_inventory_id FK being present on
@@ -213,12 +220,19 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
         // own id so re-saving the item never silently drops its product.
         product_inventory_id: d.product_inventory_id ?? d.product_inventory?.id ?? null,
         bundle_id: d.bundle_id ?? null,
-        bundle_details: d.bundle_details ?? null,
+        // The API returns a bundle line's components as sales_order_detail_bundles.
+        bundle_details: isBundle
+          ? (d.sales_order_detail_bundles ?? d.bundle_details ?? []).map((b: any) => ({
+              bundle_detail_item_id: b.bundle_detail_item_id,
+              product_inventory_id: b.product_inventory_id,
+            }))
+          : null,
+        purchase_order_detail_id: d.purchase_order_detail_id ?? undefined,
         name,
         code,
         qty: d.qty,
         price: Number(d.price),
-        status: d.status,
+        status: d.status ?? snap?.status ?? 'pending',
         description: d.description ?? '',
         price_editable: !isBundle && (priceEditableOf(snap) || priceEditableOf(d.product_inventory)),
         stored_price: Number(d.price),
@@ -313,7 +327,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     enabled: !isEdit && status === 'final',
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': 'all,sales_orders' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
         .then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
@@ -520,39 +534,74 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     [type]
   )
 
-  const addBundle = useCallback((b: any) => {
-    setItems((prev) => {
-      const exists = prev.findIndex((i) => i.bundle_id === b.id)
-      if (exists >= 0)
-        return prev.map((i, idx) => (idx === exists ? { ...i, qty: i.qty + 1 } : i))
-      return [
-        ...prev,
-        {
-          type: 'bundle',
-          product_inventory_id: null,
-          bundle_id: b.id,
-          bundle_details: (b.bundle_details ?? []).map((d: any) => {
-            const item = d.items?.[0] || d
-            // The POS/SO expects product_inventory_id, we map it from the item's product_uom_id
-            return {
-              bundle_detail_item_id: item.id,
-              product_inventory_id: item.product_uom_id, 
-            }
-          }),
-          name: b.name,
-          code: b.code,
-          qty: 1,
-          price: b.price ?? 0,
-          status: 'pending',
-          description: '',
-          price_editable: false,
-        },
-      ]
+  const addBundle = useCallback(async (b: any) => {
+    // Already in the list: just bump the qty (its components are resolved).
+    if (items.some((i) => i.bundle_id === b.id)) {
+      setItems((prev) => prev.map((i) => (i.bundle_id === b.id ? { ...i, qty: i.qty + 1 } : i)))
+      setShowProductDrop(false)
+      setProductSearch('')
+      return
+    }
+
+    // Each slot's item names a product uom; the order line needs a real
+    // product_inventory row for it (same as the POS bundle picker).
+    const slots = (b.bundle_details ?? []).map((d: any) => ({ item: d.items?.[0] }))
+    if (slots.length === 0 || slots.some((s: any) => !s.item?.product_uom_id)) {
+      toast.error(`Bundle ${b.name ?? ''} has no items configured`)
+      return
+    }
+    let inventories: any[] = []
+    try {
+      const uomIds = Array.from(new Set(slots.map((s: any) => s.item.product_uom_id)))
+      const invRes = await productInventoriesService.list({
+        'filter[product_uom_ids]': uomIds.join(','),
+        'filter[status]': 'active',
+        include: 'product_uom_batch',
+        per_page: 100,
+      } as any)
+      inventories = (invRes.data as any)?.data ?? []
+    } catch (err) {
+      toastMutationApiError(err)
+      return
+    }
+    const missing: string[] = []
+    const bundleDetails = slots.map((s: any) => {
+      const candidates = inventories
+        .filter((inv: any) => (inv.product_uom_batch?.product_uom_id ?? inv.product_uom_id) === s.item.product_uom_id)
+        .sort((a: any, c: any) => availableStockOf(c) - availableStockOf(a))
+      if (!candidates[0]) {
+        missing.push(getProductUomName(s.item.product_uom) || `UOM #${s.item.product_uom_id}`)
+      }
+      return {
+        bundle_detail_item_id: s.item.id,
+        product_inventory_id: candidates[0]?.id,
+      }
     })
+    if (missing.length > 0) {
+      toast.error(`No active inventory for: ${missing.join(', ')}`)
+      return
+    }
+
+    setItems((prev) => [
+      ...prev,
+      {
+        type: 'bundle',
+        product_inventory_id: null,
+        bundle_id: b.id,
+        bundle_details: bundleDetails,
+        name: b.name,
+        code: b.code,
+        qty: 1,
+        price: b.price ?? 0,
+        status: 'pending',
+        description: '',
+        price_editable: false,
+      },
+    ])
     setShowProductDrop(false)
     setProductSearch('')
     setFocusLastItem(true)
-  }, [])
+  }, [items])
 
   const updateItem = (idx: number, field: keyof LineItem, value: any) => {
     setItems((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: value } : item)))
@@ -634,6 +683,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             ? creditById || undefined
             : null,
         subtotal_price: subtotal,
+        // TODO(backend): Create/UpdateSalesOrderRequest has no discount_price — the manual discount is ignored server-side.
         discount_price: discountPrice,
         total_price: total,
         status,
@@ -651,6 +701,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
             description: c.description || undefined,
           })),
         details: items.map((i) => ({
+          // Only on update: matches the saved line instead of recreating it.
+          ...(isEdit && i.id ? { id: i.id } : {}),
           product_inventory_id: i.product_inventory_id ?? null,
           bundle_id: i.bundle_id ?? null,
           bundle_details: i.bundle_details ?? null,
@@ -684,6 +736,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['sales-orders'] })
       qc.invalidateQueries({ queryKey: ['sales-order-detail'] })
+      qc.invalidateQueries({ queryKey: ['sales-order-edit'] })
+      qc.invalidateQueries({ queryKey: ['unpaid-offline-orders'] })
       if (!isEdit && paymentMode !== 'none' && status === 'final') {
         toast.success('Order created with payment recorded')
       } else {
@@ -801,7 +855,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               cursor: 'pointer',
             }}
           >
-            Undo its payout first
+            <span className="v2-link">Undo its payout first<ArrowUpRight size={12} /></span>
           </button>
         </div>
       )}

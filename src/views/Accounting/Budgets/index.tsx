@@ -86,7 +86,7 @@ export default function BudgetsView() {
   })
 
   const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-all', debouncedCoaSearch],
+    queryKey: ['chart-of-accounts-all', 'budgets', debouncedCoaSearch],
     queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaSearch || undefined }).then((r) => r.data),
   })
 

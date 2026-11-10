@@ -16,7 +16,7 @@ import {
   Trash2,
   CreditCard,
   Ban,
-  SplitSquareHorizontal
+  SplitSquareHorizontal, ArrowUpRight,
 } from 'lucide-react'
 import AllocateModal from './AllocateModal'
 import { toastMutationApiError } from '@/utils/apiError';
@@ -340,7 +340,7 @@ export default function PaymentsView() {
                                 onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
                                 onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                               >
-                                SO-{alloc.sales_order_id} ({formatCurrency(alloc.amount || 0)})
+                                <span className="v2-link">SO-{alloc.sales_order_id} ({formatCurrency(alloc.amount || 0)})<ArrowUpRight size={12} /></span>
                               </Link>
                             )}
                             {alloc.purchase_order_id && (
@@ -350,7 +350,7 @@ export default function PaymentsView() {
                                 onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
                                 onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                               >
-                                PO-{alloc.purchase_order_id} ({formatCurrency(alloc.amount || 0)})
+                                <span className="v2-link">PO-{alloc.purchase_order_id} ({formatCurrency(alloc.amount || 0)})<ArrowUpRight size={12} /></span>
                               </Link>
                             )}
                             {alloc.invoice_id && (
@@ -361,7 +361,7 @@ export default function PaymentsView() {
                                 onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
                               >
                                 {/* Kode invoice dari GET /invoices/{id}; fallback INV-{id} */}
-                                {invoiceById?.[alloc.invoice_id]?.code || `INV-${alloc.invoice_id}`} ({formatCurrency(alloc.amount || 0)})
+                                <span className="v2-link">{invoiceById?.[alloc.invoice_id]?.code || `INV-${alloc.invoice_id}`} ({formatCurrency(alloc.amount || 0)})<ArrowUpRight size={12} /></span>
                               </Link>
                             )}
                           </div>

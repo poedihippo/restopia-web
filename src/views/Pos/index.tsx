@@ -38,7 +38,6 @@ export default function PosView() {
           setSearch={logic.setSearch}
           setProductPage={logic.setProductPage}
           setShowHistory={logic.setShowHistory}
-          setShowPreorder={logic.setShowPreorder}
           setShowPreorders={logic.setShowPreorders}
         />
 
@@ -83,10 +82,9 @@ export default function PosView() {
         setCart={logic.setCart}
         bundleCart={logic.bundleCart}
         setBundleCart={logic.setBundleCart}
-        editingOrderId={null} // Replace with actual states from logic if needed
-        editingOrderCode={null}
-        setEditingOrderId={() => {}}
-        setEditingOrderCode={() => {}}
+        editingOrderId={logic.editingOrderId}
+        editingOrderCode={logic.editingOrderCode}
+        onCancelEdit={logic.resetCart}
         subtotal={logic.subtotal}
         total={logic.total}
         discountAmount={logic.discountAmount}
@@ -108,6 +106,8 @@ export default function PosView() {
         setFulfillmentDate={logic.setFulfillmentDate}
         handleHold={logic.handleHold}
         handleCharge={logic.handleCharge}
+        isHoldPending={logic.isHoldPending}
+        isPending={logic.isPending}
         paymentMethodsLoading={logic.paymentMethodsLoading}
         paymentMethods={logic.paymentMethods}
       />

@@ -12,7 +12,7 @@ import {
   FileSpreadsheet,
   PackageSearch,
   Loader2,
-  Plus
+  Plus, ArrowUpRight,
 } from 'lucide-react'
 import { getInvoiceDueInfo } from '@/utils/invoiceDue'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
@@ -172,11 +172,12 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   )
 
   const { data: pmData } = useQuery({
-    queryKey: ['payment-methods-all'],
+    // Invoice payments are money received → customer-side methods.
+    queryKey: ['payment-methods-all', 'sales_orders'],
     enabled: canRead && !!id,
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
         .then((r) => r.data),
   })
   const paymentMethods = (pmData as any)?.data ?? []
@@ -185,7 +186,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     mutationFn: () =>
       paymentsService.create({
         type: 'disburse',
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toLocaleDateString('en-CA'),
         payments: [{
           payment_method_id: paymentMethodId,
           amount: paymentAmount,
@@ -603,7 +604,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {row.poId ? (
                         <Link href={`/purchase/purchase-orders/${row.poId}/detail`} style={{ fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
-                          {row.poCode}
+                          <span className="v2-link">{row.poCode}<ArrowUpRight size={12} /></span>
                         </Link>
                       ) : (
                         <span style={{ fontWeight: 600, color: 'var(--foreground)', fontFamily: 'monospace' }}>{row.poCode}</span>

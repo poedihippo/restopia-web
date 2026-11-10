@@ -69,7 +69,7 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
   }, [coaSearch])
 
   const { data: coaData, isLoading: isLoadingCoa } = useQuery({
-    queryKey: ['chart-of-accounts-all', debouncedSearch, debouncedDropdownSearch],
+    queryKey: ['chart-of-accounts-all', 'account-settings', debouncedSearch, debouncedDropdownSearch],
     queryFn: () => chartOfAccountsService.list({ per_page: 50, 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
     enabled: open
   })

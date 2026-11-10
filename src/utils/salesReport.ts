@@ -36,6 +36,8 @@ export function fetchFinalSalesOrders(params: {
   dateTo: string
   branchId?: string
   include?: string
+  /** filter[search]: order code, customer name or phone. */
+  search?: string
 }) {
   return fetchAllPages((page) =>
     salesOrdersService
@@ -47,6 +49,7 @@ export function fetchFinalSalesOrders(params: {
         'filter[date_gte]': params.dateFrom,
         'filter[date_lte]': params.dateTo,
         'filter[branch_id]': params.branchId || undefined,
+        'filter[search]': params.search || undefined,
         sort: 'date',
       } as any)
       .then((r) => r.data),

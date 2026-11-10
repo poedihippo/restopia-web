@@ -83,6 +83,13 @@ export default function DiscountVoucherReport() {
   const [branchFilter, setBranchFilter] = useState('')
   const [hasSetDefault, setHasSetDefault] = useState(false)
   const [enabled, setEnabled] = useState(false)
+  // filter[search]: order code, customer name or phone (server-side).
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(t)
+  }, [search])
   const branchName = useReportBranchName(branchFilter)
 
   useEffect(() => {
@@ -93,12 +100,13 @@ export default function DiscountVoucherReport() {
   }, [user, hasSetDefault])
 
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['report-discount-voucher', dateFrom, dateTo, branchFilter],
+    queryKey: ['report-discount-voucher', dateFrom, dateTo, branchFilter, debouncedSearch],
     queryFn: () =>
       fetchFinalSalesOrders({
         dateFrom,
         dateTo,
         branchId: branchFilter,
+        search: debouncedSearch,
         include: 'branch,customer',
       }),
     enabled,
@@ -370,6 +378,17 @@ export default function DiscountVoucherReport() {
               value={branchFilter}
               onChange={setBranchFilter}
               style={inputStyle}
+            />
+          </div>
+          <div style={{ flex: '1 1 200px', maxWidth: 300 }}>
+            <label style={labelStyle}>Search</label>
+            <input
+              type="search"
+              data-search
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Order code, customer or phone…"
+              style={{ ...inputStyle, width: '100%' }}
             />
           </div>
           <button

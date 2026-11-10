@@ -102,6 +102,16 @@ export default function TransactionHistoryReport() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [enabled, setEnabled] = useState(false)
+  // filter[search]: order code, customer name or phone (server-side).
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(t)
+  }, [search])
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
   const branchName = useReportBranchName(branchFilter)
 
   useEffect(() => {
@@ -121,6 +131,7 @@ export default function TransactionHistoryReport() {
       'filter[date_lte]': dateTo,
       'filter[branch_id]': branchFilter || undefined,
       'filter[type]': typeFilter || undefined,
+      'filter[search]': debouncedSearch || undefined,
       sort: 'date',
     }) as any
 
@@ -131,6 +142,7 @@ export default function TransactionHistoryReport() {
       dateTo,
       branchFilter,
       typeFilter,
+      debouncedSearch,
       page, perPage,
     ],
     queryFn: () =>
@@ -448,6 +460,17 @@ export default function TransactionHistoryReport() {
               <option value="offline">Offline</option>
               <option value="online">Online</option>
             </select>
+          </div>
+          <div style={{ flex: '1 1 200px', maxWidth: 300 }}>
+            <label style={labelStyle}>Search</label>
+            <input
+              type="search"
+              data-search
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Order code, customer or phone…"
+              style={{ ...inputStyle, width: '100%' }}
+            />
           </div>
           <button
             type="button"

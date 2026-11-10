@@ -154,6 +154,21 @@ export default function SalesByInvoiceReport() {
   const [page, setPage] = useState<number>(1)
   const [perPage] = useState<number>(20)
   const [view, setView] = useState<'detail' | 'list'>('detail')
+  // filter[search] matches order code, customer name and phone.
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [paymentStatuses, setPaymentStatuses] = useState<'' | 'pending,partial' | 'paid'>('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(t)
+  }, [search])
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, paymentStatuses])
+  const extraFilters = {
+    'filter[search]': debouncedSearch || undefined,
+    'filter[payment_statuses]': paymentStatuses || undefined,
+  }
 
   useEffect(() => {
     if (user?.branch_id && !hasSetDefault) {
@@ -168,6 +183,8 @@ export default function SalesByInvoiceReport() {
       dateFrom,
       dateTo,
       branchFilter,
+      debouncedSearch,
+      paymentStatuses,
       page, perPage,
     ],
     queryFn: () =>
@@ -180,6 +197,7 @@ export default function SalesByInvoiceReport() {
           'filter[date_gte]': dateFrom,
           'filter[date_lte]': dateTo,
           'filter[branch_id]': branchFilter || undefined,
+          ...extraFilters,
           sort: 'date',
         } as any)
         .then((r) => r.data),
@@ -244,6 +262,7 @@ export default function SalesByInvoiceReport() {
             'filter[date_gte]': dateFrom,
             'filter[date_lte]': dateTo,
             'filter[branch_id]': branchFilter || undefined,
+            ...extraFilters,
             sort: 'date',
           } as any)
           .then((r) => r.data),
@@ -468,6 +487,25 @@ export default function SalesByInvoiceReport() {
             <ReportBranchSelect
               value={branchFilter}
               onChange={setBranchFilter}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={labelStyle}>PAYMENT</label>
+            <select value={paymentStatuses} onChange={(e) => setPaymentStatuses(e.target.value as any)} style={inputStyle}>
+              <option value="">All</option>
+              <option value="pending,partial">Unpaid / partial</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 220px', maxWidth: 320 }}>
+            <label style={labelStyle}>SEARCH</label>
+            <input
+              type="search"
+              data-search
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Order code, customer or phone…  (Ctrl+F)"
               style={inputStyle}
             />
           </div>

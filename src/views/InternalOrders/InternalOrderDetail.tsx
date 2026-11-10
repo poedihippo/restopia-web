@@ -94,7 +94,9 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
+  const canUpdate = hasPermission('internal-purchase-order.update')
+  const canDelete = hasPermission('internal-purchase-order.delete')
   const myBranchId = user?.branch?.id
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [acceptModalOpen, setAcceptModalOpen] = useState(false)
@@ -105,7 +107,8 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
       purchaseOrdersService
         .findById(id, {
           include:
-            'branch,supplier_branch,created_by,updated_by,purchase_order_details',
+            'branch,supplier_branch,created_by,updated_by,purchase_order_details,' +
+            'purchase_order_details.product_uom,additional_charges',
         })
         .then((r) => r.data),
     enabled: !!id && !isNaN(id),
@@ -124,9 +127,9 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
   })
 
   const actionMutation = useMutation({
-    mutationFn: ({ action, details, total_price, tax_id }: { action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number }) =>
+    mutationFn: ({ action, details, total_price, tax_id, additional_charges }: { action: 'accept' | 'reject'; details?: AcceptPODetailPayload[], total_price?: number, tax_id?: number, additional_charges?: { name: string; chart_of_account_id?: number; amount: number; description?: string }[] }) =>
       action === 'accept'
-        ? purchaseOrdersService.accept(id, { details, total_price, tax_id })
+        ? purchaseOrdersService.accept(id, { details, total_price, tax_id, additional_charges })
         : purchaseOrdersService.reject(id),
     onSuccess: (_res, vars) => {
       queryClient.invalidateQueries({ queryKey: ['internal-order-detail', id] })
@@ -317,9 +320,12 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
 
         {/* Right */}
         <div style={{ display: 'flex', gap: 8 }}>
+          {canUpdate && (
           <button
             type="button"
             onClick={() => router.push(`/purchase/internal-orders/${id}/edit`)}
+            disabled={order.status === 'delivered'}
+            title={order.status === 'delivered' ? 'Delivered — cannot edit' : 'Edit'}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -331,12 +337,14 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
               fontSize: 13,
               fontWeight: 500,
               color: 'var(--foreground)',
-              cursor: 'pointer',
+              cursor: order.status === 'delivered' ? 'not-allowed' : 'pointer',
+              opacity: order.status === 'delivered' ? 0.4 : 1,
             }}
           >
             <Pencil size={13} />
             Edit
           </button>
+          )}
           
           {order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
             <button
@@ -386,6 +394,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
               Reject
             </button>
           )}
+          {canDelete && (
           <button
             type="button"
             onClick={() => setDeleteConfirm(true)}
@@ -406,6 +415,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
             <Trash2 size={13} />
             Delete
           </button>
+          )}
         </div>
       </div>
 
@@ -815,8 +825,18 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
         isSubmitting={actionMutation.isPending}
         onConfirm={(payload) => {
           if (order) {
-            const total_price = payload.details.reduce((sum, d) => sum + d.qty * d.price, 0)
-            actionMutation.mutate({ action: 'accept', details: payload.details, total_price, tax_id: payload.tax_id })
+            // Same total as PurchaseOrderDetail / RequestedOrders: discounted
+            // line subtotals + additional charges.
+            const calcLineSubtotal = (d: any) => {
+              const gross = d.qty * d.price
+              if (!d.discount_type || !d.discount_value) return gross
+              if (d.discount_type === 'percent') return gross - (gross * d.discount_value / 100)
+              return gross - d.discount_value
+            }
+            const subtotal = payload.details.reduce((sum, d) => sum + calcLineSubtotal(d), 0)
+            const chargesTotal = (payload.additional_charges ?? []).reduce((sum, c) => sum + (c.amount || 0), 0)
+            const total_price = subtotal + chargesTotal
+            actionMutation.mutate({ action: 'accept', details: payload.details, total_price, tax_id: payload.tax_id, additional_charges: payload.additional_charges })
           }
         }}
       />

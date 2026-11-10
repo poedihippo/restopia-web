@@ -19,6 +19,11 @@ import RecipeImportModal from '@/views/PurchaseOrders/RecipeImportModal'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 
 const detailSchema = z.object({
+  // Existing row id (edit only) — sent back so the row is updated in place.
+  id: z.coerce.number().optional(),
+  // Price set by the supplier branch on accept (edit only) — carried through
+  // unchanged so editing an accepted order doesn't drop it.
+  price: z.coerce.number().min(0).optional(),
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   qty: z.coerce.number().min(0.01, 'Qty must be > 0'),
   description: z.string().optional(),
@@ -28,7 +33,9 @@ const schema = z.object({
   supplier_branch_id: z.coerce.number().min(1, 'Source branch is required'),
   date: z.string().min(1, 'Date is required'),
   fulfillment_date: z.string().min(1, 'Fulfillment Date is required'),
-  status: z.enum(['pending', 'final']),
+  // Only pending/final are offered as choices, but an edited order keeps its
+  // stored status (accepted, partially_delivered, …) so it must validate.
+  status: z.enum(['pending', 'final', 'accepted', 'rejected', 'partially_delivered', 'delivered']),
   description: z.string().optional(),
   details: z.array(detailSchema).min(1, 'At least one item required'),
 })
@@ -209,8 +216,10 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
+        id: mode === 'edit' ? d.id || undefined : undefined,
         product_uom_id: d.product_uom_id,
         qty: d.qty,
+        price: mode === 'edit' && d.id && d.price != null ? d.price : undefined,
         description: d.description || undefined,
       })),
   })
@@ -239,6 +248,22 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
     onError: (err: any) =>
       toastMutationApiError(err, 'Failed to update internal order'),
   })
+
+  // Never let a rejected submit be silent — surface the first error message
+  // (including nested details.N.field errors).
+  const onInvalid = (errs: any) => {
+    const findMessage = (e: any): string | undefined => {
+      if (!e || typeof e !== 'object') return undefined
+      if (typeof e.message === 'string') return e.message
+      for (const [k, v] of Object.entries(e)) {
+        if (k === 'ref') continue
+        const m = findMessage(v)
+        if (m) return m
+      }
+      return undefined
+    }
+    toast.error(findMessage(errs) ?? 'Please review the form')
+  }
 
   const onSubmit = (values: FormValues) => {
     if (mode === 'edit' && orderId) {
@@ -394,7 +419,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
 
       {/* Form */}
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit, onInvalid)}
         style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
@@ -517,6 +542,22 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
                         </button>
                       )
                     })}
+                    {field.value && field.value !== 'pending' && field.value !== 'final' && (
+                      <span
+                        title="Current status — kept when saving"
+                        style={{
+                          padding: '6px 16px',
+                          borderRadius: 'var(--radius-md)',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          background: 'var(--info-bg)',
+                          color: 'var(--info)',
+                          border: '1px solid var(--info)',
+                        }}
+                      >
+                        {field.value.charAt(0).toUpperCase() + field.value.slice(1).replace(/_/g, ' ')}
+                      </span>
+                    )}
                   </div>
                 )}
               />

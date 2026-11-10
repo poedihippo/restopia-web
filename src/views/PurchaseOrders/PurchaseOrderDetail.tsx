@@ -120,6 +120,8 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const { user, hasPermission } = useAuth()
   const myBranchId = (user as any)?.branch?.id ?? (user as any)?.branch_id
   const canRead = hasPermission('purchase-order.read')
+  const canUpdate = hasPermission('purchase-order.update')
+  const canDelete = hasPermission('purchase-order.delete')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [acceptModalOpen, setAcceptModalOpen] = useState(false)
 
@@ -488,7 +490,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             Create Sales Order
           </button>
           
-          { (order.status === 'accepted' || order.status === 'final') && (
+          { (order.status === 'accepted' || order.status === 'final' || order.status === 'partially_delivered') && (
             <button
               type="button"
               onClick={() => router.push(`/transfer/deliveries/create?po_id=${id}`)}
@@ -511,6 +513,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             </button>
           )}
 
+          {canUpdate && (
           <button
             type="button"
             onClick={() => router.push(`/purchase/purchase-orders/${id}/edit`)}
@@ -538,6 +541,8 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             <Pencil size={13} />
             Edit
           </button>
+          )}
+          {canDelete && (
           <button
             type="button"
             onClick={() => setDeleteConfirm(true)}
@@ -558,6 +563,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             <Trash2 size={13} />
             Delete
           </button>
+          )}
         </div>
       </div>
 

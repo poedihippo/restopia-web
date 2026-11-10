@@ -23,6 +23,9 @@ type MaterialLine = {
   product_uom_id: number
   name: string
   qty: number
+  // Material qty per 1 unit of output (recipe material qty / recipe yield),
+  // so changing the output qty rescales the material.
+  ratio: number
   product_inventory_id: number
   stockLabel: string
   ok: boolean
@@ -279,6 +282,7 @@ export default function ConversionForm() {
         product_uom_id: Number(mat.product_uom_id),
         name,
         qty: Number(mat.qty) || 0,
+        ratio: (Number(mat.qty) || 0) / recipeQty,
         product_inventory_id: 0,
         stockLabel: 'Mencari stok…',
         ok: false,
@@ -658,7 +662,13 @@ export default function ConversionForm() {
               min={0.001}
               step={0.001}
               value={outputQty || ''}
-              onChange={(e) => setOutputQty(Number(e.target.value) || 0)}
+              onChange={(e) => {
+                const newQty = Number(e.target.value) || 0
+                setOutputQty(newQty)
+                setMaterials((prev) =>
+                  prev.map((m) => ({ ...m, qty: Number((m.ratio * newQty).toFixed(4)) })),
+                )
+              }}
               disabled={!selectedRecipeId}
               style={inputStyle}
             />

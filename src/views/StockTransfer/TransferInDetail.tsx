@@ -76,12 +76,19 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     enabled: !!id && !isNaN(id),
     queryFn: () =>
       receiptsService
-        .list({ 'filter[delivery_id]': id, per_page: 5 } as any)
+        .list({ 'filter[delivery_id]': id, per_page: 50, sort: '-created_at' } as any)
         .then((r) => r.data),
   })
   const existingReceipts: any[] = (receiptsData as any)?.data ?? []
-  const alreadyReceipted = existingReceipts.length > 0
-  const isFinal = existingReceipts.some((r: any) => r.status === 'final')
+  // Newest pending receipt for this delivery (list is sorted -created_at).
+  // It is opened in the receipt editor — never overwritten from here.
+  const pendingReceipt = existingReceipts.find((r: any) => r.status === 'pending')
+  // Qty still to be received per delivery line.
+  const remainingQtyOf = (d: any) =>
+    Math.max(0, Number(d?.qty ?? 0) - Number(d?.received_qty ?? 0))
+  const deliveryLines: any[] = delivery?.delivery_details ?? []
+  const isFullyReceived =
+    deliveryLines.length > 0 && deliveryLines.every((d: any) => remainingQtyOf(d) <= 0)
   const canCreate = !delivery || canUserCreateReceiptForDelivery(delivery, user, isSuperadmin)
 
   const { data: productUomsData, isLoading: productUomsLoading } = useQuery({
@@ -126,16 +133,20 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
 
   useEffect(() => {
     if (!delivery) return
-    const lines = (delivery.delivery_details ?? []).map((d: any, index: number) => ({
-      delivery_detail_id: d.id,
-      product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
-      qty: d.qty ?? 1,
-      price: d.price ?? 0,
-      planned_expiry_date: '',
-      status: 'success' as const,
-      description: '',
-      client_ref: `${delivery.code ?? `DEL-${id}`}-${index + 1}`,
-    }))
+    // Only what is still left to receive; fully received lines are skipped.
+    const suffix = Math.random().toString(36).substring(2, 5).toUpperCase()
+    const lines = (delivery.delivery_details ?? [])
+      .filter((d: any) => remainingQtyOf(d) > 0)
+      .map((d: any, index: number) => ({
+        delivery_detail_id: d.id,
+        product_uom_id: d.product_uom_id ?? d.product_uom?.id ?? 0,
+        qty: remainingQtyOf(d),
+        price: d.price ?? 0,
+        planned_expiry_date: '',
+        status: 'success' as const,
+        description: '',
+        client_ref: `${delivery.code ?? `DEL-${id}`}-${index + 1}-${suffix}`,
+      }))
     // Receipt code is numbered by the backend — never derive it from the delivery code.
     reset({
       date: today,
@@ -172,14 +183,15 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
             client_ref: d.client_ref || undefined,
           })),
       }
-      if (existingReceipts.length > 0) {
-        return receiptsService.update(existingReceipts[0].id, payload as any)
-      }
+      // Always a new receipt (for the remaining qty) — an existing pending
+      // receipt is edited on its own page instead of being overwritten.
       return receiptsService.create(payload as any)
     },
     onSuccess: () => {
       toast.success('Stock received successfully')
       queryClient.invalidateQueries({ queryKey: ['receipts-for-delivery', id] })
+      queryClient.invalidateQueries({ queryKey: ['receipts'] })
+      queryClient.invalidateQueries({ queryKey: ['delivery-detail', id] })
       queryClient.invalidateQueries({ queryKey: ['deliveries-transfer-in'] })
       router.push('/transfer/stock-transfer')
     },
@@ -832,10 +844,10 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
           >
             Cancel
           </button>
-          {canCreate ? (
+          {canCreate && pendingReceipt ? (
             <button
-              type="submit"
-              disabled={createReceiptMutation.isPending || isFinal}
+              type="button"
+              onClick={() => router.push(`/transfer/receipts/${pendingReceipt.id}/edit`)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -847,8 +859,29 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                 borderRadius: 'var(--radius-md)',
                 fontSize: 13,
                 fontWeight: 500,
-                cursor: createReceiptMutation.isPending || isFinal ? 'not-allowed' : 'pointer',
-                opacity: createReceiptMutation.isPending || isFinal ? 0.7 : 1,
+                cursor: 'pointer',
+              }}
+            >
+              <Check size={16} />
+              Open Pending Receipt
+            </button>
+          ) : canCreate ? (
+            <button
+              type="submit"
+              disabled={createReceiptMutation.isPending || isFullyReceived}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 16px',
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: createReceiptMutation.isPending || isFullyReceived ? 'not-allowed' : 'pointer',
+                opacity: createReceiptMutation.isPending || isFullyReceived ? 0.7 : 1,
               }}
             >
               {createReceiptMutation.isPending ? (
@@ -856,7 +889,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
               ) : (
                 <Check size={16} />
               )}
-              {isFinal ? 'Already Finalized' : alreadyReceipted ? 'Update Receipt' : 'Confirm Receipt'}
+              {isFullyReceived ? 'Fully Received' : 'Confirm Receipt'}
             </button>
           ) : (
             <span

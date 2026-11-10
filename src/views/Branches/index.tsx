@@ -82,6 +82,7 @@ export default function BranchesView() {
     mutationFn: (id: number) => branchesService.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['branches'] })
+      qc.invalidateQueries({ queryKey: ['branches-all'] })
       toast.success('Branch deleted')
       setDeleteConfirmId(null)
     },

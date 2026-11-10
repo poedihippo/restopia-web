@@ -23,7 +23,7 @@ import {
   Search,
   TrendingUp,
   TrendingDown,
-  ArrowUpDown,
+  ArrowUpDown, ArrowUpRight,
 } from 'lucide-react'
 
 export interface StockMovement {
@@ -223,7 +223,7 @@ export function MovementDocumentLink({ item }: { item: StockMovement }) {
   if (buildHref && refId != null) {
     return (
       <Link href={buildHref(refId)} title={label} style={linkStyle}>
-        {label}
+        <span className="v2-link">{label}<ArrowUpRight size={12} /></span>
       </Link>
     )
   }
@@ -381,7 +381,7 @@ function DateTimeDocCell({ item }: { item: StockMovement }) {
         <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
       ) : typeof buildHref === 'function' && refId != null ? (
         <Link href={buildHref(refId)} title={label} style={{ ...docStyle, color: 'var(--accent)' }}>
-          {label}
+          <span className="v2-link">{label}<ArrowUpRight size={12} /></span>
         </Link>
       ) : (
         <span title={label} style={{ ...docStyle, color: 'var(--foreground-muted)', fontWeight: 400 }}>

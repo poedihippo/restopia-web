@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { cn } from '@/lib/utils';
@@ -24,10 +24,11 @@ import {
   ArrowLeftRight,
   Building2,
   ShieldCheck,
-  Boxes,
   ChevronDown,
   Wallet,
-  CreditCard,
+  Settings2,
+  Globe,
+  Hourglass,
   UserCheck,
   BarChart3,
   Calculator,
@@ -36,13 +37,34 @@ import {
   Landmark,
   Scale,
   HandCoins,
+  UserCog,
+  Handshake,
+  Repeat,
+  PieChart,
+  ChefHat,
+  Ruler,
+  ListOrdered,
+  Scissors,
+  Tags,
+  PackagePlus,
+  GitBranch,
+  Network,
 } from 'lucide-react';
 
 export type NavChild = {
   label: string;
   href: string;
   permission?: string | string[];
+  // Kept in NAV_GROUPS (route permission gating still applies) but not shown in the sidebar.
+  hidden?: boolean;
+  // Sales channel marker: icon + coloured channel word, so Offline/Online can't be mixed up.
+  channel?: 'offline' | 'online';
 };
+
+const CHANNEL_META = {
+  offline: { icon: Store, word: 'Offline', color: 'var(--pastel-gold-ink, #A87810)' },
+  online: { icon: Globe, word: 'Online', color: 'var(--pastel-blue-ink, #3B6FE0)' },
+} as const;
 
 export type NavItem = {
   label: string;
@@ -50,6 +72,8 @@ export type NavItem = {
   icon: React.ElementType;
   permission?: string | string[];
   children?: NavChild[];
+  // Kept in NAV_GROUPS (route permission gating still applies) but not shown in the sidebar.
+  hidden?: boolean;
 };
 
 export type NavGroup = {
@@ -62,62 +86,78 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'OPERATIONS',
     items: [
       { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permission: 'dashboard.menu' },
-      { label: 'Point of Sale', href: '/pos', icon: ShoppingCart, permission: 'sales-order.menu' },
+      { label: 'Point of Sale', href: '/pos', icon: ShoppingCart, permission: 'point-of-sale.menu' },
+      {
+        label: 'Store Operations',
+        icon: Store,
+        children: [
+          { label: 'Operation Rules', href: '/settings/operation-rules', permission: 'operation-rule.menu' },
+          { label: 'Operations', href: '/settings/operations', permission: 'operation.menu' },
+          { label: 'Shift Rules', href: '/settings/shift-rules', permission: 'shift-rule.menu' },
+          { label: 'Shifts', href: '/settings/shifts', permission: 'shift.menu' },
+        ],
+      },
     ],
   },
   {
     title: 'PRODUCTION',
     items: [
-      {
-        label: 'Production',
-        icon: Factory,
-        children: [
-          { label: 'Production', href: '/production', permission: 'production.menu' },
-          { label: 'Conversion', href: '/production/conversion', permission: 'production.menu' },
-          { label: 'Portioning', href: '/production/portioning', permission: ['production.menu', 'portioning.menu'] },
-          { label: 'Recipes', href: '/production/recipes', permission: 'recipe.menu' },
-        ],
-      },
-      {
-        label: 'Product Management',
-        icon: Boxes,
-        children: [
-          { label: 'Products', href: '/products', permission: 'product.menu' },
-          { label: 'Product Categories', href: '/products/product-categories', permission: 'product-category.menu' },
-          { label: 'Units of Measure', href: '/products/uom', permission: 'uom.menu' },
-          { label: 'Stages', href: '/inventory/stages', permission: 'stage.menu' },
-          { label: 'Product Cuts', href: '/products/product-cuts', permission: ['product-cut.menu', 'product-cut.read', 'product.menu'] },
-          { label: 'Price Lists', href: '/products/price-lists', permission: 'price-list.menu' },
-        ],
-      },
-      {
-        label: 'Stock',
-        icon: Warehouse,
-        children: [
-          { label: 'Raw Material', href: '/products/product-inventory?type=raw', permission: ['product-inventory-raw', 'product-inventory.menu', 'product-inventory.read'] },
-          { label: 'WIP', href: '/products/product-inventory?type=wip', permission: ['product-inventory-wip', 'product-inventory.menu', 'product-inventory.read'] },
-          { label: 'Finish Good', href: '/products/product-inventory?type=final', permission: ['product-inventory-final', 'product-inventory.menu', 'product-inventory.read'] },
-          { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: ['product-inventory-supply', 'product-inventory.menu', 'product-inventory.read'] },
-        ],
-      },
+      { label: 'Productions', href: '/production', icon: Factory, permission: 'production.menu' },
+      { label: 'Conversions', href: '/production/conversion', icon: Repeat, permission: 'production.menu', hidden: true },
+      { label: 'Recipes', href: '/production/recipes', icon: ChefHat, permission: 'recipe.menu' },
+    ],
+  },
+  {
+    title: 'PORTIONING',
+    items: [
+      { label: 'Portioning', href: '/production/portioning', icon: PieChart, permission: ['production.menu', 'portioning.menu'] },
+      { label: 'Product Cuts', href: '/products/product-cuts', icon: Scissors, permission: ['product-cut.menu', 'product.menu'] },
+    ],
+  },
+  {
+    title: 'PRODUCTS',
+    items: [
+      { label: 'Products', href: '/products', icon: Package, permission: 'product.menu' },
+      { label: 'Bundles', href: '/sales/bundles', icon: PackagePlus, permission: 'bundle.menu' },
+      { label: 'Product Categories', href: '/products/product-categories', icon: Tag, permission: 'product-category.menu' },
+      { label: 'Units of Measure', href: '/products/uom', icon: Ruler, permission: 'uom.menu' },
+      { label: 'Stages', href: '/inventory/stages', icon: ListOrdered, permission: 'stage.menu' },
+      { label: 'Price Lists', href: '/products/price-lists', icon: Tags, permission: 'price-list.menu' },
     ],
   },
   {
     title: 'INVENTORY',
     items: [
       {
-        label: 'Stock Operations',
-        icon: Layers,
+        label: 'Stock',
+        icon: Warehouse,
+        children: [
+          { label: 'Raw Materials', href: '/products/product-inventory?type=raw', permission: ['product-inventory-raw.menu', 'product-inventory.menu'] },
+          { label: 'WIP - Unfinish', href: '/products/product-inventory?type=wip', permission: ['product-inventory-wip.menu', 'product-inventory.menu'] },
+          { label: 'Final - Finished', href: '/products/product-inventory?type=final', permission: ['product-inventory-final.menu', 'product-inventory.menu'] },
+          { label: 'Supplies', href: '/products/product-inventory?type=supply', permission: ['product-inventory-supply.menu', 'product-inventory.menu'] },
+        ],
+      },
+      {
+        label: 'Movements',
+        icon: ArrowLeftRight,
         children: [
           // Menu "Stock Movements" (semua tipe) tidak ditampilkan — pakai Raw / WIP / Final.
-          { label: 'Stock Movements Raw', href: '/products/product-inventory/stock-movements?product_types=raw', permission: 'stock-movement.menu' },
-          { label: 'Stock Movements WIP', href: '/products/product-inventory/stock-movements?product_types=wip', permission: 'stock-movement.menu' },
-          { label: 'Stock Movements Final', href: '/products/product-inventory/stock-movements?product_types=final', permission: 'stock-movement.menu' },
-          { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.read' },
-          { label: 'SR/DN/Outlet', href: '/products/stock-per-branch', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },
-          { label: 'Outlet Stock', href: '/products/outlet-stock', permission: ['stock-movement.read', 'product-inventory.menu', 'product-inventory.read'] },
+          { label: 'Raw Materials', href: '/products/product-inventory/stock-movements?product_types=raw', permission: 'stock-movement.menu' },
+          { label: 'WIP - Unfinish', href: '/products/product-inventory/stock-movements?product_types=wip', permission: 'stock-movement.menu' },
+          { label: 'Final - Finished', href: '/products/product-inventory/stock-movements?product_types=final', permission: 'stock-movement.menu' },
+          { label: 'Supplies', href: '/products/product-inventory/stock-movements?product_types=supply', permission: 'stock-movement.menu' },
+        ],
+      },
+      {
+        label: 'Monitor',
+        icon: Layers,
+        children: [
+          { label: 'Kartu Stok', href: '/products/stock-card', permission: 'stock-movement.menu' },
+          { label: 'SR/DN/Outlet', href: '/products/stock-per-branch', permission: ['stock-movement.menu', 'product-inventory.menu'] },
+          { label: 'Outlet Stock', href: '/products/outlet-stock', permission: ['stock-movement.menu', 'product-inventory.menu'] },
           { label: 'Stok per Dimensi', href: '/products/product-inventory/by-dimension', permission: 'product-inventory.menu' },
-          { label: 'Stock Opname', href: '/products/product-inventory/stock-opname', permission: ['stock-opname.menu', 'stock-opname.read', 'product-inventory.menu', 'product-inventory.read'] },
+          { label: 'Stock Opnames', href: '/products/product-inventory/stock-opname', permission: ['stock-opname.menu', 'product-inventory.menu'] },
         ],
       },
     ],
@@ -131,21 +171,27 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Purchase Orders', href: '/purchase/purchase-orders', permission: 'purchase-order.menu' },
           { label: 'Internal Orders', href: '/purchase/internal-orders', permission: 'internal-purchase-order.menu' },
-          { label: 'Incoming PO Request', href: '/purchase/requested-orders', permission: 'purchase-order.menu' },
-          { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.menu' },
-          { label: 'Buyers', href: '/purchase/buyers', permission: 'buyer.menu' },
-          { label: 'Payment PO', href: '/purchase/po-payments', permission: 'payment.menu' },
+          { label: 'Incoming PO Requests', href: '/purchase/requested-orders', permission: 'purchase-order.menu' },
+          { label: 'PO Payments', href: '/purchase/po-payments', permission: 'payment.menu' },
         ],
       },
       {
-        label: 'Transfer',
+        label: 'Transfers',
         icon: ArrowLeftRight,
         children: [
           { label: 'Deliveries', href: '/transfer/deliveries', permission: 'delivery.menu' },
           { label: 'Receipts', href: '/transfer/receipts', permission: 'receipt.menu' },
-          { label: 'Stock Transfer', href: '/transfer/stock-transfer', permission: 'delivery.menu' },
-          { label: 'Dimension Transfer', href: '/transfer/dimension-transfer', permission: 'stock-movement.menu' },
-          { label: 'Dimension Requests', href: '/transfer/dimension-transfer-requests', permission: 'stock-movement.menu' },
+          { label: 'Stock Transfers', href: '/transfer/stock-transfer', permission: 'delivery.menu' },
+          { label: 'Dimension Transfers', href: '/transfer/dimension-transfer', permission: 'stock-movement.menu' },
+          { label: 'Dimension Requests', href: '/transfer/dimension-transfer-requests', permission: 'dimension-transfer-request.menu' },
+        ],
+      },
+      {
+        label: 'Vendors',
+        icon: Handshake,
+        children: [
+          { label: 'Suppliers', href: '/purchase/suppliers', permission: 'supplier.menu' },
+          { label: 'Buyers', href: '/purchase/buyers', permission: 'buyer.menu' },
         ],
       },
     ],
@@ -153,24 +199,32 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'SALES',
     items: [
+      { label: 'Sales Orders', href: '/sales/sales-orders', icon: ReceiptText, permission: 'sales-order.menu' },
       {
-        label: 'Sales Orders',
-        icon: ReceiptText,
+        label: 'Unpaid Orders',
+        icon: Hourglass,
         children: [
-          { label: 'Sales Orders', href: '/sales/sales-orders', permission: 'sales-order.menu' },
-          { label: 'Unpaid Offline Orders', href: '/sales/unpaid-offline-orders', permission: 'sales-order.menu' },
-          {
-            label: 'Unpaid Online Orders',
-            href: '/sales/settle-payout',
-            permission: ['sales-order.bulk-update-settlement-status', 'payment.create'],
-          },
+          { label: 'Offline Orders', href: '/sales/unpaid-offline-orders', permission: 'sales-order.menu', channel: 'offline' },
+          { label: 'Online Orders', href: '/sales/settle-payout', permission: 'sales-order.menu', channel: 'online' },
+        ],
+      },
+      {
+        label: 'Sales Setup',
+        icon: Settings2,
+        children: [
           { label: 'Sales Channels', href: '/sales/sales-channels', permission: 'sales-channel.menu' },
           { label: 'Customers', href: '/sales/customers', permission: 'customer.menu' },
           { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.menu' },
+        ],
+      },
+      {
+        label: 'Payments',
+        icon: Wallet,
+        children: [
+          { label: 'Payment Methods', href: '/settings/payment-methods', permission: 'payment-method.menu' },
           { label: 'Payments', href: '/sales/payments', permission: 'payment.menu' },
         ],
       },
-      { label: 'Bundles', href: '/sales/bundles', icon: Package, permission: 'bundle.menu' },
     ],
   },
   {
@@ -188,6 +242,43 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'ACCOUNTING',
     items: [
+      {
+        label: 'Transactions',
+        icon: Landmark,
+        children: [
+          { label: 'Journals', href: '/accounting/journals', permission: 'journal.menu' },
+          { label: 'Bank Accounts', href: '/accounting/bank-accounts', permission: 'bank-account.menu' },
+          { label: 'Cash Transactions', href: '/accounting/cash-transactions', permission: 'cash-transaction.menu' },
+          { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.menu' },
+        ],
+      },
+      {
+        label: 'Financial Reports',
+        icon: Scale,
+        children: [
+          { label: 'Trial Balance', href: '/accounting/reports/trial-balance', permission: 'journal.menu' },
+          { label: 'Income Statement', href: '/accounting/reports/income-statement', permission: 'journal.menu' },
+          { label: 'Balance Sheet', href: '/accounting/reports/balance-sheet', permission: 'journal.menu' },
+          { label: 'Cash Flow', href: '/accounting/reports/cash-flow', permission: 'report.menu' },
+          { label: 'General Ledger', href: '/accounting/reports/general-ledger', permission: 'report.menu' },
+          { label: 'Journal Entries', href: '/accounting/reports/journal-entries', permission: 'report.menu' },
+          { label: 'Comparative Reports', href: '/accounting/reports/comparative', permission: 'report.menu' },
+          { label: 'Budget vs Actual', href: '/accounting/reports/budget-vs-actual', permission: 'report.menu' },
+          { label: 'Tax Report', href: '/accounting/reports/tax-report', permission: 'report.menu' },
+        ],
+      },
+      {
+        label: 'AR & AP',
+        icon: HandCoins,
+        children: [
+          { label: 'AR Aging', href: '/accounting/reports/ar-aging', permission: 'report.menu' },
+          { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
+          { label: 'Customer Statements', href: '/accounting/reports/customer-statements', permission: 'report.menu' },
+          { label: 'Supplier Statements', href: '/accounting/reports/supplier-statements', permission: 'report.menu' },
+          { label: 'Kartu Hutang Supplier', href: '/accounting/reports/supplier-debts', permission: 'report.menu' },
+          { label: 'Payments Report', href: '/accounting/reports/payments-report', permission: 'report.menu' },
+        ],
+      },
       {
         label: 'Master Data',
         icon: Calculator,
@@ -210,43 +301,6 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Product Category Account Settings', href: '/accounting/product-category-account-settings', permission: 'product-category-account-setting.menu' },
         ],
       },
-      {
-        label: 'Transactions',
-        icon: Landmark,
-        children: [
-          { label: 'Journals', href: '/accounting/journals', permission: 'journal.menu' },
-          { label: 'Bank Accounts', href: '/accounting/bank-accounts', permission: 'bank_account.read' },
-          { label: 'Cash Transactions', href: '/accounting/cash-transactions', permission: 'cash_transaction.read' },
-          { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.menu' },
-        ],
-      },
-      {
-        label: 'Financial Reports',
-        icon: Scale,
-        children: [
-          { label: 'Trial Balance', href: '/accounting/reports/trial-balance', permission: 'journal.menu' },
-          { label: 'Income Statement', href: '/accounting/reports/income-statement', permission: 'journal.menu' },
-          { label: 'Balance Sheet', href: '/accounting/reports/balance-sheet', permission: 'journal.menu' },
-          { label: 'Cash Flow', href: '/accounting/reports/cash-flow', permission: 'report.read' },
-          { label: 'General Ledger', href: '/accounting/reports/general-ledger', permission: 'report.read' },
-          { label: 'Journal Entries', href: '/accounting/reports/journal-entries', permission: 'report.read' },
-          { label: 'Comparative Reports', href: '/accounting/reports/comparative', permission: 'report.read' },
-          { label: 'Budget vs Actual', href: '/accounting/reports/budget-vs-actual', permission: 'report.read' },
-          { label: 'Tax Report', href: '/accounting/reports/tax-report', permission: 'report.read' },
-        ],
-      },
-      {
-        label: 'Receivables & Payables',
-        icon: HandCoins,
-        children: [
-          { label: 'AR Aging', href: '/accounting/reports/ar-aging', permission: 'report.read' },
-          { label: 'AP Aging', href: '/accounting/reports/ap-aging', permission: 'journal.menu' },
-          { label: 'Customer Statements', href: '/accounting/reports/customer-statements', permission: 'report.read' },
-          { label: 'Supplier Statements', href: '/accounting/reports/supplier-statements', permission: 'report.read' },
-          { label: 'Kartu Hutang Supplier', href: '/accounting/reports/supplier-debts', permission: 'report.read' },
-          { label: 'Payments Report', href: '/accounting/reports/payments-report', permission: 'report.read' },
-        ],
-      },
     ],
   },
   {
@@ -261,63 +315,106 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Sales by Invoice', href: '/reports/sales-by-invoice', permission: 'sales-order.menu' },
           { label: 'Transaction History', href: '/reports/transaction-history', permission: 'sales-order.menu' },
           { label: 'Credit Report', href: '/reports/credit-report', permission: 'sales-order.menu' },
-          { label: 'Discount & Voucher', href: '/reports/discount-voucher', permission: 'sales-order.menu' },
+          { label: 'Discounts & Vouchers', href: '/reports/discount-voucher', permission: 'sales-order.menu' },
           { label: 'Stock Position', href: '/reports/stock-position', permission: 'product-inventory.menu' },
-          { label: 'Purchasing Reports', href: '/reports/purchasing', permission: 'report.read' },
+          { label: 'Purchasing Reports', href: '/reports/purchasing', permission: 'report.menu' },
         ],
       },
     ],
   },
   {
+    title: 'USERS',
+    items: [
+      { label: 'Users', href: '/users', icon: Users, permission: 'user.menu' },
+      { label: 'Roles', href: '/users/roles', icon: UserCog, permission: 'role.menu' },
+      { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.menu' },
+    ],
+  },
+  {
+    title: 'COMPANIES',
+    items: [
+      { label: 'Companies', href: '/users/companies', icon: Building2, permission: 'company.menu' },
+      { label: 'Branches', href: '/users/branches', icon: GitBranch, permission: 'branch.menu' },
+      { label: 'Departments', href: '/settings/departments', icon: Network, permission: 'department.menu' },
+      { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.menu' },
+    ],
+  },
+  {
     title: 'SETTINGS',
     items: [
-      {
-        label: 'Users',
-        icon: Users,
-        children: [
-          { label: 'Users', href: '/users', permission: 'user.menu' },
-          { label: 'Roles', href: '/users/roles', permission: 'role.menu' },
-        ],
-      },
-      {
-        label: 'Company',
-        icon: Building2,
-        children: [
-          { label: 'Companies', href: '/users/companies', permission: 'company.menu' },
-          { label: 'Branches', href: '/users/branches', permission: 'branch.menu' },
-          { label: 'Departments', href: '/settings/departments', permission: 'department.read' },
-        ],
-      },
-      { label: 'Permissions', href: '/users/permissions', icon: ShieldCheck, permission: 'permission.menu' },
-      { label: 'Payment Methods', href: '/settings/payment-methods', icon: CreditCard, permission: 'payment-method.menu' },
-      { label: 'Sales Channels', href: '/settings/sales-channels', icon: Store, permission: 'sales-channel.menu' },
-      { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.menu' },
       { label: 'Audit Logs', href: '/settings/audit-logs', icon: BookOpen, permission: 'audit-log.menu' },
-      {
-        label: 'Store Operations',
-        icon: Store,
-        children: [
-          { label: 'Operation Rules', href: '/settings/operation-rules', permission: 'operation-rule.menu' },
-          { label: 'Operations', href: '/settings/operations', permission: 'operation.menu' },
-          { label: 'Shift Rules', href: '/settings/shift-rules', permission: 'shift-rule.menu' },
-          { label: 'Shifts', href: '/settings/shifts', permission: 'shift.menu' },
-        ],
-      },
     ],
   },
 ];
 
-export default function AppSidebar() {
+type AppSidebarProps = {
+  // Phones: the sidebar is an off-canvas drawer opened from the top bar.
+  mobileOpen?: boolean;
+};
+
+export default function AppSidebar({ mobileOpen = false }: AppSidebarProps = {}) {
   const router = useRouter();
   const { hasPermission, isSuperadmin } = useAuth();
   const activeProductTypes = useActiveBranchProductTypes();
   const allowedProductTypes = activeProductTypes
     ? activeProductTypes.split(',').map((s) => s.trim().toLowerCase())
     : null;
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsedPref, setCollapsedPref] = useState(false);
+  const [isPhone, setIsPhone] = useState(false);
+
+  // Phone widths render the sidebar as a full drawer, never the icon rail.
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => setIsPhone(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  const collapsed = collapsedPref && !isPhone;
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
+  // The glow hint (ui-v2.css, ::before layer) is centred on --glow-y: keep it
+  // on the active menu item (the deepest active entry, a sub-item over its
+  // group). Same item → follow it instantly (scroll, resize, group toggles);
+  // a different item → fade out, move while invisible, fade back in.
+  const asideRef = useRef<HTMLElement>(null);
+  const navScrollRef = useRef<HTMLDivElement>(null);
+  const glowTargetRef = useRef<HTMLElement | null>(null);
+  const glowSwapTimer = useRef<number | undefined>(undefined);
+  const placeGlow = useCallback(() => {
+    const aside = asideRef.current;
+    if (!aside) return;
+    const actives = aside.querySelectorAll<HTMLElement>('.nav-item[data-active="true"]');
+    const target = actives[actives.length - 1];
+    // No active item yet (menu/permissions still loading, or a page without a
+    // menu entry): no glow at all.
+    if (!target) {
+      glowTargetRef.current = null;
+      delete aside.dataset.glowReady;
+      return;
+    }
+    const centreOf = (el: HTMLElement) =>
+      `${Math.round(el.getBoundingClientRect().top - aside.getBoundingClientRect().top + el.offsetHeight / 2)}px`;
+
+    const moved = glowTargetRef.current !== null && glowTargetRef.current !== target;
+    glowTargetRef.current = target;
+    if (moved && 'glowReady' in aside.dataset) {
+      aside.dataset.glowHidden = '';
+      window.clearTimeout(glowSwapTimer.current);
+      glowSwapTimer.current = window.setTimeout(() => {
+        const current = glowTargetRef.current;
+        if (current) aside.style.setProperty('--glow-y', centreOf(current));
+        delete aside.dataset.glowHidden;
+      }, 220);
+      return;
+    }
+    if (!('glowHidden' in aside.dataset)) aside.style.setProperty('--glow-y', centreOf(target));
+    aside.dataset.glowReady = '';
+  }, []);
+  const onNavScroll = placeGlow;
+
   const isItemVisible = (item: NavItem): boolean => {
+    if (item.hidden) return false;
     if (isSuperadmin) return true;
     if (!item.permission) return true;
     if (Array.isArray(item.permission)) {
@@ -328,8 +425,8 @@ export default function AppSidebar() {
 
   const isChildAllowedByProductType = (href: string): boolean => {
     if (!allowedProductTypes) return true;
-    if (href.includes('/products/product-inventory?type=')) {
-      const typeParam = href.split('type=')[1]?.split('&')[0]?.toLowerCase();
+    if (href.includes('/products/product-inventory?type=') || href.includes('stock-movements?product_types=')) {
+      const typeParam = /[?&](?:type|product_types)=([^&]+)/.exec(href)?.[1]?.toLowerCase();
       if (typeParam) {
         return (
           allowedProductTypes.includes(typeParam) ||
@@ -342,6 +439,7 @@ export default function AppSidebar() {
 
   const visibleChildren = (item: NavItem): NavChild[] =>
     (item.children ?? [])
+      .filter((child) => !child.hidden)
       .filter((child) => {
         if (isSuperadmin || !child.permission) return true;
         if (Array.isArray(child.permission)) {
@@ -371,6 +469,18 @@ export default function AppSidebar() {
     }
     setOpenGroups(initial);
   }, [router.pathname]);
+
+  useEffect(() => {
+    // After the DOM settles (group open/close, collapse width transition).
+    const raf = requestAnimationFrame(placeGlow);
+    const late = window.setTimeout(placeGlow, 220);
+    window.addEventListener('resize', placeGlow);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(late);
+      window.removeEventListener('resize', placeGlow);
+    };
+  }, [placeGlow, router.asPath, openGroups, collapsed, mobileOpen]);
 
   function toggleGroup(label: string) {
     setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
@@ -406,6 +516,9 @@ export default function AppSidebar() {
 
   return (
     <aside
+      ref={asideRef}
+      className="app-sidebar"
+      data-mobile-open={mobileOpen}
       style={{
         width: collapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)',
         transition: 'width 200ms ease',
@@ -421,13 +534,25 @@ export default function AppSidebar() {
     >
       {/* Logo */}
       <div
+        className="sidebar-head"
         style={{
           padding: '16px 12px',
           borderBottom: '1px solid var(--sidebar-border)',
         }}
       >
+        {/* v2 brand lockup — only shown on routes using the v2 design (ui-v2.css). */}
+        <div className="sidebar-brand-v2" data-collapsed={collapsed}>
+          <img src="/icon-dapcok.png" alt="Dapur Cokelat" width={30} height={33} />
+          {!collapsed && (
+            <span className="sidebar-brand-v2-text">
+              <span>DAPUR COKELAT</span>
+              <span>EST. 2001</span>
+            </span>
+          )}
+        </div>
         {collapsed ? (
           <div
+            className="sidebar-brand-legacy"
             style={{
               width: 32,
               height: 32,
@@ -451,7 +576,7 @@ export default function AppSidebar() {
             </span>
           </div>
         ) : (
-          <div>
+          <div className="sidebar-brand-legacy">
             <div>
               <span
                 style={{
@@ -483,7 +608,7 @@ export default function AppSidebar() {
       </div>
 
       {/* Nav scroll area */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+      <div ref={navScrollRef} onScroll={onNavScroll} style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {NAV_GROUPS.map((group) => {
           const visibleItems = group.items.filter((item) => {
             if (!isItemVisible(item)) return false;
@@ -494,7 +619,7 @@ export default function AppSidebar() {
           });
           if (visibleItems.length === 0) return null;
           return (
-            <div key={group.title}>
+            <div key={group.title} data-nav-group={group.title}>
               {!collapsed && (
                 <div
                   style={{
@@ -519,6 +644,8 @@ export default function AppSidebar() {
                     <Link
                       key={item.label}
                       href={item.href!}
+                      className="nav-item"
+                      data-active={active}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -553,6 +680,8 @@ export default function AppSidebar() {
                   <div key={item.label}>
                     <button
                       onClick={() => toggleGroup(item.label)}
+                      className="nav-item"
+                      data-active={anyChildActive}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -595,6 +724,8 @@ export default function AppSidebar() {
                             <Link
                               key={child.href}
                               href={child.href}
+                              className="nav-item"
+                              data-active={childActive}
                               style={{
                                 padding: '6px 12px 6px 38px',
                                 margin: '1px 8px',
@@ -609,16 +740,32 @@ export default function AppSidebar() {
                                 background: childActive ? 'var(--accent-light-bg)' : 'transparent',
                               }}
                             >
-                              <div
-                                style={{
-                                  width: 4,
-                                  height: 4,
-                                  borderRadius: 99,
-                                  background: childActive ? 'var(--accent-light)' : 'var(--border-strong)',
-                                  flexShrink: 0,
-                                }}
-                              />
-                              {child.label}
+                              {child.channel ? (() => {
+                                const meta = CHANNEL_META[child.channel];
+                                const ChannelIcon = meta.icon;
+                                return (
+                                  <>
+                                    <ChannelIcon size={13} style={{ color: meta.color, flexShrink: 0, marginLeft: -4 }} />
+                                    <span>
+                                      <span style={{ color: meta.color, fontWeight: 600 }}>{meta.word}</span>
+                                      {child.label.slice(meta.word.length)}
+                                    </span>
+                                  </>
+                                );
+                              })() : (
+                                <>
+                                  <div
+                                    style={{
+                                      width: 4,
+                                      height: 4,
+                                      borderRadius: 99,
+                                      background: childActive ? 'var(--accent-light)' : 'var(--border-strong)',
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                  {child.label}
+                                </>
+                              )}
                             </Link>
                           );
                         })}
@@ -634,13 +781,14 @@ export default function AppSidebar() {
 
       {/* Collapse toggle */}
       <div
+        className="app-sidebar-collapse"
         style={{
           borderTop: '1px solid var(--sidebar-border)',
           padding: '12px 8px',
         }}
       >
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => setCollapsedPref(!collapsedPref)}
           style={{
             width: '100%',
             display: 'flex',

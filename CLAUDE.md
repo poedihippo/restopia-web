@@ -359,7 +359,9 @@ OUTPUT:
   `product-inventory.menu`, `*.menu` vs `*.read`, `price_list.*` vs
   `price-list.*`).
 - The matcher normalizes `_`/`-` and singular/plural, treats view actions
-  (`menu|read|view|access|list|index|show`) as interchangeable, and lets a
+  (`menu|read|view|access|list|index|show`) as interchangeable — EXCEPT a
+  required `*.menu` only matches a granted `*.menu` (`*.read` alone is a
+  lookup grant and must not reveal menus/routes), and lets a
   dot-less key (`product-inventory-raw`) match its base resource
   (`product-inventory.menu` / `.read`) — in BOTH directions.
 - Write actions (`create|update|delete|...`) are NEVER broadened — exact only.

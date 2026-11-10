@@ -228,6 +228,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
             setOpen((v) => !v)
           }}
           disabled={disabled}
+          className="ss-trigger"
           style={{
             width: '100%',
             minWidth: 0,

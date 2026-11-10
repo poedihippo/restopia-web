@@ -9,7 +9,6 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { suppliersService } from '@/services/suppliers.service'
 import { buyersService } from '@/services/buyers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
-import { paymentsService } from '@/services/payments.service'
 import { formatDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
 import { useDebounce } from '@/hooks/useDebounce'
@@ -29,14 +28,13 @@ interface PurchaseOrder {
   date?: string
   total_price: number
   status?: string
+  total_payment?: number
+  remaining_payment?: number
   supplier?: Supplier
 }
 
-interface DisbursePayment {
-  id: number
-  is_reversed?: boolean
-  allocations?: { purchase_order_id?: number; amount: number }[]
-}
+// Pending (draft) and rejected POs are never a payable debt.
+const NON_PAYABLE_PO_STATUSES = ['pending', 'rejected']
 
 interface SupplierDebt {
   supplier: Supplier
@@ -138,35 +136,8 @@ export default function SupplierDebtsView() {
         .then((r) => r.data),
   })
 
-  const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
-    queryKey: ['supplier-debts-payments'],
-    enabled: canRead,
-    queryFn: () =>
-      paymentsService
-        .list({
-          per_page: 2000,
-          'filter[type]': 'disburse',
-          include: 'allocations',
-        } as any)
-        .then((r) => r.data),
-  })
-
   const suppliers: Supplier[] = (suppliersData as any)?.data ?? []
   const pos: PurchaseOrder[] = (posData as any)?.data ?? []
-  const payments: DisbursePayment[] = (paymentsData as any)?.data ?? []
-
-  const paidByPoId = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const p of payments) {
-      if (p.is_reversed) continue
-      for (const a of p.allocations ?? []) {
-        if (a.purchase_order_id == null) continue
-        const poId = Number(a.purchase_order_id)
-        map.set(poId, (map.get(poId) ?? 0) + Number(a.amount ?? 0))
-      }
-    }
-    return map
-  }, [payments])
 
   const supplierDebts: SupplierDebt[] = useMemo(() => {
     const supplierMap = new Map<number, SupplierDebt>()
@@ -175,9 +146,15 @@ export default function SupplierDebtsView() {
     for (const po of pos) {
       const supplierId = po.supplier?.id
       if (!supplierId) continue
+      if (NON_PAYABLE_PO_STATUSES.includes(String(po.status ?? ''))) continue
 
-      const totalPaid = paidByPoId.get(po.id) ?? 0
-      const outstanding = Number(po.total_price ?? 0) - totalPaid
+      // Paid / outstanding come straight from the PO (total_payment /
+      // remaining_payment) instead of summing a capped payments list.
+      const totalPaid = Number(po.total_payment ?? 0)
+      const outstanding =
+        po.remaining_payment != null
+          ? Number(po.remaining_payment)
+          : Number(po.total_price ?? 0) - totalPaid
       if (outstanding <= 0) continue
 
       const supplier = supplierLookup.get(supplierId) ?? po.supplier
@@ -204,7 +181,7 @@ export default function SupplierDebtsView() {
     }
 
     return Array.from(supplierMap.values()).sort((a, b) => b.totalOutstanding - a.totalOutstanding)
-  }, [pos, payments, suppliers, paidByPoId])
+  }, [pos, suppliers])
 
   const filteredDebts = useMemo(() => {
     if (!debouncedSearch.trim()) return supplierDebts
@@ -226,7 +203,7 @@ export default function SupplierDebtsView() {
     [filteredDebts]
   )
 
-  const isLoading = suppliersLoading || posLoading || paymentsLoading
+  const isLoading = suppliersLoading || posLoading
 
   if (!canRead) {
     return (
