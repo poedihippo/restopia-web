@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -259,34 +259,36 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     retry: false,
   })
 
+  // "<product> (1pcs)" or, with a conversion, "<product> (1 x 12pcs)".
+  const suggestedUomName = (row: any, rows: any[], base: string): string => {
+    const unitCode = String(row?.uom_code ?? '').toLowerCase()
+    if (!base || !unitCode) return ''
+    const conversion = (row.conversions ?? []).find((c: any) => Number(c.amount) > 0 && Number(c.target_uom_id) > 0)
+    const target = conversion
+      ? rows.find((u: any) => Number(u?.uom_id) === Number(conversion.target_uom_id))
+      : null
+    const targetCode = String(target?.uom_code ?? '').toLowerCase()
+    return conversion && targetCode
+      ? `${base} (1 x ${String(Number(conversion.amount))}${targetCode})`
+      : `${base} (1${unitCode})`
+  }
+
+  // Explicit action: (re)fill every unit name from the current product name.
   const handleSuggestNames = () => {
     const base = watch('name')
     let applied = 0
-    let skippedFilled = 0
     watchedUoms.forEach((row: any, idx: number) => {
-      const unitCode = String(row?.uom_code ?? '').toLowerCase()
-      if (!unitCode) return
-      const conversion = (row.conversions ?? []).find((c: any) => Number(c.amount) > 0 && Number(c.target_uom_id) > 0)
-      const target = conversion
-        ? watchedUoms.find((u: any) => Number(u?.uom_id) === Number(conversion.target_uom_id))
-        : null
-      const targetCode = String(target?.uom_code ?? '').toLowerCase()
-      const name = conversion && targetCode
-        ? `${base} (1 x ${String(Number(conversion.amount))}${targetCode})`
-        : `${base} (1${unitCode})`
-      if (row.name && row.name.trim() !== '') {
-        skippedFilled++
-        return
-      }
+      const baseId = watch('base_uom_id')
+      const isPrimary = watchedUoms.length === 1 || (!!baseId && Number(row?.uom_id) === Number(baseId))
+      const name = isPrimary ? String(base ?? '').trim() : suggestedUomName(row, watchedUoms, base)
+      if (!name) return
       setValue(`uoms.${idx}.name` as any, name, { shouldValidate: true })
+      const key = uomFields[idx]?.id
+      if (key) autoNameRef.current[key] = name
       applied++
     })
-    if (applied > 0) toast.success(`${applied} nama unit terisi otomatis dari saran`)
-    if (applied === 0 && skippedFilled === 0) {
-      toast.info('Tidak ada saran nama untuk produk ini')
-    } else if (applied === 0 && skippedFilled > 0) {
-      toast.info(`Semua unit sudah punya nama sendiri (${skippedFilled} dilewati)`)
-    }
+    if (applied > 0) toast.success(`${applied} nama unit terisi otomatis`)
+    else toast.info('Isi nama produk dan pilih unit dulu')
   }
 
   const suggestionByProductUomId = (id: number) =>
@@ -492,6 +494,92 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   }
 
   const isPending = createMutation.isPending || updateMutation.isPending
+  // ── Create-mode auto-fill ──
+  // Values we filled ourselves are remembered per row, so they keep following
+  // the product name/code; anything the user typed by hand is left alone.
+  const isCreate = !editData
+  const productName = watch('name')
+  const autoNameRef = useRef<Record<string, string>>({})
+  const autoCodeRef = useRef<Record<string, string>>({})
+  const baseRowKeyRef = useRef<string | null>(null)
+  // Fresh sheet → forget what we auto-filled last time.
+  useEffect(() => {
+    autoNameRef.current = {}
+    autoCodeRef.current = {}
+    baseRowKeyRef.current = null
+  }, [open, editData?.id])
+  const uomSignature = JSON.stringify(
+    watchedUoms.map((r: any) => [r?.uom_id, r?.uom_code, r?.code, r?.name, r?.is_default, r?.conversions]),
+  )
+
+  // Picking a base unit adds its unit & price row (or re-points the row we added).
+  useEffect(() => {
+    if (!isCreate || !open || !baseUomId) return
+    const uom = uoms.find((u: any) => Number(u.id) === Number(baseUomId))
+    if (!uom) return
+    if (watchedUoms.some((r: any) => Number(r?.uom_id) === Number(baseUomId))) return
+    const unitFields = { uom_id: Number(uom.id), uom_name: uom.name ?? '', uom_code: uom.code ?? '' }
+    let idx = uomFields.findIndex((f) => f.id === baseRowKeyRef.current)
+    if (idx < 0) idx = watchedUoms.findIndex((r: any) => !Number(r?.uom_id))
+    if (idx >= 0) {
+      Object.entries(unitFields).forEach(([k, v]) => setValue(`uoms.${idx}.${k}` as any, v, { shouldValidate: true }))
+      baseRowKeyRef.current = uomFields[idx]?.id ?? null
+    } else {
+      appendUom({
+        ...emptyUom,
+        ...unitFields,
+        branch_types: userBranchType ? [userBranchType] : [],
+        conversions: [],
+        is_default: watchedUoms.length === 0,
+      })
+      baseRowKeyRef.current = '__pending__'
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseUomId, open, uoms.length])
+
+  useEffect(() => {
+    // The row appended above gets its field id after render.
+    if (baseRowKeyRef.current === '__pending__' && uomFields.length > 0) {
+      baseRowKeyRef.current = uomFields[uomFields.length - 1].id
+    }
+  }, [uomFields])
+
+  // The base-unit row (or the only row) carries the product's own code and
+  // name; every other unit gets "<code>-<unit>" and "<name> (1 x …)".
+  // A single row is also the default.
+  useEffect(() => {
+    if (!isCreate || !open) return
+    const n = watchedUoms.length
+    const code = String(productCode ?? '').trim()
+    const base = String(productName ?? '').trim()
+    watchedUoms.forEach((row: any, i: number) => {
+      const key = uomFields[i]?.id
+      if (!key) return
+      const isPrimary = n === 1 || (!!baseUomId && Number(row?.uom_id) === Number(baseUomId))
+      const wantCode = !code ? '' : isPrimary ? code : row?.uom_code ? `${code}-${row.uom_code}` : ''
+      const curCode = String(row?.code ?? '')
+      if (wantCode && curCode !== wantCode && (curCode === '' || curCode === autoCodeRef.current[key])) {
+        setValue(`uoms.${i}.code` as any, wantCode, { shouldValidate: true })
+        autoCodeRef.current[key] = wantCode
+      } else if (wantCode && curCode === wantCode) {
+        autoCodeRef.current[key] = wantCode
+      }
+
+      const wantName = isPrimary ? base : suggestedUomName(row, watchedUoms, base)
+      const curName = String(row?.name ?? '')
+      if (wantName && curName !== wantName && (curName === '' || curName === autoNameRef.current[key])) {
+        setValue(`uoms.${i}.name` as any, wantName, { shouldValidate: true })
+        autoNameRef.current[key] = wantName
+      } else if (wantName && curName === wantName) {
+        autoNameRef.current[key] = wantName
+      }
+    })
+    if (n === 1 && !watchedUoms[0]?.is_default) {
+      setValue('uoms.0.is_default' as any, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCreate, open, productCode, productName, baseUomId, uomSignature, uomFields.length])
+
   const editLoading = !!editData && detailQuery.isLoading
   const editError = !!editData && detailQuery.isError && !detail
 
@@ -944,21 +1032,39 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                           </button>
                         )}
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeUom(i)}
-                        style={{
-                          padding: 4,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--destructive)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {/* The base unit's row can't be removed while it is the base unit. */}
+                      {baseUomId && Number(watchedUoms[i]?.uom_id) === Number(baseUomId) ? (
+                        <span
+                          title="Base unit — change the Base Unit first to remove this row"
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: 'var(--accent-light-bg)',
+                            color: 'var(--accent)',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Base unit
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => removeUom(i)}
+                          style={{
+                            padding: 4,
+                            background: 'none',
+                            border: 'none',
+                            borderRadius: 'var(--radius-sm)',
+                            cursor: 'pointer',
+                            color: 'var(--destructive)',
+                            display: 'flex',
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -980,9 +1086,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                               setValue(`uoms.${i}.uom_name` as any, selectedUom?.name ?? '')
                               setValue(`uoms.${i}.uom_code` as any, selectedUom?.code ?? '')
 
-                              // Auto-generate SKU code dari kode produk + kode UOM
+                              // Edit mode: auto-generate SKU dari kode produk + kode UOM
+                              // (create mode fills it in the auto-fill effect).
                               const currentCode = watchedUoms[i]?.code ?? ''
-                              if (selectedUom?.code && !currentCode) {
+                              if (!isCreate && selectedUom?.code && !currentCode) {
                                 const skuCode = productCode
                                   ? `${productCode}-${selectedUom.code}`
                                   : selectedUom.code
