@@ -75,6 +75,8 @@ export default function ProductView() {
   const [perPage, setPerPage] = useState<number>(20)
   const [typeFilter, setTypeFilter] = useState<string>('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
+  // Active products by default; '' = all.
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('true')
   const [sortBy, setSortBy] = useState<'id' | 'name' | 'code'>('id')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -102,7 +104,7 @@ export default function ProductView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, typeFilter, categoryFilter])
+  }, [debouncedSearch, typeFilter, categoryFilter, activeFilter])
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -114,7 +116,7 @@ export default function ProductView() {
   const categories = (categoriesData as any)?.data ?? []
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter, activeProductTypes, sortParam],
+    queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter, activeFilter, activeProductTypes, sortParam],
     queryFn: () =>
       productsService
         .list({
@@ -125,6 +127,7 @@ export default function ProductView() {
           'filter[search]': debouncedSearch || undefined,
           'filter[types]': typeFilter === '' ? undefined : String(typeFilter),
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
+          'filter[is_active]': activeFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
@@ -244,6 +247,51 @@ export default function ProductView() {
               boxSizing: 'border-box',
             }}
           />
+        </div>
+
+        <div
+          role="tablist"
+          aria-label="Product status"
+          style={{
+            display: 'inline-flex',
+            padding: 3,
+            gap: 2,
+            background: 'var(--background)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+          }}
+        >
+          {([
+            ['true', 'Active'],
+            ['false', 'Inactive'],
+            ['', 'All'],
+          ] as const).map(([value, label]) => {
+            const on = activeFilter === value
+            return (
+              <button
+                key={label}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => setActiveFilter(value)}
+                style={{
+                  height: 28,
+                  padding: '0 12px',
+                  border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  background: on ? 'var(--surface)' : 'transparent',
+                  boxShadow: on ? 'var(--shadow-sm)' : 'none',
+                  color: on ? 'var(--foreground)' : 'var(--foreground-muted)',
+                  fontSize: 13,
+                  fontWeight: on ? 600 : 500,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         <select
@@ -419,14 +467,38 @@ export default function ProductView() {
                   onMouseLeave={() => setHoveredRow(null)}
                   style={{
                     borderBottom: '1px solid var(--border)',
-                    background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
+                    // Inactive products: tinted row + red edge so they're not mistaken for sellable ones.
+                    background: !item.is_active
+                      ? 'var(--destructive-bg)'
+                      : hoveredRow === item.id ? 'var(--background)' : 'transparent',
+                    boxShadow: !item.is_active ? 'inset 3px 0 0 var(--destructive)' : undefined,
+                    opacity: !item.is_active && hoveredRow !== item.id ? 0.85 : 1,
                   }}
                 >
                   <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 65 }}>
                     {(page - 1) * perPage + idx + 1}
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {canRead ? item.name : "***"}
+                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: item.is_active ? 'var(--foreground)' : 'var(--foreground-muted)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      {canRead ? item.name : "***"}
+                      {!item.is_active && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '1px 7px',
+                            borderRadius: 999,
+                            background: 'var(--surface)',
+                            border: '1px solid var(--destructive)',
+                            color: 'var(--destructive)',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.4,
+                          }}
+                        >
+                          Inactive
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     {canRead ? item.code ? (
