@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   ChevronRight,
   ChevronsUpDown,
+  Menu,
   LogOut,
   User,
   Building2,
@@ -46,7 +47,12 @@ function getBreadcrumbs(pathname: string): Array<{ label: string; href: string }
 
 const BRANCH_LABEL_MAP: Record<string, string> = {};
 
-export default function TopBar() {
+type TopBarProps = {
+  // Phones only: opens the off-canvas sidebar.
+  onMenuClick?: () => void;
+};
+
+export default function TopBar({ onMenuClick }: TopBarProps = {}) {
   const router = useRouter();
   const { user, logout, refreshUser, isSuperadmin } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -57,7 +63,7 @@ export default function TopBar() {
   const branchRef = useRef<HTMLDivElement>(null);
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
+    queryKey: ['branches-all', 'with-company'],
     queryFn: () =>
       branchesService
         .list({ per_page: 1000, sort: 'name', include: 'company' } as any)
@@ -106,6 +112,7 @@ export default function TopBar() {
 
   return (
     <header
+      className="topbar"
       style={{
         height: 'var(--topbar-height)',
         background: 'var(--topbar-bg)',
@@ -117,9 +124,15 @@ export default function TopBar() {
         flexShrink: 0,
         position: 'sticky',
         top: 0,
-        zIndex: 10,
+        // The header is its own stacking context, so its menus can only sit
+        // above page content (dropdowns, sheets, popovers) if the header does.
+        zIndex: branchMenuOpen || userMenuOpen || profileOpen ? 1200 : 10,
       }}
     >
+      <button type="button" className="topbar-menu-btn" onClick={onMenuClick} aria-label="Open menu">
+        <Menu size={18} />
+      </button>
+
       {/* LEFT — Breadcrumb */}
       <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {breadcrumbs.map((crumb, index) => {
@@ -173,6 +186,9 @@ export default function TopBar() {
           <button
             type="button"
             onClick={() => setBranchMenuOpen((v) => !v)}
+            className="branch-pill"
+            data-open={branchMenuOpen}
+            title="Active branch — click to switch"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -187,8 +203,12 @@ export default function TopBar() {
               fontWeight: 500,
             }}
           >
-            <Building2 size={13} style={{ color: 'var(--accent-light)', flexShrink: 0 }} />
+            <span className="branch-pill-icon">
+              <Building2 size={13} style={{ color: 'var(--accent-light)', flexShrink: 0 }} />
+              <span className="branch-pill-dot" />
+            </span>
             <div
+              className="branch-pill-text"
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -197,11 +217,11 @@ export default function TopBar() {
                 lineHeight: 1.1,
               }}
             >
-              <span style={{ fontSize: 12, fontWeight: 600 }}>
+              <span className="branch-pill-name" style={{ fontSize: 12, fontWeight: 600 }}>
                 {user?.branch?.name ?? 'No Branch'}
               </span>
               {user?.branch?.company?.name && (
-                <span style={{ fontSize: 10, color: 'var(--foreground-muted)' }}>
+                <span className="branch-pill-company" style={{ fontSize: 10, color: 'var(--foreground-muted)' }}>
                   {user.branch.company.name}
                 </span>
               )}
@@ -211,6 +231,7 @@ export default function TopBar() {
 
           {branchMenuOpen && (
             <div
+              className="branch-menu"
               style={{
                 position: 'absolute',
                 top: 'calc(100% + 6px)',
@@ -291,6 +312,8 @@ export default function TopBar() {
                     key={branch.id}
                     type="button"
                     onClick={() => onSelectBranch(branch.id!)}
+                    className="branch-option"
+                    data-active={isActive}
                     style={{
                       width: '100%',
                       display: 'flex',

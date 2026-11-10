@@ -287,6 +287,10 @@ export interface StockMovementRequest {
   description?: string
   product_type?: 'raw' | 'wip' | 'final' | 'supply'
   product_category_id?: number
+  // Which stock row of the batch to move; each defaults to GENERAL.
+  owner_ref?: string
+  stage?: string // a stage code from GET /v1/stages
+  location_ref?: string
 }
 
 // Recipes
@@ -349,6 +353,7 @@ export interface PortioningDetail {
   batch_code?: string
   expiry_date?: string
   status: 'pending' | 'final'
+  description?: string
   owner_ref?: string | null
   stage?: string | null
   location_ref?: string | null
@@ -750,3 +755,72 @@ export interface BulkUpsertPriceListItemRequest {
 }
 
 // NOTE: Product Cut types live in @/services/product-cuts.service.ts
+
+// ─── Dashboard charts (GET /v1/dashboard/charts) ─────────────────────────────
+
+export type DashboardChartInterval = 'day' | 'week' | 'month'
+
+export type DashboardChartKey =
+  | 'sales_trend'
+  | 'sales_by_channel'
+  | 'payment_methods'
+  | 'top_products'
+  | 'sales_by_hour'
+  | 'production_trend'
+  | 'top_produced_products'
+  | 'purchase_trend'
+  | 'top_suppliers'
+  | 'stock_flow'
+  | 'stock_health'
+  | 'branch_comparison'
+
+export interface ChartSeries {
+  key: string
+  label: string
+  data: number[]
+  total: number
+  previous_total: number | null
+  change_pct: number | null
+}
+
+export interface ChartTimeSeries {
+  // DD-MM-YYYY dates, except sales_by_hour ("00".."23").
+  labels: string[]
+  series: ChartSeries[]
+}
+
+export interface ChartBreakdownItem {
+  id: number | null
+  label: string
+  value: number
+  count: number
+}
+
+export interface ChartBreakdown {
+  items: ChartBreakdownItem[]
+  total: number
+}
+
+export interface DashboardChartsResponse {
+  scope: { mode: 'branch' | 'company'; branch_id: number | null; branch_type: string | null }
+  period: {
+    date_from: string
+    date_to: string
+    interval: DashboardChartInterval
+    previous_date_from: string
+    previous_date_to: string
+  }
+  available_charts: DashboardChartKey[]
+  sales_trend: ChartTimeSeries | null
+  sales_by_channel: ChartBreakdown | null
+  payment_methods: ChartBreakdown | null
+  top_products: ChartBreakdown | null
+  sales_by_hour: ChartTimeSeries | null
+  production_trend: ChartTimeSeries | null
+  top_produced_products: ChartBreakdown | null
+  purchase_trend: ChartTimeSeries | null
+  top_suppliers: ChartBreakdown | null
+  stock_flow: ChartTimeSeries | null
+  stock_health: ChartBreakdown | null
+  branch_comparison: ChartBreakdown | null
+}

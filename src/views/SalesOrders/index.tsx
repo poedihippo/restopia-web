@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
-import { Download, Loader2, SlidersHorizontal, X } from 'lucide-react'
+import { Download, Loader2, SlidersHorizontal, X, ArrowUpRight } from 'lucide-react'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { branchesService } from '@/services/branches.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
@@ -1116,7 +1116,7 @@ export default function SalesOrdersView() {
                     </td>
                   )}
                   <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--accent)' }}>
-                    {canRead ? item.code : '***'}
+                    {canRead ? <span className="v2-link">{item.code}<ArrowUpRight size={12} /></span> : '***'}
                   </td>
                   <td style={tdStyle}>
                     <span

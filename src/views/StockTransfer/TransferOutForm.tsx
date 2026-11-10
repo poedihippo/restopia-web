@@ -197,9 +197,9 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
   // FIFO batch picker: oldest-expiring inventory row (with stock) for a UOM.
   // Primary sort: expiry_date ASC, NULL expiry treated as +Infinity so dated
   // batches ship before undated ones. Tiebreaker: batch created_at ASC.
-  const pickFifoInventory = React.useCallback(
-    (productUomId: number) => {
-      if (!productUomId) return undefined
+  const fifoCandidates = React.useCallback(
+    (productUomId: number): any[] => {
+      if (!productUomId) return []
       const ts = (v?: string | null) => {
         if (!v) return Number.POSITIVE_INFINITY
         const t = new Date(v).getTime()
@@ -224,10 +224,51 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
           const bc = ts(b.product_uom_batch?.created_at ?? b.created_at)
           return ac - bc
         })
-      return candidates[0]
+      return candidates
     },
     [inventories],
   )
+  const pickFifoInventory = React.useCallback(
+    (productUomId: number) => fifoCandidates(productUomId)[0],
+    [fifoCandidates],
+  )
+
+  // Allocate every line's qty across FIFO batches. A line larger than its
+  // oldest batch is split over the next batches; lines of the same product
+  // share the remaining stock. Returns the rows to submit, or the shortages.
+  const allocateFifo = (details: FormValues['details']) => {
+    const left = new Map<number, number>() // product_uom_batch_id -> stock left
+    const rows: { product_uom_id: number; product_uom_batch_id: number; qty: number; price: number; description?: string }[] = []
+    const shortages: string[] = []
+    details
+      .filter((d) => Number(d.product_uom_id) > 0)
+      .forEach((d, i) => {
+        let need = Number(d.qty ?? 0)
+        for (const inv of fifoCandidates(Number(d.product_uom_id))) {
+          if (need <= 1e-9) break
+          const batchId = Number(inv.product_uom_batch.id)
+          const available = left.has(batchId) ? left.get(batchId)! : Number(inv.stock ?? 0)
+          if (available <= 0) continue
+          const take = Math.min(need, available)
+          left.set(batchId, available - take)
+          rows.push({
+            product_uom_id: Number(d.product_uom_id),
+            product_uom_batch_id: batchId,
+            qty: take,
+            price: d.price,
+            description: d.description || undefined,
+          })
+          need -= take
+        }
+        if (need > 1e-9) {
+          const name =
+            productUomOptions.find((o: any) => o.value === Number(d.product_uom_id))?.label ??
+            `row ${i + 1}`
+          shortages.push(`${name} (kurang ${need.toLocaleString('id-ID', { maximumFractionDigits: 3 })})`)
+        }
+      })
+    return { rows, shortages }
+  }
 
   const formatBatchLabel = (inv: any) => {
     const code = inv?.product_uom_batch?.code ?? `Batch #${inv?.product_uom_batch?.id}`
@@ -268,19 +309,10 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
         source_owner_ref: values.source_owner_ref || 'GENERAL',
         source_stage: values.source_stage || 'GENERAL',
         source_location_ref: values.source_location_ref || 'GENERAL',
-        details: values.details
-          .filter((d) => Number(d.product_uom_id) > 0)
-          .map((d) => {
-            const pick = pickFifoInventory(Number(d.product_uom_id))
-            return {
-              product_uom_id: d.product_uom_id,
-              product_uom_batch_id: pick?.product_uom_batch?.id,
-              qty: d.qty,
-              price: d.price,
-              status: 'packed',
-              description: d.description || undefined,
-            }
-          }),
+        details: allocateFifo(values.details).rows.map((r) => ({
+          ...r,
+          status: 'packed',
+        })),
       }
       return deliveriesService.create(payload as any)
     },
@@ -306,6 +338,11 @@ export default function TransferOutForm({ onClose, onSuccess }: TransferOutFormP
       .filter((d) => !pickFifoInventory(Number(d.product_uom_id)))
     if (missing.length > 0) {
       toast.error('No stock available at source branch for one or more items')
+      return
+    }
+    const { shortages } = allocateFifo(values.details)
+    if (shortages.length > 0) {
+      toast.error(`Stok tidak cukup di cabang sumber: ${shortages.join(', ')}`)
       return
     }
     createMutation.mutate(values)

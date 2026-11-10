@@ -35,6 +35,10 @@ const detailSchema = z.object({
   source_qty: z.coerce.number().min(0).optional(),
   batch_code: z.string().optional(),
   expiry_date: z.string().optional(),
+  description: z.string().optional(),
+  // Saved per-detail output overrides (null = follow the header output).
+  owner_ref: z.string().nullable().optional(),
+  stage: z.string().nullable().optional(),
 })
 
 const schema = z.object({
@@ -614,6 +618,11 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       source_qty: d.source_qty ? Number(d.source_qty) : undefined,
       batch_code: d.batch_code ?? '',
       expiry_date: d.expiry_date ? String(d.expiry_date).slice(0, 10) : '',
+      description: d.description ?? '',
+      // Keep only values that differ from the header, so a later header
+      // change still applies to details that simply followed it.
+      owner_ref: d.owner_ref && d.owner_ref !== editRecord.output_owner_ref ? d.owner_ref : null,
+      stage: d.stage && d.stage !== editRecord.output_stage ? d.stage : null,
     }))
 
     reset({
@@ -650,9 +659,10 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       source_qty: Number(d.source_qty) > 0 ? Math.round(Number(d.source_qty)) : undefined,
       batch_code: d.batch_code || undefined,
       expiry_date: d.expiry_date || undefined,
+      description: d.description || undefined,
       status,
-      owner_ref: values.output_owner_ref || null,
-      stage: values.output_stage || null,
+      owner_ref: d.owner_ref || values.output_owner_ref || null,
+      stage: d.stage || values.output_stage || null,
       location_ref: LOCATION_GENERAL,
       // Packaging is auto-resolved by the backend when materials is empty.
       materials: [],
@@ -678,6 +688,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
       queryClient.invalidateQueries({ queryKey: ['product-inventories'] })
       queryClient.invalidateQueries({ queryKey: ['product-inventories-all'] })
       queryClient.invalidateQueries({ queryKey: ['portioning-sources'] })
+      if (isEdit) queryClient.invalidateQueries({ queryKey: ['portioning', 'edit', editId] })
       toast.success(
         isEdit
           ? body.status === 'final'

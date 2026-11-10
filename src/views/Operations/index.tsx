@@ -1,30 +1,21 @@
 'use client'
 import { formatDateTime } from '@/utils/date';
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import { operationsService } from '@/services/operations.service';
 import { useAuth } from '@/hooks/useAuth';
-import OperationSheet from './OperationSheet';
-import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
-import { toastMutationApiError } from '@/utils/apiError';
+import { Search, Eye, X } from 'lucide-react';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 
 export default function OperationsView() {
-  const qc = useQueryClient();
   const { hasPermission } = useAuth();
   const canRead = hasPermission('operation.read');
-  const canCreate = hasPermission('operation.create');
-  const canEdit = hasPermission('operation.update');
-  const canDelete = hasPermission('operation.delete');
+  // Read-only: the API exposes only GET for this resource (no create/update/delete).
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editData, setEditData] = useState<any | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   useEffect(() => {
@@ -50,16 +41,6 @@ export default function OperationsView() {
   const items: any[] = (data as any)?.data ?? [];
   const meta = (data as any)?.meta;
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => operationsService.delete(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['operations'] });
-      toast.success('Operation deleted');
-      setDeleteConfirmId(null);
-    },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to delete Operation'),
-  });
-
   const lastPage = meta?.last_page ?? meta?.total_pages ?? 1;
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
@@ -74,11 +55,6 @@ export default function OperationsView() {
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Operations</h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Manage daily operations</p>
         </div>
-        {canCreate && (
-          <button onClick={() => { setEditData(null); setSheetOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={15} /> New Operation
-          </button>
-        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -120,8 +96,6 @@ export default function OperationsView() {
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                       <button onClick={() => setSelectedItem(item)} style={actionBtnStyle} title="View"><Eye size={14} /></button>
-                      {canEdit && <button onClick={() => { setEditData(item); setSheetOpen(true); }} style={actionBtnStyle} title="Edit"><Pencil size={14} /></button>}
-                      {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ ...actionBtnStyle, color: 'var(--destructive)' }} title="Delete"><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -132,20 +106,6 @@ export default function OperationsView() {
       </div>
 
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
-
-      {deleteConfirmId !== null && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
-          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 380, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete Operation</h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {selectedItem && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end' }}>
@@ -171,8 +131,6 @@ export default function OperationsView() {
           </div>
         </div>
       )}
-
-      <OperationSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setEditData(null); }} editData={editData} />
     </div>
   );
 }

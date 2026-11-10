@@ -21,11 +21,15 @@ const formatNumber = (n: number | undefined): string => {
 }
 
 const itemSchema = z.object({
+  // Saved bundle_detail_item id — kept on update so the row is matched, not recreated.
+  id: z.coerce.number().optional(),
   product_uom_id: z.coerce.number().min(1, 'Please select a product'),
   qty: z.coerce.number().min(0.001, 'Quantity must be greater than 0'),
 })
 
 const detailSchema = z.object({
+  // Saved bundle_detail id (slot) — kept on update.
+  id: z.coerce.number().optional(),
   items: z.array(itemSchema).min(1, 'Please add at least one item to this slot'),
 })
 
@@ -262,8 +266,10 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
         details:
           editData.bundle_details && editData.bundle_details.length > 0
             ? editData.bundle_details.map((d: any) => ({
+                id: d.id ?? undefined,
                 items: d.items && d.items.length > 0
                   ? d.items.map((i: any) => ({
+                      id: i.id ?? undefined,
                       product_uom_id: i.product_uom_id ?? 0,
                       qty: i.qty ?? 1,
                     }))
@@ -283,16 +289,19 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
     }
   }, [editData, open, reset])
 
-  const buildPayload = (data: FormValues) => {
+  // On update, slots and items keep their saved ids so the backend updates
+  // them instead of deleting + recreating (orders reference bundle_detail_item_id).
+  const buildPayload = (data: FormValues, withIds = false) => {
     const cleanDetails = (data.details ?? [])
       .map((d) => {
         const cleanItems = (d.items ?? [])
           .filter((i) => Number(i.product_uom_id) > 0 && Number(i.qty) > 0)
           .map((i) => ({
+            ...(withIds && Number(i.id) > 0 ? { id: Number(i.id) } : {}),
             product_uom_id: Number(i.product_uom_id),
             qty: Number(i.qty),
           }))
-        return { items: cleanItems }
+        return { ...(withIds && Number(d.id) > 0 ? { id: Number(d.id) } : {}), items: cleanItems }
       })
       .filter((d) => d.items.length > 0)
     return {
@@ -321,7 +330,7 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
 
   const updateMutation = useMutation({
     mutationFn: (data: FormValues) =>
-      bundlesService.update(editData!.id, buildPayload(data) as any),
+      bundlesService.update(editData!.id, buildPayload(data, true) as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['bundles'] })
       toast.success('Bundle updated')

@@ -54,7 +54,7 @@ export default function PosPreordersModal({
           flexShrink: 0,
         }}>
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>
-            Pending Pre-orders
+            Pending Orders
           </span>
           <button
             type="button"
@@ -93,7 +93,7 @@ export default function PosPreordersModal({
           {isPreordersLoading ? (
             <p style={{ fontSize: 14 }}>Loading...</p>
           ) : preorders.length === 0 ? (
-            <p style={{ fontSize: 14 }}>No pending pre-orders</p>
+            <p style={{ fontSize: 14 }}>No pending orders</p>
           ) : (
             preorders.map((order: any) => (
               <div key={order.id} style={{
@@ -127,7 +127,7 @@ export default function PosPreordersModal({
                 </div>
 
                 <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 8 }}>
-                  📅 Pickup:{' '}
+                  Pickup:{' '}
                   {order.fulfillment_date
                     ? formatDateTime(order.fulfillment_date)
                     : '—'}
@@ -163,7 +163,7 @@ export default function PosPreordersModal({
                     fontSize: 13, fontWeight: 600, cursor: 'pointer',
                   }}
                 >
-                  🛒 Complete Order / Load to Cart
+                  Edit / Charge
                 </button>
               </div>
             ))

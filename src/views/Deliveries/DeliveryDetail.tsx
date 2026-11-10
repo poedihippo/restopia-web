@@ -27,7 +27,7 @@ import {
   Printer,
   Download,
   MapPin,
-  ClipboardList,
+  ClipboardList, ArrowUpRight,
 } from 'lucide-react'
 
 interface DeliveryDetailProps {
@@ -102,6 +102,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
   const { user, isSuperadmin, hasPermission } = useAuth()
   const canRead = hasPermission('delivery.read')
   const canCreateReceipt = hasPermission('receipt.create')
+  const canUpdate = hasPermission('delivery.update')
+  const canDelete = hasPermission('delivery.delete')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
@@ -201,6 +203,10 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
     delivery?.source_type === 'transfer_to_branch'
 
   const details = delivery?.delivery_details ?? []
+  // Once any line has been received, editing would desync the receipts that
+  // reference these delivery rows.
+  const hasReceivedLines = details.some((d: any) => Number(d?.received_qty ?? 0) > 0)
+  const canEditDelivery = canUpdate && !hasReceivedLines
   const statusMeta =
     STATUS_META[delivery?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
   // Internal deliveries/transfers are price-free.
@@ -477,9 +483,12 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                 Download PDF
               </button>
             )}
+            {canUpdate && (
             <button
               type="button"
               onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
+              disabled={!canEditDelivery}
+              title={hasReceivedLines ? 'Already received — cannot edit' : 'Edit'}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -491,12 +500,15 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                 fontSize: 13,
                 fontWeight: 500,
                 color: 'var(--foreground)',
-                cursor: 'pointer',
+                cursor: canEditDelivery ? 'pointer' : 'not-allowed',
+                opacity: canEditDelivery ? 1 : 0.4,
               }}
             >
               <Pencil size={13} />
               Edit
             </button>
+            )}
+            {canDelete && (
             <button
               type="button"
               onClick={() => setDeleteConfirm(true)}
@@ -517,6 +529,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               <Trash2 size={13} />
               Delete
             </button>
+            )}
           </div>
         </div>
 
@@ -641,7 +654,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
                 textDecoration: 'none',
               }}
             >
-              {delivery.purchase_order.code}
+              <span className="v2-link">{delivery.purchase_order.code}<ArrowUpRight size={12} /></span>
             </Link>
           </div>
         )}

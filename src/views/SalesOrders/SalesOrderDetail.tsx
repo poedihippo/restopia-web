@@ -13,6 +13,7 @@ import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
 import ReturnOrderModal from './ReturnOrderModal';
 import { useAuth } from '@/hooks/useAuth';
+import SaleJournals from './SaleJournals';
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { formatNumberId } from '@/utils/numberFormat'
 import { formatDate, formatDateTime } from '@/utils/date'
@@ -328,15 +329,16 @@ export default function SalesOrderDetail() {
 
   const { hasPermission } = useAuth()
   const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
+  const canSeeJournals = hasPermission('journal.menu')
   const { reprint, printingId } = useReprintReceipt()
   const [showReturn, setShowReturn] = useState(false)
 
   const { data: paymentMethodsData } = useQuery({
-    queryKey: ['payment-methods-all'],
+    queryKey: ['payment-methods-all', 'sales_orders'],
     enabled: idReady,
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': 'all,sales_orders' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
         .then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
@@ -350,7 +352,7 @@ export default function SalesOrderDetail() {
     mutationFn: () =>
       paymentsService.create({
         type: 'receive',
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toLocaleDateString('en-CA'),
         payments: [{
           payment_method_id: paymentMethodId,
           amount: paymentAmount,
@@ -361,6 +363,10 @@ export default function SalesOrderDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-order-payment-allocations', id] })
       queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-order-edit', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['payments'] })
+      queryClient.invalidateQueries({ queryKey: ['unpaid-offline-orders'] })
       toast.success('Payment recorded')
       setPaymentMethodId(0)
       setPaymentAmount(0)
@@ -374,6 +380,10 @@ export default function SalesOrderDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-order-payment-allocations', id] })
       queryClient.invalidateQueries({ queryKey: ['sales-order-detail', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-order-edit', id] })
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['payments'] })
+      queryClient.invalidateQueries({ queryKey: ['unpaid-offline-orders'] })
       toast.success('Payment deleted')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete payment'),
@@ -382,6 +392,10 @@ export default function SalesOrderDetail() {
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: () => salesOrderService.delete(id),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['unpaid-offline-orders'] });
+      queryClient.removeQueries({ queryKey: ['sales-order-detail', id] });
+      queryClient.removeQueries({ queryKey: ['sales-order-edit', id] });
       toast.success('Order deleted');
       router.push('/sales/sales-orders');
     },
@@ -738,7 +752,7 @@ export default function SalesOrderDetail() {
                         onClick={() => setPaymentAmount(Math.max(0, remaining))}
                         style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}
                       >
-                        Fill remaining
+                        <span className="v2-link">Fill remaining</span>
                       </button>
                     </span>
                     <LocalizedNumberInput
@@ -849,6 +863,22 @@ export default function SalesOrderDetail() {
               </div>
             )}
           </section>
+
+          {/* Journals: sales journal + payment journal(s) — shows the Piutang step */}
+          {canSeeJournals && (
+            <SaleJournals
+              order={order}
+              payments={allocations.map((a: any) => ({
+                id: a.payment?.id ?? a.payment_id,
+                journal_id: a.payment?.journal_id,
+                method: a.payment?.payment_method?.name,
+                number: a.payment?.payment_number,
+              }))}
+              cardStyle={cardStyle}
+              cardHeaderStyle={cardHeaderStyle}
+              cardTitleStyle={cardTitleStyle}
+            />
+          )}
 
           {order?.description && (
             <section style={cardStyle}>

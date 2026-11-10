@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
@@ -180,12 +180,20 @@ export default function ApAgingView() {
   const canRead = isSuperadmin || hasPermission('journal.read')
 
   const [asOfDate, setAsOfDate] = useState<string>(today())
+  // filter[search]: the backend returns only matching lines and recomputes the
+  // buckets and grand total over them, so the totals match what is on screen.
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(t)
+  }, [search])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['ap-aging', asOfDate],
+    queryKey: ['ap-aging', asOfDate, debouncedSearch],
     enabled: canRead && !!asOfDate,
     queryFn: () =>
-      api.get('/reports/ap-aging', { params: { as_of_date: asOfDate } }).then((r) => r.data),
+      api.get('/reports/ap-aging', { params: { as_of_date: asOfDate, 'filter[search]': debouncedSearch || undefined } }).then((r) => r.data),
   })
 
   const ap: ApAging | undefined = (data as any)?.data
@@ -198,7 +206,8 @@ export default function ApAgingView() {
   const canExport = hasStatement
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
-    mutationFn: () => reportsService.exportApAging({ as_of_date: asOfDate }),
+    // Same search as the screen, so the download matches it.
+    mutationFn: () => reportsService.exportApAging({ as_of_date: asOfDate, 'filter[search]': debouncedSearch || undefined }),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `ap-aging-${asOfDate}.xlsx`)
     },
@@ -271,6 +280,17 @@ export default function ApAgingView() {
                   value={toInputDate(asOfDate)}
                   onChange={(e) => setAsOfDate(e.target.value)}
                   style={inputStyle}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 220px', maxWidth: 320 }}>
+                <label style={labelStyle}>Search</label>
+                <input
+                  type="search"
+                  data-search
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Kode PO atau nama supplier…"
+                  style={{ ...inputStyle, width: '100%' }}
                 />
               </div>
             </div>

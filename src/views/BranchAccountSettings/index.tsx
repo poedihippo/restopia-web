@@ -35,7 +35,7 @@ export default function BranchAccountSettingsView() {
   useEffect(() => { setPage(1) }, [debouncedSearch, branchFilter])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
+    queryKey: ['branches-all', 'by-name'],
     queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then(r => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []

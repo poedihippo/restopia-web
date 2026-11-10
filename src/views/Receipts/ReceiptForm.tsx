@@ -361,7 +361,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
           planned_batch_code: d.planned_batch_code || undefined,
           planned_expiry_date: d.planned_expiry_date || undefined,
           qty: d.qty,
-          status: d.status,
+          // Finalizing a receipt: lines still marked pending are received.
+          status: values.status === 'final' && d.status === 'pending' ? 'success' : d.status,
           description: d.description || undefined,
           client_ref: d.client_ref || undefined,
         }

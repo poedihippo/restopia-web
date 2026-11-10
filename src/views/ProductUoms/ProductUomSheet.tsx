@@ -229,6 +229,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     mutationFn: (data: FormValues) => productUomsService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] })
       toast.success('Product UOM created')
       reset({
         product_id: 0,
@@ -253,6 +254,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     mutationFn: (data: FormValues) => productUomsService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] })
       toast.success('Product UOM updated')
       onClose()
     },

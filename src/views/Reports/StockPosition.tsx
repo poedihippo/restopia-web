@@ -68,6 +68,12 @@ export default function StockPositionReport() {
     '' | 'raw' | 'wip' | 'final'
   >('')
   const [searchText, setSearchText] = useState('')
+  // Also sent as filter[search], so stock beyond the first 500 rows is found.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText.trim()), 400)
+    return () => clearTimeout(t)
+  }, [searchText])
   const [enabled, setEnabled] = useState(false)
   const branchName = useReportBranchName(branchFilter)
 
@@ -83,6 +89,7 @@ export default function StockPositionReport() {
       'report-stock-position',
       branchFilter,
       productTypeFilter,
+      debouncedSearch,
     ],
     queryFn: () =>
       productInventoriesService
@@ -91,6 +98,7 @@ export default function StockPositionReport() {
           include: 'branch,product_uom_batch',
           'filter[branch_id]': branchFilter || undefined,
           'filter[product_type]': productTypeFilter || undefined,
+          'filter[search]': debouncedSearch || undefined,
           sort: 'code',
         } as any)
         .then((r) => r.data),
@@ -367,7 +375,8 @@ export default function StockPositionReport() {
                 }}
               />
               <input
-                type="text"
+                type="search"
+                data-search
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 placeholder="Search code or name..."

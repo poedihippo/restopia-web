@@ -23,6 +23,7 @@ import api from '@/hooks/useApi'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { availableStockOf } from '@/utils/inventoryStock'
 import { useDebounce } from '@/hooks/useDebounce'
+import { parseDate } from '@/helper/parseDate'
 
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import type { ReceiptData } from '@/components/PosReceipt'
@@ -363,6 +364,9 @@ export function usePosLogic() {
       setAppliedVoucher(null)
     }
 
+    // Keep the order's own dates, otherwise the next PATCH resets them to today.
+    setTransactionDate(parseDate(order.date) || new Date().toLocaleDateString('en-CA'))
+    setFulfillmentDate(parseDate(order.fulfillment_date) || parseDate(order.date) || new Date().toLocaleDateString('en-CA'))
     setOrderNote(order.description ?? '')
     setEditingOrderId(order.id)
     setEditingOrderCode(order.code)
@@ -405,7 +409,7 @@ export function usePosLogic() {
 
   // Payment methods query
   const { data: paymentMethodsData, isLoading: paymentMethodsLoading } = useQuery({
-    queryKey: ['payment-methods-all'],
+    queryKey: ['payment-methods-all', 'sales_orders'],
     queryFn: () =>
       paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any).then((r) => r.data),
   })
@@ -1078,7 +1082,7 @@ export function usePosLogic() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['pos-preorders'] })
-      toast.success('Order held as pending')
+      toast.success(editingOrderId ? 'Held order updated' : 'Order on hold')
       resetCart()
     },
     onError: (err: any) =>
@@ -1226,7 +1230,7 @@ export function usePosLogic() {
           ? Number(partialAmount.replace(/\D/g, '')) || 0
           : Number.isFinite(serverTotal) ? serverTotal : variables.total_price
 
-        const dateStr = new Date().toISOString().split('T')[0]
+        const dateStr = new Date().toLocaleDateString('en-CA')
         let paymentsPayload: any[] = []
 
         if (isSplitPayment) {
@@ -1507,7 +1511,7 @@ export function usePosLogic() {
     showReview, closeReview, proceedFromReview, backToReview, clearVoucher,
     completedTransaction, isPrinting, printerConnected: printer.status === 'connected',
     handlePrintCompleted, startNewTransaction,
-    editingOrderCode,
+    editingOrderId, editingOrderCode,
     showHistory, setShowHistory,
     showPreorders, setShowPreorders,
     preorderSearch, setPreorderSearch, preorderDateFrom, setPreorderDateFrom, preorderDateTo, setPreorderDateTo, preorderPage, setPreorderPage,

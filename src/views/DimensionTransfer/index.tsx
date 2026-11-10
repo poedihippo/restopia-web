@@ -76,7 +76,7 @@ export default function DimensionTransferView() {
 
   // Fetch available branches
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
+    queryKey: ['branches-all', 'basic'],
     queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []

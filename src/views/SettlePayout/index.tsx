@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { FileSpreadsheet, Inbox, Loader2, Undo2, X } from 'lucide-react'
+import { FileSpreadsheet, Inbox, Loader2, Undo2, X, ArrowUpRight } from 'lucide-react'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { branchesService } from '@/services/branches.service'
@@ -17,6 +17,7 @@ import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excel
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useAuth } from '@/hooks/useAuth'
 
 /** The Credit method (id 1) is refused as a payout destination. */
 const CREDIT_PAYMENT_METHOD_ID = 1
@@ -102,6 +103,10 @@ type Tab = 'pending' | 'settled'
 
 export default function SettlePayoutView() {
   const router = useRouter()
+  const { hasPermission } = useAuth()
+  // The menu only needs sales-order.menu; settling and undoing call the
+  // bulk-update-settlement endpoint, so those controls need its permission.
+  const canSettle = hasPermission('sales-order.bulk-update-settlement-status')
   const qc = useQueryClient()
 
   const [tab, setTab] = useState<Tab>('pending')
@@ -160,7 +165,7 @@ export default function SettlePayoutView() {
 
   const { data: methodsData, isLoading: methodsLoading } = useQuery({
     queryKey: ['payment-methods-all', 'settle-payout'],
-    queryFn: () => paymentMethodsService.list({ per_page: 200, sort: 'name' }).then((r) => r.data),
+    queryFn: () => paymentMethodsService.list({ per_page: 200, sort: 'name', 'filter[type]': 'sales_orders' } as any).then((r) => r.data),
   })
   const payoutMethods: any[] = ((methodsData as any)?.data ?? []).filter(
     (m: any) =>
@@ -336,7 +341,7 @@ export default function SettlePayoutView() {
     </button>
   )
 
-  const colCount = 7
+  const colCount = canSettle ? 7 : 6
 
   // Exports every order of the current tab + filters (all pages).
   const [exporting, setExporting] = useState(false)
@@ -482,14 +487,14 @@ export default function SettlePayoutView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ ...thStyle, width: 40 }} />
+                  {canSettle && <th style={{ ...thStyle, width: 40 }} />}
                   <th style={thStyle}>Kode</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={thStyle}>Channel</th>
                   <th style={thStyle}>Outlet</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>
-                    {tab === 'pending' ? 'Outstanding' : 'Aksi'}
+                    {tab === 'pending' ? 'Outstanding' : canSettle ? 'Aksi' : ''}
                   </th>
                 </tr>
               </thead>
@@ -540,6 +545,7 @@ export default function SettlePayoutView() {
                           opacity: tab === 'pending' && !selectable ? 0.45 : 1,
                         }}
                       >
+                        {canSettle && (
                         <td style={tdStyle}>
                           {tab === 'pending' && (
                             <input
@@ -551,6 +557,7 @@ export default function SettlePayoutView() {
                             />
                           )}
                         </td>
+                        )}
                         <td style={tdStyle}>
                           <button
                             type="button"
@@ -565,7 +572,7 @@ export default function SettlePayoutView() {
                               cursor: 'pointer',
                             }}
                           >
-                            {order.code}
+                            <span className="v2-link">{order.code}<ArrowUpRight size={12} /></span>
                           </button>
                         </td>
                         <td style={tdStyle}>{formatDateShort(order.date)}</td>
@@ -575,7 +582,7 @@ export default function SettlePayoutView() {
                         <td style={{ ...tdStyle, textAlign: 'right' }}>
                           {tab === 'pending' ? (
                             formatCurrency(outstandingOf(order))
-                          ) : (
+                          ) : canSettle && (
                             <button
                               type="button"
                               onClick={() => startUndo(order)}
@@ -614,7 +621,7 @@ export default function SettlePayoutView() {
         </div>
 
         {/* Payout form */}
-        {tab === 'pending' && (
+        {tab === 'pending' && canSettle && (
           <div
             style={{
               flex: '0 1 340px',

@@ -177,6 +177,7 @@ export default function ProductUomsView() {
     mutationFn: (id: number) => productUomsService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-uoms'] })
+      queryClient.invalidateQueries({ queryKey: ['product-detail'] })
       toast.success('Product UOM deleted')
       setDeleteConfirmId(null)
     },

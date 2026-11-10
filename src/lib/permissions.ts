@@ -24,7 +24,9 @@
  *     grants "product-inventory.read".
  *  5. "View" actions are interchangeable: menu, read, view, access, list,
  *     index, show, see, preview, detail — so a user with *.menu can open the
- *     page and a user with *.read sees the menu.
+ *     page — EXCEPT that a required *.menu needs a granted *.menu. The backend
+ *     hands out *.read for lookups (dropdowns, prices) without the menu, so
+ *     *.read alone must not reveal a menu or route.
  *  6. Write actions (create/update/delete/...) are NEVER broadened: they only
  *     match exactly (or "resource.*" wildcards).
  *
@@ -121,6 +123,8 @@ export function permissionMatches(grantedKey: string, requiredKey: string): bool
   // Actions (rule 5 + 6).
   if (g.action === r.action) return true
   if (g.action === '*') return true
+  // A menu is only granted by a menu permission (rule 5 exception).
+  if (r.action === 'menu') return false
   if (isViewAction(r.action) && isViewAction(g.action)) return true
   return false
 }
@@ -182,8 +186,11 @@ export function auditNavPermissions(
             resourceCandidates(splitKey(req).resource, splitKey(req).action).map(resourceStem),
           ),
         )
+        const menuOnly = required.every((req) => splitKey(req).action === 'menu')
         const nearMisses = grantedList.filter((grantedKey) => {
           const parsed = splitKey(grantedKey)
+          // *.read without *.menu is a deliberate lookup grant, not a key mismatch.
+          if (menuOnly && isViewAction(parsed.action)) return false
           return resourceCandidates(parsed.resource, parsed.action).some((candidate) =>
             requiredStems.has(resourceStem(candidate)),
           )

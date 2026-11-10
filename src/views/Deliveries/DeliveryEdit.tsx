@@ -48,13 +48,15 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
       sales_order_id:
         delivery.sales_order?.id ?? delivery.sales_order_id ?? undefined,
       date: parseDate(delivery.date) ? parseDate(delivery.date.substring(0, 10)) : '',
-      status: 'final',
+      // Keep the stored status — a pending delivery stays pending on save.
+      status: delivery.status === 'pending' ? 'pending' : 'final',
       description: delivery.description ?? '',
       source_owner_ref: delivery.source_owner_ref ?? 'GENERAL',
       source_stage: delivery.source_stage ?? 'GENERAL',
       source_location_ref: delivery.source_location_ref ?? 'GENERAL',
       details: rawDetails.length
         ? rawDetails.map((d: any) => ({
+          id: d.id ?? undefined,
           product_uom_id:
             d.product_uom_id ?? d.product_uom?.id ?? 0,
           product_uom_batch_id:

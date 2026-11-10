@@ -273,24 +273,6 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
       : `${base} (1${unitCode})`
   }
 
-  // Explicit action: (re)fill every unit name from the current product name.
-  const handleSuggestNames = () => {
-    const base = watch('name')
-    let applied = 0
-    watchedUoms.forEach((row: any, idx: number) => {
-      const baseId = watch('base_uom_id')
-      const isPrimary = watchedUoms.length === 1 || (!!baseId && Number(row?.uom_id) === Number(baseId))
-      const name = isPrimary ? String(base ?? '').trim() : suggestedUomName(row, watchedUoms, base)
-      if (!name) return
-      setValue(`uoms.${idx}.name` as any, name, { shouldValidate: true })
-      const key = uomFields[idx]?.id
-      if (key) autoNameRef.current[key] = name
-      applied++
-    })
-    if (applied > 0) toast.success(`${applied} nama unit terisi otomatis`)
-    else toast.info('Isi nama produk dan pilih unit dulu')
-  }
-
   const suggestionByProductUomId = (id: number) =>
     ((suggestionsQuery.data as any)?.data?.suggestions ?? []).find(
       (s: any) => s.product_uom_id === id,
@@ -598,25 +580,27 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
   if (!open) return null
 
   const fieldLabel = (text: string, required = false) => (
-    <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
+    <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: 2 }}>
       {text}
       {required && <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>}
     </label>
   )
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13,
-    color: 'var(--foreground-muted)',
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--foreground)',
     display: 'block',
     marginBottom: 6,
   }
 
   const inputBase = (hasError: boolean): React.CSSProperties => ({
     width: '100%',
-    padding: '9px 12px',
+    height: 34,
+    padding: '0 10px',
     border: `1px solid ${hasError ? 'var(--destructive)' : 'var(--border)'}`,
     borderRadius: 'var(--radius-md)',
-    fontSize: 14,
+    fontSize: 13,
     color: 'var(--foreground)',
     background: 'var(--surface-raised)',
     outline: 'none',
@@ -626,16 +610,17 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
 
   const selectBase: React.CSSProperties = {
     width: '100%',
-    height: 40,
+    height: 34,
     border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-sm)',
-    padding: '0 12px',
-    fontSize: 14,
+    borderRadius: 'var(--radius-md)',
+    padding: '0 10px',
+    fontSize: 13,
     color: 'var(--foreground)',
     background: 'var(--surface-raised)',
     boxSizing: 'border-box' as const,
     fontFamily: 'var(--font-sans)',
   }
+
 
   const errorMsg = (msg?: string) =>
     msg ? (
@@ -654,12 +639,14 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
     >
       {/* Overlay */}
       <div
+        className="v2-overlay"
         onClick={onClose}
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }}
       />
 
       {/* Panel */}
       <div
+        className="v2-sheet"
         style={{
           position: 'relative',
           zIndex: 50,
@@ -675,7 +662,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         {/* Header */}
         <div
           style={{
-            padding: '20px 24px',
+            padding: '14px 20px',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
@@ -685,7 +672,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           <h2
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: 500,
               margin: 0,
               color: 'var(--foreground)',
@@ -715,10 +702,10 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: 24,
+            padding: 20,
             display: 'flex',
             flexDirection: 'column',
-            gap: 20,
+            gap: 14,
           }}
         >
           {editLoading ? (
@@ -862,7 +849,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                         cursor: 'pointer',
                         background: field.value === val
                           ? val ? 'var(--success-bg)' : 'var(--destructive-bg)'
-                          : 'var(--background)',
+                          : 'var(--surface-muted, var(--background))',
                         color: field.value === val
                           ? val ? 'var(--success)' : 'var(--destructive)'
                           : 'var(--foreground-muted)',
@@ -886,7 +873,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
               {...register('description')}
               rows={3}
               placeholder="Optional notes about this product"
-              style={{ ...inputBase(false), resize: 'vertical', minHeight: 80 }}
+              style={{ ...inputBase(false), height: 'auto', minHeight: 80, padding: '8px 10px', lineHeight: 1.5, resize: 'vertical', display: 'block' }}
             />
           </div>
 
@@ -902,34 +889,6 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                {editData && (
-                  <button
-                    type="button"
-                    onClick={handleSuggestNames}
-                    disabled={suggestionsQuery.isFetching}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '6px 12px',
-                      background: 'var(--accent-light-bg)',
-                      color: 'var(--accent)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 12,
-                      fontWeight: 500,
-                      cursor: suggestionsQuery.isFetching ? 'not-allowed' : 'pointer',
-                      opacity: suggestionsQuery.isFetching ? 0.7 : 1,
-                    }}
-                  >
-                    {suggestionsQuery.isFetching ? (
-                      <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                    ) : (
-                      <Sparkles size={13} />
-                    )}
-                    Suggest Names
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => appendUom({ ...emptyUom, branch_types: userBranchType ? [userBranchType] : [], conversions: [] })}
@@ -997,7 +956,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                 >
                   {/* Card header */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                       Unit #{i + 1}
                       {watchedUoms[i]?.uom_name && (
                         <span style={{ color: 'var(--foreground-muted)', fontWeight: 400, marginLeft: 6 }}>
@@ -1038,7 +997,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                           title="Base unit — change the Base Unit first to remove this row"
                           style={{
                             fontSize: 11,
-                            fontWeight: 600,
+                            fontWeight: 500,
                             padding: '2px 8px',
                             borderRadius: 999,
                             background: 'var(--accent-light-bg)',
@@ -1246,14 +1205,14 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                     >
                       {conversionPath ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                          <span style={{ fontWeight: 500, color: 'var(--accent)' }}>
                             Konversi ke Base Unit
                           </span>
                           <span>
                             {conversionPath.map((step, idx) => (
                               <span key={step.uomId}>
                                 {idx > 0 && <span style={{ color: 'var(--foreground-muted)', margin: '0 6px' }}>=</span>}
-                                <span style={{ fontWeight: 600 }}>{step.amount.toLocaleString('id-ID')}</span>
+                                <span style={{ fontWeight: 500 }}>{step.amount.toLocaleString('id-ID')}</span>
                                 <span style={{ color: 'var(--foreground-muted)', marginLeft: 3 }}>{step.code ?? uomLabel(step.uomId)}</span>
                               </span>
                             ))}
@@ -1261,7 +1220,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 600 }}>Tidak ada jalur konversi ke Base Unit.</span>
+                          <span style={{ fontWeight: 500 }}>Tidak ada jalur konversi ke Base Unit.</span>
                           Tambahkan conversion yang merujuk ke {uomLabel(Number(baseUomId))}.
                         </div>
                       )}
@@ -1343,26 +1302,17 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
         {/* Footer */}
         <div
           style={{
-            padding: '16px 24px',
+            padding: '12px 20px',
             borderTop: '1px solid var(--border)',
             display: 'flex',
-            gap: 10,
+            gap: 8,
             justifyContent: 'flex-end',
           }}
         >
           <button
             type="button"
             onClick={onClose}
-            style={{
-              padding: '8px 16px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
+            className="v2-btn v2-btn-ghost"
           >
             Cancel
           </button>
@@ -1370,20 +1320,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
             type="button"
             disabled={isPending || editLoading || editError}
             onClick={() => handleSubmit(onSubmit, onInvalid)()}
-            style={{
-              padding: '8px 16px',
-              background: 'var(--accent)',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              opacity: isPending || editLoading || editError ? 0.7 : 1,
-            }}
+            className="v2-btn v2-btn-primary"
           >
             {isPending && (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -1453,7 +1390,7 @@ export default function ProductSheet({ open, onClose, editData }: ProductSheetPr
                   borderRadius: 'var(--radius-md)',
                   fontSize: 13,
                   color: 'var(--foreground)',
-                  background: 'var(--background)',
+                  background: 'var(--surface-muted, var(--background))',
                   outline: 'none',
                   fontFamily: 'var(--font-sans)',
                   resize: 'vertical',
@@ -1572,7 +1509,7 @@ function ConversionsSection({ control, uomIndex, register, errors, targetOptions
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Conversions
         </span>
         <button

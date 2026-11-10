@@ -16,6 +16,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
@@ -67,12 +68,23 @@ const detailSchema = z.object({
   description: z.string().optional(),
 })
 
+/** Compare money in whole cents so float sums (0.1 + 0.2) don't break balance. */
+const toCents = (n: number) => Math.round((Number(n) || 0) * 100)
+
 const schema = z.object({
   period_id: z.coerce.number().min(1, 'Period is required'),
   date: z.string().min(1, 'Date is required'),
-  type: z.enum(['manual', 'sales', 'purchase', 'receipt', 'payment', 'adjustment', 'closing']),
-  description: z.string().optional(),
+  type: z.enum(['manual', 'sales', 'purchase', 'receipt', 'payment', 'adjustment', 'closing', 'stock_opname', 'production']),
+  description: z.string().trim().min(1, 'Description is required'),
   details: z.array(detailSchema).min(2, 'Minimum 2 journal lines'),
+}).superRefine((data, ctx) => {
+  const debit = data.details.reduce((s, d) => s + toCents(d.debit), 0)
+  const credit = data.details.reduce((s, d) => s + toCents(d.credit), 0)
+  if (debit <= 0) {
+    ctx.addIssue({ code: 'custom', path: ['details'], message: 'Enter at least one debit and one credit amount' })
+  } else if (debit !== credit) {
+    ctx.addIssue({ code: 'custom', path: ['details'], message: 'Total debit must equal total credit' })
+  }
 })
 type FormValues = z.infer<typeof schema>
 
@@ -84,6 +96,8 @@ const JOURNAL_TYPE_LABELS: Record<string, string> = {
   payment: 'Payment',
   adjustment: 'Adjustment',
   closing: 'Closing',
+  stock_opname: 'Stock Opname',
+  production: 'Production',
 }
 
 const JOURNAL_TYPE_OPTIONS = [
@@ -276,8 +290,11 @@ export default function JournalsView() {
   const canDelete = isSuperadmin || hasPermission('journal.delete')
   const canPost = isSuperadmin || hasPermission('journal.update')
   const canReverse = isSuperadmin || hasPermission('journal.reverse') || hasPermission('journal.update')
-  const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  // ?search=<journal number> (links from a sale's Journals card) prefills the search.
+  const initialSearch =
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('search') ?? '' : ''
+  const [search, setSearch] = useState(initialSearch)
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
   const [typeFilter, setTypeFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
@@ -305,7 +322,7 @@ export default function JournalsView() {
   })
 
   const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-all', debouncedCoaSearch, debouncedDropdownSearch],
+    queryKey: ['chart-of-accounts-all', 'journals-active', debouncedCoaSearch],
     queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true', 'filter[search]': debouncedCoaSearch || undefined } as any).then((r) => r.data),
   })
 
@@ -324,14 +341,16 @@ export default function JournalsView() {
 
   const postMutation = useMutation({
     mutationFn: (id: number) => journalsService.post(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['journals'] }); toast.success('Journal posted') },
+    onSuccess: (_res, id) => { queryClient.invalidateQueries({ queryKey: ['journals'] }); queryClient.invalidateQueries({ queryKey: ['journal-detail', id] }); toast.success('Journal posted') },
     onError: (err: any) => toastMutationApiError(err, 'Failed to post journal'),
   })
 
   const reverseMutation = useMutation({
     mutationFn: (id: number) => journalsService.reverse(id),
-    onSuccess: () => {
+    onSuccess: (_res, id) => {
       queryClient.invalidateQueries({ queryKey: ['journals'] })
+      // Reversal also creates a new journal, but the original's detail must refresh too.
+      queryClient.invalidateQueries({ queryKey: ['journal-detail', id] })
       toast.success('Journal reversed successfully')
       setReverseConfirmId(null)
     },
@@ -356,7 +375,7 @@ export default function JournalsView() {
 
   const totalDebit = watchedDetails?.reduce((s, d) => s + (Number(d.debit) || 0), 0) ?? 0
   const totalCredit = watchedDetails?.reduce((s, d) => s + (Number(d.credit) || 0), 0) ?? 0
-  const isBalanced = totalDebit === totalCredit && totalDebit > 0
+  const isBalanced = toCents(totalDebit) === toCents(totalCredit) && toCents(totalDebit) > 0
 
   const handleOpenCreate = () => {
     setEditData(null)
@@ -489,7 +508,7 @@ export default function JournalsView() {
 
   const updateMutation = useMutation({
     mutationFn: (data: JournalRequest) => journalsService.update(editData!.id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['journals'] }); toast.success('Journal updated'); setSheetOpen(false) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['journals'] }); queryClient.invalidateQueries({ queryKey: ['journal-detail', editData?.id] }); toast.success('Journal updated'); setSheetOpen(false) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
@@ -506,6 +525,23 @@ export default function JournalsView() {
     }
     if (editData) updateMutation.mutate(payload)
     else createMutation.mutate(payload)
+  }
+
+  // A rejected submit must never be silent: surface the first validation message.
+  const onInvalid = (errs: any) => {
+    const detailLineError = Array.isArray(errs?.details)
+      ? errs.details.find((d: any) => d)?.chart_of_account_id?.message
+      : undefined
+    const msg =
+      errs?.period_id?.message ??
+      errs?.date?.message ??
+      errs?.type?.message ??
+      errs?.description?.message ??
+      errs?.details?.message ??
+      errs?.details?.root?.message ??
+      detailLineError ??
+      'Please check the form'
+    toast.error(String(msg))
   }
 
   const numInputStyle: React.CSSProperties = { ...inputStyle, textAlign: 'right' }
@@ -764,7 +800,7 @@ export default function JournalsView() {
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>{editData ? 'Edit Journal' : 'New Journal Entry'}</h2>
               <button onClick={() => setSheetOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
-            <form onSubmit={handleSubmit(onSubmit)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <form onSubmit={handleSubmit(onSubmit, onInvalid)} style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Header fields */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -813,7 +849,12 @@ export default function JournalsView() {
                       <SearchableSelect
                         value={field.value}
                         onChange={(val) => field.onChange(val)}
-                        options={JOURNAL_TYPE_OPTIONS}
+                        options={
+                          // Keep system types (sales, production, …) visible when editing such a journal.
+                          !field.value || JOURNAL_TYPE_OPTIONS.some((o) => o.value === field.value)
+                            ? JOURNAL_TYPE_OPTIONS
+                            : [...JOURNAL_TYPE_OPTIONS, { value: field.value, label: JOURNAL_TYPE_LABELS[field.value] ?? field.value }]
+                        }
                         placeholder="Select type..."
                         searchPlaceholder="Cari tipe jurnal..."
                       />
@@ -821,8 +862,9 @@ export default function JournalsView() {
                   />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Description</label>
+                  <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Description <span style={{ color: 'var(--destructive)' }}>*</span></label>
                   <input {...register('description')} placeholder="Journal description" style={inputStyle} />
+                  {errors.description && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.description.message}</span>}
                 </div>
               </div>
 
@@ -874,14 +916,12 @@ export default function JournalsView() {
                                 control={control}
                                 name={`details.${idx}.debit`}
                                 render={({ field }) => (
-                                  <input
-                                    type="text"
+                                  <LocalizedNumberInput
                                     disabled={currentCredit > 0}
-                                    value={field.value ? Number(field.value).toLocaleString('id-ID') : ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, '')
-                                      field.onChange(val ? Number(val) : 0)
-                                    }}
+                                    value={field.value || ''}
+                                    onChange={(n) => field.onChange(Number.isFinite(n) ? n : 0)}
+                                    decimals={2}
+                                    padDecimals={false}
                                     style={{
                                       ...smallInputStyle,
                                       textAlign: 'right',
@@ -900,14 +940,12 @@ export default function JournalsView() {
                                 control={control}
                                 name={`details.${idx}.credit`}
                                 render={({ field }) => (
-                                  <input
-                                    type="text"
+                                  <LocalizedNumberInput
                                     disabled={currentDebit > 0}
-                                    value={field.value ? Number(field.value).toLocaleString('id-ID') : ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, '')
-                                      field.onChange(val ? Number(val) : 0)
-                                    }}
+                                    value={field.value || ''}
+                                    onChange={(n) => field.onChange(Number.isFinite(n) ? n : 0)}
+                                    decimals={2}
+                                    padDecimals={false}
                                     style={{
                                       ...smallInputStyle,
                                       textAlign: 'right',
@@ -955,7 +993,13 @@ export default function JournalsView() {
 
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setSheetOpen(false)} style={{ padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
-              <button type="button" disabled={isPending} onClick={handleSubmit(onSubmit)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending ? 0.7 : 1 }}>
+              {!isBalanced && (
+                <span style={{ marginRight: 'auto', alignSelf: 'center', fontSize: 12, color: 'var(--destructive)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertCircle size={12} />
+                  {toCents(totalDebit) <= 0 ? 'Enter debit and credit amounts' : 'Total debit must equal total credit'}
+                </span>
+              )}
+              <button type="button" disabled={isPending || !isBalanced} onClick={handleSubmit(onSubmit, onInvalid)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: isPending || !isBalanced ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending || !isBalanced ? 0.6 : 1 }}>
                 {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
                 {editData ? 'Save' : 'Create Journal (Draft)'}
               </button>

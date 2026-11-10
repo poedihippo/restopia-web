@@ -158,7 +158,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [debouncedOwnerRef, setDebouncedOwnerRef] = useState<(number | string)[]>([])
   const [debouncedStage, setDebouncedStage] = useState<(number | string)[]>([])
   const [debouncedLocationRef, setDebouncedLocationRef] = useState<(number | string)[]>([])
-  const [hideEmpty, setHideEmpty] = useState(false)
+  // On by default; sent to the API so pagination counts only non-empty batches.
+  const [hideEmpty, setHideEmpty] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<ProductInventory | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -226,6 +227,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
       const response = await productInventoriesService.exportExcel({
         'filter[search]': debouncedSearch || undefined,
         'filter[product_type]': activeProductTypes,
+        // Same stock floor as the table, so "Hide empty batches" applies to the file too.
+        'filter[stock_gte]': (hideEmpty ? String(Math.max(0.0001, Number(debouncedStockGte) || 0)) : debouncedStockGte) || undefined,
       })
 
       const blob = new Blob([response.data], {
@@ -251,7 +254,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, debouncedOwnerRef, debouncedStage, debouncedLocationRef])
+  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, debouncedOwnerRef, debouncedStage, debouncedLocationRef, hideEmpty])
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -304,8 +307,15 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
         ? activeTypeList[0]
         : ''
 
+  // The API has no "stock > 0" filter: hide-empty sends the smallest positive
+  // stock_gte (or the user's own minimum, whichever is higher).
+  const HIDE_EMPTY_MIN = 0.0001
+  const effectiveStockGte = hideEmpty
+    ? String(Math.max(HIDE_EMPTY_MIN, Number(debouncedStockGte) || 0))
+    : debouncedStockGte
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, perPage, debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef],
+    queryKey: ['product-inventories', page, perPage, debouncedSearch, effectiveStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -316,7 +326,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           'filter[search]': debouncedSearch || undefined,
           // Default hanya inventori aktif (kolom Status sudah tidak ditampilkan).
           'filter[status]': 'active',
-          'filter[stock_gte]': debouncedStockGte || undefined,
+          'filter[stock_gte]': effectiveStockGte || undefined,
           'filter[stock_lte]': debouncedStockLte || undefined,
           'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
           'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
@@ -967,7 +977,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                             textUnderlineOffset: 3,
                           }}
                         >
-                          {item.stage ? item.stage.toUpperCase() : '—'}
+                          <span className="v2-link">{item.stage ? item.stage.toUpperCase() : '—'}</span>
                           <Pencil size={12} />
                         </button>
                       ) : item.stage ? (

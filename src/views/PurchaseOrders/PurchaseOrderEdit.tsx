@@ -48,13 +48,20 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
       type: order.type ?? '',
       status: order.status,
       description: order.description ?? '',
+      tax_id: order.tax_id ?? undefined,
       details: rawDetails.length
         ? rawDetails.map((d: any) => ({
+          id: d.id ?? undefined,
           product_uom_id:
             d.product_uom_id ?? d.product_uom?.id ?? 0,
           qty: d.qty ?? 1,
           price: d.price || d.product_uom?.base_price || 0,
           description: d.description ?? '',
+          is_taxable: Boolean(d.is_taxable),
+          discount_type: d.discount_type || undefined,
+          discount_value: d.discount_value ?? undefined,
+          // Delivered/received so far — locks the row's qty in the form.
+          delivered_qty: Math.max(Number(d.delivered_qty ?? 0), Number(d.received_qty ?? 0)),
         }))
         : [{ product_uom_id: 0, qty: 1, price: 0, description: '' }],
       additional_charges: (order.additional_charges ?? []).map((c: any) => ({
@@ -63,7 +70,6 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
         amount: Number(c.amount ?? 0),
         description: c.description ?? '',
       })),
-      deliveries: order.deliveries ?? [],
     }
     : undefined
 

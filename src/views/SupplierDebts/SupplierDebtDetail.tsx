@@ -31,8 +31,13 @@ interface PurchaseOrder {
   date?: string
   total_price: number
   status?: string
+  total_payment?: number
+  remaining_payment?: number
   supplier?: Supplier
 }
+
+// Pending (draft) and rejected POs are never a payable debt.
+const NON_PAYABLE_PO_STATUSES = ['pending', 'rejected']
 
 interface DisbursePayment {
   id: number
@@ -134,7 +139,7 @@ function PayModal({
   }, [search])
 
   const { data: pmData, isLoading: pmLoading } = useQuery({
-    queryKey: ['payment-methods-all', debouncedSearch],
+    queryKey: ['payment-methods-all', 'purchase_orders', debouncedSearch],
     queryFn: () =>
       paymentMethodsService
         .list({
@@ -172,6 +177,8 @@ function PayModal({
       qc.invalidateQueries({ queryKey: ['supplier-debt-detail-pos', supplierId] })
       qc.invalidateQueries({ queryKey: ['po-disburse-payments'] })
       qc.invalidateQueries({ queryKey: ['po-payments-history'] })
+      qc.invalidateQueries({ queryKey: ['po-payments-pos'] })
+      qc.invalidateQueries({ queryKey: ['supplier-debts-pos'] })
       toast.success('Pembayaran berhasil dicatat')
       onClose()
     },
@@ -375,29 +382,22 @@ export default function SupplierDebtDetailView() {
   const pos: PurchaseOrder[] = (posData as any)?.data ?? []
   const payments: DisbursePayment[] = (paymentsData as any)?.data ?? []
 
-  const paidByPoId = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const p of payments) {
-      if (p.is_reversed) continue
-      for (const a of p.allocations ?? []) {
-        if (a.purchase_order_id == null) continue
-        const poId = Number(a.purchase_order_id)
-        map.set(poId, (map.get(poId) ?? 0) + Number(a.amount ?? 0))
-      }
-    }
-    return map
-  }, [payments])
-
+  // Paid / outstanding come straight from the PO (total_payment /
+  // remaining_payment) instead of summing a capped payments list.
   const poRows = useMemo(() => {
     return pos
+      .filter((po) => !NON_PAYABLE_PO_STATUSES.includes(String(po.status ?? '')))
       .map((po) => {
-        const totalPaid = paidByPoId.get(po.id) ?? 0
-        const outstanding = Number(po.total_price ?? 0) - totalPaid
+        const totalPaid = Number(po.total_payment ?? 0)
+        const outstanding =
+          po.remaining_payment != null
+            ? Number(po.remaining_payment)
+            : Number(po.total_price ?? 0) - totalPaid
         return { ...po, totalPaid, outstanding }
       })
       .filter((row) => row.outstanding > 0)
       .sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime())
-  }, [pos, paidByPoId])
+  }, [pos])
 
   const supplierPayments = useMemo(() => {
     return payments

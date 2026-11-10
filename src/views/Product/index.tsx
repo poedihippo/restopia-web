@@ -2,6 +2,7 @@
 import { formatDateShort, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productsService } from '@/services/products.service'
@@ -43,6 +44,7 @@ interface Product {
 
 export default function ProductView() {
   const queryClient = useQueryClient()
+  const router = useRouter()
   const { hasPermission } = useAuth()
   const activeProductTypes = useActiveBranchProductTypes()
   const allowedTypes = activeProductTypes
@@ -83,7 +85,6 @@ export default function ProductView() {
   const [editData, setEditData] = useState<Product | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<Product | null>(null)
-  const [hoveredRow, setHoveredRow] = useState<number | null>(null)
 
   const sortParam = sortOrder === 'desc' ? `-${sortBy}` : sortBy
 
@@ -95,6 +96,21 @@ export default function ProductView() {
       setSortOrder(field === 'id' ? 'desc' : 'asc')
     }
     setPage(1)
+  }
+
+  // Deep link: /products?view=<id> opens that product's detail panel (used by the dashboard).
+  const viewParam = router.query.view
+  useEffect(() => {
+    const id = Number(Array.isArray(viewParam) ? viewParam[0] : viewParam)
+    if (id > 0) setSelectedItem({ id, name: '', is_active: true, product_category_id: 0 })
+  }, [viewParam])
+
+  const closeDetail = () => {
+    setSelectedItem(null)
+    if (router.query.view) {
+      const { view: _view, ...rest } = router.query
+      router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true })
+    }
   }
 
   useEffect(() => {
@@ -148,11 +164,11 @@ export default function ProductView() {
   })
 
   const typePillStyle = (type?: string): React.CSSProperties => {
-    const base: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 500 }
-    if (type === 'raw') return { ...base, background: 'var(--info-bg)', color: 'var(--info)' }
-    if (type === 'wip') return { ...base, background: 'var(--warning-bg)', color: 'var(--warning)' }
-    if (type === 'final') return { ...base, background: 'var(--success-bg)', color: 'var(--success)' }
-    if (type === 'supply') return { ...base, background: 'var(--accent-light-bg)', color: 'var(--accent)' }
+    const base: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', height: 20, padding: '0 9px', borderRadius: 99, fontSize: 10.5, fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.4 }
+    if (type === 'raw') return { ...base, background: 'var(--pastel-blue, var(--info-bg))', color: 'var(--pastel-blue-ink, var(--info))' }
+    if (type === 'wip') return { ...base, background: 'var(--pastel-gold, var(--warning-bg))', color: 'var(--pastel-gold-ink, var(--warning))' }
+    if (type === 'final') return { ...base, background: 'var(--pastel-mint, var(--success-bg))', color: 'var(--pastel-mint-ink, var(--success))' }
+    if (type === 'supply') return { ...base, background: 'var(--pastel-lavender, var(--accent-light-bg))', color: 'var(--pastel-lavender-ink, var(--accent))' }
     return { ...base, background: 'var(--border)', color: 'var(--foreground-muted)' }
   }
 
@@ -162,412 +178,283 @@ export default function ProductView() {
     padding: '2px 8px',
     background: 'var(--accent-light-bg)',
     color: 'var(--accent)',
+    border: '1px solid rgba(198, 139, 78, 0.18)',
     borderRadius: 'var(--radius-sm)',
     fontSize: 11,
-    fontWeight: 600,
+    fontWeight: 500,
     letterSpacing: 0.5,
     fontFamily: 'monospace',
   }
 
+  const columns: { label: string; width?: number; sortKey?: 'id' | 'name' | 'code'; align?: 'center' | 'right' }[] = [
+    { label: 'No.', width: 56, sortKey: 'id', align: 'center' },
+    { label: 'Name', sortKey: 'name' },
+    { label: 'Code', width: 130, sortKey: 'code' },
+    { label: 'Category', width: 170 },
+    { label: 'Type', width: 96 },
+    { label: 'Created', width: 120 },
+    { label: '', width: 104 },
+  ]
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Page header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid var(--border)',
-          paddingBottom: 20,
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 24,
-              fontWeight: 500,
-              margin: 0,
-              color: 'var(--foreground)',
-            }}
-          >
+          <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
             Products
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0 0' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0 0' }}>
             Manage your product catalogue
+            {meta?.total != null && (
+              <span style={{ color: 'var(--foreground-subtle)' }}> · {Number(meta.total).toLocaleString('id-ID')} items</span>
+            )}
           </p>
         </div>
 
-        {canCreate && (<button
-          onClick={() => { setEditData(null); setSheetOpen(true) }}
+        {canCreate && (
+          <button className="v2-btn v2-btn-primary" onClick={() => { setEditData(null); setSheetOpen(true) }}>
+            <Plus size={14} />New Product
+          </button>
+        )}
+      </div>
+
+      {/* Table card with toolbar */}
+      <div className="v2-card" style={{ overflow: 'hidden' }}>
+        <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}>
-          <Plus size={15} />New Product
-                              </button>)}
-      </div>
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        <div
-          role="tablist"
-          aria-label="Product status"
-          style={{
-            display: 'inline-flex',
-            padding: 3,
-            gap: 2,
-            background: 'var(--background)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
+            gap: 8,
+            padding: '10px 12px',
+            borderBottom: '1px solid var(--border)',
+            flexWrap: 'wrap',
           }}
         >
-          {([
-            ['true', 'Active'],
-            ['false', 'Inactive'],
-            ['', 'All'],
-          ] as const).map(([value, label]) => {
-            const on = activeFilter === value
-            return (
+          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 300 }}>
+            <Search
+              size={14}
+              style={{
+                position: 'absolute',
+                left: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--foreground-subtle)',
+                pointerEvents: 'none',
+              }}
+            />
+            <input
+              className="v2-input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products..."
+              style={{ width: '100%', paddingLeft: 30, background: 'var(--surface-muted)' }}
+            />
+          </div>
+
+          <div role="tablist" aria-label="Product status" className="v2-seg">
+            {([
+              ['true', 'Active'],
+              ['false', 'Inactive'],
+              ['', 'All'],
+            ] as const).map(([value, label]) => (
               <button
                 key={label}
                 type="button"
                 role="tab"
-                aria-selected={on}
+                aria-selected={activeFilter === value}
                 onClick={() => setActiveFilter(value)}
-                style={{
-                  height: 28,
-                  padding: '0 12px',
-                  border: 'none',
-                  borderRadius: 'var(--radius-sm)',
-                  background: on ? 'var(--surface)' : 'transparent',
-                  boxShadow: on ? 'var(--shadow-sm)' : 'none',
-                  color: on ? 'var(--foreground)' : 'var(--foreground-muted)',
-                  fontSize: 13,
-                  fontWeight: on ? 600 : 500,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-sans)',
-                }}
               >
                 {label}
               </button>
-            )
-          })}
+            ))}
+          </div>
+
+          <select
+            className="v2-select"
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="">All Types</option>
+            {availableTypeOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="v2-select"
+            value={categoryFilter}
+            onChange={(e) => {
+              setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+              setPage(1)
+            }}
+            style={{ maxWidth: 200 }}
+          >
+            <option value="">All Categories</option>
+            {categories.map((c: any) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <select
-          value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value)
-            setPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          <option value="">All Types</option>
-          {availableTypeOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={categoryFilter}
-          onChange={(e) => {
-            setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
-            setPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-            maxWidth: 200,
-          }}
-        >
-          <option value="">All Categories</option>
-          {categories.map((c: any) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      {/* Table */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
-              {[
-                { label: 'No.', width: 65, sortKey: 'id' as const },
-                { label: 'Name', width: undefined, sortKey: 'name' as const },
-                { label: 'Code', width: 120, sortKey: 'code' as const },
-                { label: 'Category', width: 160 },
-                { label: 'Type', width: 100 },
-                { label: 'Created', width: 140 },
-                { label: '', width: 80 },
-              ].map((col, i) => {
-                const isSortable = !!col.sortKey
-                const isActive = sortBy === col.sortKey
-                return (
-                  <th
-                    key={i}
-                    onClick={isSortable ? () => handleSort(col.sortKey!) : undefined}
-                    style={{
-                      padding: col.label === 'No.' ? '10px 8px' : '10px 16px',
-                      textAlign: col.label === 'No.' ? 'center' : 'left',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: isActive ? 'var(--foreground)' : 'var(--foreground-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.6,
-                      width: col.width,
-                      cursor: isSortable ? 'pointer' : 'default',
-                      userSelect: 'none',
-                      transition: 'color 0.15s ease',
-                    }}
-                  >
-                    <div
+        <div style={{ overflowX: 'auto' }}>
+          <table className="v2-table">
+            <thead>
+              <tr>
+                {columns.map((col, i) => {
+                  const isSortable = !!col.sortKey
+                  const isActive = sortBy === col.sortKey
+                  return (
+                    <th
+                      key={i}
+                      onClick={isSortable ? () => handleSort(col.sortKey!) : undefined}
                       style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: col.label === 'No.' ? 'center' : 'flex-start',
-                        gap: 4,
+                        textAlign: col.align ?? 'left',
+                        width: col.width,
+                        color: isActive ? 'var(--foreground)' : undefined,
+                        cursor: isSortable ? 'pointer' : 'default',
+                        userSelect: 'none',
                       }}
                     >
-                      <span>{col.label}</span>
-                      {isSortable && (
-                        isActive ? (
-                          sortOrder === 'asc' ? (
-                            <ArrowUp size={12} style={{ color: 'var(--accent)' }} />
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <span>{col.label}</span>
+                        {isSortable && (
+                          isActive ? (
+                            sortOrder === 'asc' ? (
+                              <ArrowUp size={12} style={{ color: 'var(--accent-light)' }} />
+                            ) : (
+                              <ArrowDown size={12} style={{ color: 'var(--accent-light)' }} />
+                            )
                           ) : (
-                            <ArrowDown size={12} style={{ color: 'var(--accent)' }} />
+                            <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
                           )
-                        ) : (
-                          <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
-                        )
-                      )}
-                    </div>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
+                        )}
+                      </span>
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
 
-          <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                    {[60, 40, 80, 50, 70].map((w, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          height: 16,
-                          borderRadius: 4,
-                          background: 'var(--border)',
-                          width: `${w}%`,
-                          animation: 'pulse 1.5s ease-in-out infinite',
-                        }}
-                      />
+            <tbody>
+              {isLoading &&
+                Array.from({ length: 8 }).map((_, r) => (
+                  <tr key={`sk-${r}`}>
+                    {columns.map((col, c) => (
+                      <td key={c}>
+                        {col.label && <div className="v2-skeleton" style={{ height: 10, width: c === 1 ? `${70 - (r % 3) * 15}%` : '60%' }} />}
+                      </td>
                     ))}
-                  </div>
-                </td>
-              </tr>
-            )}
+                  </tr>
+                ))}
 
-            {isError && (
-              <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
-                  Failed to load products
-                </td>
-              </tr>
-            )}
+              {isError && (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', height: 96, color: 'var(--destructive)' }}>
+                    Failed to load products
+                  </td>
+                </tr>
+              )}
 
-            {!isLoading && !isError && items.length === 0 && (
-              <tr>
-                <td colSpan={7}>
-                  <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                    <Package size={32} style={{ color: 'var(--foreground-subtle)' }} />
-                    <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      No products found
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            )}
-
-            {!isLoading &&
-              items.map((item, idx) => (
-                <tr
-                  key={item.id}
-                  onMouseEnter={() => setHoveredRow(item.id)}
-                  onMouseLeave={() => setHoveredRow(null)}
-                  style={{
-                    borderBottom: '1px solid var(--border)',
-                    // Inactive products: tinted row + red edge so they're not mistaken for sellable ones.
-                    background: !item.is_active
-                      ? 'var(--destructive-bg)'
-                      : hoveredRow === item.id ? 'var(--background)' : 'transparent',
-                    boxShadow: !item.is_active ? 'inset 3px 0 0 var(--destructive)' : undefined,
-                    opacity: !item.is_active && hoveredRow !== item.id ? 0.85 : 1,
-                  }}
-                >
-                  <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 65 }}>
-                    {(page - 1) * perPage + idx + 1}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: item.is_active ? 'var(--foreground)' : 'var(--foreground-muted)' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      {canRead ? item.name : "***"}
-                      {!item.is_active && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            padding: '1px 7px',
-                            borderRadius: 999,
-                            background: 'var(--surface)',
-                            border: '1px solid var(--destructive)',
-                            color: 'var(--destructive)',
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.4,
-                          }}
-                        >
-                          Inactive
-                        </span>
-                      )}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {canRead ? item.code ? (
-                      <span style={codePill}>{item.code}</span>
-                    ) : (
-                      <span style={{ color: 'var(--foreground-subtle)', fontSize: 13 }}>—</span>
-                    ) : "***"}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {canRead ? item.product_category?.name ?? '—' : "***"}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={typePillStyle(item.type)}>
-                      {item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : '—'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {canRead ? item.created_at
-                      ? formatDateShort(item.created_at)
-                      : '—' : "***"}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => setSelectedItem(item)}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--foreground-muted)',
-                          display: 'flex',
-                        }}
-                      >
-                        <Eye size={14} />
-                      </button>
-                      {canEdit && (<button
-                        onClick={() => { setEditData(item); setSheetOpen(true) }}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--foreground-muted)',
-                          display: 'flex',
-                        }}>
-                        <Pencil size={14} />
-                      </button>)}
-                      {canDelete && (<button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{
-                          padding: 6,
-                          background: 'none',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          cursor: 'pointer',
-                          color: 'var(--destructive)',
-                          display: 'flex',
-                        }}>
-                        <Trash2 size={14} />
-                      </button>)}
+              {!isLoading && !isError && items.length === 0 && (
+                <tr>
+                  <td colSpan={7}>
+                    <div style={{ padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+                      <span style={{ width: 44, height: 44, borderRadius: 14, background: 'var(--pastel-lavender)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Package size={20} style={{ color: 'var(--pastel-lavender-ink)' }} />
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>No products found</span>
+                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: -6 }}>Try a different search or filter</span>
                     </div>
                   </td>
                 </tr>
-              ))}
-          </tbody>
-        </table>
+              )}
+
+              {!isLoading &&
+                items.map((item, idx) => (
+                  <tr
+                    key={item.id}
+                    data-row
+                    style={{
+                      // Inactive products: tinted row + red edge so they're not mistaken for sellable ones.
+                      background: !item.is_active ? 'var(--destructive-bg)' : undefined,
+                      boxShadow: !item.is_active ? 'inset 3px 0 0 var(--destructive)' : undefined,
+                    }}
+                  >
+                    <td style={{ textAlign: 'center', color: 'var(--foreground-subtle)', fontSize: 12 }}>
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
+                    <td style={{ fontWeight: 500, color: item.is_active ? 'var(--foreground)' : 'var(--foreground-muted)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {canRead ? item.name : "***"}
+                        {!item.is_active && (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 500,
+                              padding: '1px 7px',
+                              borderRadius: 999,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--destructive)',
+                              color: 'var(--destructive)',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.4,
+                            }}
+                          >
+                            Inactive
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td>
+                      {canRead ? item.code ? (
+                        <span style={codePill}>{item.code}</span>
+                      ) : (
+                        <span style={{ color: 'var(--foreground-subtle)' }}>—</span>
+                      ) : "***"}
+                    </td>
+                    <td style={{ color: 'var(--foreground-muted)' }}>
+                      {canRead ? item.product_category?.name ?? '—' : "***"}
+                    </td>
+                    <td>
+                      <span style={typePillStyle(item.type)}>
+                        {item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : '—'}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                      {canRead ? item.created_at
+                        ? formatDateShort(item.created_at)
+                        : '—' : "***"}
+                    </td>
+                    <td>
+                      <div className="v2-row-actions" style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end' }}>
+                        <button className="v2-icon-btn" title="View" onClick={() => setSelectedItem(item)}>
+                          <Eye size={14} />
+                        </button>
+                        {canEdit && (
+                          <button className="v2-icon-btn" title="Edit" onClick={() => { setEditData(item); setSheetOpen(true) }}>
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button className="v2-icon-btn" data-tone="danger" title="Delete" onClick={() => setDeleteConfirmId(item.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       {/* Pagination */}
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
@@ -584,61 +471,40 @@ export default function ProductView() {
           }}
         >
           <div
+            className="v2-overlay"
             onClick={() => setDeleteConfirmId(null)}
             style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)' }}
           />
           <div
+            className="v2-dialog"
             style={{
               position: 'relative',
               zIndex: 51,
               background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 24,
+              borderRadius: 'var(--radius-xl)',
+              padding: 20,
               width: 360,
+              maxWidth: 'calc(100vw - 32px)',
               boxShadow: 'var(--shadow-lg)',
             }}
           >
-            <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>
+            <span style={{ width: 36, height: 36, borderRadius: 11, background: 'var(--destructive-bg)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+              <Trash2 size={16} style={{ color: 'var(--destructive)' }} />
+            </span>
+            <h3 style={{ fontSize: 15, fontWeight: 500, margin: '0 0 6px', color: 'var(--foreground)' }}>
               Delete Product
             </h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px' }}>
+            <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '0 0 18px' }}>
               This will permanently remove the product and may affect related records.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmId(null)}
-                style={{
-                  padding: '8px 16px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
+              <button type="button" className="v2-btn v2-btn-ghost" onClick={() => setDeleteConfirmId(null)}>
                 Cancel
               </button>
               <button
+                className="v2-btn v2-btn-danger"
                 onClick={() => deleteMutation.mutate(deleteConfirmId)}
                 disabled={deleteMutation.isPending}
-                style={{
-                  padding: '8px 16px',
-                  background: 'var(--destructive)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  opacity: deleteMutation.isPending ? 0.7 : 1,
-                }}
               >
                 Delete
               </button>
@@ -650,9 +516,9 @@ export default function ProductView() {
       {selectedItem && (
         <ProductDetailPanel
           item={selectedItem}
-          onClose={() => setSelectedItem(null)}
+          onClose={closeDetail}
           typePillStyle={typePillStyle}
-          onEdit={(item) => { setEditData(item); setSelectedItem(null); setSheetOpen(true) }}
+          onEdit={(item) => { setEditData(item); closeDetail(); setSheetOpen(true) }}
           canEdit={canEdit}
         />
       )}
@@ -662,12 +528,6 @@ export default function ProductView() {
         onClose={() => { setSheetOpen(false); setEditData(null) }}
         editData={editData}
       />
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-      `}</style>
     </div>
   );
 }
@@ -702,7 +562,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
 
   const sectionHeader: React.CSSProperties = {
     fontSize: 11,
-    fontWeight: 700,
+    fontWeight: 500,
     color: 'var(--foreground-muted)',
     textTransform: 'uppercase',
     letterSpacing: '0.6px',
@@ -710,7 +570,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
 
   const labelStyle: React.CSSProperties = {
     fontSize: 11,
-    fontWeight: 600,
+    fontWeight: 500,
     color: 'var(--foreground-subtle)',
   }
 
@@ -725,9 +585,10 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
     padding: '2px 8px',
     background: 'var(--accent-light-bg)',
     color: 'var(--accent)',
+    border: '1px solid rgba(198, 139, 78, 0.18)',
     borderRadius: 'var(--radius-sm)',
     fontSize: 11,
-    fontWeight: 600,
+    fontWeight: 500,
     letterSpacing: 0.5,
     fontFamily: 'monospace',
   }
@@ -743,10 +604,12 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
       }}
     >
       <div
+        className="v2-overlay"
         onClick={onClose}
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }}
       />
       <div
+        className="v2-sheet"
         style={{
           position: 'relative',
           zIndex: 50,
@@ -762,7 +625,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
         {/* Header */}
         <div
           style={{
-            padding: '20px 24px',
+            padding: '14px 20px',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
@@ -772,7 +635,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
           <h2
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 18,
+              fontSize: 16,
               fontWeight: 500,
               margin: 0,
               color: 'var(--foreground)',
@@ -821,10 +684,10 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: 24,
+            padding: 20,
             display: 'flex',
             flexDirection: 'column',
-            gap: 24,
+            gap: 16,
           }}
         >
           {isLoading ? (
@@ -837,7 +700,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
               {/* ── General Info ─────────────────────── */}
               <div
                 style={{
-                  background: 'var(--background)',
+                  background: 'var(--surface-muted, var(--background))',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-lg)',
                   padding: 16,
@@ -851,7 +714,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span style={labelStyle}>Name</span>
-                    <span style={{ ...valueStyle, fontWeight: 600 }}>{detail?.name ?? item.name ?? '—'}</span>
+                    <span style={{ ...valueStyle, fontWeight: 500 }}>{detail?.name ?? item.name ?? '—'}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <span style={labelStyle}>Code</span>
@@ -903,7 +766,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                       padding: '2px 10px',
                       borderRadius: 99,
                       fontSize: 11,
-                      fontWeight: 600,
+                      fontWeight: 500,
                       width: 'fit-content',
                       background: (detail?.is_active ?? item.is_active) ? 'var(--success-bg)' : 'var(--destructive-bg)',
                       color: (detail?.is_active ?? item.is_active) ? 'var(--success)' : 'var(--destructive)',
@@ -926,7 +789,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
               {/* ── Units & Prices ─────────────────────── */}
               <div
                 style={{
-                  background: 'var(--background)',
+                  background: 'var(--surface-muted, var(--background))',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-lg)',
                   padding: 16,
@@ -940,7 +803,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                   <span
                     style={{
                       fontSize: 11,
-                      fontWeight: 600,
+                      fontWeight: 500,
                       color: 'var(--foreground-muted)',
                       background: 'var(--surface)',
                       padding: '2px 8px',
@@ -977,7 +840,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                           {/* UOM header */}
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                                 {pu.name ?? uomInfo?.name ?? `UOM #${pu.uom_id}`}
                               </span>
                               {(pu.uom_code ?? uomInfo?.code) && (
@@ -986,7 +849,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                               {pu.is_default && (
                                 <span style={{
                                   fontSize: 10,
-                                  fontWeight: 600,
+                                  fontWeight: 500,
                                   color: 'var(--success)',
                                   background: 'var(--success-bg)',
                                   padding: '1px 6px',
@@ -998,7 +861,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                               {isBase && (
                                 <span style={{
                                   fontSize: 10,
-                                  fontWeight: 600,
+                                  fontWeight: 500,
                                   color: 'var(--accent)',
                                   background: 'var(--accent-light-bg)',
                                   padding: '1px 6px',
@@ -1012,7 +875,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                               {!pu.is_active && (
                                 <span style={{
                                   fontSize: 10,
-                                  fontWeight: 600,
+                                  fontWeight: 500,
                                   color: 'var(--destructive)',
                                   background: 'var(--destructive-bg)',
                                   padding: '1px 6px',
@@ -1062,7 +925,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                           {/* Conversions */}
                           {pu.conversions && pu.conversions.length > 0 && (
                             <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-                              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                              <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--foreground-subtle)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                                 Conversions
                               </span>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
@@ -1079,11 +942,11 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
                                         color: 'var(--foreground-muted)',
                                       }}
                                     >
-                                      <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>
+                                      <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>
                                         1 {pu.uom_code ?? uomInfo?.code ?? '?'}
                                       </span>
                                       <span>=</span>
-                                      <span style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                                      <span style={{ fontWeight: 500, color: 'var(--accent)' }}>
                                         {c.amount?.toLocaleString('id-ID', { maximumFractionDigits: 2 }) ?? '?'}
                                       </span>
                                       <span>{c.target_uom_code ?? targetUom?.code ?? `UOM #${c.target_uom_id}`}</span>
@@ -1103,7 +966,7 @@ function ProductDetailPanel({ item, onClose, typePillStyle, onEdit, canEdit }: P
               {/* ── Audit Info ─────────────────────── */}
               <div
                 style={{
-                  background: 'var(--background)',
+                  background: 'var(--surface-muted, var(--background))',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-lg)',
                   padding: 16,

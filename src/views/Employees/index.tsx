@@ -30,8 +30,10 @@ interface Employee {
   created_at?: string
   branch?: { id: number; name: string }
   branches?: Array<{ id: number; name: string }>
+  departments?: Array<{ id: number; name: string }>
   roles?: Array<{ id: number; name: string }>
   branch_ids?: number[]
+  department_ids?: number[]
   role_ids?: number[]
 }
 
@@ -67,7 +69,8 @@ export default function EmployeesView() {
         .list({
           page,
           per_page: perPage,
-          include: 'branch,roles',
+          // branches + departments are needed so editing doesn't wipe them (PATCH replaces both lists).
+          include: 'branch,branches,roles,departments',
           sort: '-created_at',
           'filter[type]': 'user',
           'filter[search]': debouncedSearch || undefined,
@@ -166,6 +169,7 @@ export default function EmployeesView() {
     setEditData({
       ...item,
       branch_ids: fallbackBranchIds,
+      department_ids: (item.departments ?? []).map((d) => d.id).filter((id) => typeof id === 'number'),
       role_ids: (item.roles ?? []).map((r) => r.id),
     })
     setSheetOpen(true)

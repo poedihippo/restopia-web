@@ -102,7 +102,7 @@ export default function PosProductGrid({
               textTransform: 'capitalize',
             }}
           >
-            {tab === 'products' ? '🛍 Products' : '🎁 Bundles'}
+            {tab === 'products' ? 'Products' : 'Bundles'}
           </button>
         ))}
       </div>

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { installClickGuard } from "@/lib/clickGuard";
 import "@/styles/globals.css";
 import "@/styles/pos-print.css";
+import "@/styles/ui-v2.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { AppProps } from "next/app";
 import { useRouter } from "next/router";

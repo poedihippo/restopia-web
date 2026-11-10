@@ -36,7 +36,9 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
       code: receipt.code,
       delivery_id: receipt.delivery?.id ?? receipt.delivery_id ?? 0,
       date: parseDate(receipt.date),
-      status: receipt.status === 'pending' ? 'final' : (receipt.status ?? 'final'),
+      // Keep the stored status — a pending receipt stays pending unless the
+      // user explicitly switches it to final.
+      status: receipt.status ?? 'final',
       description: receipt.description ?? '',
       total_price: receipt.total_price ?? 0,
       details: rawDetails.length
@@ -54,7 +56,7 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
               : '',
           qty: d.qty ?? 1,
           price: d.price ?? 0,
-          status: d.status === 'pending' ? 'success' : (d.status ?? 'success'),
+          status: d.status ?? 'success',
           description: d.description ?? '',
           client_ref: d.client_ref ?? '',
         }))

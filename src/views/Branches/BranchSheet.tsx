@@ -56,7 +56,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
   })
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
+    queryKey: ['branches-all', 'by-name'],
     queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then(r => r.data),
     enabled: open,
   })
@@ -119,6 +119,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
     mutationFn: (data: FormValues) => branchesService.create(data as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['branches'] })
+      qc.invalidateQueries({ queryKey: ['branches-all'] })
       toast.success('Branch created')
       onClose()
     },
@@ -132,6 +133,7 @@ export default function BranchSheet({ open, onClose, editData }: BranchSheetProp
     mutationFn: (data: FormValues) => branchesService.update(editData!.id, data as any),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['branches'] })
+      qc.invalidateQueries({ queryKey: ['branches-all'] })
       toast.success('Branch updated')
       onClose()
     },

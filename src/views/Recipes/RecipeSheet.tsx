@@ -19,6 +19,8 @@ import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint } from '@/utils/deductionType
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
 const materialSchema = z.object({
+  // Saved material id (edit only) so the update keeps the row instead of re-creating it.
+  id: z.coerce.number().min(0).optional(),
   product_uom_id: z.coerce.number().min(1, 'Material required'),
   qty: z.coerce.number().min(0.001, 'Qty must be > 0'),
   deduction_type: z.string().min(1).default('deduct_on_production'),
@@ -279,6 +281,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
         type: editData.type ?? defaultType,
         materials:
           editData.recipe_materials?.map((m) => ({
+            id: m.id,
             product_uom_id: m.product_uom_id,
             qty: m.qty,
             deduction_type: m.deduction_type ?? 'deduct_on_production',

@@ -36,6 +36,10 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payments'] })
+      qc.invalidateQueries({ queryKey: ['sales-order-payment-allocations'] })
+      qc.invalidateQueries({ queryKey: ['sales-order-detail'] })
+      qc.invalidateQueries({ queryKey: ['sales-orders'] })
+      qc.invalidateQueries({ queryKey: ['unpaid-offline-orders'] })
       toast.success('Payment allocated')
       onClose()
     },

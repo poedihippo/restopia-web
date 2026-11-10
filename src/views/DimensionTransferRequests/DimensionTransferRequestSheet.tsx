@@ -82,7 +82,7 @@ export default function DimensionTransferRequestSheet({
   }, [user?.branch?.id, selectedBranchId])
 
   const { data: branchesData } = useQuery({
-    queryKey: ['branches-all'],
+    queryKey: ['branches-all', 'basic'],
     queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
   })
   const allBranches: any[] = (branchesData as any)?.data ?? []

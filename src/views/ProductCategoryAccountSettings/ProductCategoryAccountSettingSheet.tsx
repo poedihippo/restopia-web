@@ -64,7 +64,7 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
     enabled: open,
   })
   const { data: coaData } = useQuery({
-    queryKey: ['chart-of-accounts-all', coaSearch],
+    queryKey: ['chart-of-accounts-all', 'pcas', coaSearch],
     queryFn: () => chartOfAccountsService.list({ per_page: 50, 'filter[search]': coaSearch || undefined } as any).then(r => r.data),
     enabled: open,
   })

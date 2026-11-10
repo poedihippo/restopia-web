@@ -46,7 +46,6 @@ export const accountTypesService = {
 // ─── Chart of Accounts ────────────────────────────────────────────────────
 
 export interface ChartOfAccountRequest {
-  account_category_id: number
   account_type_id: number
   code: string
   name: string
@@ -131,7 +130,7 @@ export interface JournalDetailRequest {
 export interface JournalRequest {
   period_id: number
   date: string
-  type: 'manual' | 'sales' | 'closing' | 'purchase' | 'receipt' | 'payment' | 'adjustment'
+  type: 'manual' | 'sales' | 'closing' | 'purchase' | 'receipt' | 'payment' | 'adjustment' | 'stock_opname' | 'production'
   description?: string
   reference_type?: string
   reference_id?: number

@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download, FileSpreadsheet, FileText } from 'lucide-react'
+import { Download, FileSpreadsheet, FileText, ArrowUpRight } from 'lucide-react'
 import { reportsService, type ArAgingLine, type ArAgingParams, type ArAgingResponse } from '@/services/reports.service'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/price'
@@ -296,6 +296,14 @@ export default function ArAgingView() {
 
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>(today())
+  // filter[search]: the backend returns only matching lines and recomputes the
+  // buckets and grand total over them, so the totals match what is on screen.
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(t)
+  }, [search])
 
   // Backend membalas 400 bila start_date > end_date — cegah di FE.
   const rangeInvalid = !!startDate && !!endDate && startDate > endDate
@@ -303,10 +311,11 @@ export default function ArAgingView() {
   const params: ArAgingParams = {
     start_date: startDate || undefined,
     end_date: endDate || undefined,
+    'filter[search]': debouncedSearch || undefined,
   }
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['ar-aging', startDate, endDate],
+    queryKey: ['ar-aging', startDate, endDate, debouncedSearch],
     enabled: canRead && !rangeInvalid,
     queryFn: () => reportsService.getArAging(params).then((r) => r.data),
   })
@@ -382,6 +391,17 @@ export default function ArAgingView() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={labelStyle}>End Date</label>
                 <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 220px', maxWidth: 320 }}>
+                <label style={labelStyle}>Search</label>
+                <input
+                  type="search"
+                  data-search
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Kode dokumen atau nama customer…"
+                  style={{ ...inputStyle, width: '100%' }}
+                />
               </div>
               {startDate && (
                 <button type="button" onClick={() => setStartDate('')} style={btnStyle}>
@@ -477,7 +497,7 @@ export default function ArAgingView() {
                             <td style={cellStyle}>
                               {href ? (
                                 <Link href={href} style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>
-                                  {ln.code}
+                                  <span className="v2-link">{ln.code}<ArrowUpRight size={12} /></span>
                                 </Link>
                               ) : (
                                 ln.code

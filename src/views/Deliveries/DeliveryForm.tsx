@@ -37,6 +37,9 @@ const formatNumber = (n: number | undefined): string => {
 }
 
 const detailSchema = z.object({
+  // Existing row id (edit only) — sent back so the backend updates the row in
+  // place instead of recreating it (receipts reference delivery_detail_id).
+  id: z.coerce.number().optional(),
   product_uom_id: z.coerce.number().min(0, 'Product required'),
   product_uom_batch_id: z.coerce.number().optional(),
   purchase_order_detail_id: z.coerce.number().optional(),
@@ -59,7 +62,9 @@ const schema = z
     purchase_order_id: z.coerce.number().optional(),
     sales_order_id: z.coerce.number().optional(),
     date: z.string().min(1, 'Date required'),
-    status: z.literal('final'),
+    // New deliveries are always created final; an edited delivery keeps its
+    // stored status (a pending transfer is finalized from the detail page).
+    status: z.enum(['pending', 'final']),
     description: z.string().optional(),
     source_owner_ref: z.string().min(1, 'Owner sumber wajib diisi'),
     source_stage: z.string().min(1, 'Stage sumber wajib diisi'),
@@ -67,6 +72,13 @@ const schema = z
     details: z.array(detailSchema).min(1, 'At least one item required'),
   })
   .superRefine((data, ctx) => {
+    if (data.source_type === 'transfer_to_branch' && !(Number(data.target_branch_id) > 0)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['target_branch_id'],
+        message: 'Target branch required',
+      })
+    }
     if (data.source_type !== 'po_from_supplier') {
       data.details.forEach((d, i) => {
         if (!d.product_uom_batch_id) {
@@ -718,6 +730,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   useEffect(() => {
     if (!poDetail?.purchase_order_details?.length) return
+    // Editing: the saved lines (with their ids/batches) are already loaded —
+    // never replace them with the linked PO's lines.
+    if (mode === 'edit' && Number(watchPurchaseOrderId) === Number(initialData?.purchase_order_id)) return
 
     // source_type must match the PO's own type — a branch PO needs
     // po_from_branch, not po_from_supplier, or the backend wrongly demands
@@ -733,7 +748,19 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     // "Select product..." and, since the batch picker is keyed off the
     // selected product_uom_id, its options list was empty too.
     const isBatchRequired = derivedSourceType !== 'po_from_supplier'
-    const newDetails = poDetail.purchase_order_details.map((d: any) => {
+    // Follow-up deliveries: only what is still left to deliver on each line;
+    // fully delivered lines are skipped.
+    const remainingQty = (d: any) =>
+      d.remaining_qty != null
+        ? Number(d.remaining_qty)
+        : Number(d.qty ?? 0) - Number(d.delivered_qty ?? 0)
+    const openLines = poDetail.purchase_order_details.filter((d: any) => remainingQty(d) > 0)
+    if (!openLines.length) {
+      toast.info('All Purchase Order lines are already delivered')
+      setTimeout(() => setLinkedOrderFormReady(true), 0)
+      return
+    }
+    const newDetails = openLines.map((d: any) => {
       const uomId = d.product_uom_id ?? d.product_uom?.id ?? 0
       const batches = isBatchRequired ? getBatchOptionsForUom(uomId) : []
       return {
@@ -741,7 +768,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         product_uom_batch_id: batches.length === 1 ? batches[0].batchId : undefined,
         purchase_order_detail_id: d.id,
         sales_order_detail_id: undefined,
-        qty: d.qty ?? 1,
+        qty: remainingQty(d),
         price: d.price ?? d.product_uom?.franchise_price ?? 0,
         status: 'packed' as const,
         description: d.description ?? '',
@@ -777,6 +804,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   useEffect(() => {
     if (!soDetail) return
+    if (mode === 'edit' && Number(watchSalesOrderId) === Number(initialData?.sales_order_id)) return
 
     if (soDetail.buyer_branch_id) {
       setValue('target_branch_id', soDetail.buyer_branch_id)
@@ -926,7 +954,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const buildPayload = (values: FormValues) => ({
     ...values,
-    status: 'final',
+    status: mode === 'edit' ? values.status : 'final',
     // Internal deliveries/transfers are price-free — never submit prices.
     total_price: totalPrice,
     purchase_order_id: values.purchase_order_id || undefined,
@@ -937,6 +965,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     details: values.details
       .filter((d) => Number(d.product_uom_id) > 0)
       .map((d) => ({
+        id: mode === 'edit' ? d.id || undefined : undefined,
         product_uom_id: d.product_uom_id,
         product_uom_batch_id:
           watchSourceType !== 'po_from_supplier'

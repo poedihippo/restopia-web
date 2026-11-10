@@ -67,6 +67,8 @@ export interface ArAgingParams {
   start_date?: string
   end_date?: string
   as_of_date?: string
+  /** Document code (invoice / sales order) or customer name. */
+  'filter[search]'?: string
 }
 
 export type AgingBucket = '0_30' | '31_60' | '61_90' | '90_plus'
@@ -161,7 +163,7 @@ export const reportsService = {
     api.get('/reports/ar-aging', { params }),
   // No AR aging export endpoint any more — the view builds the Excel file from getArAging's JSON.
 
-  exportApAging: (params?: { as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
+  exportApAging: (params?: { as_of_date?: string; 'filter[search]'?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/ap-aging/exports', { params, responseType: 'blob' }),
 
   exportCustomerStatements: (params: { customer_id: number; as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
@@ -178,7 +180,9 @@ export const reportsService = {
     api.get('/reports/budget-vs-actual/exports', { params, responseType: 'blob' }),
 
   // Data Dumps
-  exportPayments: (params?: { start_date?: string; end_date?: string; type?: 'payable' | 'receivable' }): Promise<AxiosResponse<Blob>> =>
+  // Same filters as GET /v1/payments (filter[date_gte], filter[type], …) so the
+  // download matches the on-screen Payments Report.
+  exportPayments: (params?: Record<string, string | number | undefined>): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/payments/exports', { params, responseType: 'blob' }),
 
   exportJournalEntries: (params?: { start_date?: string; end_date?: string; is_posted?: boolean }): Promise<AxiosResponse<Blob>> =>

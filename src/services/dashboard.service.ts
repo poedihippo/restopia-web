@@ -1,4 +1,5 @@
 import api from '@/hooks/useApi'
+import type { ApiResponse, DashboardChartInterval, DashboardChartsResponse } from '@/types/api'
 
 export const dashboardService = {
   metrics: (params?: {
@@ -14,4 +15,12 @@ export const dashboardService = {
     'filter[branch_id]'?: number
   }) =>
     api.get('/dashboard/insights', { params }),
+
+  charts: (params?: {
+    date_from?: string
+    date_to?: string
+    interval?: DashboardChartInterval
+    branch_id?: number
+  }) =>
+    api.get<ApiResponse<DashboardChartsResponse>>('/dashboard/charts', { params }),
 }
