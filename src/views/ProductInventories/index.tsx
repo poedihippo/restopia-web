@@ -94,6 +94,32 @@ interface ProductInventory {
   branch?: { id: number; name: string; code?: string }
 }
 
+// Build packaging chains from the largest unit down, multiplying amounts
+// along the way: PACK→PCS (6), PCS→KG (2), KG→GR (1000) gives
+// "1 PACK → 6 PCS → 12 KG → 12.000 GR". A product with several top units
+// gets one chain per top unit.
+function packagingChains(conversions?: ConversionEntry[]): string[] {
+  if (!conversions || conversions.length === 0) return []
+  const fmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+  const bySource = new Map<string, ConversionEntry>()
+  for (const c of conversions) if (!bySource.has(c.uom_code)) bySource.set(c.uom_code, c)
+  const targets = new Set(conversions.map((c) => c.target_uom_code))
+  const roots = [...bySource.keys()].filter((code) => !targets.has(code))
+  return roots.map((root) => {
+    const parts = [`1 ${root}`]
+    const seen = new Set([root])
+    let qty = 1
+    let step = bySource.get(root)
+    while (step && !seen.has(step.target_uom_code)) {
+      qty *= Number(step.amount)
+      parts.push(`${fmt(qty)} ${step.target_uom_code}`)
+      seen.add(step.target_uom_code)
+      step = bySource.get(step.target_uom_code)
+    }
+    return parts.join(' → ')
+  })
+}
+
 // Product id untuk filter "Show Stock Movement" — product bisa datang dari
 // batch maupun product_uom biasa.
 function productIdOf(item: ProductInventory): number | null {
@@ -778,6 +804,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                 { label: 'No.', width: 50 },
                 { label: 'Product', width: undefined },
                 { label: 'UOM', width: 100 },
+                { label: 'Packaging (Largest - Smallest)', width: 150 },
                 { label: 'Batch Code', width: 160 },
                 { label: 'Owner', width: 120 },
                 { label: 'Stage', width: 110 },
@@ -807,7 +834,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -836,7 +863,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
             {isError && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -851,7 +878,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
             {!isLoading && !isError && filteredItems.length === 0 && (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   <div
                     style={{
                       padding: 48,
@@ -992,6 +1019,23 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                         {stockUnit || '—'}
                       </span>
                     </td>
+                    {/* Packaging — conversion chain from the largest unit down,
+                        e.g. "1 PACK → 6 PCS → 12 KG → 12.000 GR" */}
+                    <td
+                      style={{
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {(() => {
+                        const chains = packagingChains(conversions)
+                        return chains.length > 0
+                          ? chains.map((chain, i) => <div key={i}>{chain}</div>)
+                          : '—'
+                      })()}
+                    </td>
                     {/* Batch Code */}
                     <td
                       style={{
@@ -1065,9 +1109,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                     <td style={{ padding: '12px 16px' }}>
                       <span
                         style={{
-                          fontSize: 14,
-                          fontWeight: 600,
-                          color: isLow ? 'var(--warning)' : 'var(--foreground)',
+                          fontSize: 13,
+                          fontWeight: 400,
+                          whiteSpace: 'nowrap',
+                          color: isLow ? 'var(--warning)' : 'var(--foreground-muted)',
                         }}
                       >
                         {stockDisplay}
