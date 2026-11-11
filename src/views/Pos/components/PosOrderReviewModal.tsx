@@ -205,7 +205,8 @@ function CustomerField({
 
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 8 }}>
+      {/* Same 1:1 split as the date row below, so the columns line up. */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div style={{ position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-subtle)', pointerEvents: 'none' }} />
           <input
@@ -376,7 +377,7 @@ export default function PosOrderReviewModal({
   )
 
   // A voucher picked but never applied (Terapkan) gives no discount. Block
-  // "Lanjut Bayar" once and ask the cashier to apply it or drop it.
+  // "Charge Now" once and ask the cashier to apply it or drop it.
   const [voucherWarn, setVoucherWarn] = useState(false)
   const needsChannelForVoucher = orderType === 'online' && !salesChannelId
   const voucherPending =
@@ -479,12 +480,12 @@ export default function PosOrderReviewModal({
               Bacakan ulang pesanan ke customer sebelum pembayaran
             </p>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-              <span style={chipStyle}>{editingOrderCode ? `${editingOrderCode} · pending` : 'Order baru'}</span>
-              <span style={{ ...chipStyle, background: 'var(--background)', color: 'var(--foreground-muted)' }}>
+              {editingOrderCode && <span style={chipStyle}>{`${editingOrderCode} · pending`}</span>}
+              <span style={chipStyle}>
                 {orderType === 'online' ? 'Online' : 'Offline'}
               </span>
               {orderType !== 'online' && salesChannelName && (
-                <span style={{ ...chipStyle, background: 'var(--background)', color: 'var(--foreground-muted)' }}>
+                <span style={chipStyle}>
                   {salesChannelName}
                 </span>
               )}
@@ -493,10 +494,14 @@ export default function PosOrderReviewModal({
           <button
             type="button"
             onClick={onBack}
-            aria-label="Tutup"
-            style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--foreground-muted)' }}
+            aria-label="Close"
+            className="pos-rv-close"
+            style={{
+              width: 32, height: 32, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: 'none', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', color: 'var(--foreground-muted)',
+            }}
           >
-            ×
+            <X size={18} />
           </button>
         </div>
 
@@ -577,9 +582,118 @@ export default function PosOrderReviewModal({
             </label>
           </div>
 
-          {/* Voucher */}
+          {/* Note */}
           <div>
-            <span style={fieldLabel}>Voucher</span>
+            <span style={fieldLabel}>Catatan order</span>
+            <textarea
+              value={orderNote}
+              onChange={(e) => setOrderNote(e.target.value)}
+              placeholder="Catatan untuk order ini (opsional)"
+              rows={2}
+              style={{ ...fieldStyle, height: 'auto', padding: '8px 10px', resize: 'none' }}
+            />
+          </div>
+        </div>
+
+        {/* Lines */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 24px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {['Item', 'Qty', 'Harga', 'Subtotal'].map((h, i) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: i === 0 ? 'left' : 'right',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      color: 'var(--foreground-subtle)',
+                      padding: '8px 0',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {cart.map((c, i) => (
+                <tr key={`p-${c.product_inventory_id}-${i}`}>
+                  <td style={{ padding: '8px 8px 8px 0', fontSize: 13, color: 'var(--foreground)', borderBottom: '1px solid var(--border)' }}>
+                    <div>{c.name}</div>
+                    {c.code && <div style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>{c.code}</div>}
+                  </td>
+                  <td style={{ padding: '8px 0', fontSize: 13, fontWeight: 400, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                    {fmtQty(c.qty)}
+                  </td>
+                  <td style={{ padding: '8px 0', fontSize: 13, textAlign: 'right', color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)' }}>
+                    {formatCurrency(c.price)}
+                  </td>
+                  <td style={{ padding: '8px 0', fontSize: 13, fontWeight: 400, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                    {formatCurrency(c.price * c.qty)}
+                  </td>
+                </tr>
+              ))}
+              {bundleCart.map((b, i) => (
+                <tr key={`b-${b.bundle_id}-${i}`}>
+                  <td style={{ padding: '8px 8px 8px 0', fontSize: 13, color: 'var(--foreground)', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 500,
+                          color: 'var(--accent)',
+                          background: 'var(--accent-light-bg)',
+                          padding: '1px 5px',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        Bundle
+                      </span>
+                      {b.name}
+                    </div>
+                    {Array.isArray((b as any).bundle_details) && (b as any).bundle_details.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 2 }}>
+                        {(b as any).bundle_details
+                          .map((d: any) => d.product_name)
+                          .filter(Boolean)
+                          .join(', ')}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 0', fontSize: 13, fontWeight: 400, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                    {fmtQty(b.qty)}
+                  </td>
+                  <td style={{ padding: '8px 0', fontSize: 13, textAlign: 'right', color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)' }}>
+                    {formatCurrency(b.price)}
+                  </td>
+                  <td style={{ padding: '8px 0', fontSize: 13, fontWeight: 400, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
+                    {formatCurrency(b.price * b.qty)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Items subtotal: the sum of the table above */}
+        <div style={{ padding: '4px 24px 12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
+            <span>
+              <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>Subtotal</span>{' '}
+              <span style={{ color: 'var(--foreground-subtle)' }}>· {lineCount} item · {fmtQty(totalQty)} qty</span>
+            </span>
+            <span style={{ fontWeight: 600, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(subtotal)}</span>
+          </div>
+        </div>
+
+        {/* Voucher — its own band, tinted like the order details above */}
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', background: 'var(--background)' }}>
+          <div>
+            <span style={{ ...fieldLabel, fontWeight: 600, color: 'var(--foreground)' }}>Voucher</span>
             {appliedVoucher ? (
               <div
                 style={{
@@ -608,11 +722,12 @@ export default function PosOrderReviewModal({
                 Pilih sales channel dulu untuk memakai voucher
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
                 <div
                   style={{
                     flex: 1,
-                    borderRadius: 'var(--radius-sm)',
+                    minWidth: 0,
+                    borderRadius: 'var(--radius-md)',
                     boxShadow: voucherPending ? '0 0 0 1px var(--warning)' : undefined,
                   }}
                 >
@@ -623,10 +738,11 @@ export default function PosOrderReviewModal({
                       setPickedVoucher(vouchers.find((x: any) => x.id === val) ?? null)
                       setVoucherCode(val as number)
                     }}
-                    placeholder="Pilih voucher..."
-                    searchPlaceholder="Cari voucher..."
+                    placeholder="Select a voucher"
+                    searchPlaceholder="Search voucher..."
                     loading={vouchersLoading}
                     onSearchChange={setVoucherSearch}
+                    triggerStyle={{ height: 38, fontSize: 13, borderRadius: 'var(--radius-md)' }}
                   />
                 </div>
                 <button
@@ -636,27 +752,31 @@ export default function PosOrderReviewModal({
                     if (v) onApplyVoucher({ id: v.id, code: v.code })
                   }}
                   disabled={voucherLoading || !voucherCode}
+                  className="pos-rv-primary"
                   style={{
-                    padding: '0 14px',
+                    height: 38,
+                    minWidth: 76,
+                    padding: '0 16px',
                     background: 'var(--accent)',
                     color: 'white',
                     border: 'none',
-                    borderRadius: 'var(--radius-sm)',
+                    borderRadius: 'var(--radius-md)',
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: voucherLoading || !voucherCode ? 'not-allowed' : 'pointer',
                     opacity: voucherLoading || !voucherCode ? 0.6 : 1,
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                   }}
                 >
-                  {voucherLoading ? <Loader2 size={14} className="animate-spin" /> : 'Terapkan'}
+                  {voucherLoading ? <Loader2 size={14} className="animate-spin" /> : 'Apply'}
                 </button>
               </div>
             )}
             {voucherPending && !showVoucherWarn && (
               <div style={{ fontSize: 11, color: 'var(--warning)', marginTop: 4 }}>
-                Voucher belum diterapkan — klik Terapkan agar diskon dihitung.
+                Voucher not applied yet — click Apply to include the discount.
               </div>
             )}
             {showVoucherWarn && (
@@ -673,10 +793,10 @@ export default function PosOrderReviewModal({
                 }}
               >
                 <div style={{ fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}>
-                  Voucher {pendingVoucher?.name || pendingVoucher?.code || ''} belum diterapkan
+                  Voucher {pendingVoucher?.name || pendingVoucher?.code || ''} is not applied
                 </div>
                 <div style={{ marginBottom: 8 }}>
-                  Diskon belum masuk ke total. Terapkan voucher dulu, atau lanjut tanpa voucher.
+                  The discount is not in the total yet. Apply the voucher, or continue without it.
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button
@@ -694,7 +814,7 @@ export default function PosOrderReviewModal({
                       cursor: 'pointer',
                     }}
                   >
-                    Terapkan voucher
+                    Apply voucher
                   </button>
                   <button
                     type="button"
@@ -710,119 +830,19 @@ export default function PosOrderReviewModal({
                       cursor: 'pointer',
                     }}
                   >
-                    Lanjut tanpa voucher
+                    Continue without voucher
                   </button>
                 </div>
               </div>
             )}
           </div>
-
-          {/* Note */}
-          <div>
-            <span style={fieldLabel}>Catatan order</span>
-            <textarea
-              value={orderNote}
-              onChange={(e) => setOrderNote(e.target.value)}
-              placeholder="Catatan untuk order ini (opsional)"
-              rows={2}
-              style={{ ...fieldStyle, height: 'auto', padding: '8px 10px', resize: 'none' }}
-            />
-          </div>
-        </div>
-
-        {/* Lines */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 24px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['Item', 'Qty', 'Harga', 'Subtotal'].map((h, i) => (
-                  <th
-                    key={h}
-                    style={{
-                      textAlign: i === 0 ? 'left' : 'right',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      color: 'var(--foreground-subtle)',
-                      padding: '8px 0',
-                      borderBottom: '1px solid var(--border)',
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {cart.map((c, i) => (
-                <tr key={`p-${c.product_inventory_id}-${i}`}>
-                  <td style={{ padding: '8px 8px 8px 0', fontSize: 13, color: 'var(--foreground)', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ fontWeight: 500 }}>{c.name}</div>
-                    {c.code && <div style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>{c.code}</div>}
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: 14, fontWeight: 700, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
-                    {fmtQty(c.qty)}
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: 13, textAlign: 'right', color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)' }}>
-                    {formatCurrency(c.price)}
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: 13, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
-                    {formatCurrency(c.price * c.qty)}
-                  </td>
-                </tr>
-              ))}
-              {bundleCart.map((b, i) => (
-                <tr key={`b-${b.bundle_id}-${i}`}>
-                  <td style={{ padding: '8px 8px 8px 0', fontSize: 13, color: 'var(--foreground)', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: 'var(--accent)',
-                          background: 'var(--accent-light-bg)',
-                          padding: '1px 5px',
-                          borderRadius: 'var(--radius-sm)',
-                        }}
-                      >
-                        Bundle
-                      </span>
-                      {b.name}
-                    </div>
-                    {Array.isArray((b as any).bundle_details) && (b as any).bundle_details.length > 0 && (
-                      <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 2 }}>
-                        {(b as any).bundle_details
-                          .map((d: any) => d.product_name)
-                          .filter(Boolean)
-                          .join(', ')}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: 14, fontWeight: 700, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
-                    {fmtQty(b.qty)}
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: 13, textAlign: 'right', color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)' }}>
-                    {formatCurrency(b.price)}
-                  </td>
-                  <td style={{ padding: '8px 0', fontSize: 13, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--border)' }}>
-                    {formatCurrency(b.price * b.qty)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
 
         {/* Totals */}
         <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
-            <span>{lineCount} item · {fmtQty(totalQty)} qty</span>
-            <span>{formatCurrency(subtotal)}</span>
-          </div>
           {discountAmount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--success)' }}>
-              <span>Diskon{appliedVoucher?.code ? ` (${appliedVoucher.code})` : ''}</span>
+              <span>Discount{appliedVoucher?.code ? ` (${appliedVoucher.code})` : ''}</span>
               <span>- {formatCurrency(discountAmount)}</span>
             </div>
           )}
@@ -836,23 +856,35 @@ export default function PosOrderReviewModal({
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center',
-              background: 'var(--accent-light-bg)',
-              borderRadius: 'var(--radius-md)',
-              padding: '10px 14px',
-              marginTop: 4,
+              alignItems: 'baseline',
+              ...(discountAmount > 0 || (taxAmount ?? 0) > 0
+                ? { borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 6 }
+                : {}),
             }}
           >
-            <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>Total</span>
-            <span style={{ fontSize: 24, fontWeight: 700, color: 'var(--accent)' }}>{formatCurrency(total)}</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+            <span style={{ fontSize: 20, fontWeight: 600, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>
+              {formatCurrency(total)}
+            </span>
           </div>
         </div>
 
         {/* Actions */}
+        <style>{`
+          .pos-rv-primary, .pos-rv-secondary {
+            transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+          }
+          .pos-rv-primary:not(:disabled):hover { background: var(--accent-hover) !important; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+          .pos-rv-primary:not(:disabled):active { transform: none; box-shadow: none; }
+          .pos-rv-close { transition: background-color 150ms ease, color 150ms ease; }
+          .pos-rv-close:hover { background: var(--destructive-bg) !important; color: var(--destructive) !important; }
+          .pos-rv-secondary:not(:disabled):hover { background: var(--accent-light-bg) !important; border-color: var(--accent-light) !important; color: var(--accent) !important; }
+        `}</style>
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
           <button
             type="button"
             onClick={onBack}
+            className="pos-rv-secondary"
             style={{
               flex: 1,
               padding: '12px 16px',
@@ -865,12 +897,13 @@ export default function PosOrderReviewModal({
               cursor: 'pointer',
             }}
           >
-            Ubah Pesanan <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>(Esc)</span>
+            Cancel <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>(Esc)</span>
           </button>
           <button
             type="button"
             onClick={handleProceed}
             autoFocus
+            className="pos-rv-primary"
             style={{
               flex: 2,
               padding: '12px 16px',
@@ -883,7 +916,7 @@ export default function PosOrderReviewModal({
               cursor: 'pointer',
             }}
           >
-            {orderType === 'online' ? 'Lanjut Buat Order' : 'Lanjut Bayar'}{' '}
+            {orderType === 'online' ? 'Create Order' : 'Charge Now'}{' '}
             <span style={{ fontSize: 11, opacity: 0.8 }}>(Enter)</span>
           </button>
         </div>

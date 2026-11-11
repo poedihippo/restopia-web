@@ -1,6 +1,7 @@
 import React, { useEffect,  useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
+import { ArrowLeft, Check, X } from 'lucide-react'
 import type { ReceiptData } from '@/components/PosReceipt'
 import PosPreordersModal from './PosPreordersModal'
 import PosHistoryModal from './PosHistoryModal'
@@ -333,19 +334,38 @@ export default function PosModals({
             position: 'fixed',
             inset: 0,
             zIndex: 100,
-            background: 'rgba(0,0,0,0.5)',
+            background: 'rgba(17, 17, 20, 0.4)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            padding: 16,
           }}
         >
+          <style>{`
+            .pos-pay-seg, .pos-pay-method, .pos-pay-secondary, .pos-pay-primary, .pos-pay-icon {
+              transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+            }
+            .pos-pay-seg[aria-checked="false"]:hover { background: var(--accent-light-bg) !important; color: var(--accent) !important; }
+            .pos-pay-method[aria-checked="false"]:hover { border-color: var(--accent-light) !important; box-shadow: var(--shadow-sm); }
+            .pos-pay-method:active { transform: scale(0.98); }
+            .pos-pay-secondary:not(:disabled):hover { background: var(--accent-light-bg) !important; border-color: var(--accent-light) !important; color: var(--accent) !important; }
+            .pos-pay-primary:not(:disabled):hover { background: var(--accent-hover) !important; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+            .pos-pay-primary:not(:disabled):active { transform: none; box-shadow: none; }
+            .pos-pay-icon:hover { background: var(--destructive-bg) !important; color: var(--destructive) !important; }
+          `}</style>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Payment"
             style={{
               background: 'var(--surface)',
               borderRadius: 'var(--radius-xl)',
-              padding: 32,
-              width: 380,
+              padding: 28,
+              width: 'min(400px, 100%)',
+              maxHeight: 'calc(100vh - 32px)',
+              overflowY: 'auto',
               boxShadow: 'var(--shadow-lg)',
+              fontFamily: 'var(--font-sans)',
             }}
           >
             {/* Header */}
@@ -354,50 +374,50 @@ export default function PosModals({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: 24,
+                marginBottom: 20,
               }}
             >
-              <h2
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 20,
-                  color: 'var(--accent)',
-                  margin: 0,
-                }}
-              >
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>
                 Payment
               </h2>
               <button
                 type="button"
+                aria-label="Close"
+                className="pos-pay-icon"
                 onClick={() => setShowPayment(false)}
                 style={{
+                  width: 32,
+                  height: 32,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   background: 'none',
                   border: 'none',
-                  fontSize: 20,
+                  borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
                   color: 'var(--foreground-muted)',
                 }}
               >
-                ×
+                <X size={18} />
               </button>
             </div>
 
             {/* Total due */}
             <div
               style={{
-                background: 'var(--accent-light-bg)',
+                border: '1px solid var(--border)',
                 borderRadius: 'var(--radius-md)',
-                padding: '12px 16px',
+                padding: '14px 16px',
                 marginBottom: 20,
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center',
+                alignItems: 'baseline',
               }}
             >
-              <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
-                {paymentMode === 'partial' ? 'Total Due (Full)' : 'Total Due'}
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
+                {paymentMode === 'partial' ? 'Total (Full)' : 'Total'}
               </span>
-              <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
+              <span style={{ fontSize: 20, fontWeight: 600, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>
                 {formatCurrency(total)}
               </span>
             </div>
@@ -426,41 +446,38 @@ export default function PosModals({
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
                 Payment Mode
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode?.('full')}
-                  style={{
-                    flex: 1,
-                    padding: '10px 12px',
-                    border: `1px solid ${paymentMode === 'full' ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-md)',
-                    background: paymentMode === 'full' ? 'var(--accent-light-bg)' : 'var(--background)',
-                    color: paymentMode === 'full' ? 'var(--accent)' : 'var(--foreground)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Full Payment
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode?.('partial')}
-                  style={{
-                    flex: 1,
-                    padding: '10px 12px',
-                    border: `1px solid ${paymentMode === 'partial' ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius-md)',
-                    background: paymentMode === 'partial' ? 'var(--accent-light-bg)' : 'var(--background)',
-                    color: paymentMode === 'partial' ? 'var(--accent)' : 'var(--foreground)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Down Payment (DP)
-                </button>
+              <div
+                role="radiogroup"
+                aria-label="Payment mode"
+                style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}
+              >
+                {([['full', 'Full Payment'], ['partial', 'Down Payment (DP)']] as const).map(([mode, label], i) => {
+                  const selected = paymentMode === mode
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      className="pos-pay-seg"
+                      onClick={() => setPaymentMode?.(mode)}
+                      style={{
+                        flex: 1,
+                        height: 40,
+                        border: 'none',
+                        borderLeft: i > 0 ? '1px solid var(--border)' : 'none',
+                        background: selected ? 'var(--accent)' : 'var(--surface)',
+                        color: selected ? '#fff' : 'var(--foreground-muted)',
+                        fontSize: 13,
+                        fontWeight: selected ? 600 : 500,
+                        fontFamily: 'var(--font-sans)',
+                        cursor: selected ? 'default' : 'pointer',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
               </div>
               {paymentMode === 'partial' && (
                 <div style={{ marginTop: 10 }}>
@@ -480,7 +497,7 @@ export default function PosModals({
             )}
 
             {/* Sales Channel (Required). An online order already picked it on the
-                review step (needed for its voucher) — don't ask twice; "Kembali" changes it. */}
+                review step (needed for its voucher) — don't ask twice; "Back" changes it. */}
             {!(isOnline && salesChannelId) && (
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
@@ -491,10 +508,14 @@ export default function PosModals({
                 onChange={(e) => setSalesChannelId(e.target.value ? Number(e.target.value) : null)}
                 style={{
                   width: '100%',
-                  padding: '10px 12px',
+                  height: 40,
+                  padding: '0 12px',
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  background: 'var(--background)',
+                  background: 'var(--surface)',
+                  fontSize: 13.5,
+                  color: 'var(--foreground)',
+                  fontFamily: 'var(--font-sans)',
                 }}
               >
                 <option value="">Select sales channel...</option>
@@ -653,14 +674,7 @@ export default function PosModals({
               <>
             {/* Payment method selection */}
             <div style={{ marginBottom: 20 }}>
-              <label
-                style={{
-                  fontSize: 12,
-                  color: 'var(--foreground-muted)',
-                  display: 'block',
-                  marginBottom: 8,
-                }}
-              >
+              <label style={{ fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
                 Payment Method
               </label>
               {paymentMethods.length === 0 && (
@@ -677,16 +691,13 @@ export default function PosModals({
               >
                 {paymentMethods.map((pm: any) => {
                   const isSelected = paymentMethodId === pm.id
-                  const typeLabel =
-                    pm.type === 'sales_orders'
-                      ? 'Sales'
-                      : pm.type === 'purchase_orders'
-                        ? 'Purchase'
-                        : 'All'
                   return (
                     <button
                       key={pm.id}
                       type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      className="pos-pay-method"
                       onClick={() => {
                         setPaymentMethodId(pm.id)
                         setCashTendered('')
@@ -696,9 +707,8 @@ export default function PosModals({
                         flexDirection: 'column',
                         alignItems: 'flex-start',
                         justifyContent: 'center',
-                        gap: 3,
-                        padding: '10px 12px',
-                        minHeight: 56,
+                        padding: '0 12px',
+                        height: 46,
                         border: '1px solid',
                         borderColor: isSelected ? 'var(--accent)' : 'var(--border)',
                         borderRadius: 'var(--radius-md)',
@@ -706,9 +716,9 @@ export default function PosModals({
                         color: isSelected ? 'var(--accent)' : 'var(--foreground)',
                         fontWeight: 600,
                         fontSize: 13,
+                        fontFamily: 'var(--font-sans)',
                         cursor: 'pointer',
                         textAlign: 'left',
-                        transition: 'all 0.15s ease',
                         boxShadow: isSelected ? '0 0 0 1px var(--accent)' : 'none',
                       }}
                     >
@@ -734,28 +744,22 @@ export default function PosModals({
                         </span>
                         {isSelected && (
                           <span
+                            aria-hidden
                             style={{
-                              width: 6,
-                              height: 6,
+                              width: 18,
+                              height: 18,
                               borderRadius: 99,
                               background: 'var(--accent)',
+                              color: '#fff',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               flexShrink: 0,
                             }}
-                          />
+                          >
+                            <Check size={12} strokeWidth={3} />
+                          </span>
                         )}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 500,
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.4,
-                          color: isSelected
-                            ? 'var(--accent)'
-                            : 'var(--foreground-muted)',
-                        }}
-                      >
-                        {typeLabel}
                       </span>
                     </button>
                   )
@@ -765,60 +769,7 @@ export default function PosModals({
 
             {isCreditMethod && paymentMethodId && (
               <div style={{ marginBottom: 16 }}>
-                <label
-                  style={{
-                    fontSize: 12,
-                    color: 'var(--foreground-muted)',
-                    display: 'block',
-                    marginBottom: 8,
-                  }}
-                >
-                  Credit Type <span style={{ color: 'var(--destructive)' }}>*</span>
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                  <button
-                    type="button"
-                    onClick={() => setCreditType?.('user')}
-                    style={{
-                      padding: '10px 12px',
-                      border: '1px solid',
-                      borderColor: creditType === 'user' ? 'var(--accent)' : 'var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      background: creditType === 'user' ? 'var(--accent-light-bg)' : 'var(--surface)',
-                      color: creditType === 'user' ? 'var(--accent)' : 'var(--foreground)',
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    Staff Credit
-                    <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
-                      Uses users.credit
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreditType?.('customer')}
-                    style={{
-                      padding: '10px 12px',
-                      border: '1px solid',
-                      borderColor: creditType === 'customer' ? 'var(--accent)' : 'var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      background: creditType === 'customer' ? 'var(--accent-light-bg)' : 'var(--surface)',
-                      color: creditType === 'customer' ? 'var(--accent)' : 'var(--foreground)',
-                      fontWeight: 600,
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                    }}
-                  >
-                    Customer Credit
-                    <div style={{ fontSize: 10, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
-                      No user balance
-                    </div>
-                  </button>
-                </div>
+                {/* Credit is staff credit only (customer credit removed from the POS). */}
                 {creditType === 'user' && (
                   <>
                     <label
@@ -1116,8 +1067,13 @@ export default function PosModals({
                 type="button"
                 onClick={onBackToReview}
                 disabled={isPending}
+                className="pos-pay-secondary"
                 style={{
-                  padding: '14px 18px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '0 18px',
+                  height: 48,
                   background: 'var(--surface)',
                   color: 'var(--foreground)',
                   border: '1px solid var(--border)',
@@ -1128,7 +1084,8 @@ export default function PosModals({
                   whiteSpace: 'nowrap',
                 }}
               >
-                ← Kembali
+                <ArrowLeft size={16} />
+                Back
               </button>
             )}
             <button
@@ -1192,15 +1149,18 @@ export default function PosModals({
                 handleConfirmPayment()
               }}
               disabled={isPending || !salesChannelId || !canConfirm}
+              className="pos-pay-primary"
               style={{
                 flex: 1,
-                padding: '14px 24px',
+                height: 48,
+                padding: '0 24px',
                 background: (isPending || !salesChannelId || !canConfirm) ? 'var(--foreground-subtle)' : 'var(--accent)',
                 color: 'white',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
-                fontSize: 16,
-                fontWeight: 700,
+                fontSize: 15,
+                fontWeight: 600,
+                fontFamily: 'var(--font-sans)',
                 cursor: (isPending || !salesChannelId || !canConfirm) ? 'not-allowed' : 'pointer',
                 opacity: (isPending || !salesChannelId || !canConfirm) ? 0.7 : 1,
               }}

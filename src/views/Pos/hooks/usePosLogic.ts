@@ -142,6 +142,14 @@ export function usePosLogic() {
   // Blocks a second submit while the first is still preparing (customer
   // resolve) or in flight.
   const submitLockRef = useRef(false)
+  // True while an order is being submitted or held: the cart is frozen until
+  // it finishes (kept in a ref because the mutations are declared further down).
+  const cartBusyRef = useRef(false)
+  const cartIsBusy = () => {
+    if (!cartBusyRef.current) return false
+    toast.info('Please wait — the order is still being processed')
+    return true
+  }
   const [batchPickerGroup, setBatchPickerGroup] = useState<any | null>(null)
   const [bundlePickerGroup, setBundlePickerGroup] = useState<any | null>(null)
   const [salesChannelId, setSalesChannelId] = useState<number | null>(null)
@@ -373,7 +381,8 @@ export function usePosLogic() {
     setEditingOrderSettlement(order.settlement_status ?? null)
     // Restore credit fields when re-opening a held order
     setCreditByUserId(order.credit_by_id ?? null)
-    setCreditType(order.credit_type === 'customer' ? 'customer' : 'user')
+    // The POS only offers staff credit; a held order is re-paid that way.
+    setCreditType('user')
     setShowPreorders(false)
     toast.success('Pending order loaded to cart')
   }
@@ -517,6 +526,8 @@ export function usePosLogic() {
         'filter[product_type]': 'final',
         'filter[status]': 'active',
         'filter[stage]': 'finished',
+        // Only sellable rows: a lot with no stock never shows in the POS grid.
+        'filter[stock_gte]': 1,
         include:
           'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
       }
@@ -704,6 +715,7 @@ export function usePosLogic() {
 
   const addLotToCart = useCallback((lot: any) => {
     if (!lot) return
+    if (cartIsBusy()) return
 
     // Availability is the row's stock.
     const available = availableStockOf(lot)
@@ -747,10 +759,12 @@ export function usePosLogic() {
   }, [orderType])
 
   const addBundleToCart = useCallback((bundle: any) => {
+    if (cartIsBusy()) return
     setBundlePickerGroup(bundle)
   }, [])
 
   const addConfiguredBundleToCart = useCallback((bundle: any, selectedBatches: Record<number, any>, selectedItems?: Record<number, number>) => {
+    if (cartIsBusy()) return
     try {
       const details = bundle.bundle_details || bundle.details || []
       const processedDetails = details.map((bd: any) => {
@@ -1400,6 +1414,8 @@ export function usePosLogic() {
       setShowPayment(true)
     },
   })
+
+  cartBusyRef.current = isPending || isHoldPending
 
   const handleConfirmPayment = async () => {
     if (submitLockRef.current || isPending || isHoldPending) return

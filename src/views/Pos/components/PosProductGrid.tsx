@@ -1,11 +1,22 @@
-import { formatDate } from '@/utils/date';
 import React, { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import { formatCurrency } from '@/utils/price';
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { availableStockOf } from '@/utils/inventoryStock'
+
+/** Expiry on a product card: DD-MM-YYYY (e.g. 03-11-2026). */
+const formatExpiry = (value: string | null | undefined): string => {
+  if (!value) return ''
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value))
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`
+}
 
 
 interface PosProductGridProps {
@@ -71,11 +82,74 @@ export default function PosProductGrid({
   bundlePickerGroup,
   setBundlePickerGroup,
 }: PosProductGridProps) {
+  // The page count only arrives with the product list, so while it loads
+  // (reload, page change) keep the footer from the last known count instead of
+  // letting it vanish and pop back. Remembered per browser tab.
+  const metaLastPage: number | undefined = productMeta?.last_page ?? productMeta?.total_pages
+  const [knownLastPage, setKnownLastPage] = useState<number>(() => {
+    try {
+      return Number(sessionStorage.getItem('pos-product-last-page')) || 1
+    } catch {
+      return 1
+    }
+  })
+  useEffect(() => {
+    if (!metaLastPage) return
+    setKnownLastPage(metaLastPage)
+    try {
+      sessionStorage.setItem('pos-product-last-page', String(metaLastPage))
+    } catch {
+      /* storage unavailable: only this session's memory */
+    }
+  }, [metaLastPage])
+  const lastPage: number = metaLastPage ?? knownLastPage
+  const pagerLoading = isLoading && !productMeta
+
   return (
     <>
+      {/* Tap feedback on a product card: a slight press, nothing more. */}
+      <style>{`
+        .pos-product-card:not([data-disabled]):active { transform: scale(0.97); }
+        .pos-pager-btn {
+          height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 4px;
+          border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface);
+          color: var(--foreground); font: 500 13px var(--font-sans); cursor: pointer;
+          transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+        }
+        .pos-pager-btn:not(:disabled):hover { background: var(--accent-light-bg); border-color: var(--accent-light); color: var(--accent); }
+        .pos-pager-btn:disabled { color: var(--foreground-subtle); cursor: not-allowed; }
+        @media (max-width: 640px) {
+          .pos-tabs { padding: 0 12px !important; }
+          .pos-tabs > button { padding: 0 12px !important; }
+          .pos-items-count { display: none; }
+          .pos-sort { max-width: 150px; }
+          .pos-grid-scroll { padding: 12px 12px 92px !important; }
+          .pos-pager { padding: 10px 12px 80px !important; }
+          .pos-grid-scroll > div { gap: 10px !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+        }
+        /* Hover reverses the card: dark brown, light text. Mouse/trackpad only,
+           so a tapped card on a touch screen does not stay dark. */
+        @media (hover: hover) {
+          .pos-product-card:not([data-disabled]):hover {
+            /* Milk-chocolate fading into the brand brown, lifted by a warm shadow. */
+            background: linear-gradient(160deg, #7A5442 0%, #5C3B2C 100%) !important;
+            border-color: #6B4636 !important;
+            box-shadow: 0 10px 22px -10px rgba(74, 46, 33, 0.55) !important;
+            transform: translateY(-1px);
+          }
+          .pos-product-card:not([data-disabled]):hover:active { transform: scale(0.97); }
+          .pos-product-card:not([data-disabled]):hover * { color: #fff !important; }
+          .pos-product-card:not([data-disabled]):hover [data-pc="muted"] { color: rgba(255, 255, 255, 0.72) !important; }
+          .pos-product-card:not([data-disabled]):hover [data-pc="badge"] { background: rgba(255, 255, 255, 0.18) !important; }
+          .pos-product-card:not([data-disabled]):hover [data-pc="divider"] { border-top-color: rgba(255, 255, 255, 0.2) !important; }
+        }
+        @media (prefers-reduced-motion: reduce) { .pos-product-card:active { transform: none; } }
+      `}</style>
       <div
+        className="pos-tabs"
         style={{
           display: 'flex',
+          alignItems: 'center',
           gap: 0,
           padding: '0 20px',
           borderBottom: '1px solid var(--border)',
@@ -105,128 +179,48 @@ export default function PosProductGrid({
             {tab === 'products' ? 'Products' : 'Bundles'}
           </button>
         ))}
-      </div>
-
-      {activeTab === 'products' && (
-        <>
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              padding: '8px 20px',
-              overflowX: 'auto',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--surface)',
-              flexShrink: 0,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => { setSelectedCategory(null); setProductPage(1) }}
-              style={{
-                padding: '5px 14px',
-                borderRadius: 'var(--radius-xl)',
-                border: '1px solid',
-                borderColor: selectedCategory === null ? 'var(--accent)' : 'var(--border)',
-                background: selectedCategory === null ? 'var(--accent)' : 'var(--surface)',
-                color: selectedCategory === null ? 'white' : 'var(--foreground)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              All
-            </button>
-            {categories.map((name: string) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => { setSelectedCategory(name); setProductPage(1) }}
-                style={{
-                  padding: '5px 14px',
-                  borderRadius: 'var(--radius-xl)',
-                  border: '1px solid',
-                  borderColor: selectedCategory === name ? 'var(--accent)' : 'var(--border)',
-                  background: selectedCategory === name ? 'var(--accent)' : 'var(--surface)',
-                  color: selectedCategory === name ? 'white' : 'var(--foreground)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                }}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '8px 20px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
-              flexShrink: 0,
-            }}
-          >
-            <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-              Sort:
-            </label>
+        {activeTab === 'products' && (
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="pos-items-count" style={{ fontSize: 12, color: 'var(--foreground-subtle)', whiteSpace: 'nowrap' }}>
+              {/* Cards are products (lots of one product are grouped into one card),
+                  so count cards — the API total counts lots. */}
+              {groupedItems.length} product{groupedItems.length === 1 ? '' : 's'}
+              {(productMeta?.last_page ?? productMeta?.total_pages ?? 1) > 1 ? ' on this page' : ''}
+            </span>
             <select
               value={sortBy}
               onChange={(e) => { setSortBy(e.target.value); setProductPage(1) }}
+              aria-label="Sort products"
+              className="pos-sort"
               style={{
                 height: 32,
                 border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: 'var(--radius-md)',
                 padding: '0 8px',
                 fontSize: 13,
                 color: 'var(--foreground)',
-                background: 'var(--surface-raised)',
+                background: 'var(--surface)',
                 cursor: 'pointer',
                 outline: 'none',
                 fontFamily: 'var(--font-sans)',
               }}
             >
-              <option value="code">Name A–Z</option>
-              <option value="price_asc">Price Low–High</option>
-              <option value="price_desc">Price High–Low</option>
+              <option value="code">Sort: Name A–Z</option>
+              <option value="price_asc">Sort: Price Low–High</option>
+              <option value="price_desc">Sort: Price High–Low</option>
             </select>
-            <button
-              type="button"
-              onClick={() => { setInStockOnly((v) => !v); setProductPage(1) }}
-              style={{
-                height: 32,
-                padding: '0 12px',
-                border: '1px solid',
-                borderColor: inStockOnly ? 'var(--success)' : 'var(--border)',
-                borderRadius: 'var(--radius-sm)',
-                background: inStockOnly ? 'var(--success-bg)' : 'var(--surface)',
-                color: inStockOnly ? 'var(--success)' : 'var(--foreground-muted)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {inStockOnly ? '✓ In Stock Only' : 'In Stock Only'}
-            </button>
-            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--foreground-subtle)' }}>
-              {productMeta?.total ?? items.length} items
-            </span>
           </div>
+        )}
+      </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+      {activeTab === 'products' && (
+        <>
+          <div className="pos-grid-scroll" style={{ flex: 1, overflowY: 'auto', padding: 20, background: 'var(--surface-muted, var(--background))' }}>
             {isLoading ? (
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
                   gap: 12,
                 }}
               >
@@ -262,7 +256,7 @@ export default function PosProductGrid({
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
                   gap: 12,
                 }}
               >
@@ -274,6 +268,8 @@ export default function PosProductGrid({
                   return (
                     <div
                       key={group.key}
+                      className="pos-product-card"
+                      data-disabled={outOfStock || undefined}
                       onClick={() => {
                         if (lotCount > 1) {
                           setBatchPickerGroup(group)
@@ -294,12 +290,13 @@ export default function PosProductGrid({
                         flexDirection: 'column',
                         gap: 8,
                         boxShadow: isHovered ? 'var(--shadow-sm)' : 'none',
-                        transition: 'border-color 120ms ease, box-shadow 120ms ease',
+                        transition: 'background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 120ms ease',
                         position: 'relative',
                       }}
                     >
                       {lotCount > 1 && (
                         <span
+                          data-pc="badge"
                           style={{
                             position: 'absolute',
                             top: 10,
@@ -335,44 +332,49 @@ export default function PosProductGrid({
                           item.code ||
                           `#${item.id}`}
                       </span>
-                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+                      <span data-pc="muted" style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: -6 }}>
                         {item.product_uom_batch?.product_uom?.code ??
                           item.product_uom?.code ??
                           item.code}
                       </span>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: group.totalStock > 0 ? 'var(--success)' : 'var(--destructive)',
-                          fontWeight: 500,
-                        }}
-                      >
-                        Stock: {group.totalStock}
-                      </span>
-                      {(item.product_uom_batch?.expiry_date ?? item.expiry_date) && (
+                      {/* Exp then Stock, pushed down onto the price (free space goes above). */}
+                      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {(item.product_uom_batch?.expiry_date ?? item.expiry_date) && (
+                          <span
+                            data-pc="muted"
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 500,
+                              color:
+                                new Date((item.product_uom_batch?.expiry_date ?? item.expiry_date)) < new Date()
+                                  ? 'var(--destructive)'
+                                  : new Date((item.product_uom_batch?.expiry_date ?? item.expiry_date)) <
+                                    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                                    ? 'var(--warning)'
+                                    : 'var(--foreground-muted)',
+                            }}
+                          >
+                            Exp on{' '}
+                            {formatExpiry(item.product_uom_batch?.expiry_date ?? item.expiry_date)}
+                            {lotCount > 1 && ' (earliest)'}
+                          </span>
+                        )}
                         <span
+                          data-pc="muted"
                           style={{
                             fontSize: 11,
+                            color: group.totalStock > 0 ? 'var(--success)' : 'var(--destructive)',
                             fontWeight: 500,
-                            color:
-                              new Date((item.product_uom_batch?.expiry_date ?? item.expiry_date)) < new Date()
-                                ? 'var(--destructive)'
-                                : new Date((item.product_uom_batch?.expiry_date ?? item.expiry_date)) <
-                                  new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-                                  ? 'var(--warning)'
-                                  : 'var(--foreground-muted)',
                           }}
                         >
-                          Exp:{' '}
-                          {formatDate((item.product_uom_batch?.expiry_date ?? item.expiry_date))}
-                          {lotCount > 1 && ' (earliest)'}
+                          Stock: {group.totalStock}
                         </span>
-                      )}
-                      <div style={{ marginTop: 'auto' }}>
+                      </div>
+                      <div data-pc="divider" style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                         <span
                           style={{
                             fontSize: 15,
-                            fontWeight: 700,
+                            fontWeight: 500,
                             color: 'var(--accent)',
                             marginTop: 4,
                           }}
@@ -392,77 +394,55 @@ export default function PosProductGrid({
                 })}
               </div>
             )}
-            {productMeta &&
-              (productMeta?.last_page ?? productMeta?.total_pages ?? 1) > 1 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '16px 0',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setProductPage((p: number) => Math.max(1, p - 1))}
-                    disabled={productPage === 1}
-                    style={{
-                      height: 32,
-                      padding: '0 14px',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--surface)',
-                      color: productPage === 1 ? 'var(--foreground-subtle)' : 'var(--foreground)',
-                      cursor: productPage === 1 ? 'not-allowed' : 'pointer',
-                      fontSize: 13,
-                    }}
-                  >
-                    ← Prev
-                  </button>
-                  <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {productPage} /{' '}
-                    {productMeta?.last_page ?? productMeta?.total_pages ?? 1}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setProductPage((p: number) =>
-                        Math.min(
-                          productMeta?.last_page ?? productMeta?.total_pages ?? 1,
-                          p + 1
-                        )
-                      )
-                    }
-                    disabled={
-                      productPage ===
-                      (productMeta?.last_page ?? productMeta?.total_pages ?? 1)
-                    }
-                    style={{
-                      height: 32,
-                      padding: '0 14px',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      background: 'var(--surface)',
-                      color:
-                        productPage ===
-                          (productMeta?.last_page ?? productMeta?.total_pages ?? 1)
-                          ? 'var(--foreground-subtle)'
-                          : 'var(--foreground)',
-                      cursor:
-                        productPage ===
-                          (productMeta?.last_page ?? productMeta?.total_pages ?? 1)
-                          ? 'not-allowed'
-                          : 'pointer',
-                      fontSize: 13,
-                    }}
-                  >
-                    Next →
-                  </button>
-                </div>
-              )}
           </div>
-          
+
+          {/* Pagination footer: pinned under the grid, outside the scroll area */}
+          {lastPage > 1 && (productMeta || isLoading) && (
+            <div
+              className="pos-pager"
+              style={{
+                flexShrink: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                padding: '12px 20px',
+                borderTop: '1px solid var(--border)',
+                background: 'var(--surface)',
+                // Lifted off the grey grid: a soft shadow cast upwards.
+                boxShadow: '0 -6px 16px -10px rgba(42, 26, 19, 0.28)',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            >
+              <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+                Page <strong style={{ color: 'var(--foreground)', fontWeight: 600 }}>{productPage}</strong> of {lastPage}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className="pos-pager-btn"
+                  aria-label="Previous page"
+                  onClick={() => setProductPage((p: number) => Math.max(1, p - 1))}
+                  disabled={pagerLoading || productPage <= 1}
+                >
+                  <ChevronLeft size={16} />
+                  <span>Prev</span>
+                </button>
+                <button
+                  type="button"
+                  className="pos-pager-btn"
+                  aria-label="Next page"
+                  onClick={() => setProductPage((p: number) => Math.min(lastPage, p + 1))}
+                  disabled={pagerLoading || productPage >= lastPage}
+                >
+                  <span>Next</span>
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Batch Picker Modal */}
           {batchPickerGroup && (
             <div
@@ -529,7 +509,7 @@ export default function PosProductGrid({
                            Batch: {lot.product_uom_batch?.batch_code ?? 'N/A'}
                         </span>
                         <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                          Exp: {lot.product_uom_batch?.expiry_date ? formatDate(lot.product_uom_batch.expiry_date) : 'No Exp Date'}
+                          {lot.product_uom_batch?.expiry_date ? `Exp on ${formatExpiry(lot.product_uom_batch.expiry_date)}` : 'No Exp Date'}
                         </span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -582,7 +562,7 @@ export default function PosProductGrid({
             />
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+          <div className="pos-grid-scroll" style={{ flex: 1, overflowY: 'auto', padding: 20, background: 'var(--surface-muted, var(--background))' }}>
             {isBundleLoading && (
               <div
                 style={{
@@ -913,12 +893,12 @@ function BundleBatchPickerModal({
                   <option value="">-- Select Batch --</option>
                   {availableInventories.map((inv: any) => {
                     const batchCode = inv.product_uom_batch?.batch_code ?? inv.product_uom_batch?.code ?? 'N/A'
-                    const exp = inv.product_uom_batch?.expiry_date ? formatDate(inv.product_uom_batch.expiry_date) : 'No Exp Date'
+                    const exp = inv.product_uom_batch?.expiry_date ? formatExpiry(inv.product_uom_batch.expiry_date) : 'No Exp Date'
                     const stock = availableStockOf(inv)
                     const uomCode = inv.display_uom_code ? ` ${inv.display_uom_code}` : ''
                     return (
                       <option key={inv.id} value={inv.id}>
-                        Batch: {batchCode} | Exp: {exp} | Stock: {stock}{uomCode}
+                        Batch: {batchCode} | {inv.product_uom_batch?.expiry_date ? `Exp on ${exp}` : exp} | Stock: {stock}{uomCode}
                       </option>
                     )
                   })}

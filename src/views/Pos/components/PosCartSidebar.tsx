@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { ShoppingCart } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { ShoppingCart, Trash2, X } from 'lucide-react'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
 import { formatCurrency } from '@/utils/price';
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
@@ -131,6 +131,7 @@ export default function PosCartSidebar({
   const cartEmpty = cart.length === 0 && bundleCart.length === 0
   const noMethods = !paymentMethodsLoading && paymentMethods.length === 0
   const busy = isPending || isHoldPending
+  const showSubtotal = (!!appliedVoucher && discountAmount > 0) || (taxAmount ?? 0) > 0
   const holdDisabled = busy || cartEmpty
   const chargeDisabled = busy || cartEmpty || noMethods
 
@@ -150,19 +151,82 @@ export default function PosCartSidebar({
     onMouseUp: () => setPressBtn(null),
   })
 
+  // Add-to-cart feedback: a line that just appeared slides in, and a line whose
+  // qty went up flashes once. Keyed by line; previous qtys live in a ref so
+  // only real increases animate (not edits down, not re-renders).
+  const prevQtyRef = useRef<Map<string, number> | null>(null)
+  const [flash, setFlash] = useState<Record<string, 'in' | 'bump'>>({})
+  useEffect(() => {
+    const now = new Map<string, number>()
+    cart.forEach((c: any) => now.set(`p-${c.product_inventory_id}`, Number(c.qty) || 0))
+    bundleCart.forEach((b: any) => now.set(`b-${b.bundle_id}`, Number(b.qty) || 0))
+    const prev = prevQtyRef.current
+    prevQtyRef.current = now
+    if (!prev) return // first render: nothing was "added"
+    const changed: Record<string, 'in' | 'bump'> = {}
+    now.forEach((qty, key) => {
+      const before = prev.get(key)
+      if (before === undefined) changed[key] = 'in'
+      else if (qty > before) changed[key] = 'bump'
+    })
+    if (Object.keys(changed).length === 0) return
+    setFlash((f) => ({ ...f, ...changed }))
+    const t = window.setTimeout(() => {
+      setFlash((f) => {
+        const next = { ...f }
+        Object.keys(changed).forEach((k) => delete next[k])
+        return next
+      })
+    }, 650)
+    return () => window.clearTimeout(t)
+  }, [cart, bundleCart])
+
   return (
     <div
+      className="pos-cart-panel"
       style={{
         width: 380,
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--surface)',
         borderLeft: '1px solid var(--border)',
+        // The cart sits above the product canvas: a soft shadow on its left
+        // edge separates "what you pick from" and "what you are selling".
+        boxShadow: '-10px 0 28px -14px rgba(42, 26, 19, 0.22)',
+        position: 'relative',
+        zIndex: 2,
       }}
     >
+      <style>{`
+        @keyframes pos-line-in {
+          from { opacity: 0; transform: translateY(-6px); }
+          to { opacity: 1; transform: none; }
+        }
+        @keyframes pos-line-bump {
+          0% { box-shadow: 0 0 0 0 var(--accent-light-bg); border-color: var(--accent-light); }
+          40% { box-shadow: 0 0 0 4px var(--accent-light-bg); border-color: var(--accent-light); }
+          100% { box-shadow: 0 0 0 0 transparent; }
+        }
+        .pos-cart-line[data-flash="in"] { animation: pos-line-in 220ms ease-out, pos-line-bump 650ms ease-out; }
+        .pos-cart-line[data-flash="bump"] { animation: pos-line-bump 650ms ease-out; }
+        @media (prefers-reduced-motion: reduce) {
+          .pos-cart-line[data-flash] { animation: none; }
+        }
+        .pos-seg, .pos-clear { transition: background-color 150ms ease, color 150ms ease; }
+        .pos-seg[aria-checked="false"]:not(:disabled):hover { background: var(--accent-light-bg) !important; color: var(--accent) !important; }
+        .pos-clear:disabled { cursor: not-allowed !important; }
+        .pos-line-remove { transition: background-color 150ms ease, color 150ms ease; }
+        .pos-line-remove:hover { background: var(--destructive-bg) !important; color: var(--destructive) !important; }
+        .pos-clear:not(:disabled):hover { background: var(--destructive-bg) !important; color: var(--destructive) !important; }
+        .pos-qty { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease; }
+        .pos-qty:not(:disabled):hover { background: var(--accent-light-bg) !important; border-color: var(--accent-light) !important; color: var(--accent) !important; }
+        .pos-qty:not(:disabled):active { transform: scale(0.92); }
+      `}</style>
       <div
         style={{
-          height: 56,
+          // Same height as the POS header (PosHeader) so their borders line up.
+          height: 64,
+          boxSizing: 'border-box',
           padding: '0 20px',
           borderBottom: '1px solid var(--border)',
           display: 'flex',
@@ -171,39 +235,56 @@ export default function PosCartSidebar({
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontWeight: 600, fontSize: 16, color: 'var(--foreground)' }}>
-            Order
-          </span>
-          <div style={{ display: 'flex', gap: 4, marginLeft: 12 }}>
-            {(['offline', 'online'] as const).map((t) => (
+        {/* Order type: one joined control, behaves like a radio group */}
+        <div
+          role="radiogroup"
+          aria-label="Order type"
+          style={{
+            display: 'inline-flex',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            overflow: 'hidden',
+            background: 'var(--surface)',
+          }}
+        >
+          {(['offline', 'online'] as const).map((t, i) => {
+            const selected = orderType === t
+            return (
               <button
                 key={t}
                 type="button"
+                role="radio"
+                aria-checked={selected}
+                className="pos-seg"
+                disabled={busy && !selected}
                 onClick={() => {
+                  if (selected || busy) return
                   setOrderType(t)
                   setCart([])
                 }}
                 style={{
-                  padding: '3px 10px',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid',
-                  borderColor: orderType === t ? 'var(--accent)' : 'var(--border)',
-                  background: orderType === t ? 'var(--accent)' : 'var(--surface)',
-                  color: orderType === t ? 'white' : 'var(--foreground-muted)',
-                  cursor: 'pointer',
-                  textTransform: 'capitalize',
+                  height: 34,
+                  padding: '0 14px',
+                  border: 'none',
+                  borderLeft: i > 0 ? '1px solid var(--border)' : 'none',
+                  background: selected ? 'var(--accent)' : 'transparent',
+                  color: selected ? '#fff' : 'var(--foreground-muted)',
+                  fontSize: 12.5,
+                  fontWeight: selected ? 600 : 500,
+                  fontFamily: 'var(--font-sans)',
+                  cursor: selected ? 'default' : 'pointer',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                {t}
+                {t === 'offline' ? 'Offline Order' : 'Online Order'}
               </button>
-            ))}
-          </div>
+            )
+          })}
         </div>
         <button
           type="button"
+          className="pos-clear"
+          disabled={busy}
           onClick={() => { setCart([]); setBundleCart([]) }}
           title="Clear cart"
           style={{
@@ -211,14 +292,18 @@ export default function PosCartSidebar({
             border: 'none',
             cursor: 'pointer',
             fontSize: 13,
+            fontWeight: 500,
             color: 'var(--foreground-muted)',
+            opacity: busy ? 0.5 : 1,
             display: 'flex',
             alignItems: 'center',
             gap: 4,
-            padding: '4px 8px',
-            borderRadius: 'var(--radius-sm)',
+            height: 32,
+            padding: '0 10px',
+            borderRadius: 'var(--radius-md)',
           }}
         >
+          <X size={14} />
           Clear
         </button>
       </div>
@@ -244,13 +329,20 @@ export default function PosCartSidebar({
       )}
 
       <div
+        aria-busy={busy || undefined}
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '12px 16px',
+          padding: '14px 16px',
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
+          gap: 10,
+          // Soft grey canvas so each white line card stands apart.
+          background: 'var(--surface-muted, var(--background))',
+          // Frozen while the order is submitting / holding: no qty edits.
+          pointerEvents: busy ? 'none' : undefined,
+          opacity: busy ? 0.6 : 1,
+          transition: 'opacity 150ms ease',
         }}
       >
         {cartEmpty ? (
@@ -271,14 +363,17 @@ export default function PosCartSidebar({
             <span style={{ fontSize: 11 }}>Click products to add them</span>
           </div>
         ) : (
-          cart.map((item) => (
+          cart.map((item, lineIndex) => (
             <div
               key={item.product_inventory_id}
+              className="pos-cart-line"
+              data-flash={flash[`p-${item.product_inventory_id}`]}
               style={{
-                background: 'var(--background)',
+                background: 'var(--surface)',
                 border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '10px 12px',
+                borderRadius: 'var(--radius-lg)',
+                padding: '12px 14px',
+                boxShadow: '0 1px 2px rgba(42, 26, 19, 0.06), 0 2px 8px -4px rgba(42, 26, 19, 0.10)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 6,
@@ -286,17 +381,44 @@ export default function PosCartSidebar({
               }}
             >
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                  {item.name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 20, height: 20, flexShrink: 0, borderRadius: 999,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                      background: 'var(--accent-light-bg)', color: 'var(--accent)',
+                    }}
+                  >
+                    {lineIndex + 1}
+                  </span>
+                  <span style={{ minWidth: 0 }}>{item.name}</span>
+                  <button
+                    type="button"
+                    className="pos-line-remove"
+                    aria-label={`Remove ${item.name}`}
+                    title="Remove"
+                    onClick={() => setCart((prev: any) => prev.filter((c: any) => c.product_inventory_id !== item.product_inventory_id))}
+                    style={{
+                      marginLeft: 'auto', width: 26, height: 26, flexShrink: 0,
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      border: 'none', borderRadius: 'var(--radius-sm)', background: 'none',
+                      color: 'var(--foreground-subtle)', cursor: 'pointer',
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</div>
+                <div style={{ fontSize: 12, color: 'var(--foreground-muted)', paddingLeft: 28 }}>{item.code}</div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Qty row, set apart from the name by a thin divider */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
                     type="button"
-                    style={qtyBtnStyle}
+                    className="pos-qty" style={qtyBtnStyle}
                     onClick={() =>
                       setCart((prev: any) =>
                         prev
@@ -312,6 +434,7 @@ export default function PosCartSidebar({
                     −
                   </button>
                   <LocalizedNumberInput
+                    selectOnFocus
                     value={item.qty}
                     onChange={(val) => {
                       const max = qtyLimitOf(item)
@@ -344,7 +467,7 @@ export default function PosCartSidebar({
                   />
                   <button
                     type="button"
-                    style={qtyBtnStyle}
+                    className="pos-qty" style={qtyBtnStyle}
                     onClick={() => {
                       const max = qtyLimitOf(item)
                       if (max !== undefined && item.qty + 1 > max) {
@@ -371,14 +494,17 @@ export default function PosCartSidebar({
           ))
         )}
 
-        {bundleCart.map((item: any) => (
+        {bundleCart.map((item: any, bundleIndex: number) => (
           <div
             key={`bundle-${item.bundle_id}`}
+            className="pos-cart-line"
+            data-flash={flash[`b-${item.bundle_id}`]}
             style={{
-              background: 'var(--background)',
+              background: 'var(--surface)',
               border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '10px 12px',
+              borderRadius: 'var(--radius-lg)',
+              padding: '12px 14px',
+              boxShadow: '0 1px 2px rgba(42, 26, 19, 0.06), 0 2px 8px -4px rgba(42, 26, 19, 0.10)',
               display: 'flex',
               flexDirection: 'column',
               gap: 6,
@@ -387,6 +513,17 @@ export default function PosCartSidebar({
           >
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 20, height: 20, flexShrink: 0, borderRadius: 999,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                    background: 'var(--accent-light-bg)', color: 'var(--accent)',
+                  }}
+                >
+                  {cart.length + bundleIndex + 1}
+                </span>
                 <span
                   style={{
                     fontSize: 10,
@@ -402,6 +539,21 @@ export default function PosCartSidebar({
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
                   {item.name}
                 </span>
+                <button
+                  type="button"
+                  className="pos-line-remove"
+                  aria-label={`Remove ${item.name}`}
+                  title="Remove"
+                  onClick={() => setBundleCart((prev: any) => prev.filter((c: any) => c.bundle_id !== item.bundle_id))}
+                  style={{
+                    marginLeft: 'auto', width: 26, height: 26, flexShrink: 0,
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    border: 'none', borderRadius: 'var(--radius-sm)', background: 'none',
+                    color: 'var(--foreground-subtle)', cursor: 'pointer',
+                  }}
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
               <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{item.code}</div>
               
@@ -423,11 +575,12 @@ export default function PosCartSidebar({
               )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            {/* Qty row, set apart from the name by a thin divider */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <button
                   type="button"
-                  style={qtyBtnStyle}
+                  className="pos-qty" style={qtyBtnStyle}
                   onClick={() =>
                     setBundleCart((prev: any) =>
                       prev
@@ -443,6 +596,7 @@ export default function PosCartSidebar({
                   −
                 </button>
                 <LocalizedNumberInput
+                  selectOnFocus
                   value={item.qty}
                   onChange={(val) => {
                     let next = Math.max(0.001, val)
@@ -473,7 +627,7 @@ export default function PosCartSidebar({
                 />
                 <button
                   type="button"
-                  style={qtyBtnStyle}
+                  className="pos-qty" style={qtyBtnStyle}
                   onClick={() => {
                     const max = bundleQtyLimitOf(item)
                     if (max !== undefined && item.qty + 1 > max) {
@@ -508,14 +662,17 @@ export default function PosCartSidebar({
           gap: 6,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
-          <span>Subtotal</span>
-          <span>{formatCurrency(subtotal)}</span>
-        </div>
+        {/* Subtotal only matters when a discount or tax makes it differ from the total. */}
+        {showSubtotal && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--foreground-muted)' }}>
+            <span>Subtotal</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+        )}
 
         {appliedVoucher && discountAmount > 0 && (
             <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--destructive)', padding: '2px 0' }}>
-              <span>Diskon ({appliedVoucher.code})</span>
+              <span>Discount ({appliedVoucher.code})</span>
               <span>- {formatCurrency(discountAmount)}</span>
             </span>
         )}
@@ -527,7 +684,7 @@ export default function PosCartSidebar({
           </div>
         )}
 
-        <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+        {showSubtotal && <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
@@ -559,9 +716,9 @@ export default function PosCartSidebar({
               flex: '0 0 auto',
               height: 48,
               padding: '0 18px',
-              background: holdDisabled ? 'var(--border)' : 'var(--accent-light-bg)',
+              background: holdDisabled ? 'var(--border)' : hoverBtn === 'hold' ? '#F1E2D2' : 'var(--accent-light-bg)',
               color: holdDisabled ? 'var(--foreground-muted)' : 'var(--accent)',
-              border: `1px solid ${holdDisabled ? 'var(--border)' : hoverBtn === 'hold' ? 'var(--accent)' : 'var(--accent-light)'}`,
+              border: 'none',
               borderRadius: 'var(--radius-md)',
               fontSize: 14,
               fontWeight: 600,
@@ -590,7 +747,7 @@ export default function PosCartSidebar({
               opacity: isPending ? 0.7 : 1,
             }}
           >
-            {isPending ? 'Processing...' : 'Charge Now'}
+            {isPending ? 'Processing...' : 'Submit Order'}
           </button>
         </div>
       </div>

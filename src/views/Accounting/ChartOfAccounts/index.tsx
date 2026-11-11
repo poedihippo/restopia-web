@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import {
   Plus, Pencil, Trash2, ChevronRight, ChevronDown,
-  X, Loader2, BookOpen, XCircle, Download, Folder, FolderOpen, FileText,
+  X, Loader2, BookOpen, XCircle, Download, Folder, FolderOpen, FileText, ArrowUpRight,
 } from 'lucide-react'
 
 interface CoA {
@@ -93,6 +93,22 @@ interface TreeRow {
 const balanceLabel = (amount: number, normal: 'debit' | 'credit') => {
   const side = amount > 0 ? 'Dr' : amount < 0 ? 'Cr' : normal === 'debit' ? 'Dr' : 'Cr'
   return `${formatCurrency(Math.abs(amount))} ${side}`
+}
+
+// Every account under a node (itself included): the accounts its rolled-up balance sums.
+const accountIdsOf = (node: TreeNode): number[] => [
+  ...(node.item ? [node.item.id] : []),
+  ...node.children.flatMap(accountIdsOf),
+]
+
+// The balance opens the journals that make it up (posted, on these accounts) in a new tab.
+const journalsHref = (node: TreeNode) => {
+  const params = new URLSearchParams({
+    account_ids: accountIdsOf(node).join(','),
+    account: [node.code, node.label].filter(Boolean).join(' '),
+    posted: '1',
+  })
+  return `/accounting/journals?${params.toString()}`
 }
 
 const highlight = (text: string, q: string) => {
@@ -346,9 +362,23 @@ export default function ChartOfAccountsView() {
             </div>
           )}
 
-          <span style={{ marginLeft: 'auto', paddingLeft: 16, fontSize: 13, fontWeight: isCategory ? 500 : 400, color: node.total === 0 ? 'var(--foreground-subtle)' : 'var(--foreground)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-            {balanceLabel(node.total, node.normalBalance)}
-          </span>
+          {accountIdsOf(node).length > 0 ? (
+            <a
+              href={journalsHref(node)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="v2-link"
+              title="Open the journals behind this balance in a new tab"
+              style={{ marginLeft: 'auto', paddingLeft: 16, fontSize: 13, fontWeight: isCategory ? 500 : 400, color: node.total === 0 ? 'var(--foreground-subtle)' : 'var(--foreground)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              {balanceLabel(node.total, node.normalBalance)}
+              <ArrowUpRight size={12} />
+            </a>
+          ) : (
+            <span style={{ marginLeft: 'auto', paddingLeft: 16, fontSize: 13, fontWeight: isCategory ? 500 : 400, color: node.total === 0 ? 'var(--foreground-subtle)' : 'var(--foreground)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              {balanceLabel(node.total, node.normalBalance)}
+            </span>
+          )}
         </div>
       </div>
     )

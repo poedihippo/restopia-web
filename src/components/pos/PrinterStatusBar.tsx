@@ -68,7 +68,7 @@ export default function PrinterStatusBar() {
           {errorMessage}
         </span>
       ) : null}
-      <span style={{ marginLeft: 'auto' }} />
+      {/* Connect sits next to the status, on the left. */}
       {showConnect ? (
         <button
           type="button"

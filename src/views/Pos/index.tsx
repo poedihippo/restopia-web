@@ -1,5 +1,8 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { CakeSlice, ChefHat, Cookie, Croissant, ShoppingCart, X } from 'lucide-react'
+import { formatCurrency } from '@/utils/price'
 import { usePosLogic } from './hooks/usePosLogic'
+import DatePopover from '@/components/DatePopover'
 import PosHeader from './components/PosHeader'
 import PosProductGrid from './components/PosProductGrid'
 import PosCartSidebar from './components/PosCartSidebar'
@@ -11,6 +14,40 @@ import PosTransactionCompleteModal from './components/PosTransactionCompleteModa
 
 export default function PosView() {
   const logic = usePosLogic()
+
+  // Phones / narrow tablets: the cart is a drawer, closed by default, opened
+  // from the floating bar. Desktop keeps the side-by-side layout (the wrapper
+  // is display: contents there).
+  const [cartOpen, setCartOpen] = useState(false)
+  const itemCount =
+    logic.cart.reduce((s: number, c: any) => s + (Number(c.qty) || 0), 0) +
+    logic.bundleCart.reduce((s: number, c: any) => s + (Number(c.qty) || 0), 0)
+  useEffect(() => {
+    if (itemCount === 0) setCartOpen(false)
+  }, [itemCount])
+
+  // While an order is submitting (or being held) the whole POS is locked:
+  // an overlay takes every click/tap, and keys are swallowed so shortcuts
+  // (Enter, Esc, Ctrl+F…) can't act on a half-sent order.
+  // Ends as soon as the completion screen is up (the mutation can still be
+  // settling its callbacks while that screen is already showing).
+  const posBusy = !!(logic.isPending || logic.isHoldPending) && !logic.completedTransaction
+  useEffect(() => {
+    if (!posBusy) return
+    const block = (e: KeyboardEvent) => {
+      // Browser escape hatches stay usable: reload (F5, Ctrl/Cmd+R) and the
+      // developer tools (F12, Ctrl+Shift+I/J/C, Cmd+Opt+I/J/C).
+      const key = e.key.toLowerCase()
+      const mod = e.ctrlKey || e.metaKey
+      const isReload = key === 'f5' || (mod && key === 'r')
+      const isDevTools = key === 'f12' || (mod && (e.shiftKey || e.altKey) && ['i', 'j', 'c'].includes(key))
+      if (isReload || isDevTools) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    window.addEventListener('keydown', block, true)
+    return () => window.removeEventListener('keydown', block, true)
+  }, [posBusy])
 
   return (
     <div
@@ -29,7 +66,6 @@ export default function PosView() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          borderRight: '1px solid var(--border)',
           overflow: 'hidden',
         }}
       >
@@ -74,7 +110,62 @@ export default function PosView() {
         />
       </div>
 
-      {/* ─── RIGHT — Cart Panel ─── */}
+      <style>{`
+        .pos-cart-wrap { display: contents; }
+        .pos-cart-mobilebar, .pos-cart-backdrop, .pos-cart-fab { display: none; }
+        @media (max-width: 900px) {
+          .pos-cart-wrap {
+            display: flex; flex-direction: column;
+            position: fixed; top: 0; right: 0; bottom: 0; z-index: 50;
+            width: min(420px, 100vw); background: var(--surface);
+            box-shadow: var(--shadow-lg);
+            transform: translateX(100%); transition: transform 240ms ease;
+          }
+          .pos-cart-wrap[data-open="true"] { transform: none; }
+          .pos-cart-wrap > .pos-cart-panel { width: 100% !important; flex: 1; min-height: 0; box-shadow: none !important; border-left: none !important; }
+          .pos-cart-mobilebar { display: flex; }
+          .pos-cart-backdrop[data-open="true"] { display: block; }
+          .pos-cart-fab { display: flex; }
+          .pos-grid-scroll { padding-bottom: 92px !important; }
+        }
+        @media (prefers-reduced-motion: reduce) { .pos-cart-wrap { transition: none; } }
+        .pos-drawer-close { transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+        .pos-drawer-close:hover { background: var(--destructive-bg) !important; border-color: var(--destructive) !important; color: var(--destructive) !important; }
+      `}</style>
+
+      {/* Same styled calendar as the rest of the app (GlobalLayout mounts it
+          there; POS renders outside that layout). */}
+      <DatePopover />
+
+      {/* ─── RIGHT — Cart Panel (a drawer on narrow screens) ─── */}
+      <div
+        className="pos-cart-backdrop"
+        data-open={cartOpen}
+        onClick={() => setCartOpen(false)}
+        style={{ position: 'fixed', inset: 0, zIndex: 49, background: 'rgba(17, 17, 20, 0.32)' }}
+      />
+      <div className="pos-cart-wrap" data-open={cartOpen}>
+        <div
+          className="pos-cart-mobilebar"
+          style={{ alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>
+            Cart{itemCount > 0 ? ` · ${itemCount} item${itemCount === 1 ? '' : 's'}` : ''}
+          </span>
+          <button
+            type="button"
+            aria-label="Close cart"
+            className="pos-drawer-close"
+            onClick={() => setCartOpen(false)}
+            style={{
+              width: 34, height: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)',
+              color: 'var(--foreground)', cursor: 'pointer',
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
       <PosCartSidebar
         orderType={logic.orderType}
         setOrderType={logic.setOrderType}
@@ -111,6 +202,50 @@ export default function PosView() {
         paymentMethodsLoading={logic.paymentMethodsLoading}
         paymentMethods={logic.paymentMethods}
       />
+      </div>
+
+      {posBusy && (
+        <div
+          role="alertdialog"
+          aria-live="assertive"
+          aria-label="Processing order"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(253, 253, 252, 0.6)',
+            backdropFilter: 'blur(1.5px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'progress',
+          }}
+        >
+          <BakingLoader holding={!!logic.isHoldPending} />
+        </div>
+      )}
+
+      {/* Floating cart bar (narrow screens): opens the cart drawer */}
+      <button
+        type="button"
+        className="pos-cart-fab"
+        onClick={() => setCartOpen(true)}
+        style={{
+          position: 'fixed', left: 12, right: 12, bottom: 12, zIndex: 40,
+          height: 56, padding: '0 18px', alignItems: 'center', gap: 12,
+          border: 'none', borderRadius: 'var(--radius-lg)',
+          background: 'var(--accent)', color: '#fff',
+          boxShadow: '0 10px 24px -8px rgba(42, 26, 19, 0.55)',
+          fontFamily: 'var(--font-sans)', cursor: 'pointer',
+        }}
+      >
+        <ShoppingCart size={18} />
+        <span style={{ fontSize: 13.5, fontWeight: 600 }}>
+          {itemCount > 0 ? `${itemCount} item${itemCount === 1 ? '' : 's'}` : 'Cart is empty'}
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          {formatCurrency(Number(logic.total) || 0)}
+        </span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.16)' }}>
+          View cart
+        </span>
+      </button>
 
       {/* ─── MODALS ─── */}
       <PosModals
@@ -260,6 +395,93 @@ export default function PosView() {
       />
 
       <PosShiftBlockerModal />
+    </div>
+  )
+}
+
+// A little bakery while the order goes through: a hopping pastry that changes
+// every beat and a rotating line of kitchen chatter. Respects reduced motion.
+const BAKE_ICONS = [CakeSlice, Cookie, Croissant, ChefHat]
+const BAKE_LINES = [
+  'Whisking up your order…',
+  'Melting the chocolate…',
+  'Dusting on some cocoa…',
+  'Boxing it up nicely…',
+  'Almost out of the oven…',
+]
+const HOLD_LINES = ['Putting it on the cooling rack…', 'Saving it for later…', 'Wrapping it up…']
+
+function BakingLoader({ holding }: { holding: boolean }) {
+  const [beat, setBeat] = useState(0)
+  useEffect(() => {
+    const t = window.setInterval(() => setBeat((b) => b + 1), 1300)
+    return () => window.clearInterval(t)
+  }, [])
+  const Icon = BAKE_ICONS[beat % BAKE_ICONS.length]
+  const lines = holding ? HOLD_LINES : BAKE_LINES
+  const line = lines[beat % lines.length]
+
+  return (
+    <div
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+        padding: '40px 48px 34px', width: 'min(400px, calc(100vw - 32px))', borderRadius: 'var(--radius-xl)',
+        background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)',
+        fontFamily: 'var(--font-sans)', textAlign: 'center',
+      }}
+    >
+      <style>{`
+        @keyframes pos-bake-hop {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          30% { transform: translateY(-16px) rotate(-8deg); }
+          55% { transform: translateY(0) rotate(4deg); }
+          70% { transform: translateY(-3px) rotate(0deg); }
+        }
+        @keyframes pos-bake-shadow {
+          0%, 100% { transform: scaleX(1); opacity: 0.35; }
+          30% { transform: scaleX(0.6); opacity: 0.18; }
+        }
+        @keyframes pos-bake-line { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+        @keyframes pos-bake-dot { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+        .pos-bake-icon { animation: pos-bake-hop 1.3s ease-in-out infinite; }
+        .pos-bake-shadow { animation: pos-bake-shadow 1.3s ease-in-out infinite; }
+        .pos-bake-line { animation: pos-bake-line 260ms ease-out; }
+        .pos-bake-dot { animation: pos-bake-dot 1.2s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .pos-bake-icon, .pos-bake-shadow, .pos-bake-line, .pos-bake-dot { animation: none; }
+        }
+      `}</style>
+      <div style={{ position: 'relative', width: 96, height: 96, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span
+          className="pos-bake-icon"
+          style={{
+            width: 84, height: 84, borderRadius: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--accent-light-bg)', color: 'var(--accent)',
+          }}
+        >
+          <Icon size={44} strokeWidth={1.6} />
+        </span>
+        <span
+          className="pos-bake-shadow"
+          aria-hidden
+          style={{ position: 'absolute', bottom: -10, width: 56, height: 8, borderRadius: '50%', background: 'rgba(74, 46, 33, 0.35)' }}
+        />
+      </div>
+      <div style={{ fontSize: 19, fontWeight: 600, color: 'var(--foreground)', marginTop: 6 }}>
+        {holding ? 'Holding order' : 'Processing order'}
+      </div>
+      <div key={line} className="pos-bake-line" style={{ fontSize: 15, color: 'var(--foreground-muted)', minHeight: 22 }}>
+        {line}
+      </div>
+      <div aria-hidden style={{ display: 'flex', gap: 7, marginTop: 2 }}>
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="pos-bake-dot"
+            style={{ width: 8, height: 8, borderRadius: 99, background: 'var(--accent-light)', animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+      </div>
     </div>
   )
 }

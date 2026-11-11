@@ -16,6 +16,8 @@ interface LocalizedNumberInputProps {
   id?: string
   name?: string
   'aria-label'?: string
+  /** Select the whole value on focus/click so typing replaces it (e.g. POS qty). */
+  selectOnFocus?: boolean
 }
 
 const baseStyle: React.CSSProperties = {
@@ -44,6 +46,7 @@ export default function LocalizedNumberInput({
   id,
   name,
   'aria-label': ariaLabel,
+  selectOnFocus = false,
 }: LocalizedNumberInputProps) {
   const numeric = typeof value === 'number' ? value : parseNumberId(value)
   const formatOpts = { pad: padDecimals }
@@ -84,7 +87,14 @@ export default function LocalizedNumberInput({
       value={text}
       placeholder={placeholder}
       onChange={handleChange}
-      onFocus={() => setFocused(true)}
+      onFocus={(e) => {
+        setFocused(true)
+        if (selectOnFocus) {
+          // Next frame: a mouse click would otherwise collapse the selection.
+          const el = e.currentTarget
+          requestAnimationFrame(() => el.select())
+        }
+      }}
       onBlur={handleBlur}
       style={{
         ...baseStyle,

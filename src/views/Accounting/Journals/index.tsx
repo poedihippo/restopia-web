@@ -299,7 +299,14 @@ export default function JournalsView() {
   const [typeFilter, setTypeFilter] = useState('')
   const [periodFilter, setPeriodFilter] = useState('')
   const [dateFilter, setDateFilter] = useState('')
-  const [postedFilter, setPostedFilter] = useState('')
+  // ?account_ids=&account=&posted=1 (the balance link on Chart of Accounts) opens
+  // the posted journals on those accounts.
+  const initialParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const [accountFilter, setAccountFilter] = useState<{ ids: string; label: string } | null>(() => {
+    const ids = initialParams?.get('account_ids') ?? ''
+    return ids ? { ids, label: initialParams?.get('account') || 'Selected accounts' } : null
+  })
+  const [postedFilter, setPostedFilter] = useState(initialParams?.get('posted') ?? '')
   const [reversedFilter, setReversedFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
@@ -314,10 +321,10 @@ export default function JournalsView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedCoaSearch(coaSearch), 400); return () => clearTimeout(t) }, [coaSearch])
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
-  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter])
 
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
-    queryKey: ['journals', page, perPage, debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter],
+    queryKey: ['journals', page, perPage, debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter?.ids],
     queryFn: () => journalsService.list({
       page, per_page: perPage, sort: '-id', include: 'period,journal_details,created_by',
       'filter[search]': debouncedSearch || undefined,
@@ -326,6 +333,7 @@ export default function JournalsView() {
       'filter[date]': dateFilter || undefined,
       'filter[is_posted]': postedFilter || undefined,
       'filter[is_reversed]': reversedFilter || undefined,
+      'filter[chart_of_account_id]': accountFilter?.ids || undefined,
     } as any).then((r) => r.data),
   })
   // Any refetch (after a create/update/delete invalidates the list, or a
@@ -619,10 +627,18 @@ export default function JournalsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search journal number or description..."
-        activeCount={countActive(typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter)}
-        onClear={() => { setTypeFilter(''); setPeriodFilter(''); setDateFilter(''); setPostedFilter(''); setReversedFilter(''); setPage(1) }}
+        activeCount={countActive(typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter, accountFilter)}
+        onClear={() => { setTypeFilter(''); setPeriodFilter(''); setDateFilter(''); setPostedFilter(''); setReversedFilter(''); setAccountFilter(null); setPage(1) }}
         quick={
           <>
+            {accountFilter && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 6px 0 10px', borderRadius: 999, background: 'var(--accent-light-bg)', color: 'var(--accent)', fontSize: 12.5, fontWeight: 500, whiteSpace: 'nowrap', maxWidth: 280 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>Account: {accountFilter.label}</span>
+                <button type="button" title="Remove account filter" onClick={() => setAccountFilter(null)} className="v2-icon-btn" style={{ width: 20, height: 20, color: 'var(--accent)' }}>
+                  <X size={12} />
+                </button>
+              </span>
+            )}
             <FilterSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: 160 }}>
               <option value="">All Types</option>
               {Object.entries(JOURNAL_TYPE_LABELS).map(([k, v]) => (

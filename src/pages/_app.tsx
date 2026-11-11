@@ -28,9 +28,22 @@ export default function App({ Component, pageProps }: AppProps) {
   // its first load, so nothing is saved before its data has arrived.
   useEffect(() => installLoadingGuard(document, queryClient), []);
 
-  const noLayout =
-    NO_LAYOUT_ROUTES.includes(router.pathname) ||
-    router.pathname.startsWith('/pos');
+  const isPos = router.pathname.startsWith('/pos');
+  const noLayout = NO_LAYOUT_ROUTES.includes(router.pathname) || isPos;
+
+  // POS renders without GlobalLayout, which is what turns the v2 design on
+  // (<html data-ui="v2">: Inter, the modern palette). Turn it on here so POS
+  // gets the same clean look; restore the previous value on the way out.
+  useEffect(() => {
+    if (!isPos) return;
+    const root = document.documentElement;
+    const previous = root.dataset.ui;
+    root.dataset.ui = 'v2';
+    return () => {
+      if (previous) root.dataset.ui = previous;
+      else delete root.dataset.ui;
+    };
+  }, [isPos]);
 
   return (
     <QueryClientProvider client={queryClient}>
