@@ -66,10 +66,10 @@ export default function ReturnOrderModal({ orderId, orderCode, onClose, onReturn
   const details: any[] = order?.sales_order_details ?? []
 
   const { data: methodsData } = useQuery({
-    queryKey: ['payment-methods-all', 'sales_orders'],
+    queryKey: ['payment-methods-all', 'sales_orders', 'active'],
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders', 'filter[is_active]': true } as any)
         .then((r) => r.data),
   })
   // The Credit tender and methods settled later (card/EDC) can never pay a refund.

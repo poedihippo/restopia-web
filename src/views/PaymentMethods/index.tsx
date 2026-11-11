@@ -31,6 +31,8 @@ export default function PaymentMethodsView() {
   // (Payments → Settle Payments); the fee account takes received < total.
   const [requiresSettlement, setRequiresSettlement] = useState(false);
   const [feeAccountId, setFeeAccountId] = useState<number | null>(null);
+  // Inactive methods keep their history but are hidden from payment pickers.
+  const [isActive, setIsActive] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [selectedItem, setSelectedItem] = useState<{
     id: number;
@@ -186,6 +188,8 @@ export default function PaymentMethodsView() {
           ? feeAccountId
           : null,
       };
+      // A bank-linked method follows its bank account's active flag.
+      if (!editing?.bank_account_id) payload.is_active = isActive;
       if (chartOfAccountId !== null)
         payload.chart_of_account_id = chartOfAccountId;
       return editing
@@ -203,6 +207,7 @@ export default function PaymentMethodsView() {
       setChartOfAccountId(null);
       setRequiresSettlement(false);
       setFeeAccountId(null);
+      setIsActive(true);
     },
     onError: (err: any) => {
       const errData = err?.response?.data;
@@ -285,6 +290,7 @@ export default function PaymentMethodsView() {
               setChartOfAccountId(null);
               setRequiresSettlement(false);
               setFeeAccountId(null);
+              setIsActive(true);
               setShowForm(true);
             }}
             style={{
@@ -444,6 +450,23 @@ export default function PaymentMethodsView() {
                     }}
                   >
                     {canRead ? item.name : "***"}
+                    {canRead && item.is_active === false && (
+                      <span
+                        title="Hidden from payment pickers"
+                        style={{
+                          marginLeft: 8,
+                          padding: "2px 8px",
+                          borderRadius: 99,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background: "var(--background)",
+                          border: "1px solid var(--border)",
+                          color: "var(--foreground-muted)",
+                        }}
+                      >
+                        Inactive
+                      </span>
+                    )}
                   </td>
                   <td
                     style={{
@@ -677,6 +700,7 @@ export default function PaymentMethodsView() {
                             setFeeAccountId(
                               item.settlement_fee_chart_of_account_id ?? null,
                             );
+                            setIsActive(item.is_active !== false);
                             setShowForm(true);
                           }}
                           style={{
@@ -997,6 +1021,51 @@ export default function PaymentMethodsView() {
                     </>
                   )}
                 </div>
+              )}
+              {editing?.bank_account_id ? (
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: "var(--foreground-muted)",
+                    marginTop: 16,
+                  }}
+                >
+                  Active / inactive follows the linked bank account (Accounting
+                  → Bank Accounts).
+                </p>
+              ) : (
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    marginTop: 16,
+                    cursor: "pointer",
+                    fontSize: 13,
+                    color: "var(--foreground)",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isActive}
+                    onChange={(e) => setIsActive(e.target.checked)}
+                    style={{ marginTop: 2 }}
+                  />
+                  <span>
+                    Active
+                    <span
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        color: "var(--foreground-muted)",
+                        marginTop: 2,
+                      }}
+                    >
+                      Inactive methods are hidden when choosing a payment
+                      method; past payments keep it.
+                    </span>
+                  </span>
+                </label>
               )}
             </div>
             <div
