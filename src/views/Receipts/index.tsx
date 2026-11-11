@@ -8,13 +8,14 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
 import { deliveriesService } from '@/services/deliveries.service'
+import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -89,6 +90,8 @@ export default function ReceiptsView() {
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [targetBranchFilter, setTargetBranchFilter] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const deliveryIdParam = router.query.delivery_id ? String(router.query.delivery_id) : ''
 
@@ -99,10 +102,22 @@ export default function ReceiptsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo, deliveryIdParam])
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, deliveryIdParam, branchFilter, targetBranchFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['receipts', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, deliveryIdParam],
+  // Branch options for the branch filters: superadmin sees every branch,
+  // other users only the branches they're assigned to.
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !!isSuperadmin,
+  })
+  const availableBranches: any[] = isSuperadmin
+    ? (branchesData as any)?.data ?? []
+    : (user as any)?.branches ?? []
+  const showBranchFilters = !!isSuperadmin || availableBranches.length > 1
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['receipts', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, deliveryIdParam, branchFilter, targetBranchFilter],
     queryFn: () =>
       receiptsService
         .list({
@@ -113,11 +128,17 @@ export default function ReceiptsView() {
           'filter[delivery_id]': deliveryIdParam || undefined,
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
-          'filter[start_date]': dateFrom || undefined,
-          'filter[end_date]': dateTo || undefined,
+          // GET /v1/receipts date filters are date_gte / date_lte.
+          'filter[date_gte]': dateFrom || undefined,
+          'filter[date_lte]': dateTo || undefined,
+          'filter[branch_id]': branchFilter || undefined,
+          'filter[target_branch_id]': targetBranchFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Receipt[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -193,14 +214,6 @@ export default function ReceiptsView() {
     },
   })
 
-  const hasFilters = !!(
-    (statusFilter && statusFilter !== 'final') ||
-    dateFrom ||
-    dateTo ||
-    debouncedSearch ||
-    deliveryIdParam
-  )
-
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
     textAlign: 'left',
@@ -217,15 +230,6 @@ export default function ReceiptsView() {
     padding: '12px 16px',
     borderBottom: '1px solid var(--border)',
     verticalAlign: 'middle',
-  }
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
   }
 
   const actionBtnStyle: React.CSSProperties = {
@@ -303,155 +307,129 @@ export default function ReceiptsView() {
           </button>
         )}
       </div>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search receipts..."
+        activeCount={countActive(
+          statusFilter, branchFilter, targetBranchFilter,
+          dateFrom, dateTo, deliveryIdParam,
+        )}
+        onClear={() => {
+          setStatusFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setBranchFilter('')
+          setTargetBranchFilter('')
+          setSearch('')
+          setPage(1)
+          const query = { ...router.query }
+          delete query.delivery_id
+          router.push({ pathname: router.pathname, query }, undefined, { shallow: true })
         }}
-      >
-        <div style={{ position: 'relative', maxWidth: 280 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search receipts..."
-            style={{
-              ...inputBase,
-              width: 280,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value as '' | 'pending' | 'final')
-            setPage(1)
-          }}
-          style={{
-            ...inputBase,
-            padding: '8px 12px',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="final">Final</option>
-        </select>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            From
-          </label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value)
-              setPage(1)
-            }}
-            style={{ ...inputBase, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            To
-          </label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value)
-              setPage(1)
-            }}
-            style={{ ...inputBase, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        {deliveryIdParam && (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '4px 10px',
-              borderRadius: 'var(--radius-md)',
-              background: 'var(--accent-light-bg)',
-              border: '1px solid var(--border)',
-              fontSize: 12,
-              color: 'var(--accent)',
-              fontWeight: 500,
-            }}
-          >
-            <span>Delivery #{deliveryIdParam}</span>
-            <button
-              type="button"
-              onClick={() => {
-                const query = { ...router.query }
-                delete query.delivery_id
-                router.push({ pathname: router.pathname, query }, undefined, { shallow: true })
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as '' | 'pending' | 'final')
+                setPage(1)
               }}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                color: 'var(--accent)',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-              title="Clear delivery filter"
             >
-              <X size={13} />
-            </button>
-          </div>
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Final</option>
+            </FilterSelect>
+            {deliveryIdParam && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--accent-light-bg)',
+                  border: '1px solid var(--border)',
+                  fontSize: 12,
+                  color: 'var(--accent)',
+                  fontWeight: 500,
+                }}
+              >
+                <span>Delivery #{deliveryIdParam}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const query = { ...router.query }
+                    delete query.delivery_id
+                    router.push({ pathname: router.pathname, query }, undefined, { shallow: true })
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: 'var(--accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Clear delivery filter"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
+          </>
+        }
+      >
+        {showBranchFilters && (
+          <FilterGroup title="Branches">
+            <FilterField label="Branch">
+              <FilterSelect
+                block
+                value={branchFilter}
+                onChange={(e) => {
+                  setBranchFilter(e.target.value)
+                  setPage(1)
+                }}
+              >
+                <option value="">All Branches</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+            <FilterField label="Target branch">
+              <FilterSelect
+                block
+                value={targetBranchFilter}
+                onChange={(e) => {
+                  setTargetBranchFilter(e.target.value)
+                  setPage(1)
+                }}
+              >
+                <option value="">All Target Branches</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          </FilterGroup>
         )}
-
-        {hasFilters && (
-          <button
-            onClick={() => {
-              setStatusFilter('')
-              setDateFrom('')
-              setDateTo('')
-              setSearch('')
-              setPage(1)
-              const query = { ...router.query }
-              delete query.delivery_id
-              router.push({ pathname: router.pathname, query }, undefined, { shallow: true })
-            }}
-            style={{
-              padding: '7px 12px',
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              color: 'var(--foreground-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
+        <FilterGroup title="Dates">
+          <FilterField label="Receipt date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {isSenderOfFilteredDelivery && filteredDelivery && (
         <div

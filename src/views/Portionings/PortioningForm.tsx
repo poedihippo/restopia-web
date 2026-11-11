@@ -7,7 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2, ArrowLeft, Loader2, Save, Eye, Scissors } from 'lucide-react'
+import { Plus, Trash2, Loader2, Save, Eye, Scissors } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import { portioningsService } from '@/services/portionings.service'
 import { companiesService } from '@/services/companies.service'
 import api from '@/hooks/useApi'
@@ -748,19 +749,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
         <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
           Id portioning tidak valid.
         </span>
-        <button
-          type="button"
-          onClick={() => router.push('/production/portioning')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)', fontSize: 13, cursor: 'pointer',
-            color: 'var(--foreground-muted)',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Kembali ke daftar
-        </button>
+        <BackLink href="/production/portioning" label="Portioning" style={{ alignSelf: 'center' }} />
       </div>
     )
   }
@@ -789,19 +778,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
         <span style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
           Portioning tidak ditemukan atau tidak bisa dimuat.
         </span>
-        <button
-          type="button"
-          onClick={() => router.push('/production/portioning')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)', fontSize: 13, cursor: 'pointer',
-            color: 'var(--foreground-muted)',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Kembali ke daftar
-        </button>
+        <BackLink href="/production/portioning" label="Portioning" style={{ alignSelf: 'center' }} />
       </div>
     )
   }
@@ -810,29 +787,17 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
     <div
       style={{
         display: 'flex', flexDirection: 'column', gap: 24,
-        maxWidth: 1200, width: '100%', paddingTop: 8, paddingBottom: 24,
+        width: '100%', paddingTop: 8, paddingBottom: 24,
       }}
     >
       {/* Top bar */}
       <div
         style={{
-          display: 'flex', alignItems: 'center', gap: 12,
+          display: 'flex', flexDirection: 'column', gap: 12,
           paddingBottom: 20, borderBottom: '1px solid var(--border)',
         }}
       >
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)', fontSize: 13, cursor: 'pointer',
-            color: 'var(--foreground-muted)',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
+        <BackLink href="/production/portioning" label="Portioning" />
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>
             {isEdit ? 'Edit Portioning' : 'New Portioning'}
@@ -1345,7 +1310,7 @@ export default function PortioningForm({ editId }: { editId?: number } = {}) {
           )}
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push('/production/portioning')}
             style={{
               padding: '9px 20px', background: 'var(--surface)', border: '1px solid var(--border)',
               borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer',

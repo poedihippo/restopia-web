@@ -17,12 +17,12 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { formatCurrency } from '@/utils/price'
 import { formatDateTime } from '@/utils/date'
 import { toastMutationApiError } from '@/utils/apiError'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   Eye,
@@ -109,7 +109,7 @@ export default function BankAccountsView() {
   }, [debouncedSearch, typeFilter, activeFilter, coaFilter])
 
   // Fetch bank accounts
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: ['bank-accounts', page, perPage, debouncedSearch, typeFilter, activeFilter, coaFilter],
     queryFn: () =>
       bankAccountsService
@@ -125,6 +125,9 @@ export default function BankAccountsView() {
         } as any)
         .then((res) => res.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const bankAccounts: BankAccount[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -134,7 +137,7 @@ export default function BankAccountsView() {
     queryKey: ['chart-of-accounts-select', debouncedCoaDropdownSearch],
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'account_code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
+        .list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
   const coaList: any[] = (coaData as any)?.data ?? []
@@ -420,80 +423,50 @@ export default function BankAccountsView() {
       </div>
 
       {/* Toolbar & Filters */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          flexWrap: 'wrap',
-          marginBottom: 20,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search bank, account number..."
+        activeCount={countActive(typeFilter, activeFilter, coaFilter)}
+        onClear={() => {
+          setTypeFilter('')
+          setActiveFilter('')
+          setCoaFilter('')
+          setPage(1)
         }}
-      >
-        {/* Search */}
-        <div style={{ position: 'relative', minWidth: 260 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 11,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search bank, account number..."
-            style={{
-              ...inputStyle,
-              paddingLeft: 34,
-            }}
-          />
-        </div>
-
-        {/* Account Type Filter */}
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          style={{ ...inputStyle, width: 'auto', minWidth: 150, cursor: 'pointer' }}
-        >
-          <option value="">All Account Types</option>
-          <option value="checking">Checking</option>
-          <option value="savings">Savings</option>
-          <option value="deposit">Deposit</option>
-        </select>
-
-        {/* Active Filter */}
-        <select
-          value={activeFilter}
-          onChange={(e) => setActiveFilter(e.target.value)}
-          style={{ ...inputStyle, width: 'auto', minWidth: 140, cursor: 'pointer' }}
-        >
-          <option value="">All Status</option>
-          <option value="1">Active</option>
-          <option value="0">Inactive</option>
-        </select>
-
-        {/* Chart of Account Filter */}
-        <div style={{ minWidth: 220 }}>
-          <SearchableSelect
-            value={coaFilter !== '' ? Number(coaFilter) : ''}
-            onChange={(val) => setCoaFilter(val !== '' && val != null ? String(val) : '')}
-            options={[
-              { value: '', label: 'All Chart of Accounts' },
-              ...coaList.map((item: any) => ({
-                value: item.id,
-                label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
-              })),
-            ]}
-            placeholder="All Chart of Accounts"
-            searchPlaceholder="Search COA..."
-            onSearchChange={setCoaDropdownSearch}
-          />
-        </div>
-      </div>
+        quick={
+          <>
+            <FilterSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="">All Account Types</option>
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+              <option value="deposit">Deposit</option>
+            </FilterSelect>
+            <FilterSelect value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="1">Active</option>
+              <option value="0">Inactive</option>
+            </FilterSelect>
+            <div style={{ minWidth: 220 }}>
+              <SearchableSelect
+                value={coaFilter !== '' ? Number(coaFilter) : ''}
+                onChange={(val) => setCoaFilter(val !== '' && val != null ? String(val) : '')}
+                options={[
+                  { value: '', label: 'All Chart of Accounts' },
+                  ...coaList.map((item: any) => ({
+                    value: item.id,
+                    label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
+                  })),
+                ]}
+                placeholder="All Chart of Accounts"
+                searchPlaceholder="Search COA..."
+                triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
+                onSearchChange={setCoaDropdownSearch}
+              />
+            </div>
+          </>
+        }
+      />
 
       {/* Table */}
       <div

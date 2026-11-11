@@ -152,6 +152,8 @@ export default function GeneralLedgerView() {
     placeholderData: (prev: any) => prev,
     queryFn: () =>
       chartOfAccountsService
+        // First 50 codes only; typing searches code + name on the server, so any account is reachable
+        // without loading the whole chart.
         .list({ per_page: 50, sort: 'code', 'filter[search]': term || undefined } as any)
         .then((r) => r.data),
   })
@@ -434,7 +436,7 @@ export default function GeneralLedgerView() {
                       loading={startCoaLoading}
                       onSearchChange={setStartCodeSearch}
                       placeholder="-- Start Code --"
-                      searchPlaceholder="Cari kode akun..."
+                      searchPlaceholder="Cari kode / nama akun..."
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 220, flex: '1 1 220px' }}>
@@ -446,7 +448,7 @@ export default function GeneralLedgerView() {
                       loading={endCoaLoading}
                       onSearchChange={setEndCodeSearch}
                       placeholder="-- End Code --"
-                      searchPlaceholder="Cari kode akun..."
+                      searchPlaceholder="Cari kode / nama akun..."
                     />
                   </div>
                 </>

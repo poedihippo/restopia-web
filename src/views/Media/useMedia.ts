@@ -7,15 +7,18 @@ import { useDeleteMediaModal } from './Modal/useDeleteMediaModal';
 interface Props {
     media_type?: string;
     media_id?: string | number
+    /** Value for `filter[media_type]` on GET /v1/media ('' = all). */
+    mediaTypeFilter?: string
 }
 
-const useMedia = ({ media_id, media_type }: Props) => {
+const useMedia = ({ media_id, media_type, mediaTypeFilter }: Props) => {
 
     const extraParams = useMemo(
         () => ({
-            include: 'created_by,updated_by'
+            include: 'created_by,updated_by',
+            'filter[media_type]': mediaTypeFilter || undefined,
         }),
-        [],
+        [mediaTypeFilter],
     );
 
     const {

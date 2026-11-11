@@ -8,9 +8,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
 import { invoicesService } from '@/services/invoices.service'
+import { branchesService } from '@/services/branches.service'
+import { paymentMethodsService } from '@/services/payment-methods.service'
 import { useAuth } from '@/hooks/useAuth'
 import {
-  Search,
   ChevronLeft,
   ChevronRight,
   Trash2,
@@ -19,6 +20,7 @@ import {
   SplitSquareHorizontal, ArrowUpRight,
 } from 'lucide-react'
 import AllocateModal from './AllocateModal'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 
@@ -65,6 +67,12 @@ export default function PaymentsView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [voidConfirmId, setVoidConfirmId] = useState<number | null>(null)
   const [allocatePayment, setAllocatePayment] = useState<any>(null)
+  const [typeFilter, setTypeFilter] = useState('')
+  const [reversedFilter, setReversedFilter] = useState<'' | 'true' | 'false'>('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [methodFilter, setMethodFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -75,8 +83,25 @@ export default function PaymentsView() {
     setPage(1)
   }, [debouncedSearch])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['payments', page, perPage, debouncedSearch],
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    enabled: canRead,
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const branchOptions: any[] = (branchesData as any)?.data ?? []
+
+  const { data: methodsData } = useQuery({
+    queryKey: ['payment-methods-all', 'payments-filter'],
+    enabled: canRead,
+    queryFn: () => paymentMethodsService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+  })
+  const methodOptions: any[] = (methodsData as any)?.data ?? []
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: [
+      'payments', page, perPage, debouncedSearch, typeFilter, reversedFilter,
+      branchFilter, methodFilter, dateFrom, dateTo,
+    ],
     queryFn: () =>
       paymentsService
         .list({
@@ -85,9 +110,18 @@ export default function PaymentsView() {
           include: 'sales_order,payment_method,branch,created_by',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
+          'filter[type]': typeFilter || undefined,
+          'filter[is_reversed]': reversedFilter || undefined,
+          'filter[branch_id]': branchFilter || undefined,
+          'filter[payment_method_id]': methodFilter || undefined,
+          'filter[date_gte]': dateFrom || undefined,
+          'filter[date_lte]': dateTo || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Payment[] = (data as any)?.data ?? []
 
@@ -166,15 +200,6 @@ export default function PaymentsView() {
     verticalAlign: 'middle',
   }
 
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
-
   const actionBtnStyle: React.CSSProperties = {
     padding: 6,
     background: 'none',
@@ -216,41 +241,91 @@ export default function PaymentsView() {
         </div>
       </div>
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search payments..."
+        activeCount={countActive(typeFilter, reversedFilter, branchFilter, methodFilter, dateFrom, dateTo)}
+        onClear={() => {
+          setTypeFilter('')
+          setReversedFilter('')
+          setBranchFilter('')
+          setMethodFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setPage(1)
         }}
+        quick={
+          <>
+            <FilterSelect
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Types</option>
+              <option value="receive">Receive</option>
+              <option value="disburse">Disburse</option>
+              <option value="refund">Refund</option>
+            </FilterSelect>
+            <FilterSelect
+              value={reversedFilter}
+              onChange={(e) => {
+                setReversedFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All (Reversed)</option>
+              <option value="true">Reversed: Yes</option>
+              <option value="false">Reversed: No</option>
+            </FilterSelect>
+          </>
+        }
       >
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search payments..."
-            style={{
-              ...inputBase,
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+        <FilterGroup title="Related">
+          <FilterField label="Branch">
+            <FilterSelect
+              block
+              value={branchFilter}
+              onChange={(e) => {
+                setBranchFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Branches</option>
+              {branchOptions.map((o: any) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Payment method">
+            <FilterSelect
+              block
+              value={methodFilter}
+              onChange={(e) => {
+                setMethodFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Methods</option>
+              {methodOptions.map((o: any) => (
+                <option key={o.id} value={o.id}>{o.name}</option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dates">
+          <FilterField label="Payment date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
       {/* Table */}
       <div
         style={{

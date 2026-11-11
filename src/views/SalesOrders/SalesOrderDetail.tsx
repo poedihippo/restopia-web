@@ -6,7 +6,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useRouter } from 'next/router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Plus, Loader2, Trash2, Check, User, Printer, ArrowLeft, Pencil, RotateCcw, Receipt } from 'lucide-react';
+import { Plus, Loader2, Trash2, Check, User, Printer, Pencil, RotateCcw, Receipt } from 'lucide-react';
+import BackLink from '@/components/BackLink';
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service';
 import { paymentsService } from '@/services/payments.service';
 import { paymentMethodsService } from '@/services/payment-methods.service';
@@ -416,9 +417,13 @@ export default function SalesOrderDetail() {
     );
   }
 
-  const settlementMeta = order?.settlement_status
-    ? SETTLEMENT_META[order.settlement_status as string] ?? SETTLEMENT_META.pending
-    : null
+  // funds_status: Cash/Visa/BCA money not yet settled into the bank. It takes
+  // the badge's place; settlement_status (the sale journal) stays as it is.
+  const settlementMeta = order?.funds_status === 'awaiting_settlement'
+    ? { label: 'Menunggu settlement', color: 'var(--warning)', bg: 'var(--warning-bg)' }
+    : order?.settlement_status
+      ? SETTLEMENT_META[order.settlement_status as string] ?? SETTLEMENT_META.pending
+      : null
   const paymentBadge = isFullyPaid
     ? { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' }
     : totalPaid > 0
@@ -474,17 +479,10 @@ export default function SalesOrderDetail() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <BackLink href="/sales/sales-orders" label="Sales Orders" />
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
-          <button
-            type="button"
-            onClick={() => router.push('/sales/sales-orders')}
-            title="Back to sales orders"
-            style={{ ...iconButtonStyle, marginTop: 2 }}
-          >
-            <ArrowLeft size={16} />
-          </button>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 700, color: 'var(--foreground)' }}>
@@ -873,6 +871,8 @@ export default function SalesOrderDetail() {
                 journal_id: a.payment?.journal_id,
                 method: a.payment?.payment_method?.name,
                 number: a.payment?.payment_number,
+                settlement_status: a.payment?.settlement_status,
+                settlement_id: a.payment?.payment_settlement_id,
               }))}
               cardStyle={cardStyle}
               cardHeaderStyle={cardHeaderStyle}

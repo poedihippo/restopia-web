@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { paymentsService } from '@/services/payments.service'
 import { suppliersService } from '@/services/suppliers.service'
-import { paymentMethodsService } from '@/services/payment-methods.service'
+import { bankAccountsService } from '@/services/bank-accounts.service'
 import { useAuth } from '@/hooks/useAuth'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -42,6 +42,7 @@ interface DisbursePayment {
   description?: string
   is_reversed?: boolean
   payment_method?: { id: number; name: string }
+  bank_account?: { id: number; bank_name?: string; account_number?: string; account_name?: string }
   allocations?: { purchase_order_id?: number; amount: number }[]
 }
 
@@ -105,7 +106,8 @@ export default function POPaymentsView() {
 
   const [supplierId, setSupplierId] = useState<number>(0)
   const [allocations, setAllocations] = useState<Record<number, number>>({})
-  const [paymentMethodId, setPaymentMethodId] = useState<number>(0)
+  // Source of funds (Zahir's "Akun Kas"): the bank/cash account the money leaves.
+  const [bankAccountId, setBankAccountId] = useState<number>(0)
   const [date, setDate] = useState<string>(todayInputDate())
   const [description, setDescription] = useState('')
   const [voidConfirmId, setVoidConfirmId] = useState<number | null>(null)
@@ -123,19 +125,15 @@ export default function POPaymentsView() {
     sublabel: s.code as string | undefined,
   }))
 
-  const { data: paymentMethodsData } = useQuery({
-    queryKey: ['payment-methods-all', 'purchase_orders', debouncedDropdownSearch],
+  const { data: bankAccountsData } = useQuery({
+    queryKey: ['bank-accounts-all', 'active'],
     queryFn: () =>
-      paymentMethodsService.list({
-        'filter[search]': debouncedDropdownSearch || undefined,
-        per_page: 100,
-        sort: 'id',
-        'filter[type]': 'purchase_orders',
-        include: 'bank_account',
-      } as any).then((r) => r.data),
+      bankAccountsService
+        .list({ per_page: 200, sort: 'bank_name', 'filter[is_active]': true } as any)
+        .then((r) => r.data),
   })
-  const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
-  const selectedPaymentMethod = paymentMethods.find((pm: any) => pm.id === paymentMethodId)
+  const bankAccounts: any[] = ((bankAccountsData as any)?.data ?? []).filter((b: any) => b.is_active !== false)
+  const selectedBankAccount = bankAccounts.find((b: any) => b.id === bankAccountId)
 
   // ── Supplier's POs ────────────────────────────────────────────────────────
   const { data: posData, isLoading: posLoading } = useQuery({
@@ -201,7 +199,7 @@ export default function POPaymentsView() {
 
   const resetForm = () => {
     setAllocations({})
-    setPaymentMethodId(0)
+    setBankAccountId(0)
     setDescription('')
     setDate(todayInputDate())
   }
@@ -220,7 +218,7 @@ export default function POPaymentsView() {
         type: 'disburse',
         date,
         payments: [{
-          payment_method_id: paymentMethodId,
+          bank_account_id: bankAccountId,
           amount: totalPayment,
           description: description || undefined,
           allocations: Object.entries(allocations)
@@ -243,7 +241,7 @@ export default function POPaymentsView() {
   const canSubmit =
     canPay &&
     allocationEntries.length > 0 &&
-    paymentMethodId > 0 &&
+    bankAccountId > 0 &&
     !createMutation.isPending
 
   const handleSubmit = () => {
@@ -252,8 +250,8 @@ export default function POPaymentsView() {
       toast.error('Select at least one purchase order to pay')
       return
     }
-    if (paymentMethodId === 0) {
-      toast.error('Select a payment method')
+    if (bankAccountId === 0) {
+      toast.error('Select the bank/cash account to pay from')
       return
     }
     for (const [poId, amt] of allocationEntries) {
@@ -274,7 +272,7 @@ export default function POPaymentsView() {
         .list({ 'filter[search]': debouncedDropdownSearch || undefined, 
           per_page: 50,
           sort: '-created_at',
-          include: 'payment_method,allocations',
+          include: 'payment_method,bank_account,allocations',
           'filter[type]': 'disburse',
          } as any)
         .then((r) => r.data),
@@ -469,34 +467,22 @@ export default function POPaymentsView() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                 <div>
-                  <span style={labelStyle}>Payment Method</span>
-                  <select
-                    value={paymentMethodId}
-                    onChange={(e) => setPaymentMethodId(Number(e.target.value))}
-                    style={{ ...inputBase, cursor: 'pointer' }}
-                  >
-                    <option value={0} disabled>
-                      Select method
-                    </option>
-                    {paymentMethods.map((pm: any) => (
-                      <option key={pm.id} value={pm.id}>
-                        {pm.bank_account_id
-                          ? `${pm.bank_account?.bank_name ?? pm.name} ${pm.bank_account?.account_number ?? ''}`
-                          : pm.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedPaymentMethod?.bank_account_id && (
-                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                        Bank: {selectedPaymentMethod.bank_account?.bank_name} ({selectedPaymentMethod.bank_account?.account_number})
-                      </span>
-                      {!selectedPaymentMethod.chart_of_account_id && (
-                        <span style={{ fontSize: 12, color: 'var(--warning)' }}>
-                          This bank account has no Chart of Account assigned. Payment cannot proceed until the CoA is set on the bank account.
-                        </span>
-                      )}
-                    </div>
+                  <span style={labelStyle}>Akun Kas/Bank (sumber dana)</span>
+                  <SearchableSelect
+                    value={bankAccountId}
+                    onChange={(val: any) => setBankAccountId(Number(val) || 0)}
+                    options={bankAccounts.map((b: any) => ({
+                      value: Number(b.id),
+                      label: `${b.bank_name ?? 'Bank'} ${b.account_number ?? ''}`.trim(),
+                      sublabel: b.account_name ?? undefined,
+                    }))}
+                    placeholder="Select bank/cash account"
+                    searchPlaceholder="Search bank or account number..."
+                  />
+                  {selectedBankAccount && !selectedBankAccount.chart_of_account_id && (
+                    <span style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--warning)' }}>
+                      This bank account has no Chart of Account assigned. Set it on the bank account before paying.
+                    </span>
                   )}
                 </div>
 
@@ -599,7 +585,7 @@ export default function POPaymentsView() {
                   <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                   <th style={thStyle}>Payment No</th>
                   <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Method</th>
+                  <th style={thStyle}>Kas/Bank</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
                   <th style={thStyle}>Allocated POs</th>
                   <th style={{ ...thStyle, width: 60 }} />
@@ -616,7 +602,11 @@ export default function POPaymentsView() {
                       <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
                         {formatDate(p.date ?? p.created_at)}
                       </td>
-                      <td style={tdStyle}>{p.payment_method?.name ?? '—'}</td>
+                      <td style={tdStyle}>
+                        {p.bank_account
+                          ? `${p.bank_account.bank_name ?? 'Bank'} ${p.bank_account.account_number ?? ''}`.trim()
+                          : p.payment_method?.name ?? '—'}
+                      </td>
                       <td
                         style={{
                           ...tdStyle,

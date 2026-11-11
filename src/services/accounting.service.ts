@@ -115,6 +115,12 @@ export const periodsService = {
     api.patch<ApiResponse<unknown>>(`/periods/${id}`, data),
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/periods/${id}`),
+  /** Close a period; the backend refuses while it still has unposted journals. */
+  close: (id: number) =>
+    api.post<ApiResponse<unknown>>(`/periods/${id}/close`),
+  /** Reopen a closed period (closing only goes through `close`). */
+  reopen: (id: number) =>
+    api.patch<ApiResponse<unknown>>(`/periods/${id}`, { is_closed: false }),
 }
 
 // ─── Journals ─────────────────────────────────────────────────────────────

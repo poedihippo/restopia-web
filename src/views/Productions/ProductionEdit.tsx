@@ -7,6 +7,7 @@ import api from '@/hooks/useApi'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import ProductionForm from './ProductionForm'
+import BackLink from '@/components/BackLink'
 import { parseDate } from '@/helper/parseDate'
 import { getProductUomName } from '@/utils/productUomName'
 
@@ -176,8 +177,11 @@ export default function ProductionEdit({ id }: Props) {
 
   if (isError) {
     return (
-      <div style={{ padding: 48, textAlign: 'center', fontSize: 13, color: 'var(--destructive)' }}>
-        Failed to load this production. Go back and try again.
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <BackLink href="/production" label="Productions" />
+        <div style={{ padding: 48, textAlign: 'center', fontSize: 13, color: 'var(--destructive)' }}>
+          Failed to load this production. Go back and try again.
+        </div>
       </div>
     )
   }

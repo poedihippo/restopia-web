@@ -1,5 +1,6 @@
 'use client'
 
+import FinanceBranchSelect, { financeBranchParam, useFinanceBranchLabel, type FinanceBranchScope } from '../FinanceBranchSelect'
 import React, { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
@@ -7,13 +8,17 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toast } from 'sonner'
 import api from '@/hooks/useApi'
 import { periodsService } from '@/services/accounting.service'
+import { toInputDate } from '@/utils/date'
 import { useAuth } from '@/hooks/useAuth'
 import { FileSpreadsheet, Scale, AlertCircle, CheckCircle2, Download } from 'lucide-react'
 
 interface Period {
   id: number
   name: string
+  start_date?: string
+  end_date?: string
   is_active?: boolean
+  is_closed?: boolean
 }
 
 interface AccountBalance {
@@ -60,6 +65,8 @@ export default function TrialBalanceView() {
   const canRead = hasPermission('journal.read')
 
   const [periodId, setPeriodId] = useState<number>(0)
+  const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
+  const branchLabel = useFinanceBranchLabel(branchScope)
 
   const { data: periodsData, isLoading: periodsLoading } = useQuery({
     queryKey: ['periods-all'],
@@ -70,16 +77,25 @@ export default function TrialBalanceView() {
 
   useEffect(() => {
     if (periodId || periods.length === 0) return
-    const active = periods.find((p) => p.is_active)
-    setPeriodId(active?.id ?? periods[0].id)
+    // Default to the period that contains today; "active" is a manual flag that
+    // isn't moved forward month by month, so it is only the fallback.
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const current = periods.find((p) => {
+      const start = toInputDate(p.start_date)
+      const end = toInputDate(p.end_date)
+      return !!start && !!end && start <= today && today <= end
+    })
+    const active = periods.find((p) => p.is_active && !p.is_closed)
+    setPeriodId(current?.id ?? active?.id ?? periods[0].id)
   }, [periods, periodId])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['trial-balance', periodId],
+    queryKey: ['trial-balance', periodId, branchScope],
     enabled: canRead && !!periodId,
     // Real contract confirmed read-only: GET /journals/trial-balance/:period_id
     // (NOT /reports/trial-balance with start_date/end_date — that endpoint doesn't exist).
-    queryFn: () => api.get(`/journals/trial-balance/${periodId}`).then((r) => r.data),
+    queryFn: () => api.get(`/journals/trial-balance/${periodId}`, { params: financeBranchParam(branchScope) }).then((r) => r.data),
   })
 
   const trialBalance = (data as any)?.data
@@ -91,7 +107,7 @@ export default function TrialBalanceView() {
   const selectedPeriod = periods.find((p) => p.id === periodId)
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
-    mutationFn: () => reportsService.exportTrialBalance({ period_id: periodId }),
+    mutationFn: () => reportsService.exportTrialBalance({ period_id: periodId, ...financeBranchParam(branchScope) }),
     onSuccess: (res) => {
       const periodSlug = (selectedPeriod?.name ?? `period-${periodId}`).replace(/\s+/g, '-').toLowerCase()
       downloadFileFromResponse(res, `trial-balance-${periodSlug}.xlsx`)
@@ -124,7 +140,7 @@ export default function TrialBalanceView() {
             Trial Balance
           </h1>
           <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-            All chart-of-accounts debit/credit balances for a period (posted journals only)
+            All chart-of-accounts debit/credit balances for a period (posted journals only) · {branchLabel}
           </p>
         </div>
         <button
@@ -159,7 +175,8 @@ export default function TrialBalanceView() {
         <>
           {/* Period filter */}
           <div style={sectionStyle}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 320 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: 320, maxWidth: '100%' }}>
               <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Period</label>
               <select
                 value={periodId}
@@ -184,10 +201,28 @@ export default function TrialBalanceView() {
                 {periods.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
-                    {p.is_active ? ' (Active)' : ''}
+                    {p.is_closed ? ' (Closed)' : p.is_active ? ' (Active)' : ''}
                   </option>
                 ))}
               </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Branch</label>
+              <FinanceBranchSelect
+                value={branchScope}
+                onChange={setBranchScope}
+                style={{
+                  padding: '9px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 14,
+                  color: 'var(--foreground)',
+                  background: 'var(--surface-raised)',
+                  outline: 'none',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              />
+            </div>
             </div>
           </div>
 

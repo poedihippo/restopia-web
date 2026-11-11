@@ -3,12 +3,15 @@ import { formatDateTime } from '@/utils/date';
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { operationsService } from '@/services/operations.service';
+import { branchesService } from '@/services/branches.service';
+import { operationRulesService } from '@/services/operation-rules.service';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Eye, X } from 'lucide-react';
+import { Eye, X } from 'lucide-react';
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 
 export default function OperationsView() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isSuperadmin, user } = useAuth();
   const canRead = hasPermission('operation.read');
   // Read-only: the API exposes only GET for this resource (no create/update/delete).
 
@@ -17,6 +20,8 @@ export default function OperationsView() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [branchFilter, setBranchFilter] = useState('');
+  const [operationRuleFilter, setOperationRuleFilter] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
@@ -25,18 +30,39 @@ export default function OperationsView() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, branchFilter, operationRuleFilter]);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['operations', page, perPage, debouncedSearch],
+  // Filter lookup: branches (superadmin sees all, others their assigned branches — same as the sheet)
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'by-name'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+    enabled: isSuperadmin,
+  });
+  const branchOptions: any[] = isSuperadmin ? (branchesData as any)?.data ?? [] : user?.branches ?? [];
+  const canReadOperationRules = hasPermission('operation-rule.read');
+  const { data: operationRulesData } = useQuery({
+    queryKey: ['operation-rules-all'],
+    queryFn: () => operationRulesService.list({ per_page: 100, sort: '-id' } as any).then((r) => r.data),
+    enabled: canReadOperationRules,
+  });
+  const operationRuleOptions: any[] = (operationRulesData as any)?.data ?? [];
+
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['operations', page, perPage, debouncedSearch, branchFilter, operationRuleFilter],
     queryFn: () =>
       operationsService.list({
         page,
         per_page: perPage,
         sort: '-id',
         'filter[search]': debouncedSearch || undefined,
+        'filter[branch_id]': branchFilter || undefined,
+        'filter[operation_rule_id]': operationRuleFilter || undefined,
       } as any).then((r) => r.data),
   });
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: any[] = (data as any)?.data ?? [];
   const meta = (data as any)?.meta;
@@ -45,7 +71,6 @@ export default function OperationsView() {
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
   const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
-  const inputBase: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)' };
   const actionBtnStyle: React.CSSProperties = { padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' };
 
   return (
@@ -57,12 +82,31 @@ export default function OperationsView() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(ev) => setSearch(ev.target.value)} placeholder="Search..." style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search..."
+        activeCount={countActive(branchFilter, operationRuleFilter)}
+        onClear={() => { setBranchFilter(''); setOperationRuleFilter(''); setPage(1); }}
+        quick={
+          <>
+            <FilterSelect value={branchFilter} onChange={(ev) => { setBranchFilter(ev.target.value); setPage(1); }}>
+              <option value="">All Branches</option>
+              {branchOptions.map((o: any) => (
+                <option key={o.id} value={String(o.id)}>{o.name}</option>
+              ))}
+            </FilterSelect>
+            {canReadOperationRules && (
+              <FilterSelect value={operationRuleFilter} onChange={(ev) => { setOperationRuleFilter(ev.target.value); setPage(1); }}>
+                <option value="">All Operation Rules</option>
+                {operationRuleOptions.map((o: any) => (
+                  <option key={o.id} value={String(o.id)}>{`#${o.id} · open ${o.open_mode ?? '—'} / close ${o.close_mode ?? '—'}`}</option>
+                ))}
+              </FilterSelect>
+            )}
+          </>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

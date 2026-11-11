@@ -8,11 +8,13 @@ import { toast } from 'sonner'
 import api from '@/hooks/useApi'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productCategoriesService } from '@/services/product-categories.service'
+import { uomsService } from '@/services/uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductUomSheet from './ProductUomSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters'
 import { getProductUomName } from '@/utils/productUomName'
 import {
   Plus,
@@ -41,6 +43,13 @@ interface ProductUom {
   product?: { id: number; name: string; code?: string; type?: string; product_category?: { name?: string } }
   uom?: { id: number; name: string; code: string }
 }
+
+const BRANCH_TYPE_FILTER_OPTIONS = [
+  { value: 'warehouse', label: 'Warehouse' },
+  { value: 'production', label: 'Production' },
+  { value: 'outlet', label: 'Outlet' },
+  { value: 'other', label: 'Other' },
+]
 
 export default function ProductUomsView() {
   const queryClient = useQueryClient()
@@ -86,6 +95,12 @@ export default function ProductUomsView() {
   const [selectedItem, setSelectedItem] = useState<ProductUom | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [resolvePrice, setResolvePrice] = useState(false)
+  const [uomFilter, setUomFilter] = useState<number | ''>('')
+  const [branchTypeFilter, setBranchTypeFilter] = useState<string>('')
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('')
+  const [defaultFilter, setDefaultFilter] = useState<'true' | 'false' | ''>('')
+  const [priceEditableFilter, setPriceEditableFilter] = useState<'true' | 'false' | ''>('')
+  const canReadUoms = hasPermission('uom.read')
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
@@ -99,7 +114,14 @@ export default function ProductUomsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, categoryFilter, typeFilter, selectedProductId])
+  }, [debouncedSearch, categoryFilter, typeFilter, selectedProductId, uomFilter, branchTypeFilter, activeFilter, defaultFilter, priceEditableFilter])
+
+  const { data: uomsData } = useQuery({
+    queryKey: ['uoms-all'],
+    queryFn: () => uomsService.list({ per_page: 1000 } as any).then((r) => r.data),
+    enabled: canReadUoms,
+  })
+  const uoms: any[] = (uomsData as any)?.data ?? []
 
   const { data: productSearchData } = useQuery({
     queryKey: ['product-uoms-product-search', productSearchDebounced, activeProductTypes],
@@ -110,7 +132,7 @@ export default function ProductUomsView() {
           params: {
             per_page: 100,
             'filter[search]': productSearchDebounced,
-            'filter[product_types]': activeProductTypes,
+            'filter[types]': activeProductTypes,
             sort: 'name',
           },
         })
@@ -135,7 +157,7 @@ export default function ProductUomsView() {
         .get('/products', {
           params: {
             per_page: 1000,
-            'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+            'filter[types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
             'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
           },
         })
@@ -145,8 +167,8 @@ export default function ProductUomsView() {
     ((categoryProductsData as any)?.data ?? []).map((p: any) => p.id as number),
   )
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-uoms', page, perPage, debouncedSearch, selectedProductId, resolvePrice, activeProductTypes],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['product-uoms', page, perPage, debouncedSearch, selectedProductId, resolvePrice, activeProductTypes, typeFilter, uomFilter, branchTypeFilter, activeFilter, defaultFilter, priceEditableFilter],
     queryFn: () =>
       productUomsService
         .list({
@@ -157,10 +179,19 @@ export default function ProductUomsView() {
           'filter[search]': debouncedSearch || undefined,
           'filter[resolve_price]': resolvePrice ? 'true' : undefined,
           'filter[product_types]': activeProductTypes,
+          'filter[product_type]': typeFilter || undefined,
+          'filter[uom_id]': uomFilter === '' ? undefined : String(uomFilter),
+          'filter[branch_type]': branchTypeFilter || undefined,
+          'filter[is_active]': activeFilter || undefined,
+          'filter[is_default]': defaultFilter || undefined,
+          'filter[price_editable]': priceEditableFilter || undefined,
           ...(selectedProductId ? { 'filter[product_id]': selectedProductId } : {}),
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: ProductUom[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -243,220 +274,254 @@ export default function ProductUomsView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-          {/* Product name search */}
-          <div style={{ position: 'relative' }}>
-            <input
-              value={productSearch}
-              onChange={(e) => {
-                setProductSearch(e.target.value)
-                setShowProductDrop(true)
-                if (!e.target.value) {
-                  setSelectedProductId(null)
-                  setPage(1)
-                }
-              }}
-              onFocus={() => setShowProductDrop(true)}
-              placeholder="Search by product name..."
-              style={{
-                height: 36,
-                width: 240,
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '0 12px',
-                fontSize: 13,
-                color: 'var(--foreground)',
-                background: 'var(--surface-raised)',
-              }}
-            />
-            {selectedProductId && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedProductId(null)
-                  setProductSearch('')
-                  setPage(1)
+      <FilterBar
+        search={search}
+        onSearchChange={(v) => {
+          setSearch(v)
+          setPage(1)
+        }}
+        searchPlaceholder="Search by code..."
+        activeCount={countActive(
+          selectedProductId, categoryFilter, typeFilter, uomFilter,
+          branchTypeFilter, activeFilter, defaultFilter, priceEditableFilter,
+        )}
+        onClear={() => {
+          setSelectedProductId(null)
+          setProductSearch('')
+          setCategoryFilter('')
+          setTypeFilter('')
+          setUomFilter('')
+          setBranchTypeFilter('')
+          setActiveFilter('')
+          setDefaultFilter('')
+          setPriceEditableFilter('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            {/* Product name search */}
+            <div style={{ position: 'relative' }}>
+              <input
+                value={productSearch}
+                onChange={(e) => {
+                  setProductSearch(e.target.value)
+                  setShowProductDrop(true)
+                  if (!e.target.value) {
+                    setSelectedProductId(null)
+                    setPage(1)
+                  }
                 }}
+                onFocus={() => setShowProductDrop(true)}
+                placeholder="Search by product name..."
                 style={{
-                  position: 'absolute',
-                  right: 8,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--foreground-muted)',
-                  fontSize: 16,
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            )}
-            {showProductDrop && productResults.length > 0 && !selectedProductId && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  zIndex: 30,
-                  width: 280,
-                  background: 'var(--surface)',
+                  height: 36,
+                  width: 240,
                   border: '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  boxShadow: 'var(--shadow-md)',
-                  maxHeight: 200,
-                  overflowY: 'auto',
+                  padding: '0 12px',
+                  fontSize: 13,
+                  color: 'var(--foreground)',
+                  background: 'var(--surface-raised)',
                 }}
-              >
-                {productResults.map((p: any) => (
-                  <div
-                    key={p.id}
-                    onClick={() => {
-                      setSelectedProductId(p.id)
-                      setProductSearch(p.name)
-                      setShowProductDrop(false)
-                      setPage(1)
-                    }}
-                    style={{
-                      padding: '8px 14px',
-                      cursor: 'pointer',
-                      borderBottom: '1px solid var(--border)',
-                      fontSize: 13,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--background)'
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'var(--surface)'
-                    }}
-                  >
-                    <span style={{ fontWeight: 500 }}>{p.name}</span>
-                    <span
+              />
+              {selectedProductId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedProductId(null)
+                    setProductSearch('')
+                    setPage(1)
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--foreground-muted)',
+                    fontSize: 16,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              )}
+              {showProductDrop && productResults.length > 0 && !selectedProductId && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    zIndex: 30,
+                    width: 280,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-md)',
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {productResults.map((p: any) => (
+                    <div
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedProductId(p.id)
+                        setProductSearch(p.name)
+                        setShowProductDrop(false)
+                        setPage(1)
+                      }}
                       style={{
-                        color: 'var(--foreground-muted)',
-                        marginLeft: 8,
-                        fontSize: 11,
+                        padding: '8px 14px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid var(--border)',
+                        fontSize: 13,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--background)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'var(--surface)'
                       }}
                     >
-                      {p.code}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Code search — keep existing */}
-          <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            placeholder="Search by code..."
-            style={{
-              height: 36,
-              width: 180,
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '0 12px',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-            }}
-          />
-
-          <select
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
-              setPage(1)
-            }}
-            style={{
-              height: 36,
-              maxWidth: 200,
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '0 12px',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-sans)',
-            }}
-          >
-            <option value="">All Categories</option>
-            {categories.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value)
-              setPage(1)
-            }}
-            style={{
-              padding: '8px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-sans)',
-            }}
-          >
-            <option value="">All Types</option>
-            {availableTypeOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {selectedProductId && (
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--accent)',
-                background: 'var(--accent-light-bg)',
-                padding: '2px 8px',
-                borderRadius: 'var(--radius-xl)',
+                      <span style={{ fontWeight: 500 }}>{p.name}</span>
+                      <span
+                        style={{
+                          color: 'var(--foreground-muted)',
+                          marginLeft: 8,
+                          fontSize: 11,
+                        }}
+                      >
+                        {p.code}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <FilterSelect
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+                setPage(1)
+              }}
+              style={{ maxWidth: 200 }}
+            >
+              <option value="">All Categories</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value)
+                setPage(1)
               }}
             >
-              Filtered by: {productSearch}
-            </span>
+              <option value="">All Types</option>
+              {availableTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+        actions={
+          <>
+              {selectedProductId && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--accent)',
+                    background: 'var(--accent-light-bg)',
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-xl)',
+                  }}
+                >
+                  Filtered by: {productSearch}
+                </span>
+              )}
+              {/* Resolve price toggle */}
+              <button
+                onClick={() => setResolvePrice(!resolvePrice)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 12px',
+                  background: resolvePrice ? 'var(--accent-light-bg)' : 'var(--surface)',
+                  border: `1px solid ${resolvePrice ? 'var(--accent-light)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: resolvePrice ? 'var(--accent)' : 'var(--foreground-muted)',
+                  cursor: 'pointer',
+                }}
+              >
+                <Tag size={13} />
+                Resolve Franchise Price
+              </button>
+          </>
+        }
+      >
+        <FilterGroup title="Units & Branches">
+          {canReadUoms && (
+            <FilterField label="UOM">
+              <FilterSelect
+                block
+                value={uomFilter}
+                onChange={(e) => setUomFilter(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">All UOMs</option>
+                {uoms.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}{u.code ? ` (${u.code})` : ''}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
           )}
-          {/* Resolve price toggle */}
-          <button
-            onClick={() => setResolvePrice(!resolvePrice)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 12px',
-              background: resolvePrice ? 'var(--accent-light-bg)' : 'var(--surface)',
-              border: `1px solid ${resolvePrice ? 'var(--accent-light)' : 'var(--border)'}`,
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              fontWeight: 500,
-              color: resolvePrice ? 'var(--accent)' : 'var(--foreground-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            <Tag size={13} />
-            Resolve Franchise Price
-          </button>
-        </div>
-      </div>
+          <FilterField label="Branch type">
+            <FilterSelect block value={branchTypeFilter} onChange={(e) => setBranchTypeFilter(e.target.value)}>
+              <option value="">All Branch Types</option>
+              {BRANCH_TYPE_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Flags">
+          <FilterField label="Active">
+            <FilterSelect block value={activeFilter} onChange={(e) => setActiveFilter(e.target.value as 'true' | 'false' | '')}>
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Default">
+            <FilterSelect block value={defaultFilter} onChange={(e) => setDefaultFilter(e.target.value as 'true' | 'false' | '')}>
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Price editable">
+            <FilterSelect block value={priceEditableFilter} onChange={(e) => setPriceEditableFilter(e.target.value as 'true' | 'false' | '')}>
+              <option value="">All</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
       {/* Table */}
       <div
         style={{

@@ -10,15 +10,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
 import { toastMutationApiError } from '@/utils/apiError'
+import BackLink from '@/components/BackLink'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   ReceiptText,
-  Calendar,
-  Building2,
-  Truck,
-  FileText, ArrowUpRight,
+  ArrowUpRight,
 } from 'lucide-react'
 
 interface ReceiptDetailProps {
@@ -120,173 +117,179 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
     (receipt?.delivery as any)?.source_type,
   )
 
-  const backBtnStyle: React.CSSProperties = {
+
+  const qtyFmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+
+  const containerStyle: React.CSSProperties = {
+    padding: '28px 24px 48px',
+    width: '100%',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+  }
+
+  const pillStyle = (meta: { color: string; bg: string }): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '3px 10px',
+    borderRadius: 999,
+    fontSize: 11.5,
+    fontWeight: 600,
+    background: meta.bg,
+    color: meta.color,
+    whiteSpace: 'nowrap',
+  })
+
+  const cardHeaderStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    padding: '6px 10px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground-muted)',
-    cursor: 'pointer',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 20px',
+    borderBottom: '1px solid var(--border)',
+  }
+
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--foreground)',
+    margin: 0,
   }
 
   const thStyle: React.CSSProperties = {
-    padding: '10px 16px',
-    textAlign: 'left',
-    fontSize: 11,
+    height: 'auto',
+    padding: '10px 14px',
+    fontSize: 11.5,
     fontWeight: 600,
-    color: 'var(--foreground-muted)',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
+    letterSpacing: '0.04em',
+    color: 'var(--foreground-muted)',
+    background: 'var(--surface-muted)',
     whiteSpace: 'nowrap',
   }
 
-  const pillStyle: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--background)',
-    border: '1px solid var(--border)',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    color: 'var(--foreground-muted)',
+  const tdStyle: React.CSSProperties = {
+    height: 'auto',
+    padding: '12px 14px',
+    fontSize: 13.5,
+    color: 'var(--foreground)',
+    verticalAlign: 'top',
   }
 
-  const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
+  // First / last columns keep the 20px card gutter.
+  const edgeL: React.CSSProperties = { paddingLeft: 20 }
+  const edgeR: React.CSSProperties = { paddingRight: 20 }
+
+  const monoStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)',
+    fontSize: 12.5,
   }
 
-  const infoCardStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    padding: 20,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  }
-
-  const iconBoxStyle: React.CSSProperties = {
-    width: 32,
-    height: 32,
-    background: 'var(--accent-light-bg)',
-    borderRadius: 'var(--radius-md)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  }
+  const sharedCss = `
+    .rcpt-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .rcpt-summary-cell { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; min-width: 0; }
+    .rcpt-summary-cell + .rcpt-summary-cell { border-left: 1px solid var(--border); }
+    @media (max-width: 720px) {
+      .rcpt-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .rcpt-summary-cell:nth-child(3) { border-left: none; }
+      .rcpt-summary-cell:nth-child(n + 3) { border-top: 1px solid var(--border); }
+    }
+  `
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 80,
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 99,
-              border: '3px solid var(--border)',
-              borderTop: '3px solid var(--accent)',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Loading receipt...
-          </span>
+      <div style={containerStyle} aria-busy="true">
+        <div className="v2-skeleton" style={{ width: 90, height: 14 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
+          <div className="v2-skeleton" style={{ width: 200, height: 26 }} />
+          <div className="v2-skeleton" style={{ width: 60, height: 20, borderRadius: 999 }} />
         </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        <div className="v2-skeleton" style={{ width: 260, height: 13, marginTop: 8 }} />
+        <div className="v2-card rcpt-summary" style={{ marginTop: 20, overflow: 'hidden' }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="rcpt-summary-cell">
+              <div className="v2-skeleton" style={{ width: 70, height: 11 }} />
+              <div className="v2-skeleton" style={{ width: '70%', height: 16 }} />
+            </div>
+          ))}
+        </div>
+        <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+          <div style={cardHeaderStyle}>
+            <div className="v2-skeleton" style={{ width: 110, height: 14 }} />
+          </div>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} style={{ display: 'flex', gap: 16, padding: '14px 20px', borderBottom: i < 3 ? '1px solid var(--border)' : 'none' }}>
+              <div className="v2-skeleton" style={{ width: 20, height: 14 }} />
+              <div className="v2-skeleton" style={{ flex: 1, height: 14 }} />
+              <div className="v2-skeleton" style={{ width: 90, height: 14 }} />
+              <div className="v2-skeleton" style={{ width: 70, height: 14 }} />
+              <div className="v2-skeleton" style={{ width: 60, height: 14 }} />
+            </div>
+          ))}
+        </div>
+        <style>{sharedCss}</style>
       </div>
     )
   }
 
   if (isError || !receipt) {
     return (
-      <div style={{ padding: 80, textAlign: 'center' }}>
-        <ReceiptText size={40} style={{ color: 'var(--foreground-subtle)', margin: '0 auto' }} />
-        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 12 }}>
+      <div style={{ ...containerStyle, alignItems: 'center', textAlign: 'center', paddingTop: 80 }}>
+        <ReceiptText size={36} style={{ color: 'var(--foreground-subtle)' }} />
+        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '12px 0 0' }}>
           Receipt not found
         </p>
-        <button onClick={() => router.back()} style={{ ...backBtnStyle, margin: '16px auto 0' }}>
-          <ArrowLeft size={14} />
-          Go back
-        </button>
+        <BackLink href="/transfer/receipts" label="Receipts" style={{ alignSelf: 'center', marginTop: 16 }} />
       </div>
     )
   }
 
   return (
-    <div
-      style={{
-        padding: '32px 32px 64px',
-        maxWidth: 1400,
-        width: '100%',
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 24,
-      }}
-    >
-      {/* Top bar */}
+    <div style={containerStyle}>
+      {/* Back link */}
+      <BackLink href="/transfer/receipts" label="Receipts" />
+
+      {/* Title row */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
+          gap: 16,
+          flexWrap: 'wrap',
+          marginTop: 14,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" onClick={() => router.back()} style={backBtnStyle}>
-            <ArrowLeft size={14} />
-            Back
-          </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 22,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: 'var(--foreground)',
-                }}
-              >
-                {receipt.code}
-              </h1>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '3px 10px',
-                  borderRadius: 99,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: statusMeta.bg,
-                  color: statusMeta.color,
-                }}
-              >
-                {statusMeta.label}
-              </span>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-              Receipt
-            </p>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 22,
+                fontWeight: 600,
+                letterSpacing: '-0.02em',
+                margin: 0,
+                color: 'var(--foreground)',
+              }}
+            >
+              {receipt.code}
+            </h1>
+            <span style={pillStyle(statusMeta)}>{statusMeta.label}</span>
           </div>
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '6px 0 0' }}>
+            Received at{' '}
+            <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>
+              {receipt.branch?.name ?? '—'}
+            </span>
+            {receipt.delivery?.code && (
+              <>
+                {' '}· from delivery{' '}
+                <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>
+                  {receipt.delivery.code}
+                </span>
+              </>
+            )}
+          </p>
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
@@ -294,325 +297,179 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
             <button
               type="button"
               onClick={() => router.push(`/transfer/receipts/${id}/edit`)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-                cursor: 'pointer',
-              }}
+              className="v2-btn v2-btn-outline"
             >
-              <Pencil size={13} />
+              <Pencil size={15} />
               Edit
             </button>
           )}
           <button
             type="button"
             onClick={() => setDeleteConfirm(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--destructive-bg)',
-              border: '1px solid var(--destructive)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--destructive)',
-              cursor: 'pointer',
-            }}
+            className="v2-btn v2-btn-danger"
           >
-            <Trash2 size={13} />
+            <Trash2 size={15} />
             Delete
           </button>
         </div>
       </div>
 
-      {/* Info grid 2x2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <Building2 size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Branch</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {receipt.branch?.name ?? '—'}
-          </div>
+      {/* Summary */}
+      <div className="v2-card rcpt-summary" style={{ marginTop: 20, overflow: 'hidden' }}>
+        <div className="rcpt-summary-cell">
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Receipt date</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>
+            {receipt.date ? receipt.date : '—'}
+          </span>
         </div>
-
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <Truck size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Linked Delivery</span>
-          </div>
+        <div className="rcpt-summary-cell">
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Branch</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', overflowWrap: 'anywhere' }}>
+            {receipt.branch?.name ?? '—'}
+          </span>
+        </div>
+        <div className="rcpt-summary-cell">
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Linked delivery</span>
           {receipt.delivery?.code ? (
             <Link
               href={`/transfer/deliveries/${receipt.delivery.id}/detail`}
               title="Buka detail delivery"
-              className="linked-delivery-link"
               style={{
-                ...pillStyle,
-                fontSize: 13,
+                ...monoStyle,
+                fontSize: 14,
                 fontWeight: 600,
                 color: 'var(--accent)',
-                alignSelf: 'flex-start',
                 textDecoration: 'none',
+                alignSelf: 'flex-start',
               }}
             >
               <span className="v2-link">{receipt.delivery.code}<ArrowUpRight size={12} /></span>
             </Link>
           ) : (
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: 'var(--foreground-muted)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              —
-            </div>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground-muted)' }}>—</span>
           )}
         </div>
-
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Receipt Date</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {receipt.date
-              ? receipt.date
-              : '—'}
-          </div>
-        </div>
-
-        <div style={infoCardStyle}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={iconBoxStyle}>
-              <FileText size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Created By</span>
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: 'var(--foreground)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {receipt.created_by?.name ?? '—'}
-            </div>
-            {receipt.created_at && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: 'var(--foreground-subtle)',
-                  marginTop: 4,
-                  display: 'block',
-                }}
-              >
-                {formatDateTime(receipt.created_at)}
-              </span>
-            )}
-          </div>
+        <div className="rcpt-summary-cell">
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Created by</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', overflowWrap: 'anywhere' }}>
+            {receipt.created_by?.name ?? '—'}
+          </span>
+          {receipt.created_at && (
+            <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>
+              {formatDateTime(receipt.created_at)}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Description */}
+      {/* Notes */}
       {receipt.description && (
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-          }}
-        >
-          <span style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>Notes</span>
-          <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>
+        <div className="v2-card" style={{ marginTop: 16, padding: '14px 20px' }}>
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 6 }}>
+            Notes
+          </span>
+          <p style={{ fontSize: 13.5, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>
             {receipt.description}
           </p>
         </div>
       )}
 
-      {/* Line items table */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        <div
-          style={{
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--background)',
-    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={sectionLabelStyle}>Received Items</span>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-            {details.length} item(s)
+      {/* Received items */}
+      <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+        <div style={cardHeaderStyle}>
+          <h2 style={cardTitleStyle}>Received items</h2>
+          <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+            {details.length} item{details.length === 1 ? '' : 's'}
           </span>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>Product</th>
-              <th style={{ ...thStyle, width: 130 }}>Batch</th>
-              <th style={{ ...thStyle, width: 130 }}>Planned Expiry</th>
-              <th style={{ ...thStyle, width: 130 }}>Client Ref</th>
-              <th style={{ ...thStyle, width: 80 }}>Qty</th>
-              <th style={{ ...thStyle, width: 140 }}>Received / Delivered</th>
-              <th style={{ ...thStyle, width: 100 }}>Status</th>
-              <th style={{ ...thStyle, width: 160 }}>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {details.map((detail, index) => {
-              const detailStatus =
-                STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
-              
-              const deliveryDetail = (receipt?.delivery as any)?.delivery_details?.find((dd: any) => dd.id === detail.delivery_detail_id)
-              const productName =
-                getProductUomName(deliveryDetail?.product_uom) ||
-                getProductUomName(detail.product_uom) ||
-                '—'
-              
-              return (
-                <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {index + 1}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                    {productName}
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 12,
-                      color: 'var(--foreground-muted)',
-                    }}
-                  >
-                    {detail.product_uom_batch?.batch_code || detail.planned_batch_code || '—'}
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 12,
-                      color: 'var(--foreground-muted)',
-                    }}
-                  >
-                    {detail.product_uom_batch?.expiry_date || detail.planned_expiry_date
-                      ? formatDate(detail.product_uom_batch?.expiry_date || detail.planned_expiry_date!)
-                      : '—'}
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      color: 'var(--foreground-muted)',
-                    }}
-                  >
-                    {detail.client_ref || '—'}
-                  </td>
-                  <td
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--foreground)',
-                    }}
-                  >
-                    {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    {(() => {
-                      const delivered = detail.delivery_detail?.qty
-                      if (delivered == null) {
-                        return <span>{detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })} / —</span>
-                      }
-                      const partial = detail.qty < delivered
-                      return (
-                        <>
-                          <span
-                            style={{
-                              fontWeight: 600,
-                              color: partial ? 'var(--warning)' : 'var(--success)',
-                            }}
-                          >
-                            {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                          </span>
-                          <span>{' / ' + delivered.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</span>
-                        </>
-                      )
-                    })()}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '3px 10px',
-                        borderRadius: 99,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        background: detailStatus.bg,
-                        color: detailStatus.color,
-                      }}
-                    >
-                      {detailStatus.label}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {detail.description || '—'}
-                  </td>
+        {details.length === 0 ? (
+          <div style={{ padding: '36px 20px', textAlign: 'center' }}>
+            <ReceiptText size={28} style={{ color: 'var(--foreground-subtle)', margin: '0 auto 8px' }} />
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: 0 }}>No items on this receipt</p>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v2-table">
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, ...edgeL, width: 44 }}>#</th>
+                  <th style={thStyle}>Product</th>
+                  <th style={thStyle}>Batch</th>
+                  <th style={thStyle}>Planned expiry</th>
+                  <th style={thStyle}>Client ref</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }} title="Received / Delivered">Qty</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={{ ...thStyle, ...edgeR }}>Notes</th>
                 </tr>
-              )
-            })}
+              </thead>
+              <tbody>
+                {details.map((detail, index) => {
+                  const detailStatus =
+                    STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
 
-            {/* Footer total removed */}
-          </tbody>
-        </table>
+                  const deliveryDetail = (receipt?.delivery as any)?.delivery_details?.find((dd: any) => dd.id === detail.delivery_detail_id)
+                  const productName =
+                    getProductUomName(deliveryDetail?.product_uom) ||
+                    getProductUomName(detail.product_uom) ||
+                    '—'
+                  const delivered = detail.delivery_detail?.qty
+                  const partial = delivered != null && detail.qty < delivered
+                  const expiry = detail.product_uom_batch?.expiry_date || detail.planned_expiry_date
+
+                  return (
+                    <tr key={detail.id}>
+                      <td style={{ ...tdStyle, ...edgeL, fontSize: 12, color: 'var(--foreground-subtle)' }}>
+                        {index + 1}
+                      </td>
+                      <td style={{ ...tdStyle, fontWeight: 500, minWidth: 200 }}>{productName}</td>
+                      <td style={{ ...tdStyle, ...monoStyle, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                        {detail.product_uom_batch?.batch_code || detail.planned_batch_code || '—'}
+                      </td>
+                      <td style={{ ...tdStyle, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                        {expiry ? formatDate(expiry) : '—'}
+                      </td>
+                      <td style={{ ...tdStyle, ...monoStyle, color: 'var(--foreground-muted)', overflowWrap: 'anywhere' }}>
+                        {detail.client_ref || '—'}
+                      </td>
+                      <td
+                        style={{
+                          ...tdStyle,
+                          textAlign: 'right',
+                          whiteSpace: 'nowrap',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color:
+                              delivered == null
+                                ? 'var(--foreground)'
+                                : partial
+                                  ? 'var(--warning)'
+                                  : 'var(--success)',
+                          }}
+                        >
+                          {qtyFmt(detail.qty)}
+                        </span>
+                        <span style={{ color: 'var(--foreground-muted)' }}>
+                          {' / ' + (delivered == null ? '—' : qtyFmt(delivered))}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={pillStyle(detailStatus)}>{detailStatus.label}</span>
+                      </td>
+                      <td style={{ ...tdStyle, ...edgeR, color: 'var(--foreground-muted)', fontSize: 12.5 }}>
+                        {detail.description || '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Delete confirm */}
@@ -625,60 +482,40 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            padding: 16,
           }}
         >
           <div
             onClick={() => setDeleteConfirm(false)}
+            className="v2-overlay"
             style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
           />
           <div
+            className="v2-dialog"
             style={{
               position: 'relative',
               zIndex: 70,
               background: 'var(--surface)',
               borderRadius: 'var(--radius-lg)',
-              padding: '28px 28px 24px',
+              padding: '22px 24px 20px',
               width: 400,
+              maxWidth: '100%',
               boxShadow: 'var(--shadow-lg)',
               border: '1px solid var(--border)',
             }}
           >
-            <h3
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 17,
-                fontWeight: 600,
-                margin: '0 0 8px',
-                color: 'var(--foreground)',
-              }}
-            >
+            <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>
               Delete Receipt
             </h3>
-            <p
-              style={{
-                fontSize: 13,
-                color: 'var(--foreground-muted)',
-                margin: '0 0 24px',
-                lineHeight: 1.6,
-              }}
-            >
-              This will permanently remove receipt <strong>{receipt.code}</strong> and all its
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px', lineHeight: 1.6 }}>
+              This will permanently remove receipt <strong style={{ color: 'var(--foreground)' }}>{receipt.code}</strong> and all its
               details.
             </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 onClick={() => setDeleteConfirm(false)}
-                style={{
-                  padding: '7px 16px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
+                className="v2-btn v2-btn-ghost"
               >
                 Cancel
               </button>
@@ -686,17 +523,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
                 type="button"
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                style={{
-                  padding: '7px 16px',
-                  background: 'var(--destructive)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: 'pointer',
-                  opacity: deleteMutation.isPending ? 0.7 : 1,
-                }}
+                className="v2-btn v2-btn-danger"
               >
                 Delete
               </button>
@@ -705,20 +532,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
         </div>
       )}
 
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .linked-delivery-link {
-          cursor: pointer;
-          transition: background 150ms ease, border-color 150ms ease;
-        }
-        .linked-delivery-link:hover {
-          background: var(--accent-bg);
-          border-color: var(--accent);
-        }
-      `}</style>
+      <style>{sharedCss}</style>
     </div>
   )
 }

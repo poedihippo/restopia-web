@@ -9,10 +9,13 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { suppliersService } from '@/services/suppliers.service'
 import { buyersService } from '@/services/buyers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { branchesService } from '@/services/branches.service'
+import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { formatDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
 import { useDebounce } from '@/hooks/useDebounce'
-import { Search, ArrowRight, Building2, FileText, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowUpRight, ChevronRight, Wallet } from 'lucide-react'
+import { FilterBar, countActive } from '@/components/ListFilters'
 
 interface Supplier {
   id: number
@@ -44,24 +47,6 @@ interface SupplierDebt {
   purchaseOrders: Array<PurchaseOrder & { totalPaid: number; outstanding: number }>
 }
 
-const sectionStyle: React.CSSProperties = {
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-lg)',
-  padding: 24,
-}
-
-const inputStyle: React.CSSProperties = {
-  padding: '9px 12px',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
-  fontSize: 14,
-  color: 'var(--foreground)',
-  background: 'var(--surface-raised)',
-  outline: 'none',
-  fontFamily: 'var(--font-sans)',
-}
-
 export default function SupplierDebtsView() {
   const { hasPermission, isSuperadmin } = useAuth()
   const canRead = isSuperadmin || hasPermission('report.read') || hasPermission('purchase-order.read')
@@ -72,10 +57,18 @@ export default function SupplierDebtsView() {
   // dan tetap ada saat kembali.
   const router = useRouter()
   const buyerId = Number(router.query.buyer_id) || 0
-  const setBuyerId = (id: number) => {
-    const { buyer_id: _omit, ...rest } = router.query
-    router.replace({ pathname: router.pathname, query: id > 0 ? { ...rest, buyer_id: id } : rest }, undefined, { shallow: true })
+  const setQueryId = (key: 'buyer_id' | 'branch_id', id: number) => {
+    const { [key]: _omit, ...rest } = router.query
+    router.replace({ pathname: router.pathname, query: id > 0 ? { ...rest, [key]: id } : rest }, undefined, { shallow: true })
   }
+  const setBuyerId = (id: number) => setQueryId('buyer_id', id)
+
+  // Warehouse / production see the whole company's supplier debts, narrowed by
+  // the Cabang filter (?branch_id=, carried to the detail page like buyer_id).
+  // Outlets keep their own branch and get no Cabang filter.
+  const { isCentral, scopeParams } = useCentralCompanyScope()
+  const branchId = isCentral ? Number(router.query.branch_id) || 0 : 0
+  const setBranchId = (id: number) => setQueryId('branch_id', id)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -121,8 +114,22 @@ export default function SupplierDebtsView() {
     })),
   ]
 
+  const { data: branchesData, isLoading: branchesLoading } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    enabled: canRead && isCentral,
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const branchOptions = [
+    { value: 0, label: 'Semua Cabang' },
+    ...((branchesData as any)?.data ?? []).map((b: any) => ({
+      value: b.id as number,
+      label: (b.name as string) ?? `Cabang #${b.id}`,
+      sublabel: b.code as string | undefined,
+    })),
+  ]
+
   const { data: posData, isLoading: posLoading } = useQuery({
-    queryKey: ['supplier-debts-pos', buyerId],
+    queryKey: ['supplier-debts-pos', buyerId, branchId, scopeParams.scope],
     enabled: canRead,
     queryFn: () =>
       purchaseOrdersService
@@ -131,7 +138,9 @@ export default function SupplierDebtsView() {
           sort: '-created_at',
           'filter[type]': 'supplier',
           'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
+          'filter[branch_id]': branchId > 0 ? branchId : undefined,
           include: 'supplier,purchase_order_details',
+          ...scopeParams,
         } as any)
         .then((r) => r.data),
   })
@@ -207,242 +216,221 @@ export default function SupplierDebtsView() {
 
   if (!canRead) {
     return (
-      <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
-        <div style={{ ...sectionStyle, color: 'var(--warning)', background: 'var(--warning-bg)', borderColor: 'var(--warning)', fontSize: 13 }}>
-          You do not have permission to view supplier debt cards.
-        </div>
+      <div className="v2-card" style={{ padding: 16, color: 'var(--warning)', background: 'var(--warning-bg)', borderColor: 'var(--warning)', fontSize: 13 }}>
+        You do not have permission to view supplier debt cards.
       </div>
     )
   }
 
+  const detailHref = (id: number) => ({
+    pathname: `/accounting/reports/supplier-debts/${id}`,
+    query: {
+      ...(buyerId > 0 ? { buyer_id: buyerId } : {}),
+      ...(branchId > 0 ? { branch_id: branchId } : {}),
+    },
+  })
+
+  const columns: Array<{ label: string; align?: 'left' | 'right'; width?: number }> = [
+    { label: 'No', align: 'right', width: 52 },
+    { label: 'Supplier' },
+    { label: 'Invoice Belum Lunas', align: 'right', width: 150 },
+    { label: 'Invoice Terlama', width: 170 },
+    { label: 'Porsi', width: 140 },
+    { label: 'Total Hutang', align: 'right', width: 170 },
+    { label: '', width: 40 },
+  ]
+
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 16,
-          marginBottom: 28,
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 26,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              margin: 0,
-            }}
-          >
-            Kartu Hutang Supplier
-          </h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-            Rekap supplier yang memiliki hutang belum lunas. Klik kartu untuk melihat rincian per invoice.
-          </p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Page header */}
+      <div>
+        <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
+          Kartu Hutang Supplier
+        </h1>
+        <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0 0' }}>
+          Rekap hutang supplier yang belum lunas
+        </p>
       </div>
 
-      {/* Summary strip */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div style={sectionStyle}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Total Hutang Belum Lunas
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)', marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
-            {formatCurrency(grandTotal)}
-          </div>
-        </div>
-        <div style={sectionStyle}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Supplier Berhutang
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--foreground)', marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
-            {filteredDebts.length}
-          </div>
-        </div>
-        <div style={sectionStyle}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Invoice Belum Lunas
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--warning)', marginTop: 6, fontVariantNumeric: 'tabular-nums' }}>
-            {totalUnpaidInvoices}
-          </div>
-        </div>
-      </div>
-
-      {/* Search + Buyer filter */}
-      <div style={{ marginBottom: 20, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ width: 280 }}>
-          <SearchableSelect
-            value={buyerId}
-            onChange={(val) => setBuyerId(Number(val) || 0)}
-            options={buyerOptions}
-            placeholder="Semua Buyer"
-            searchPlaceholder="Cari buyer..."
-            loading={buyersLoading}
-            onSearchChange={setBuyerSearch}
-          />
-        </div>
-        <div style={{ position: 'relative', width: 320 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 11,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari supplier atau kode..."
-            style={{ ...inputStyle, paddingLeft: 34, width: '100%', boxSizing: 'border-box' }}
-          />
-        </div>
-      </div>
-
-      {/* Cards grid */}
-      {isLoading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 64, gap: 10, color: 'var(--foreground-muted)' }}>
-          <Loader2 size={18} className="animate-spin" />
-          <span style={{ fontSize: 14 }}>Memuat data hutang supplier...</span>
-        </div>
-      ) : filteredDebts.length === 0 ? (
-        <div
-          style={{
-            ...sectionStyle,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 64,
-            gap: 12,
-            textAlign: 'center',
-          }}
-        >
-          <AlertCircle size={40} style={{ opacity: 0.4, color: 'var(--foreground-muted)' }} />
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>
-              Tidak ada hutang supplier
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--foreground-muted)', marginTop: 4 }}>
-              Semua purchase order sudah lunas atau belum ada data.
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 16,
-          }}
-        >
-          {filteredDebts.map((debt) => (
-            <Link
-              key={debt.supplier.id}
-              href={{
-                pathname: `/accounting/reports/supplier-debts/${debt.supplier.id}`,
-                query: buyerId > 0 ? { buyer_id: buyerId } : {},
-              }}
-              style={{ textDecoration: 'none' }}
-            >
-              <div
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-lg)',
-                  padding: 20,
-                  boxShadow: 'var(--shadow-sm)',
-                  cursor: 'pointer',
-                  transition: 'box-shadow 150ms ease, border-color 150ms ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = 'var(--shadow-md)'
-                  e.currentTarget.style.borderColor = 'var(--accent-light)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = 'var(--shadow-sm)'
-                  e.currentTarget.style.borderColor = 'var(--border)'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 'var(--radius-md)',
-                        background: 'var(--accent-light-bg)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      <Building2 size={20} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>
-                        {debt.supplier.name}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2, fontFamily: 'monospace' }}>
-                        {debt.supplier.code}
-                      </div>
-                    </div>
-                  </div>
-                  <ArrowRight size={16} color="var(--foreground-muted)" />
-                </div>
-
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Total Hutang
-                  </div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>
-                    {formatCurrency(debt.totalOutstanding)}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <FileText size={14} color="var(--warning)" />
-                    <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {debt.unpaidCount} invoice belum lunas
-                    </span>
-                  </div>
-                </div>
-
-                {debt.oldestDate && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      Invoice terlama: <strong style={{ color: 'var(--foreground)' }}>{formatDate(debt.oldestDate)}</strong>
-                    </span>
-                  </div>
-                )}
+      {/* Summary */}
+      <div className="v2-card" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+        {[
+          { label: 'Total Hutang', value: formatCurrency(grandTotal), color: 'var(--foreground)' },
+          { label: 'Supplier', value: filteredDebts.length.toLocaleString('id-ID'), color: 'var(--foreground)' },
+          { label: 'Invoice Belum Lunas', value: totalUnpaidInvoices.toLocaleString('id-ID'), color: 'var(--foreground)' },
+        ].map((s, i) => (
+          <div key={s.label} style={{ padding: '14px 18px', borderLeft: i > 0 ? '1px solid var(--border)' : undefined }}>
+            <div style={{ fontSize: 11.5, color: 'var(--foreground-muted)' }}>{s.label}</div>
+            {isLoading ? (
+              <div className="v2-skeleton" style={{ height: 18, width: '55%', marginTop: 8 }} />
+            ) : (
+              <div style={{ fontSize: 20, fontWeight: 600, color: s.color, marginTop: 4, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
+                {s.value}
               </div>
-            </Link>
-          ))}
-        </div>
-      )}
+            )}
+          </div>
+        ))}
+      </div>
 
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .animate-spin { animation: spin 1s linear infinite; }
-      `}</style>
+      {/* Toolbar */}
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cari supplier atau kode..."
+        activeCount={countActive(buyerId > 0, branchId > 0)}
+        onClear={() => {
+          const { buyer_id: _b, branch_id: _c, ...rest } = router.query
+          router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true })
+        }}
+        quick={
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {isCentral && (
+            <div style={{ width: 220 }}>
+              <SearchableSelect
+                value={branchId}
+                onChange={(val) => setBranchId(Number(val) || 0)}
+                options={branchOptions}
+                placeholder="Semua Cabang"
+                searchPlaceholder="Cari cabang..."
+                loading={branchesLoading}
+              />
+            </div>
+          )}
+          <div style={{ width: 240 }}>
+            <SearchableSelect
+              value={buyerId}
+              onChange={(val) => setBuyerId(Number(val) || 0)}
+              options={buyerOptions}
+              placeholder="Semua Buyer"
+              searchPlaceholder="Cari buyer..."
+              loading={buyersLoading}
+              onSearchChange={setBuyerSearch}
+            />
+          </div>
+          </div>
+        }
+      />
+
+      {/* Table */}
+      <div className="v2-card" style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          {/* Roomier rows than the default v2 table: name + code stack in one cell. */}
+          <style>{`
+            :root[data-ui="v2"] .v2-table.sd-table tbody tr[data-row] td {
+              height: auto;
+              padding-top: 14px;
+              padding-bottom: 14px;
+            }
+          `}</style>
+          <table className="v2-table sd-table">
+            <thead>
+              <tr>
+                {columns.map((col, i) => (
+                  <th key={i} style={{ textAlign: col.align ?? 'left', width: col.width }}>
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, r) => (
+                  <tr key={r}>
+                    {columns.map((col, c) => (
+                      <td key={c}>
+                        {col.label && (
+                          <div
+                            className="v2-skeleton"
+                            style={{ height: 10, width: c === 0 ? `${60 - (r % 3) * 12}%` : '60%', marginLeft: col.align === 'right' ? 'auto' : undefined }}
+                          />
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : filteredDebts.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length} style={{ height: 'auto', padding: '56px 16px', textAlign: 'center' }}>
+                    <Wallet size={28} style={{ display: 'block', margin: '0 auto 8px', color: 'var(--foreground-subtle)' }} />
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Tidak ada hutang supplier</div>
+                    <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                      Semua purchase order sudah lunas atau belum ada data.
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredDebts.map((debt, index) => {
+                  const share = grandTotal > 0 ? (debt.totalOutstanding / grandTotal) * 100 : 0
+                  const age = daysSince(debt.oldestDate)
+                  return (
+                    <tr
+                      key={debt.supplier.id}
+                      data-row
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => router.push(detailHref(debt.supplier.id))}
+                    >
+                      <td style={{ textAlign: 'right', color: 'var(--foreground-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                        {index + 1}
+                      </td>
+                      <td>
+                        <Link
+                          href={detailHref(debt.supplier.id)}
+                          className="v2-link"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {debt.supplier.name}
+                          <ArrowUpRight size={12} />
+                        </Link>
+                        <div style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 1, fontFamily: 'monospace' }}>
+                          {debt.supplier.code}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{debt.unpaidCount}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {debt.oldestDate ? (
+                          <>
+                            <span>{formatDate(debt.oldestDate)}</span>
+                            {age != null && (
+                              <span style={{ fontSize: 11.5, marginLeft: 6, color: age > 60 ? 'var(--destructive)' : age > 30 ? 'var(--warning)' : 'var(--foreground-subtle)' }}>
+                                {age} hari
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--foreground-subtle)' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'var(--surface-muted)', overflow: 'hidden' }}>
+                            <div style={{ width: `${share}%`, height: '100%', background: 'var(--accent-light)' }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--foreground-muted)', width: 30, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                            {Math.round(share)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {formatCurrency(debt.totalOutstanding)}
+                      </td>
+                      <td style={{ textAlign: 'right', color: 'var(--foreground-subtle)' }}>
+                        <ChevronRight size={15} />
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
+}
+
+function daysSince(date?: string): number | null {
+  if (!date) return null
+  const t = new Date(date).getTime()
+  if (Number.isNaN(t)) return null
+  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000))
 }

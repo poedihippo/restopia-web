@@ -8,6 +8,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { authService } from '@/services/auth.service';
 import { branchesService } from '@/services/branches.service';
 import { cn } from '@/lib/utils';
+import MenuSearch from '@/components/menu-search';
+import { NAV_GROUPS } from '@/components/app-sidebar';
+import { getBreadcrumbs, shortenBreadcrumbs } from '@/lib/breadcrumbs';
 import {
   ChevronRight,
   ChevronsUpDown,
@@ -19,31 +22,6 @@ import {
   X,
   RefreshCw,
 } from 'lucide-react';
-
-function getBreadcrumbs(pathname: string): Array<{ label: string; href: string }> {
-  const segments = pathname.split('/').filter(Boolean);
-
-  const crumbs = segments.map((segment, index) => {
-    const href = '/' + segments.slice(0, index + 1).join('/');
-
-    let label: string;
-    if (/^\[.+\]$/.test(segment) || /^\d+$/.test(segment)) {
-      label = 'Detail';
-    } else {
-      label = segment
-        .replace(/-/g, ' ')
-        .replace(/\b\w/g, (c) => c.toUpperCase());
-    }
-
-    return { label, href };
-  });
-
-  if (pathname !== '/dashboard') {
-    return [{ label: 'Dashboard', href: '/dashboard' }, ...crumbs];
-  }
-
-  return crumbs;
-}
 
 const BRANCH_LABEL_MAP: Record<string, string> = {};
 
@@ -85,7 +63,10 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, []);
 
-  const breadcrumbs = getBreadcrumbs(router.pathname);
+  // Short trail: the menu page and the page you are on ("Invoices › Create").
+  // Dashboard, sidebar groups and folders (crumbs without a page) are dropped;
+  // the sidebar already shows where a page lives.
+  const breadcrumbs = shortenBreadcrumbs(getBreadcrumbs(router.pathname, router.query, NAV_GROUPS));
   const branchName = user?.branch?.name ?? '—';
   const userInitial = user?.name?.charAt(0)?.toUpperCase() ?? 'U';
   const availableBranches = isSuperadmin
@@ -138,8 +119,22 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
         {breadcrumbs.map((crumb, index) => {
           const isLast = index === breadcrumbs.length - 1;
           return (
-            <React.Fragment key={crumb.href}>
-              {!isLast ? (
+            <React.Fragment key={`${index}-${crumb.label}`}>
+              {!isLast && !crumb.href ? (
+                <>
+                  <span
+                    style={{
+                      fontSize: 13,
+                      color: 'var(--foreground-muted)',
+                      fontWeight: 400,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {crumb.label}
+                  </span>
+                  <ChevronRight size={12} style={{ color: 'var(--foreground-subtle)', flexShrink: 0 }} />
+                </>
+              ) : !isLast && crumb.href ? (
                 <>
                   <Link
                     href={crumb.href}
@@ -180,6 +175,9 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
 
       {/* RIGHT — Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+        {/* Menu search (Ctrl/⌘+K) */}
+        <MenuSearch />
 
         {/* Branch pill */}
         <div style={{ position: 'relative' }} ref={branchRef}>

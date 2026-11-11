@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { useRouter } from 'next/router'
-import { ArrowLeft } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import { useQuery } from '@tanstack/react-query'
 import { productionsService } from '@/services/productions.service'
 import { getProductUomName } from '@/utils/productUomName'
@@ -22,7 +21,6 @@ const DETAIL_STATUS_META: Record<
 }
 
 export default function ProductionDetail({ id }: Props) {
-  const router = useRouter()
   const { data, isLoading } = useQuery({
     queryKey: ['production-detail', id],
     enabled: !!id && !isNaN(id),
@@ -38,27 +36,9 @@ export default function ProductionDetail({ id }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1100 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <BackLink href="/production" label="Productions" />
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 12px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            cursor: 'pointer',
-            color: 'var(--foreground-muted)',
-          }}
-        >
-          <ArrowLeft size={16} />
-          Back
-        </button>
         <h1
           style={{
             fontFamily: 'var(--font-display)',

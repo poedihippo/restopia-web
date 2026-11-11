@@ -12,7 +12,6 @@ import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -21,6 +20,7 @@ import {
   Eye,
   X,
 } from 'lucide-react'
+import { FilterBar } from '@/components/ListFilters'
 
 interface Company {
   id: number
@@ -58,7 +58,7 @@ export default function CompaniesView() {
     setPage(1)
   }, [debouncedSearch])
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: ['companies', page, perPage, debouncedSearch],
     queryFn: () =>
       companiesService
@@ -70,6 +70,9 @@ export default function CompaniesView() {
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Company[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -102,14 +105,6 @@ export default function CompaniesView() {
     verticalAlign: 'middle',
   }
 
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
 
   const actionBtnStyle: React.CSSProperties = {
     padding: 6,
@@ -172,41 +167,7 @@ export default function CompaniesView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search companies..."
-            style={{
-              ...inputBase,
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+      <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search companies..." />
       {/* Table */}
       <div
         style={{

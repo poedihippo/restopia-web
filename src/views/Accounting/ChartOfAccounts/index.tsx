@@ -1,4 +1,5 @@
 'use client'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters'
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -17,7 +18,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import {
-  Plus, Search, Pencil, Trash2, ChevronRight, ChevronDown,
+  Plus, Pencil, Trash2, ChevronRight, ChevronDown,
   X, Loader2, BookOpen, XCircle, Download, Folder, FolderOpen, FileText,
 } from 'lucide-react'
 
@@ -127,13 +128,30 @@ export default function ChartOfAccountsView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [filterType, setFilterType] = useState<string>('')
   const [filterParent, setFilterParent] = useState<string>('')
+  const [filterCategory, setFilterCategory] = useState<string>('')
+  const [filterNormalBalance, setFilterNormalBalance] = useState<string>('')
+  const [filterActive, setFilterActive] = useState<string>('')
+  const [filterHeader, setFilterHeader] = useState<string>('')
+  const clearFilters = () => {
+    setFilterType(''); setFilterParent(''); setFilterCategory('')
+    setFilterNormalBalance(''); setFilterActive(''); setFilterHeader('')
+  }
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['chart-of-accounts', filterType, filterParent],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['chart-of-accounts', filterType, filterParent, filterCategory, filterNormalBalance, filterActive, filterHeader],
     queryFn: async () => {
-      const params = { per_page: 2000, sort: 'code', include: 'account_category,account_type', 'filter[account_type_id]': filterType || undefined, 'filter[parent_id]': filterParent || undefined }
+      // Search stays client-side (tree keeps matching accounts + their ancestors).
+      const params = {
+        per_page: 2000, sort: 'code', include: 'account_category,account_type',
+        'filter[account_type_id]': filterType || undefined,
+        'filter[parent_id]': filterParent || undefined,
+        'filter[account_category_id]': filterCategory || undefined,
+        'filter[normal_balance]': filterNormalBalance || undefined,
+        'filter[is_active]': filterActive || undefined,
+        'filter[is_header]': filterHeader || undefined,
+      } as any
       const first: any = await chartOfAccountsService.list(params).then((r) => r.data)
       // Backend caps per_page (currently 1000) — fetch the remaining pages so the tree is complete
       const lastPage = Number(first?.meta?.total_pages ?? first?.meta?.last_page ?? 1)
@@ -144,6 +162,9 @@ export default function ChartOfAccountsView() {
       return { ...first, data: [...(first?.data ?? []), ...rest.flatMap((r) => r?.data ?? [])] }
     },
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const { data: categoriesData } = useQuery({
     queryKey: ['account-categories-all', debouncedDropdownSearch],
@@ -153,6 +174,14 @@ export default function ChartOfAccountsView() {
     queryKey: ['account-types-all', debouncedDropdownSearch],
     queryFn: () => accountTypesService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 1000, sort: 'code'  }).then((r) => r.data),
   })
+
+  // Parent filter options: all header accounts, independent of the tree's current filters
+  // (deriving them from `items` would empty the list once another filter is applied).
+  const { data: parentOptionsData } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'coa-parent-filter'],
+    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[is_header]': '1' } as any).then((r) => r.data),
+  })
+  const parentOptions: CoA[] = (parentOptionsData as any)?.data ?? []
 
   const items: CoA[] = React.useMemo(() => (data as any)?.data ?? [], [data])
 
@@ -398,53 +427,101 @@ export default function ChartOfAccountsView() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account code or name..."
-            style={{ width: '100%', height: TOOLBAR_H, padding: '0 12px 0 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
-        </div>
-        <div style={{ minWidth: 200 }}>
-          <SearchableSelect
-            value={filterType !== '' ? Number(filterType) : ''}
-            onChange={(val) => setFilterType(val !== '' && val != null ? String(val) : '')}
-            options={[
-              { value: '', label: 'All Types' },
-              ...allTypes.map(t => ({ value: t.id, label: t.name })),
-            ]}
-            placeholder="All Types"
-            searchPlaceholder="Search type..."
-            onSearchChange={setDropdownSearch}
-            triggerStyle={toolbarSelectStyle}
-          />
-        </div>
-        <div style={{ minWidth: 200 }}>
-          <SearchableSelect
-            value={filterParent !== '' ? Number(filterParent) : ''}
-            onChange={(val) => setFilterParent(val !== '' && val != null ? String(val) : '')}
-            options={[
-              { value: '', label: 'All Parents' },
-              ...items.filter(i => i.is_header).map(a => ({ value: a.id, label: `${a.code} – ${a.name}` })),
-            ]}
-            placeholder="All Parents"
-            searchPlaceholder="Search parent..."
-            onSearchChange={setDropdownSearch}
-            triggerStyle={toolbarSelectStyle}
-          />
-        </div>
-        {/* tree controls: segmented, pinned right of the filters */}
-        <div style={{ marginLeft: 'auto', height: TOOLBAR_H, boxSizing: 'border-box', display: 'flex', alignItems: 'stretch', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-raised)', overflow: 'hidden', opacity: q ? 0.5 : 1 }}>
-          <button type="button" disabled={!!q} title={q ? 'Clear search to expand/collapse' : undefined} onClick={() => setExpanded(new Set(groupKeys))}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', background: 'none', border: 'none', fontSize: 13, whiteSpace: 'nowrap', color: 'var(--foreground)', cursor: q ? 'default' : 'pointer' }}>
-            <ChevronDown size={14} /> Expand all
-          </button>
-          <div style={{ width: 1, background: 'var(--border)' }} />
-          <button type="button" disabled={!!q} title={q ? 'Clear search to expand/collapse' : undefined} onClick={() => setExpanded(new Set())}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', background: 'none', border: 'none', fontSize: 13, whiteSpace: 'nowrap', color: 'var(--foreground)', cursor: q ? 'default' : 'pointer' }}>
-            <ChevronRight size={14} /> Collapse all
-          </button>
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search account code or name..."
+        activeCount={countActive(filterType, filterParent, filterCategory, filterNormalBalance, filterActive, filterHeader)}
+        onClear={clearFilters}
+        quick={
+          <>
+            <div style={{ minWidth: 200 }}>
+              <SearchableSelect
+                value={filterCategory !== '' ? Number(filterCategory) : ''}
+                onChange={(val) => { setFilterCategory(val !== '' && val != null ? String(val) : ''); setFilterType('') }}
+                options={[
+                  { value: '', label: 'All Categories' },
+                  ...categories.map(c => ({ value: c.id, label: `${c.code} – ${c.name}` })),
+                ]}
+                placeholder="All Categories"
+                searchPlaceholder="Search category..."
+                onSearchChange={setDropdownSearch}
+                triggerStyle={toolbarSelectStyle}
+              />
+            </div>
+            <div style={{ minWidth: 200 }}>
+              <SearchableSelect
+                value={filterType !== '' ? Number(filterType) : ''}
+                onChange={(val) => setFilterType(val !== '' && val != null ? String(val) : '')}
+                options={[
+                  { value: '', label: 'All Types' },
+                  ...allTypes
+                    .filter(t => !filterCategory || t.account_category_id === Number(filterCategory))
+                    .map(t => ({ value: t.id, label: t.name })),
+                ]}
+                placeholder="All Types"
+                searchPlaceholder="Search type..."
+                onSearchChange={setDropdownSearch}
+                triggerStyle={toolbarSelectStyle}
+              />
+            </div>
+          </>
+        }
+        actions={
+          /* tree controls: segmented, pinned right of the filters */
+          <div style={{ height: TOOLBAR_H, boxSizing: 'border-box', display: 'flex', alignItems: 'stretch', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-raised)', overflow: 'hidden', opacity: q ? 0.5 : 1 }}>
+            <button type="button" disabled={!!q} title={q ? 'Clear search to expand/collapse' : undefined} onClick={() => setExpanded(new Set(groupKeys))}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', background: 'none', border: 'none', fontSize: 13, whiteSpace: 'nowrap', color: 'var(--foreground)', cursor: q ? 'default' : 'pointer' }}>
+              <ChevronDown size={14} /> Expand all
+            </button>
+            <div style={{ width: 1, background: 'var(--border)' }} />
+            <button type="button" disabled={!!q} title={q ? 'Clear search to expand/collapse' : undefined} onClick={() => setExpanded(new Set())}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', background: 'none', border: 'none', fontSize: 13, whiteSpace: 'nowrap', color: 'var(--foreground)', cursor: q ? 'default' : 'pointer' }}>
+              <ChevronRight size={14} /> Collapse all
+            </button>
+          </div>
+        }
+      >
+        <FilterGroup title="Account">
+          <FilterField label="Parent account">
+            <SearchableSelect
+              value={filterParent !== '' ? Number(filterParent) : ''}
+              onChange={(val) => setFilterParent(val !== '' && val != null ? String(val) : '')}
+              options={[
+                { value: '', label: 'All Parents' },
+                ...parentOptions.map(a => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+              ]}
+              placeholder="All Parents"
+              searchPlaceholder="Search parent..."
+              onSearchChange={setDropdownSearch}
+              triggerStyle={toolbarSelectStyle}
+            />
+          </FilterField>
+          <FilterField label="Normal balance">
+            <FilterSelect block value={filterNormalBalance} onChange={(e) => setFilterNormalBalance(e.target.value)}>
+              <option value="">All Normal Balance</option>
+              <option value="debit">Debit</option>
+              <option value="credit">Credit</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Flags">
+          <FilterField label="Active">
+            <FilterSelect block value={filterActive} onChange={(e) => setFilterActive(e.target.value)}>
+              <option value="">All</option>
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Header account">
+            <FilterSelect block value={filterHeader} onChange={(e) => setFilterHeader(e.target.value)}>
+              <option value="">All</option>
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>

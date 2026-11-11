@@ -1,10 +1,10 @@
 'use client'
 
 import React from 'react'
-import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import InternalOrderForm from './InternalOrderForm'
+import BackLink from '@/components/BackLink'
 import { PackageSearch } from 'lucide-react'
 import { parseDate } from '@/helper/parseDate'
 
@@ -13,8 +13,6 @@ interface InternalOrderEditProps {
 }
 
 export default function InternalOrderEdit({ id }: InternalOrderEditProps) {
-  const router = useRouter()
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ['internal-order-detail', id],
     queryFn: () =>
@@ -107,20 +105,7 @@ export default function InternalOrderEdit({ id }: InternalOrderEditProps) {
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: 0 }}>
           Internal order not found
         </p>
-        <button
-          onClick={() => router.back()}
-          style={{
-            padding: '7px 14px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          Go back
-        </button>
+        <BackLink href="/purchase/internal-orders" label="Internal Orders" style={{ alignSelf: 'center' }} />
       </div>
     )
   }

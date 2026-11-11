@@ -223,6 +223,7 @@ export const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'Payment Methods', href: '/settings/payment-methods', permission: 'payment-method.menu' },
           { label: 'Payments', href: '/sales/payments', permission: 'payment.menu' },
+          { label: 'Settle Payments', href: '/sales/payment-settlements', permission: 'payment.menu' },
         ],
       },
     ],
@@ -333,7 +334,14 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'COMPANIES',
     items: [
-      { label: 'Companies', href: '/users/companies', icon: Building2, permission: 'company.menu' },
+      {
+        label: 'Company',
+        icon: Building2,
+        children: [
+          { label: 'Company', href: '/users/companies', permission: 'company.menu' },
+          { label: 'Company Setting', href: '/settings/company-settings', permission: 'company-setting.menu' },
+        ],
+      },
       { label: 'Branches', href: '/users/branches', icon: GitBranch, permission: 'branch.menu' },
       { label: 'Departments', href: '/settings/departments', icon: Network, permission: 'department.menu' },
       { label: 'Employees', href: '/settings/employees', icon: UserCheck, permission: 'user.menu' },
@@ -412,6 +420,29 @@ export default function AppSidebar({ mobileOpen = false }: AppSidebarProps = {})
     aside.dataset.glowReady = '';
   }, []);
   const onNavScroll = placeGlow;
+
+  // Keep the active menu in view: after a refresh (or opening a page by URL)
+  // the menu list starts at the top, so scroll the active item into the middle
+  // once it has rendered (items wait for the user's permissions). Once per
+  // page, and only when it is out of view, so clicking a visible item never
+  // jumps the list.
+  const scrolledForPath = useRef<string | null>(null);
+  useEffect(() => {
+    const path = router.asPath;
+    if (scrolledForPath.current === path) return;
+    const scroller = navScrollRef.current;
+    if (!scroller) return;
+    const actives = scroller.querySelectorAll<HTMLElement>('.nav-item[data-active="true"]');
+    const target = actives[actives.length - 1];
+    if (!target) return;
+    scrolledForPath.current = path;
+
+    const box = scroller.getBoundingClientRect();
+    const item = target.getBoundingClientRect();
+    if (item.top >= box.top && item.bottom <= box.bottom) return;
+    scroller.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+    placeGlow();
+  });
 
   const isItemVisible = (item: NavItem): boolean => {
     if (item.hidden) return false;

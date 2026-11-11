@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Eye, X } from 'lucide-react';
+import { FilterBar } from '@/components/ListFilters';
 import { customersService as customerService } from '@/services/customers.service';
 import { toastMutationApiError } from '@/utils/apiError';
 import { formatDateTime, formatDate } from '@/utils/date';
@@ -31,7 +32,7 @@ export default function CustomersView() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: ['customers', page, perPage, searchDebounced],
     queryFn: () => customerService.list({
       page,
@@ -40,6 +41,9 @@ export default function CustomersView() {
       ...(searchDebounced ? { 'filter[search]': searchDebounced } : {}),
     }).then(r => r.data),
   });
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items = (data as any)?.data ?? [];
   const meta = (data as any)?.meta;
@@ -75,14 +79,11 @@ export default function CustomersView() {
           onClick={() => { setEditing(null); setSheetOpen(true); }}
           style={{ height: 40, padding: '0 20px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>+ New Customer</button>)}
       </div>
-      <div style={{ marginBottom: 16 }}>
-        <input
-          value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Search by name or phone..."
-          style={{ height: 38, width: 320, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface)' }}
-        />
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={(v) => { setSearch(v); setPage(1); }}
+        searchPlaceholder="Search by name or phone..."
+      />
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>

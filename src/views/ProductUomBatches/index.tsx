@@ -13,9 +13,9 @@ import api from '@/hooks/useApi'
 import ProductUomBatchSheet from './ProductUomBatchSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -25,7 +25,6 @@ import {
 
 const INCLUDE =
   'product_uom,product_uom.product,product_uom.uom,created_by'
-const PER_PAGE = 20
 
 function formatDate(v?: string | null): string {
   if (!v) return '—'
@@ -111,6 +110,9 @@ export default function ProductUomBatchesView() {
     useState('')
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [typeFilter, setTypeFilter] = useState<string | ''>('')
+  const [referenceTypeFilter, setReferenceTypeFilter] = useState<string>('')
+  const [expiryFrom, setExpiryFrom] = useState('')
+  const [expiryTo, setExpiryTo] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
@@ -131,29 +133,41 @@ export default function ProductUomBatchesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, productUomFilter, categoryFilter, typeFilter])
+  }, [debouncedSearch, productUomFilter, categoryFilter, typeFilter, referenceTypeFilter, expiryFrom, expiryTo])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-uom-batches', page, perPage, debouncedSearch, productUomFilter, activeProductTypes],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['product-uom-batches', page, perPage, debouncedSearch, productUomFilter, activeProductTypes, referenceTypeFilter, expiryFrom, expiryTo],
     queryFn: () =>
       productUomBatchesService
         .list({
           page,
-          per_page: PER_PAGE,
+          per_page: perPage,
           sort: '-created_at',
           include: INCLUDE,
           'filter[search]': debouncedSearch || undefined,
           'filter[product_uom_id]': productUomFilter || undefined,
-          'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-          'filter[product_types]': typeFilter === '' ? (activeProductTypes || undefined) : String(typeFilter),
+          'filter[reference_type]': referenceTypeFilter || undefined,
+          'filter[expiry_date_gte]': expiryFrom || undefined,
+          'filter[expiry_date_lte]': expiryTo || undefined,
+          // /v1/product-uom-batches has no product_category_id / product type
+          // filter — category & type are narrowed client-side below.
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const rawItems: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
-  const items = rawItems.filter((i) => isProductTypeAllowed(i.product_uom?.product, activeProductTypes))
+  const items = rawItems.filter((i) => {
+    const product = i.product_uom?.product
+    if (!isProductTypeAllowed(product, activeProductTypes)) return false
+    if (categoryFilter !== '' && Number(product?.product_category_id) !== categoryFilter) return false
+    if (typeFilter !== '' && String(product?.type ?? '').toLowerCase() !== typeFilter) return false
+    return true
+  })
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -268,112 +282,105 @@ export default function ProductUomBatchesView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search batches..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {/* Product UOM filter — searchable (list can hold thousands of SKUs) */}
-        <div style={{ width: 280, flexShrink: 0 }}>
-          <SearchableSelect
-            value={productUomFilter}
-            onChange={(v) => {
-              setProductUomFilter(Number(v) || 0)
-              setPage(1)
-            }}
-            options={puFilterOptions}
-            placeholder="All Product UOMs"
-            searchPlaceholder="Search product UOM..."
-            loading={puLoading}
-            onSearchChange={setPuDropdownSearch}
-            triggerStyle={{
-              height: 34,
-              padding: '0 12px',
-              fontSize: 13,
-              borderRadius: 'var(--radius-md)',
-            }}
-          />
-        </div>
-        <select
-          value={categoryFilter}
-          onChange={(e) => {
-            setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
-            setPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-            maxWidth: 160,
-          }}
-        >
-          <option value="">All Categories</option>
-          {categories.map((c: any) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={(e) => {
-            setTypeFilter(e.target.value)
-            setPage(1)
-          }}
-          style={{
-            padding: '8px 12px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-            maxWidth: 160,
-          }}
-        >
-          <option value="">All Types</option>
-          {availableTypeOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search batches..."
+        activeCount={countActive(productUomFilter, categoryFilter, typeFilter, referenceTypeFilter, expiryFrom, expiryTo)}
+        onClear={() => {
+          setProductUomFilter(0)
+          setCategoryFilter('')
+          setTypeFilter('')
+          setReferenceTypeFilter('')
+          setExpiryFrom('')
+          setExpiryTo('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            {/* Product UOM filter — searchable (list can hold thousands of SKUs) */}
+            <div style={{ width: 280, flexShrink: 0 }}>
+              <SearchableSelect
+                value={productUomFilter}
+                onChange={(v) => {
+                  setProductUomFilter(Number(v) || 0)
+                  setPage(1)
+                }}
+                options={puFilterOptions}
+                placeholder="All Product UOMs"
+                searchPlaceholder="Search product UOM..."
+                loading={puLoading}
+                onSearchChange={setPuDropdownSearch}
+                triggerStyle={{
+                  height: 36,
+                  padding: '0 12px',
+                  fontSize: 13,
+                  borderRadius: 'var(--radius-md)',
+                }}
+              />
+            </div>
+            <FilterSelect
+              value={referenceTypeFilter}
+              onChange={(e) => {
+                setReferenceTypeFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All References</option>
+              <option value="productions">Production</option>
+              <option value="receipts">Receipt</option>
+              <option value="portionings">Portioning</option>
+            </FilterSelect>
+          </>
+        }
+      >
+        <FilterGroup title="Product">
+          <FilterField label="Category">
+            <FilterSelect
+              block
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+                setPage(1)
+              }}
+            >
+              <option value="">All Categories</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Type">
+            <FilterSelect
+              block
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Types</option>
+              {availableTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dates">
+          <FilterField label="Expiry date">
+            <DateRange
+              from={expiryFrom}
+              to={expiryTo}
+              onFromChange={(v) => { setExpiryFrom(v); setPage(1) }}
+              onToChange={(v) => { setExpiryTo(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
       {/* Table */}
       <div
         style={{

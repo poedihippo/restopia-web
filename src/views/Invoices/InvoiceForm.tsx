@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, X, Search, ChevronLeft, Loader2, ArrowUpRight } from 'lucide-react'
+import { Plus, X, Search, Loader2, ArrowUpRight } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import { invoicesService } from '@/services/invoices.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
@@ -16,36 +17,17 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 
 // Local calendar day (toISOString would give yesterday before 07:00 WIB).
 const todayInputDate = () => new Date().toLocaleDateString('en-CA')
 
+// Mirrors the backend's ResolveDueDate: invoice date + 7 days.
 function calculateDueDate(invoiceDateStr: string): string {
   if (!invoiceDateStr) return ''
-  const dateObj = new Date(invoiceDateStr)
-  if (isNaN(dateObj.getTime())) return ''
-
-  const day = dateObj.getDate()
-  let dueDay = 14
-  let dueMonth = dateObj.getMonth()
-  let dueYear = dateObj.getFullYear()
-
-  if (day >= 1 && day <= 7) {
-    dueDay = 14
-  } else if (day >= 8 && day <= 14) {
-    dueDay = 21
-  } else if (day >= 15 && day <= 21) {
-    dueDay = 28
-  } else {
-    dueDay = 7
-    dueMonth += 1
-    if (dueMonth > 11) {
-      dueMonth = 0
-      dueYear += 1
-    }
-  }
-
-  const result = new Date(dueYear, dueMonth, dueDay)
+  const [y, m, d] = invoiceDateStr.slice(0, 10).split('-').map(Number)
+  if (!y || !m || !d) return ''
+  const result = new Date(y, m - 1, d + 7)
   const yyyy = result.getFullYear()
   const mm = String(result.getMonth() + 1).padStart(2, '0')
   const dd = String(result.getDate()).padStart(2, '0')
@@ -84,6 +66,8 @@ interface InvoiceSoRow {
   type?: string
   date?: string
   total_price?: number
+  subtotal_price?: number
+  discount_price?: number
   branch?: { id?: number; name?: string; type?: string } | null
   buyer_branch?: { id?: number; name?: string } | null
   sales_channel?: { id?: number; name?: string } | null
@@ -165,6 +149,10 @@ export default function InvoiceForm() {
   const [soDateLte, setSoDateLte] = useState('')
   // Outlet filter — key from outletKeyOf ('buyer:<id>' | 'own:<id>' | 'none')
   const [soOutlet, setSoOutlet] = useState('')
+  // A warehouse / production branch bills its whole company: the list covers
+  // every branch's orders (scope=company); the outlet cards narrow it. The
+  // invoice is issued by the selected orders' own branch.
+  const { isCentral, scopeParams } = useCentralCompanyScope()
   // POS-only filters (outlet branches) live behind a "More filters" toggle
   const [showMoreSoFilters, setShowMoreSoFilters] = useState(false)
   // Sales order shown in the detail popup (clicked from its code)
@@ -255,6 +243,7 @@ export default function InvoiceForm() {
   // Fetch final SOs yang belum di-invoice (filter status/has_invoice dikunci
   // karena aturan bisnis invoice; filter lain menyusul seperti menu Sales Order)
   const soBaseParams = {
+    ...scopeParams,
     per_page: 1000,
     'filter[status]': 'final',
     'filter[has_invoice]': 'false',
@@ -270,6 +259,7 @@ export default function InvoiceForm() {
     sort: '-created_at',
   }
   const soFilterKey = [
+    isCentral,
     soSearchDebounced, soSettlement, soPayment, soCreditType, soType,
     soChannel, soDateGte, soDateLte,
   ]
@@ -313,6 +303,20 @@ export default function InvoiceForm() {
     return Array.from(map.values()).sort((a, b) => b.billable - a.billable)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableSOs, branchList])
+  // One invoice bills one outlet: the user picks the outlet first. Switching
+  // outlets drops the orders already ticked for the previous one.
+  const pickOutlet = (key: string) => {
+    if (key === soOutlet) return
+    setSoOutlet(key)
+    setSelectedSoIds([])
+    setDetails({})
+    setSoCharges({})
+  }
+  // Only one outlet has something to invoice: pick it.
+  useEffect(() => {
+    if (!soOutlet && outletSummaries.length === 1) setSoOutlet(outletSummaries[0].key)
+  }, [soOutlet, outletSummaries])
+
   const isBillable = (so: InvoiceSoRow) =>
     (so.sales_order_details ?? []).some((line) => billableQtyOf(line) > 0)
   // Server-filtered rows when available; otherwise (own/none keys, or the
@@ -482,7 +486,50 @@ export default function InvoiceForm() {
 
   // TODO: taxes (assume fetched from SOs or just simple addition for now)
   // For now, total = subtotal + additional charges. Taxes should ideally be computed by server.
-  const totalPrice = subtotalPrice + additionalChargePrice
+  // Cross-company handling fee preview: the backend derives the billed branch
+  // from the selected sales orders, exactly as it does on create.
+  const feeSoIds = [...selectedSoIds].sort((a, b) => a - b)
+  const { data: handlingFeeData } = useQuery({
+    queryKey: ['invoice-handling-fee', feeSoIds.join(',')],
+    enabled: feeSoIds.length > 0 && hasPermission('invoice.create'),
+    retry: false,
+    queryFn: () => invoicesService.handlingFee(feeSoIds).then(r => r.data),
+  })
+  const handlingFeePreview = (handlingFeeData as any)?.data as
+    | { applies?: boolean; handling_fee_percent?: number }
+    | undefined
+  const handlingFeePercent = handlingFeePreview?.applies
+    ? Number(handlingFeePreview.handling_fee_percent ?? 0)
+    : 0
+
+  // Fee base = subtotal − discount (backend: net sales before tax and
+  // additional charges, never < 0). This form doesn't show a discount, so the
+  // discount is derived the backend way: each SO's discount_price prorated by
+  // (this invoice's share of that SO / so.subtotal_price). Preview only — the
+  // server computes and freezes the real amount at create.
+  const handlingFeeBase = useMemo(() => {
+    let discount = 0
+    selectedSoIds.forEach((soId) => {
+      const so = selectableSOs.find((s) => s.id === soId)
+      if (!so) return
+      const soSubtotal = Number(so.subtotal_price ?? 0)
+      const soDiscount = Number(so.discount_price ?? 0)
+      if (soSubtotal <= 0 || soDiscount <= 0) return
+      const share = (so.sales_order_details ?? []).reduce((sum, line) => {
+        const d = details[line.id]
+        return d ? sum + Number(d.qty) * Number(d.price) : sum
+      }, 0)
+      discount += soDiscount * (share / soSubtotal)
+    })
+    return Math.max(0, subtotalPrice - discount)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSoIds, details, subtotalPrice, soData, soOutletData])
+  const handlingFeeAmount =
+    handlingFeePercent > 0
+      ? Math.round(handlingFeeBase * handlingFeePercent) / 100
+      : 0
+
+  const totalPrice = subtotalPrice + additionalChargePrice + handlingFeeAmount
 
   const { mutate: create, isPending } = useMutation({
     mutationFn: () => {
@@ -608,33 +655,46 @@ export default function InvoiceForm() {
 
   const firstSelectedSo = selectableSOs.find((s) => s.id === selectedSoIds[0])
   const billingTo = firstSelectedSo ? outletNameOf(firstSelectedSo) : null
+  // "OUTLET CIBUBUR" → "Outlet Cibubur"
+  const titleName = (name: string) =>
+    name.toLowerCase().replace(/(^|\s)(\p{L})/gu, (_m: string, sp: string, ch: string) => sp + ch.toUpperCase())
   const hasMoreFilters = !isWarehouseBranch
   const activeMoreFilters = [soSettlement, soPayment, soCreditType, soType, soChannel].filter((v) => v !== '').length
 
   return (
-    <div style={{ padding: '24px 32px 48px', maxWidth: 1280, margin: '0 auto', fontFamily: 'var(--font-sans)' }}>
+    <div className="inv-page" style={{ padding: '24px 32px 48px', fontFamily: 'var(--font-sans)' }}>
+      {/* Phones and narrow tablets: one column, summary after the steps. */}
+      <style>{`
+        .inv-save, .inv-cancel {
+          transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+        }
+        .inv-save:not(:disabled):hover {
+          background: var(--accent-hover) !important;
+          box-shadow: var(--shadow-md);
+          transform: translateY(-1px);
+        }
+        .inv-save:not(:disabled):active { transform: translateY(0); box-shadow: none; }
+        .inv-cancel:hover {
+          background: var(--accent-light-bg) !important;
+          color: var(--accent) !important;
+        }
+        .inv-outlet-card:not([aria-pressed="true"]):hover {
+          border-color: var(--accent-light) !important;
+          box-shadow: var(--shadow-sm) !important;
+        }
+        @media (max-width: 900px) {
+          .inv-page { padding: 16px 0 32px !important; }
+          .inv-layout { grid-template-columns: minmax(0, 1fr) !important; }
+          .inv-summary { position: static !important; }
+          .inv-two-col, .inv-charge-row { grid-template-columns: minmax(0, 1fr) !important; }
+          .inv-filters, .inv-filters > * { width: 100%; }
+          .inv-filters input, .inv-filters select { width: 100% !important; min-width: 0 !important; }
+          .inv-step-title { white-space: nowrap; }
+        }
+      `}</style>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          aria-label="Back"
-          style={{
-            width: 34,
-            height: 34,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--surface)',
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-            flexShrink: 0,
-          }}
-        >
-          <ChevronLeft size={16} />
-        </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+        <BackLink href="/transfer/invoices" label="Invoices" />
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--foreground)' }}>
             Create Invoice
@@ -645,7 +705,7 @@ export default function InvoiceForm() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 20, alignItems: 'start' }}>
+      <div className="inv-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 20, alignItems: 'start' }}>
         {/* ── Left: steps ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           {/* 1. Invoice details */}
@@ -654,7 +714,7 @@ export default function InvoiceForm() {
               <span style={stepBadgeStyle(true)}>1</span>
               <h3 style={stepTitleStyle}>Invoice details</h3>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="inv-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
                 <label style={fieldLabelStyle}>Invoice date *</label>
                 <input
@@ -702,11 +762,11 @@ export default function InvoiceForm() {
           {/* 2. Choose sales orders */}
           <div style={cardStyle}>
             <div style={{ ...stepHeaderStyle, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="inv-step-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={stepBadgeStyle(true)}>2</span>
                 <h3 style={stepTitleStyle}>Choose sales orders</h3>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div className="inv-filters" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ position: 'relative' }}>
                   <Search
                     size={14}
@@ -719,17 +779,6 @@ export default function InvoiceForm() {
                     style={{ ...soFilterControl, height: 32, width: 200, paddingLeft: 30 }}
                   />
                 </div>
-                <select
-                  value={soOutlet}
-                  onChange={(e) => setSoOutlet(e.target.value)}
-                  aria-label="Outlet"
-                  style={{ ...soFilterControl, height: 32, minWidth: 150 }}
-                >
-                  <option value="">All outlets</option>
-                  {outletSummaries.map((o) => (
-                    <option key={o.key} value={o.key}>{o.name} ({o.count})</option>
-                  ))}
-                </select>
                 <input type="date" value={soDateGte} onChange={(e) => setSoDateGte(e.target.value)} aria-label="Order date from" style={{ ...soFilterControl, height: 32 }} />
                 <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>–</span>
                 <input type="date" value={soDateLte} onChange={(e) => setSoDateLte(e.target.value)} aria-label="Order date to" style={{ ...soFilterControl, height: 32 }} />
@@ -826,52 +875,120 @@ export default function InvoiceForm() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
-                  gap: 8,
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+                  gap: 10,
                   marginBottom: 16,
                 }}
               >
-                {[
-                  { key: '', name: 'All outlets', count: availableSOs.length, billable: allBillable },
-                  ...outletSummaries,
-                ].map((o) => {
+                {outletSummaries.map((o) => {
                   const active = soOutlet === o.key
+                  // "OUTLET DEPOK" → "Outlet Depok"
+                  const name = o.name
+                    .toLowerCase()
+                    .replace(/(^|\s)(\p{L})/gu, (_m: string, sp: string, ch: string) => sp + ch.toUpperCase())
+                  const initial = name.replace(/^outlet\s+/i, '').charAt(0).toUpperCase() || '?'
+                  const share = allBillable > 0 ? Math.min(100, (o.billable / allBillable) * 100) : 0
+
                   return (
                     <button
-                      key={o.key || 'all'}
+                      key={o.key}
                       type="button"
-                      onClick={() => setSoOutlet(active && o.key ? '' : o.key)}
+                      onClick={() => pickOutlet(o.key)}
+                      aria-pressed={active}
+                      className="inv-outlet-card"
                       style={{
                         textAlign: 'left',
-                        padding: '10px 12px',
+                        padding: 0,
                         border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-                        borderRadius: 'var(--radius-md)',
-                        background: active ? 'var(--accent-light-bg)' : 'var(--surface-raised)',
+                        boxShadow: active ? 'var(--shadow-md)' : 'none',
+                        borderRadius: 'var(--radius-lg)',
+                        // The picked outlet is reversed: dark brown card, light text.
+                        background: active ? 'var(--accent)' : 'var(--surface)',
+                        color: active ? '#fff' : 'var(--foreground)',
                         cursor: 'pointer',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 2,
+                        overflow: 'hidden',
                         fontFamily: 'var(--font-sans)',
                         minWidth: 0,
+                        transition: 'border-color 150ms ease, box-shadow 150ms ease',
                       }}
                     >
+                      {/* Header: which outlet */}
                       <span
                         style={{
-                          fontSize: 12,
-                          fontWeight: 600,
-                          color: active ? 'var(--accent)' : 'var(--foreground-muted)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '9px 12px',
+                          borderBottom: `1px solid ${active ? 'rgba(255,255,255,0.14)' : 'var(--border)'}`,
+                          background: 'transparent',
+                          color: active ? '#fff' : 'var(--accent)',
+                          minWidth: 0,
                         }}
                       >
-                        {o.name}
+                        <span
+                          aria-hidden
+                          style={{
+                            width: 22,
+                            height: 22,
+                            flexShrink: 0,
+                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            background: active ? 'rgba(255,255,255,0.16)' : 'var(--accent-light-bg)',
+                            color: active ? '#fff' : 'var(--accent)',
+                          }}
+                        >
+                          {initial}
+                        </span>
+                        <span
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {name}
+                        </span>
+                        <span
+                          style={{
+                            flexShrink: 0,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: '1px 7px',
+                            borderRadius: 999,
+                            background: active ? 'rgba(255,255,255,0.16)' : 'var(--accent-light-bg)',
+                            color: active ? '#fff' : 'var(--accent)',
+                          }}
+                          title={`${o.count} order${o.count === 1 ? '' : 's'} to invoice`}
+                        >
+                          {o.count}
+                        </span>
                       </span>
-                      <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--foreground)' }}>
-                        <PriceDisplay amount={o.billable} />
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
-                        {o.count} order{o.count === 1 ? '' : 's'} to invoice
+
+                      {/* Body: how much */}
+                      <span style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px 12px' }}>
+                        <span style={{ fontSize: 11, color: active ? 'rgba(255,255,255,0.72)' : 'var(--foreground-muted)' }}>
+                          To invoice · {o.count} order{o.count === 1 ? '' : 's'}
+                        </span>
+                        <span style={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
+                          <PriceDisplay amount={o.billable} />
+                        </span>
+                        <span
+                          aria-label={`${Math.round(share)}% of the total to invoice`}
+                          title={`${Math.round(share)}% of the total`}
+                          style={{ height: 4, borderRadius: 999, background: active ? 'rgba(255,255,255,0.18)' : 'var(--accent-light-bg)', overflow: 'hidden' }}
+                        >
+                          <span style={{ display: 'block', height: '100%', width: `${share}%`, background: 'var(--accent-light)', borderRadius: 999 }} />
+                        </span>
                       </span>
                     </button>
                   )
@@ -888,6 +1005,10 @@ export default function InvoiceForm() {
             {listLoading ? (
               <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '16px 0', textAlign: 'center', margin: 0 }}>
                 Loading sales orders...
+              </p>
+            ) : !soOutlet && outletSummaries.length > 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '16px 0', textAlign: 'center', margin: 0 }}>
+                Pick an outlet above. One invoice bills one outlet.
               </p>
             ) : visibleSOs.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--foreground-muted)', padding: '16px 0', textAlign: 'center', margin: 0 }}>
@@ -981,7 +1102,14 @@ export default function InvoiceForm() {
                                 </button>
                               </td>
                               {/* Outlet yang mau di-invoice — resolve dari buyer_branch_id */}
-                              <td style={soTd}>{outletNameOf(so)}</td>
+                              <td style={soTd}>
+                                {outletNameOf(so)}
+                                {isCentral && so.branch?.name && (
+                                  <div style={{ fontSize: 11.5, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                                    from {so.branch.name}
+                                  </div>
+                                )}
+                              </td>
                               <td style={{ ...soTd, whiteSpace: 'nowrap', color: 'var(--foreground-muted)' }}>
                                 {so.date ? formatDate(so.date) : '—'}
                               </td>
@@ -1040,7 +1168,7 @@ export default function InvoiceForm() {
                 {Object.values(soCharges).map(c => (
                   <div
                     key={c.sales_order_component_id}
-                    style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: 12, alignItems: 'center' }}
+                    className="inv-charge-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: 12, alignItems: 'center' }}
                   >
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minWidth: 0 }}>
                       <input type="checkbox" checked={c.included} onChange={e => setSoCharges({ ...soCharges, [c.sales_order_component_id as number]: { ...c, included: e.target.checked } })} />
@@ -1077,7 +1205,7 @@ export default function InvoiceForm() {
                 {freeCharges.map((fc, idx) => (
                   <div
                     key={fc.id}
-                    style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 140px minmax(0, 1.2fr) 32px', gap: 8, alignItems: 'start' }}
+                    className="inv-charge-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 140px minmax(0, 1.2fr) 32px', gap: 8, alignItems: 'start' }}
                   >
                     <input
                       placeholder="Charge name"
@@ -1137,34 +1265,81 @@ export default function InvoiceForm() {
         </div>
 
         {/* ── Right: sticky summary ── */}
-        <div style={{ ...cardStyle, position: 'sticky', top: 16, display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Billing to</span>
-          <span style={{ fontSize: 15, fontWeight: 600, color: billingTo ? 'var(--foreground)' : 'var(--foreground-subtle)', margin: '2px 0 14px' }}>
-            {billingTo ?? 'No sales order selected'}
-          </span>
-
-          <div style={summaryRowStyle}>
-            <span style={{ color: 'var(--foreground-muted)' }}>
-              Subtotal · {selectedSoIds.length} order{selectedSoIds.length === 1 ? '' : 's'}
-            </span>
-            <span><PriceDisplay amount={subtotalPrice} /></span>
+        <div className="inv-summary" style={{ ...cardStyle, padding: 0, overflow: 'hidden', position: 'sticky', top: 16, display: 'flex', flexDirection: 'column' }}>
+          {/* Route: who bills whom, and when it is due */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--foreground-muted)', marginBottom: 10 }}>
+              Invoice summary
+            </div>
+            {[
+              ...(isCentral && firstSelectedSo?.branch?.name ? [{ label: 'From', value: titleName(firstSelectedSo.branch.name) }] : []),
+              { label: 'To', value: billingTo ? titleName(billingTo) : null },
+              { label: 'Due', value: dueDate ? formatDate(dueDate) : null },
+            ].map((row) => (
+              <div key={row.label} style={{ display: 'flex', alignItems: 'baseline', gap: 12, padding: '3px 0', fontSize: 13 }}>
+                <span style={{ width: 40, flexShrink: 0, color: 'var(--foreground-muted)' }}>{row.label}</span>
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    fontWeight: row.value ? 600 : 400,
+                    color: row.value ? 'var(--foreground)' : 'var(--foreground-subtle)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={row.value ?? undefined}
+                >
+                  {row.value ?? (row.label === 'To' ? 'Pick an outlet' : '—')}
+                </span>
+              </div>
+            ))}
           </div>
-          <div style={summaryRowStyle}>
-            <span style={{ color: 'var(--foreground-muted)' }}>Additional charges</span>
-            <span><PriceDisplay amount={additionalChargePrice} /></span>
+
+          {/* Breakdown */}
+          <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              {
+                label: 'Subtotal',
+                tag: `${selectedSoIds.length} order${selectedSoIds.length === 1 ? '' : 's'}`,
+                amount: subtotalPrice,
+                show: true,
+              },
+              { label: 'Additional charges', tag: null, amount: additionalChargePrice, show: true },
+              {
+                label: 'Handling fee',
+                tag: `${handlingFeePercent}%`,
+                amount: handlingFeeAmount,
+                show: handlingFeeAmount > 0,
+                title: 'Added to invoices billed to a branch of another company',
+              },
+            ]
+              .filter((row) => row.show)
+              .map((row) => (
+                <div key={row.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--foreground-muted)', minWidth: 0 }} title={row.title}>
+                    {row.label}
+                    {row.tag && (
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 999, background: 'var(--accent-light-bg)', color: 'var(--accent)' }}>
+                        {row.tag}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--foreground)', whiteSpace: 'nowrap' }}>
+                    <PriceDisplay amount={row.amount} />
+                  </span>
+                </div>
+              ))}
           </div>
 
-          <div style={{ borderTop: '1px dashed var(--border)', margin: '10px 0 12px' }} />
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Total</span>
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 700, color: 'var(--accent)', lineHeight: 1.3 }}>
-            <PriceDisplay amount={totalPrice} />
-          </span>
-          {dueDate && (
-            <span style={{ fontSize: 12, color: 'var(--foreground-subtle)', marginTop: 2 }}>
-              Due {formatDate(dueDate)}
-            </span>
-          )}
-
+          {/* Total + actions */}
+          <div style={{ padding: '16px 20px 18px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+              <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', lineHeight: 1.3, whiteSpace: 'nowrap' }}>
+                <PriceDisplay amount={totalPrice} />
+              </span>
+            </div>
           <button
             onClick={() => {
               if (selectedSoIds.length === 0) return toast.error('Select at least one Sales Order')
@@ -1184,6 +1359,7 @@ export default function InvoiceForm() {
               create()
             }}
             disabled={isPending || selectedSoIds.length === 0}
+            className="inv-save"
             style={{
               width: '100%',
               height: 42,
@@ -1207,10 +1383,12 @@ export default function InvoiceForm() {
           </button>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push('/transfer/invoices')}
+            className="inv-cancel"
             style={{
               marginTop: 8,
               height: 36,
+              borderRadius: 'var(--radius-md)',
               background: 'none',
               border: 'none',
               color: 'var(--foreground-muted)',
@@ -1220,6 +1398,7 @@ export default function InvoiceForm() {
           >
             Cancel
           </button>
+          </div>
         </div>
       </div>
 

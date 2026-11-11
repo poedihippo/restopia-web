@@ -4,15 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { operationRulesService } from '@/services/operation-rules.service';
+import { branchesService } from '@/services/branches.service';
 import { useAuth } from '@/hooks/useAuth';
 import OperationRuleSheet from './OperationRuleSheet';
-import { Plus, Search, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
+import { FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters';
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 
 export default function OperationRulesView() {
   const qc = useQueryClient();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isSuperadmin, user } = useAuth();
   const canRead = hasPermission('operation-rule.read');
   const canCreate = hasPermission('operation-rule.create');
   const canEdit = hasPermission('operation-rule.update');
@@ -26,6 +28,10 @@ export default function OperationRulesView() {
   const [editData, setEditData] = useState<any | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [branchFilter, setBranchFilter] = useState('');
+  const [openModeFilter, setOpenModeFilter] = useState('');
+  const [closeModeFilter, setCloseModeFilter] = useState('');
+  const [shiftModeFilter, setShiftModeFilter] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
@@ -34,18 +40,34 @@ export default function OperationRulesView() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, branchFilter, openModeFilter, closeModeFilter, shiftModeFilter]);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['operationrules', page, perPage, debouncedSearch],
+  // Filter lookup: branches (superadmin sees all, others their assigned branches — same as the sheet)
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'by-name'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+    enabled: isSuperadmin,
+  });
+  const branchOptions: any[] = isSuperadmin ? (branchesData as any)?.data ?? [] : user?.branches ?? [];
+
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['operationrules', page, perPage, debouncedSearch, branchFilter, openModeFilter, closeModeFilter, shiftModeFilter],
     queryFn: () =>
       operationRulesService.list({
         page,
         per_page: perPage,
         sort: '-id',
         'filter[search]': debouncedSearch || undefined,
+        'filter[branch_id]': branchFilter || undefined,
+        'filter[open_mode]': openModeFilter || undefined,
+        'filter[close_mode]': closeModeFilter || undefined,
+        'filter[shift_mode]': shiftModeFilter || undefined,
       } as any).then((r) => r.data),
   });
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: any[] = (data as any)?.data ?? [];
   const meta = (data as any)?.meta;
@@ -64,7 +86,6 @@ export default function OperationRulesView() {
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
   const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
-  const inputBase: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)' };
   const actionBtnStyle: React.CSSProperties = { padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' };
 
   return (
@@ -81,12 +102,45 @@ export default function OperationRulesView() {
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(ev) => setSearch(ev.target.value)} placeholder="Search..." style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search..."
+        activeCount={countActive(branchFilter, openModeFilter, closeModeFilter, shiftModeFilter)}
+        onClear={() => { setBranchFilter(''); setOpenModeFilter(''); setCloseModeFilter(''); setShiftModeFilter(''); setPage(1); }}
+        quick={
+          <FilterSelect value={branchFilter} onChange={(ev) => { setBranchFilter(ev.target.value); setPage(1); }}>
+            <option value="">All Branches</option>
+            {branchOptions.map((o: any) => (
+              <option key={o.id} value={String(o.id)}>{o.name}</option>
+            ))}
+          </FilterSelect>
+        }
+      >
+        <FilterGroup title="Modes">
+          <FilterField label="Open mode">
+            <FilterSelect block value={openModeFilter} onChange={(ev) => { setOpenModeFilter(ev.target.value); setPage(1); }}>
+              <option value="">All Open Modes</option>
+              <option value="auto">auto</option>
+              <option value="manual">manual</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Close mode">
+            <FilterSelect block value={closeModeFilter} onChange={(ev) => { setCloseModeFilter(ev.target.value); setPage(1); }}>
+              <option value="">All Close Modes</option>
+              <option value="auto">auto</option>
+              <option value="manual">manual</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Shift mode">
+            <FilterSelect block value={shiftModeFilter} onChange={(ev) => { setShiftModeFilter(ev.target.value); setPage(1); }}>
+              <option value="">All Shift Modes</option>
+              <option value="auto">auto</option>
+              <option value="manual">manual</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

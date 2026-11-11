@@ -182,6 +182,16 @@ export default function GlobalLayout({ children }: Props) {
         .app-main { display: flex; flex-direction: column; }
         .app-main > * { flex-shrink: 0; }
         .app-footer { margin-top: auto !important; }
+        /* Pages fill the content area: no page container. Views set a centered
+           cap on their root (maxWidth 960-1400 and/or margin: 0 auto, which in this
+           flex column also shrinks the page to its content); drop both for every
+           page root. Fixed overlays (dialogs) and the footer keep their own. */
+        .app-main > *:not(.app-footer):not([style*="position: fixed"]):not([aria-hidden]) {
+          max-width: none !important;
+          margin-left: 0 !important;
+          margin-right: 0 !important;
+          align-self: stretch;
+        }
         @keyframes page-spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }

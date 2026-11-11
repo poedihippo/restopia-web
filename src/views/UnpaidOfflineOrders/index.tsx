@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
-import { FileSpreadsheet, Inbox, Loader2, Receipt, Search, Wallet, ArrowUpRight } from 'lucide-react'
+import { FileSpreadsheet, Inbox, Loader2, Receipt, Wallet, ArrowUpRight } from 'lucide-react'
+import { FilterBar, DateRange, countActive } from '@/components/ListFilters'
 import { toast } from 'sonner'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { formatCurrency } from '@/utils/price'
@@ -15,18 +16,6 @@ import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excel
 
 // Unpaid and partially paid orders both still owe money.
 const UNPAID_PAYMENT_STATUSES = 'pending,partial'
-
-const controlStyle: CSSProperties = {
-  height: 36,
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
-  padding: '0 10px',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  background: 'var(--surface-raised)',
-  outline: 'none',
-  minWidth: 0,
-}
 
 const thStyle: CSSProperties = {
   padding: '10px 16px',
@@ -101,13 +90,16 @@ export default function UnpaidOfflineOrdersView() {
     ...(dateTo ? { 'filter[date_lte]': dateTo } : {}),
   }
 
-  const { data, isLoading, isError, isFetching } = useQuery({
+  const { data, isLoading: listFirstLoad, isError, isFetching } = useQuery({
     queryKey: ['unpaid-offline-orders', page, perPage, debouncedSearch, dateFrom, dateTo],
     queryFn: () =>
       salesOrdersService
         .list({ ...filters, page, per_page: perPage } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || isFetching
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
@@ -188,46 +180,33 @@ export default function UnpaidOfflineOrdersView() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: 340 }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-subtle)' }} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search code or customer…"
-            style={{ ...controlStyle, width: '100%', paddingLeft: 30, boxSizing: 'border-box' }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value)
-              setPage(1)
-            }}
-            style={controlStyle}
-            aria-label="From date"
-          />
-          <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>to</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value)
-              setPage(1)
-            }}
-            style={controlStyle}
-            aria-label="To date"
-          />
-        </div>
-
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--foreground-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {isFetching && !isLoading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-          {meta?.total != null ? `${meta.total} order${meta.total === 1 ? '' : 's'}` : ''}
-        </span>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search code or customer…"
+        activeCount={countActive(dateFrom, dateTo)}
+        onClear={() => {
+          setDateFrom('')
+          setDateTo('')
+          setPage(1)
+        }}
+        quick={
+          <div style={{ width: 280 }}>
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </div>
+        }
+        actions={
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {isFetching && !isLoading && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
+            {meta?.total != null ? `${meta.total} order${meta.total === 1 ? '' : 's'}` : ''}
+          </span>
+        }
+      />
 
       {/* Table */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>

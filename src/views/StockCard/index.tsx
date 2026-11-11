@@ -19,6 +19,7 @@ import {
 import SearchableSelect from '@/components/SearchableSelect'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, DateRange, countActive } from '@/components/ListFilters'
 import { LayoutList, Download, Loader2, ExternalLink } from 'lucide-react'
 
 interface CardStockCounter {
@@ -241,7 +242,7 @@ export default function StockCardView() {
   const productTypesParam =
     productTypeFilter.length > 0 ? productTypeFilter.join(',') : activeProductTypes
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: [
       'stock-card',
       page,
@@ -267,6 +268,9 @@ export default function StockCardView() {
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: ProductUomCardStock[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -309,26 +313,6 @@ export default function StockCardView() {
     padding: '12px 16px',
     borderBottom: '1px solid var(--border)',
     verticalAlign: 'middle',
-  }
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 500,
-    color: 'var(--foreground-muted)',
-    marginBottom: 4,
-    display: 'block',
-  }
-
-  const inputStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-    width: '100%',
   }
 
   return (
@@ -380,74 +364,56 @@ export default function StockCardView() {
       </div>
 
       {/* Filters */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 20,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 16,
-          boxShadow: 'var(--shadow-sm)',
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cari nama / kode UOM..."
+        activeCount={countActive(
+          productId,
+          productTypeFilter,
+          startDate !== getToday() || endDate !== getToday(),
+        )}
+        onClear={() => {
+          setProductId(0)
+          setProductTypeFilter([])
+          setStartDate(getToday())
+          setEndDate(getToday())
+          setPage(1)
         }}
-      >
-        <div>
-          <label style={labelStyle}>Cari</label>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nama / kode UOM..."
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Produk</label>
-          <SearchableSelect
-            value={productId}
-            onChange={(val) => setProductId(Number(val) || 0)}
-            options={productOptions}
-            placeholder="Semua Produk"
-            searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-            loading={productsLoading}
-            onSearchChange={setProductSearch}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Tipe Produk</label>
-          <MultiSearchableSelect
-            value={productTypeFilter}
-            onChange={setProductTypeFilter}
-            options={productTypeOptions}
-            placeholder="Semua Tipe Produk"
-            searchPlaceholder="Cari tipe produk..."
-            loading={isLoadingProductTypes}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Dari Tanggal</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Sampai Tanggal</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+        quick={
+          <>
+            <div style={{ width: 280, maxWidth: '100%' }} title="Periode">
+              <DateRange
+                from={startDate}
+                to={endDate}
+                onFromChange={setStartDate}
+                onToChange={setEndDate}
+              />
+            </div>
+            <div style={{ width: 240, maxWidth: '100%' }}>
+              <SearchableSelect
+                value={productId}
+                onChange={(val) => setProductId(Number(val) || 0)}
+                options={productOptions}
+                placeholder="Semua Produk"
+                searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
+                loading={productsLoading}
+                onSearchChange={setProductSearch}
+              />
+            </div>
+            <div style={{ width: 220, maxWidth: '100%' }}>
+              <MultiSearchableSelect
+                value={productTypeFilter}
+                onChange={setProductTypeFilter}
+                options={productTypeOptions}
+                placeholder="Semua Tipe Produk"
+                searchPlaceholder="Cari tipe produk..."
+                loading={isLoadingProductTypes}
+              />
+            </div>
+          </>
+        }
+      />
 
       {/* Table */}
       <div

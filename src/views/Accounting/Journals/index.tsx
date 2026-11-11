@@ -18,8 +18,9 @@ import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, countActive } from '@/components/ListFilters'
 import {
-  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye, Download,
   RotateCcw, Copy, ExternalLink,
 } from 'lucide-react'
@@ -296,6 +297,10 @@ export default function JournalsView() {
   const [search, setSearch] = useState(initialSearch)
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch)
   const [typeFilter, setTypeFilter] = useState('')
+  const [periodFilter, setPeriodFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
+  const [postedFilter, setPostedFilter] = useState('')
+  const [reversedFilter, setReversedFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -309,12 +314,30 @@ export default function JournalsView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedCoaSearch(coaSearch), 400); return () => clearTimeout(t) }, [coaSearch])
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
-  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['journals', page, perPage, debouncedSearch, typeFilter],
-    queryFn: () => journalsService.list({ page, per_page: perPage, sort: '-id', include: 'period,journal_details,created_by', 'filter[search]': debouncedSearch || undefined, 'filter[type]': typeFilter || undefined }).then((r) => r.data),
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['journals', page, perPage, debouncedSearch, typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter],
+    queryFn: () => journalsService.list({
+      page, per_page: perPage, sort: '-id', include: 'period,journal_details,created_by',
+      'filter[search]': debouncedSearch || undefined,
+      'filter[type]': typeFilter || undefined,
+      'filter[period_id]': periodFilter || undefined,
+      'filter[date]': dateFilter || undefined,
+      'filter[is_posted]': postedFilter || undefined,
+      'filter[is_reversed]': reversedFilter || undefined,
+    } as any).then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
+
+  // Filter dropdown: full period list (independent of the sheet's dropdown search).
+  const { data: filterPeriodsData } = useQuery({
+    queryKey: ['periods-all', ''],
+    queryFn: () => periodsService.list({ per_page: 1000, sort: '-id' } as any).then((r) => r.data),
+  })
+  const filterPeriods: Period[] = (filterPeriodsData as any)?.data ?? []
 
   const { data: periodsData } = useQuery({
     queryKey: ['periods-all', debouncedDropdownSearch],
@@ -592,23 +615,49 @@ export default function JournalsView() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
-        <div style={{ position: 'relative', width: 300 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search journal number or description..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
-        </div>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          style={{ width: 160, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', cursor: 'pointer' }}
-        >
-          <option value="">All Types</option>
-          {Object.entries(JOURNAL_TYPE_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search journal number or description..."
+        activeCount={countActive(typeFilter, periodFilter, dateFilter, postedFilter, reversedFilter)}
+        onClear={() => { setTypeFilter(''); setPeriodFilter(''); setDateFilter(''); setPostedFilter(''); setReversedFilter(''); setPage(1) }}
+        quick={
+          <>
+            <FilterSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: 160 }}>
+              <option value="">All Types</option>
+              {Object.entries(JOURNAL_TYPE_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </FilterSelect>
+            <FilterSelect value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value)} style={{ maxWidth: 200 }}>
+              <option value="">All Periods</option>
+              {filterPeriods.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+            </FilterSelect>
+          </>
+        }
+      >
+        <FilterGroup title="Dates">
+          <FilterField label="Journal date">
+            <FilterInput type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Flags">
+          <FilterField label="Posted">
+            <FilterSelect block value={postedFilter} onChange={(e) => setPostedFilter(e.target.value)}>
+              <option value="">All</option>
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Reversed">
+            <FilterSelect block value={reversedFilter} onChange={(e) => setReversedFilter(e.target.value)}>
+              <option value="">All</option>
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

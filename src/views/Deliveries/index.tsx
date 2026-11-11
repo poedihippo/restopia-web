@@ -8,12 +8,13 @@ import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
+import { branchesService } from '@/services/branches.service'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -105,6 +106,10 @@ export default function DeliveriesView() {
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('final')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [sourceTypeFilter, setSourceTypeFilter] = useState('')
+  const [hasReceiptFilter, setHasReceiptFilter] = useState<'' | 'true' | 'false'>('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [targetBranchFilter, setTargetBranchFilter] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -114,10 +119,22 @@ export default function DeliveriesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo])
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, sourceTypeFilter, hasReceiptFilter, branchFilter, targetBranchFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['deliveries', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo],
+  // Branch options for the From/To filters: superadmin sees every branch,
+  // other users only the branches they're assigned to.
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !!isSuperadmin,
+  })
+  const availableBranches: any[] = isSuperadmin
+    ? (branchesData as any)?.data ?? []
+    : (user as any)?.branches ?? []
+  const showBranchFilters = !!isSuperadmin || availableBranches.length > 1
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['deliveries', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, sourceTypeFilter, hasReceiptFilter, branchFilter, targetBranchFilter],
     staleTime: 0,
     queryFn: () =>
       deliveriesService
@@ -128,11 +145,19 @@ export default function DeliveriesView() {
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
-          'filter[start_date]': dateFrom || undefined,
-          'filter[end_date]': dateTo || undefined,
+          // GET /v1/deliveries date filters are date_gte / date_lte.
+          'filter[date_gte]': dateFrom || undefined,
+          'filter[date_lte]': dateTo || undefined,
+          'filter[source_type]': sourceTypeFilter || undefined,
+          'filter[has_receipt]': hasReceiptFilter || undefined,
+          'filter[branch_id]': branchFilter || undefined,
+          'filter[target_branch_id]': targetBranchFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Delivery[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -166,13 +191,6 @@ export default function DeliveriesView() {
     },
   })
 
-  const hasFilters = !!(
-    (statusFilter && statusFilter !== 'final') ||
-    dateFrom ||
-    dateTo ||
-    debouncedSearch
-  )
-
   const handleEditReceipt = (deliveryId: number) => {
     router.push(`/transfer/receipts?delivery_id=${deliveryId}`)
   }
@@ -193,15 +211,6 @@ export default function DeliveriesView() {
     padding: '12px 16px',
     borderBottom: '1px solid var(--border)',
     verticalAlign: 'middle',
-  }
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
   }
 
   const actionBtnStyle: React.CSSProperties = {
@@ -259,112 +268,114 @@ export default function DeliveriesView() {
           <Plus size={15} />New Delivery
                               </button>)}
       </div>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
-        }}
-      >
-        <div style={{ position: 'relative', maxWidth: 280 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search deliveries..."
-            style={{
-              ...inputBase,
-              width: 280,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value as '' | 'pending' | 'final')
-            setPage(1)
-          }}
-          style={{
-            ...inputBase,
-            padding: '8px 12px',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="final">Final</option>
-        </select>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            From
-          </label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value)
-              setPage(1)
-            }}
-            style={{ ...inputBase, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            To
-          </label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value)
-              setPage(1)
-            }}
-            style={{ ...inputBase, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        {hasFilters && (
-          <button
-            onClick={() => {
-              setStatusFilter('final')
-              setDateFrom('')
-              setDateTo('')
-              setPage(1)
-            }}
-            style={{
-              padding: '7px 12px',
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              color: 'var(--foreground-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            Clear filters
-          </button>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search deliveries..."
+        activeCount={countActive(
+          statusFilter !== 'final' ? statusFilter : '',
+          sourceTypeFilter, hasReceiptFilter, branchFilter, targetBranchFilter,
+          dateFrom, dateTo,
         )}
-      </div>
+        onClear={() => {
+          setStatusFilter('final')
+          setDateFrom('')
+          setDateTo('')
+          setSourceTypeFilter('')
+          setHasReceiptFilter('')
+          setBranchFilter('')
+          setTargetBranchFilter('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as '' | 'pending' | 'final')
+                setPage(1)
+              }}
+            >
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Final</option>
+            </FilterSelect>
+            <FilterSelect
+              value={sourceTypeFilter}
+              onChange={(e) => {
+                setSourceTypeFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Sources</option>
+              <option value="po_from_supplier">PO from Supplier</option>
+              <option value="po_from_branch">PO from Branch</option>
+              <option value="transfer_to_branch">Transfer to Branch</option>
+              <option value="so_to_branch">SO to Branch</option>
+            </FilterSelect>
+            <FilterSelect
+              value={hasReceiptFilter}
+              onChange={(e) => {
+                setHasReceiptFilter(e.target.value as '' | 'true' | 'false')
+                setPage(1)
+              }}
+            >
+              <option value="">Receipt: All</option>
+              <option value="true">Has Receipt</option>
+              <option value="false">No Receipt</option>
+            </FilterSelect>
+          </>
+        }
+      >
+        {showBranchFilters && (
+          <FilterGroup title="Branches">
+            <FilterField label="From branch">
+              <FilterSelect
+                block
+                value={branchFilter}
+                onChange={(e) => {
+                  setBranchFilter(e.target.value)
+                  setPage(1)
+                }}
+              >
+                <option value="">All From Branches</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+            <FilterField label="To branch">
+              <FilterSelect
+                block
+                value={targetBranchFilter}
+                onChange={(e) => {
+                  setTargetBranchFilter(e.target.value)
+                  setPage(1)
+                }}
+              >
+                <option value="">All To Branches</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          </FilterGroup>
+        )}
+        <FilterGroup title="Dates">
+          <FilterField label="Delivery date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
       {/* Table */}
       <div
         style={{

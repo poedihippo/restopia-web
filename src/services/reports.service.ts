@@ -103,27 +103,27 @@ export interface ArAgingResponse {
 
 export const reportsService = {
   // Core Financial Statements
-  exportIncomeStatement: (params: { start_date: string; end_date: string }): Promise<AxiosResponse<Blob>> =>
+  exportIncomeStatement: (params: { start_date: string; end_date: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/income-statement/exports', { params, responseType: 'blob' }),
 
-  exportBalanceSheet: (params?: { as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
+  exportBalanceSheet: (params?: { as_of_date?: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/balance-sheet/exports', { params, responseType: 'blob' }),
 
-  exportTrialBalance: (params: { period_id: number }): Promise<AxiosResponse<Blob>> =>
+  exportTrialBalance: (params: { period_id: number; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/trial-balance/exports', { params, responseType: 'blob' }),
 
   // JSON report (the old /reports/general-ledger/exports Excel endpoint was removed backend-side)
   getGeneralLedger: (params: GeneralLedgerParams): Promise<AxiosResponse<GeneralLedgerEnvelope>> =>
     api.get('/reports/general-ledger', { params }),
 
-  exportCashFlow: (params: { start_date: string; end_date: string }): Promise<AxiosResponse<Blob>> =>
+  exportCashFlow: (params: { start_date: string; end_date: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/cash-flow/exports', { params, responseType: 'blob' }),
 
   // Comparative & Cards Reports
-  exportComparativeIncomeStatement: (params?: { fiscal_year_id?: number; year?: number; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
+  exportComparativeIncomeStatement: (params?: { fiscal_year_id?: number; year?: number; start_date?: string; end_date?: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/comparative-income-statement/exports', { params, responseType: 'blob' }),
 
-  exportComparativeBalanceSheet: (params?: { fiscal_year_id?: number; year?: number; as_of_date?: string }): Promise<AxiosResponse<Blob>> =>
+  exportComparativeBalanceSheet: (params?: { fiscal_year_id?: number; year?: number; as_of_date?: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/comparative-balance-sheet/exports', { params, responseType: 'blob' }),
 
   exportArCard: (params: { customer_id: number; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>

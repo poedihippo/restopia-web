@@ -5,12 +5,13 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { usersService } from '@/services/users.service'
+import { branchesService } from '@/services/branches.service'
+import { departmentsService } from '@/services/departments.service'
 import UserSheet from '@/views/User/UserSheet'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -19,6 +20,7 @@ import {
   CreditCard,
   Building2,
 } from 'lucide-react'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 
 interface Employee {
   id: number
@@ -52,6 +54,10 @@ export default function EmployeesView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Employee | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [branchFilter, setBranchFilter] = useState('')
+  const [departmentFilter, setDepartmentFilter] = useState('')
+  const canReadBranches = hasPermission('branch.read')
+  const canReadDepartments = hasPermission('department.read')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -60,10 +66,26 @@ export default function EmployeesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, branchFilter, departmentFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['employees', page, perPage, debouncedSearch],
+  // Filter lookups (same queryFn as UserSheet for the shared branches key)
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'with-company'],
+    queryFn: () => branchesService.list({ per_page: 1000, sort: 'name', include: 'company' } as any).then((r) => r.data),
+    enabled: canReadBranches,
+  })
+  const branchOptions: { id: number; name: string }[] = (branchesData as any)?.data ?? []
+
+  const { data: departmentsData } = useQuery({
+    queryKey: ['departments-all'],
+    queryFn: () => departmentsService.list({ per_page: 100 } as any).then((r) => r.data),
+    enabled: canReadDepartments,
+  })
+  const departmentOptions: { id: number; name: string }[] = (departmentsData as any)?.data ?? []
+
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['employees', page, perPage, debouncedSearch, branchFilter, departmentFilter],
     queryFn: () =>
       usersService
         .list({
@@ -74,9 +96,14 @@ export default function EmployeesView() {
           sort: '-created_at',
           'filter[type]': 'user',
           'filter[search]': debouncedSearch || undefined,
+          'filter[branch_id]': branchFilter || undefined,
+          'filter[department_id]': departmentFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Employee[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -119,14 +146,6 @@ export default function EmployeesView() {
     verticalAlign: 'middle',
   }
 
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
 
   const actionBtnStyle: React.CSSProperties = {
     padding: 6,
@@ -227,41 +246,41 @@ export default function EmployeesView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 20,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by name, email, NIK, or phone..."
+        activeCount={countActive(branchFilter, departmentFilter)}
+        onClear={() => {
+          setBranchFilter('')
+          setDepartmentFilter('')
+          setPage(1)
         }}
-      >
-        <div style={{ position: 'relative', maxWidth: 280, width: '100%' }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email, NIK, or phone..."
-            style={{
-              ...inputBase,
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+        quick={
+          <>
+            {canReadBranches && (
+              <FilterSelect value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+                <option value="">All Branches</option>
+                {branchOptions.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            )}
+            {canReadDepartments && (
+              <FilterSelect value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+                <option value="">All Departments</option>
+                {departmentOptions.map((d) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            )}
+          </>
+        }
+      />
       {/* Stats row */}
       <div
         style={{

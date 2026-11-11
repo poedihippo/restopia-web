@@ -21,7 +21,6 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { convertUp, convertDown, type ConversionEntry } from '@/utils/unitDisplay'
 import {
-  ChevronLeft,
   CheckCircle2,
   Circle,
   XCircle,
@@ -35,6 +34,7 @@ import {
   ArrowDown,
   MessageSquarePlus,
 } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   draft: { label: 'Draft', color: 'var(--foreground-muted)', bg: 'var(--surface)' },
@@ -967,6 +967,20 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         .so-btn:focus-visible, .so-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
       `}</style>
 
+      {/* Back to list — confirms first when there are unsaved counts */}
+      <div
+        className="print-hidden"
+        style={{ alignSelf: 'flex-start' }}
+        onClickCapture={(e) => {
+          if (dirty && !confirm('Ada hitungan yang belum disimpan. Tetap keluar dari halaman ini?')) {
+            e.preventDefault()
+            e.stopPropagation()
+          }
+        }}
+      >
+        <BackLink href="/products/product-inventory/stock-opname" label="Stock Opnames" />
+      </div>
+
       {/* Header: judul + tombol */}
       <div
         className="print-hidden"
@@ -981,29 +995,6 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
         }}
       >
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button
-            className="so-btn"
-            onClick={() => {
-              if (dirty && !confirm('Ada hitungan yang belum disimpan. Tetap keluar dari halaman ini?')) return
-              router.push('/products/product-inventory/stock-opname')
-            }}
-            title="Kembali ke daftar"
-            style={{
-              width: 28,
-              height: 28,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            <ChevronLeft size={15} />
-          </button>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>

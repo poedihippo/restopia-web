@@ -3,12 +3,16 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productCategoryAccountSettingsService } from '@/services/product-category-account-settings.service'
+import { productCategoriesService } from '@/services/product-categories.service'
+import { chartOfAccountsService } from '@/services/accounting.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
 import ProductCategoryAccountSettingSheet from './ProductCategoryAccountSettingSheet'
 import { toastMutationApiError } from '@/utils/apiError'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, countActive } from '@/components/ListFilters'
 import { formatDate } from '@/utils/date'
-import { Plus, Search, Pencil, Trash2, BookOpen, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, BookOpen, X } from 'lucide-react'
 
 export default function ProductCategoryAccountSettingsView() {
   const qc = useQueryClient()
@@ -22,6 +26,12 @@ export default function ProductCategoryAccountSettingsView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
+  const [categoryFilter, setCategoryFilter] = useState(0)
+  const [categoryFilterSearch, setCategoryFilterSearch] = useState('')
+  const [debouncedCategoryFilterSearch, setDebouncedCategoryFilterSearch] = useState('')
+  const [coaFilter, setCoaFilter] = useState(0)
+  const [coaFilterSearch, setCoaFilterSearch] = useState('')
+  const [debouncedCoaFilterSearch, setDebouncedCoaFilterSearch] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<any | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -31,10 +41,38 @@ export default function ProductCategoryAccountSettingsView() {
     return () => clearTimeout(t)
   }, [search])
 
-  useEffect(() => { setPage(1) }, [debouncedSearch])
+  useEffect(() => { setPage(1) }, [debouncedSearch, categoryFilter, coaFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-category-account-settings', page, perPage, debouncedSearch, myBranchId],
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCategoryFilterSearch(categoryFilterSearch), 400)
+    return () => clearTimeout(t)
+  }, [categoryFilterSearch])
+  const { data: categoryFilterData, isFetching: categoryFilterLoading } = useQuery({
+    queryKey: ['product-categories-all', 'pcas-filter', debouncedCategoryFilterSearch],
+    queryFn: () => productCategoriesService.list({ per_page: 50, 'filter[search]': debouncedCategoryFilterSearch || undefined } as any).then(r => r.data),
+    placeholderData: (prev: any) => prev,
+  })
+  const categoryFilterOptions = [
+    { value: 0, label: 'All Product Categories' },
+    ...((categoryFilterData as any)?.data ?? []).map((c: any) => ({ value: c.id, label: c.name })),
+  ]
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCoaFilterSearch(coaFilterSearch), 400)
+    return () => clearTimeout(t)
+  }, [coaFilterSearch])
+  const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'pcas-filter', debouncedCoaFilterSearch],
+    queryFn: () => chartOfAccountsService.list({ per_page: 50, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
+    placeholderData: (prev: any) => prev,
+  })
+  const coaFilterOptions = [
+    { value: 0, label: 'All Accounts' },
+    ...((coaFilterData as any)?.data ?? []).map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+  ]
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['product-category-account-settings', page, perPage, debouncedSearch, myBranchId, categoryFilter, coaFilter],
     queryFn: () =>
       productCategoryAccountSettingsService
         .list({
@@ -44,9 +82,14 @@ export default function ProductCategoryAccountSettingsView() {
           include: 'product_category,chart_of_account',
           'filter[search]': debouncedSearch || undefined,
           'filter[branch_id]': myBranchId || undefined,
+          'filter[product_category_id]': categoryFilter || undefined,
+          'filter[chart_of_account_id]': coaFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -63,7 +106,6 @@ export default function ProductCategoryAccountSettingsView() {
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
   const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
-  const inputBase: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)' }
   const actionBtnStyle: React.CSSProperties = { padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }
 
   return (
@@ -84,12 +126,41 @@ export default function ProductCategoryAccountSettingsView() {
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search settings..." style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search settings..."
+        activeCount={countActive(categoryFilter, coaFilter)}
+        onClear={() => { setCategoryFilter(0); setCoaFilter(0); setPage(1) }}
+        quick={
+          <>
+            <div style={{ minWidth: 220 }}>
+              <SearchableSelect
+                value={categoryFilter}
+                onChange={(val) => setCategoryFilter(Number(val) || 0)}
+                options={categoryFilterOptions}
+                placeholder="All Product Categories"
+                searchPlaceholder="Search category..."
+                triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
+                loading={categoryFilterLoading}
+                onSearchChange={setCategoryFilterSearch}
+              />
+            </div>
+            <div style={{ minWidth: 240 }}>
+              <SearchableSelect
+                value={coaFilter}
+                onChange={(val) => setCoaFilter(Number(val) || 0)}
+                options={coaFilterOptions}
+                placeholder="All Accounts"
+                searchPlaceholder="Search account..."
+                triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
+                loading={coaFilterLoading}
+                onSearchChange={setCoaFilterSearch}
+              />
+            </div>
+          </>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   PackageSearch,
@@ -19,6 +18,7 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import BackLink from '@/components/BackLink'
 import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
 import { getProductUomName } from '@/utils/productUomName'
 
@@ -153,19 +153,6 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
   const details = order?.purchase_order_details ?? []
   const statusMeta = STATUS_META[order?.status as keyof typeof STATUS_META] ?? STATUS_META.pending
 
-  const backBtnStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 10px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground-muted)',
-    cursor: 'pointer',
-  }
-
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
     textAlign: 'left',
@@ -242,10 +229,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 12 }}>
           Internal order not found
         </p>
-        <button onClick={() => router.back()} style={{ ...backBtnStyle, margin: '16px auto 0' }}>
-          <ArrowLeft size={14} />
-          Go back
-        </button>
+        <BackLink href="/purchase/internal-orders" label="Internal Orders" style={{ marginTop: 16 }} />
       </div>
     )
   }
@@ -268,6 +252,8 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
         gap: 24,
       }}
     >
+      <BackLink href="/purchase/internal-orders" label="Internal Orders" style={{ marginBottom: -12 }} />
+
       {/* Top bar */}
       <div
         style={{
@@ -280,10 +266,6 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
       >
         {/* Left */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" onClick={() => router.back()} style={backBtnStyle}>
-            <ArrowLeft size={14} />
-            Back
-          </button>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h1

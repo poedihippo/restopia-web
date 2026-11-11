@@ -3,12 +3,16 @@ import { formatDateTime } from '@/utils/date';
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { shiftsService } from '@/services/shifts.service';
+import { branchesService } from '@/services/branches.service';
+import { operationsService } from '@/services/operations.service';
+import { shiftRulesService } from '@/services/shift-rules.service';
 import { useAuth } from '@/hooks/useAuth';
-import { Search, Eye, X } from 'lucide-react';
+import { Eye, X } from 'lucide-react';
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 
 export default function ShiftsView() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, isSuperadmin, user } = useAuth();
   const canRead = hasPermission('shift.read');
   // Read-only: the API exposes only GET for this resource (no create/update/delete).
 
@@ -17,6 +21,9 @@ export default function ShiftsView() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [branchFilter, setBranchFilter] = useState('');
+  const [operationFilter, setOperationFilter] = useState('');
+  const [shiftRuleFilter, setShiftRuleFilter] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400);
@@ -25,18 +32,47 @@ export default function ShiftsView() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, branchFilter, operationFilter, shiftRuleFilter]);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['shifts', page, perPage, debouncedSearch],
+  // Filter lookup: branches (superadmin sees all, others their assigned branches — same as the sheet)
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'by-name'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+    enabled: isSuperadmin,
+  });
+  const branchOptions: any[] = isSuperadmin ? (branchesData as any)?.data ?? [] : user?.branches ?? [];
+  const canReadOperations = hasPermission('operation.read');
+  const { data: operationsData } = useQuery({
+    queryKey: ['operations-all'],
+    queryFn: () => operationsService.list({ per_page: 100, sort: '-id' } as any).then((r) => r.data),
+    enabled: canReadOperations,
+  });
+  const operationOptions: any[] = (operationsData as any)?.data ?? [];
+  const canReadShiftRules = hasPermission('shift-rule.read');
+  const { data: shiftRulesData } = useQuery({
+    queryKey: ['shift-rules-all'],
+    queryFn: () => shiftRulesService.list({ per_page: 100, sort: '-id' } as any).then((r) => r.data),
+    enabled: canReadShiftRules,
+  });
+  const shiftRuleOptions: any[] = (shiftRulesData as any)?.data ?? [];
+
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['shifts', page, perPage, debouncedSearch, branchFilter, operationFilter, shiftRuleFilter],
     queryFn: () =>
       shiftsService.list({
         page,
         per_page: perPage,
         sort: '-id',
         'filter[search]': debouncedSearch || undefined,
+        'filter[branch_id]': branchFilter || undefined,
+        'filter[operation_id]': operationFilter || undefined,
+        'filter[shift_rule_id]': shiftRuleFilter || undefined,
       } as any).then((r) => r.data),
   });
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: any[] = (data as any)?.data ?? [];
   const meta = (data as any)?.meta;
@@ -45,7 +81,6 @@ export default function ShiftsView() {
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
   const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
-  const inputBase: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)' };
   const actionBtnStyle: React.CSSProperties = { padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' };
 
   return (
@@ -57,12 +92,39 @@ export default function ShiftsView() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(ev) => setSearch(ev.target.value)} placeholder="Search..." style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search..."
+        activeCount={countActive(branchFilter, operationFilter, shiftRuleFilter)}
+        onClear={() => { setBranchFilter(''); setOperationFilter(''); setShiftRuleFilter(''); setPage(1); }}
+        quick={
+          <>
+            <FilterSelect value={branchFilter} onChange={(ev) => { setBranchFilter(ev.target.value); setPage(1); }}>
+              <option value="">All Branches</option>
+              {branchOptions.map((o: any) => (
+                <option key={o.id} value={String(o.id)}>{o.name}</option>
+              ))}
+            </FilterSelect>
+            {canReadOperations && (
+              <FilterSelect value={operationFilter} onChange={(ev) => { setOperationFilter(ev.target.value); setPage(1); }}>
+                <option value="">All Operations</option>
+                {operationOptions.map((o: any) => (
+                  <option key={o.id} value={String(o.id)}>{`#${o.id}${o.date ? ' · ' + o.date : ''}`}</option>
+                ))}
+              </FilterSelect>
+            )}
+            {canReadShiftRules && (
+              <FilterSelect value={shiftRuleFilter} onChange={(ev) => { setShiftRuleFilter(ev.target.value); setPage(1); }}>
+                <option value="">All Shift Rules</option>
+                {shiftRuleOptions.map((o: any) => (
+                  <option key={o.id} value={String(o.id)}>{o.name ?? `#${o.id}`}</option>
+                ))}
+              </FilterSelect>
+            )}
+          </>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

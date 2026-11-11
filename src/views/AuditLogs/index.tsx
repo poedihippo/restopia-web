@@ -2,13 +2,16 @@
 import { formatDateTime } from '@/utils/date';
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Eye, X } from 'lucide-react'
+import { Eye, X } from 'lucide-react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import { auditLogsService } from '@/services/audit-logs.service'
+import { branchesService } from '@/services/branches.service'
+import { enumsService } from '@/services/enums.service'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 
 export default function AuditLogsView() {
-  const { hasPermission, isSuperadmin } = useAuth()
+  const { hasPermission, isSuperadmin, user } = useAuth()
   const canRead = hasPermission("audit-log.read") || isSuperadmin;
   
   const [page, setPage] = useState(1)
@@ -17,6 +20,12 @@ export default function AuditLogsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [actionFilter, setActionFilter] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [referenceTypeFilter, setReferenceTypeFilter] = useState('')
+  const [referenceId, setReferenceId] = useState('')
+  const [debouncedReferenceId, setDebouncedReferenceId] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -24,11 +33,38 @@ export default function AuditLogsView() {
   }, [search])
 
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, actionFilter])
+    const t = setTimeout(() => setDebouncedReferenceId(referenceId.trim()), 400)
+    return () => clearTimeout(t)
+  }, [referenceId])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['audit-logs', page, perPage, debouncedSearch, actionFilter],
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, actionFilter, branchFilter, referenceTypeFilter, debouncedReferenceId, dateFrom, dateTo])
+
+  // Filter lookups: enums (action / reference type) + branches
+  const { data: enumsData } = useQuery({
+    queryKey: ['enums'],
+    queryFn: () => enumsService.getAll().then((r) => r.data),
+  })
+  const enumMap: Record<string, string[]> = (enumsData as any) ?? {}
+  const actionOptions: string[] = enumMap['AuditLogAction'] ?? ['create', 'update', 'delete']
+  const referenceTypeOptions: string[] = enumMap['AuditLogReferenceType'] ?? []
+
+  // Superadmin sees all branches, others their assigned branches
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'by-name'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+    enabled: isSuperadmin && canRead,
+  })
+  const branchOptions: { id: number; name: string }[] = isSuperadmin
+    ? (branchesData as any)?.data ?? []
+    : (user as any)?.branches ?? []
+
+  const humanize = (v: string) =>
+    v.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['audit-logs', page, perPage, debouncedSearch, actionFilter, branchFilter, referenceTypeFilter, debouncedReferenceId, dateFrom, dateTo],
     queryFn: () =>
       auditLogsService
         .list({
@@ -38,10 +74,18 @@ export default function AuditLogsView() {
           include: 'created_by',
           'filter[search]': debouncedSearch || undefined,
           'filter[action]': actionFilter || undefined,
+          'filter[branch_id]': branchFilter || undefined,
+          'filter[reference_type]': referenceTypeFilter || undefined,
+          'filter[reference_id]': debouncedReferenceId || undefined,
+          'filter[created_at_gte]': dateFrom ? `${dateFrom} 00:00:00` : undefined,
+          'filter[created_at_lte]': dateTo ? `${dateTo} 23:59:59` : undefined,
         } as any)
         .then((r) => r.data),
     enabled: canRead
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
   
   const items = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -89,57 +133,67 @@ export default function AuditLogsView() {
         </div>
       </div>
       
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-        <div style={{ position: 'relative', maxWidth: 280, flex: 1 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search logs..."
-            style={{
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-        <select
-          value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value)}
-          style={{
-            height: 35,
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            padding: '0 12px',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-          }}
-        >
-          <option value="">All Actions</option>
-          <option value="create">Create</option>
-          <option value="update">Update</option>
-          <option value="delete">Delete</option>
-        </select>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search logs..."
+        activeCount={countActive(actionFilter, branchFilter, referenceTypeFilter, referenceId, dateFrom, dateTo)}
+        onClear={() => {
+          setActionFilter('')
+          setBranchFilter('')
+          setReferenceTypeFilter('')
+          setReferenceId('')
+          setDateFrom('')
+          setDateTo('')
+          setPage(1)
+        }}
+        quick={
+          <FilterSelect value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+            <option value="">All Actions</option>
+            {actionOptions.map((a) => (
+              <option key={a} value={a}>
+                {humanize(a)}
+              </option>
+            ))}
+          </FilterSelect>
+        }
+      >
+        <FilterGroup title="Reference">
+          <FilterField label="Reference type">
+            <FilterSelect block value={referenceTypeFilter} onChange={(e) => setReferenceTypeFilter(e.target.value)}>
+              <option value="">All References</option>
+              {referenceTypeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {humanize(t)}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Reference ID">
+            <FilterInput
+              value={referenceId}
+              onChange={(e) => setReferenceId(e.target.value)}
+              placeholder="Ref ID"
+              inputMode="numeric"
+            />
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Location & Dates">
+          <FilterField label="Branch">
+            <FilterSelect block value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+              <option value="">All Branches</option>
+              {branchOptions.map((b) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Created date">
+            <DateRange from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       <div
         style={{

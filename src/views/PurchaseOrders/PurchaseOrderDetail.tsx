@@ -11,24 +11,18 @@ import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   PackageSearch,
-  Calendar,
-  Building2,
   Truck,
-  FileText,
-  Hash,
-  ChevronRight,
   ShoppingCart,
   Printer,
   Download,
   Check,
   X,
-  UserRound,
 } from 'lucide-react'
 import { useBuyerNames } from '@/hooks/useBuyerNames'
+import BackLink from '@/components/BackLink'
 import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
 
 interface PurchaseOrderDetailProps {
@@ -213,83 +207,130 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const showFulfillment = order?.status === 'final' && totalReceived > 0
   const fullyReceived = totalReceived >= totalOrdered
 
-  const backBtnStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 10px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground-muted)',
-    cursor: 'pointer',
-  }
-
   const thStyle: React.CSSProperties = {
-    padding: '10px 16px',
+    height: 36,
+    padding: '0 20px',
     textAlign: 'left',
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: 600,
     color: 'var(--foreground-muted)',
+    background: 'var(--surface-muted)',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
+    letterSpacing: '.04em',
     whiteSpace: 'nowrap',
   }
 
-  const pillStyle: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--background)',
-    border: '1px solid var(--border)',
-    fontFamily: 'monospace',
-    fontSize: 12,
+  const tdStyle: React.CSSProperties = {
+    padding: '12px 20px',
+    fontSize: 13.5,
+    color: 'var(--foreground)',
+    verticalAlign: 'middle',
+  }
+
+  const numStyle: React.CSSProperties = {
+    textAlign: 'right',
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
+  }
+
+  const pageStyle: React.CSSProperties = {
+    padding: '28px 24px 48px',
+    width: '100%',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+  }
+
+  const cardHeaderStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 20px',
+    borderBottom: '1px solid var(--border)',
+  }
+
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--foreground)',
+    margin: 0,
+  }
+
+  const metaStyle: React.CSSProperties = {
+    fontSize: 12.5,
     color: 'var(--foreground-muted)',
   }
 
-  const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 12,
+  const pill = (meta: { color: string; bg: string }): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '3px 10px',
+    borderRadius: 999,
+    fontSize: 11.5,
     fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
-  }
+    background: meta.bg,
+    color: meta.color,
+    whiteSpace: 'nowrap',
+  })
+
+  const summaryRow = (label: React.ReactNode, value: React.ReactNode, note?: React.ReactNode) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 13 }}>
+      <span style={{ color: 'var(--foreground-muted)' }}>
+        {label}
+        {note ? (
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--foreground-subtle)' }}>{note}</span>
+        ) : null}
+      </span>
+      <span style={{ fontWeight: 500, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+        {value}
+      </span>
+    </div>
+  )
+
+  const metaGridCss = `
+    .po-meta-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .po-meta-cell { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; min-width: 0; }
+    .po-meta-cell:not(:nth-child(3n + 1)) { border-left: 1px solid var(--border); }
+    .po-meta-cell:nth-child(n + 4) { border-top: 1px solid var(--border); }
+    @media (max-width: 720px) {
+      .po-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .po-meta-cell:not(:nth-child(3n + 1)) { border-left: none; }
+      .po-meta-cell:nth-child(even) { border-left: 1px solid var(--border); }
+      .po-meta-cell:nth-child(n + 3) { border-top: 1px solid var(--border); }
+    }
+  `
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 80,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 99,
-              border: '3px solid var(--border)',
-              borderTop: '3px solid var(--accent)',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Loading order...
-          </span>
+      <div style={pageStyle}>
+        <div className="v2-skeleton" style={{ width: 120, height: 14 }} />
+        <div className="v2-skeleton" style={{ width: 260, height: 24, marginTop: 14 }} />
+        <div className="v2-skeleton" style={{ width: 320, height: 14, marginTop: 8 }} />
+        <div className="v2-card" style={{ marginTop: 20, overflow: 'hidden' }}>
+          <div className="po-meta-grid">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="po-meta-cell">
+                <div className="v2-skeleton" style={{ width: '40%', height: 12 }} />
+                <div className="v2-skeleton" style={{ width: '70%', height: 16 }} />
+              </div>
+            ))}
+          </div>
         </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+          <div style={cardHeaderStyle}>
+            <div className="v2-skeleton" style={{ width: 90, height: 14 }} />
+          </div>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} style={{ display: 'flex', gap: 20, padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div className="v2-skeleton" style={{ flex: 3, height: 14 }} />
+              <div className="v2-skeleton" style={{ flex: 1, height: 14 }} />
+              <div className="v2-skeleton" style={{ flex: 1, height: 14 }} />
+            </div>
+          ))}
+        </div>
+        <style>{metaGridCss}</style>
       </div>
     )
   }
@@ -297,105 +338,70 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   // ── Error ────────────────────────────────────────────────────────────────
   if (isError || !order) {
     return (
-      <div style={{ padding: 80, textAlign: 'center' }}>
-        <PackageSearch size={40} style={{ color: 'var(--foreground-subtle)', margin: '0 auto' }} />
-        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 12 }}>
+      <div style={{ ...pageStyle, alignItems: 'center', padding: '80px 24px', textAlign: 'center' }}>
+        <PackageSearch size={36} style={{ color: 'var(--foreground-subtle)' }} />
+        <p style={{ fontSize: 13.5, color: 'var(--foreground-muted)', margin: '12px 0 0' }}>
           Purchase order not found
         </p>
-        <button onClick={() => router.back()} style={{ ...backBtnStyle, margin: '16px auto 0' }}>
-          <ArrowLeft size={14} />
-          Go back
-        </button>
+        <BackLink href="/purchase/purchase-orders" label="Purchase Orders" style={{ alignSelf: 'center', marginTop: 16 }} />
       </div>
     )
   }
 
+  const isDeliveredStatus = (order as any)?.status === 'delivered'
+  const subtotalValue =
+    (order as any).subtotal_price ?? details.reduce((sum, d) => sum + d.qty * d.price, 0)
+
   // ── Content ──────────────────────────────────────────────────────────────
   return (
-    <div
-      style={{
-        padding: '32px 32px 64px',
-        maxWidth: 1400,
-        width: '100%',
-        margin: '0 auto',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 24,
-      }}
-    >
-      {/* Top bar */}
+    <div style={pageStyle}>
+      {/* Back link */}
+      <BackLink href="/purchase/purchase-orders" label="Purchase Orders" />
+
+      {/* Title row */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'space-between',
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
+          gap: 16,
+          flexWrap: 'wrap',
+          marginTop: 14,
         }}
       >
-        {/* Left */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" onClick={() => router.back()} style={backBtnStyle}>
-            <ArrowLeft size={14} />
-            Back
-          </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 22,
-                  fontWeight: 500,
-                  margin: 0,
-                  color: 'var(--foreground)',
-                }}
-              >
-                {order.code}
-              </h1>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '3px 10px',
-                  borderRadius: 99,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: statusMeta.bg,
-                  color: statusMeta.color,
-                }}
-              >
-                {statusMeta.label}
-              </span>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-              Purchase Order
-            </p>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 22,
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+                margin: 0,
+                color: 'var(--foreground)',
+              }}
+            >
+              {order.code}
+            </h1>
+            <span style={pill(statusMeta)}>{statusMeta.label}</span>
           </div>
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '6px 0 0' }}>
+            from{' '}
+            <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>{sourceName || '—'}</span>
+            {' → to '}
+            <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>{order.branch?.name ?? '—'}</span>
+          </p>
         </div>
 
-        {/* Right */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
             <button
               type="button"
               disabled={actionMutation.isPending}
               onClick={() => handleAction(order.id, 'accept')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--success)',
-                border: '1px solid var(--success)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'white',
-                cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
-                opacity: actionMutation.isPending ? 0.6 : 1,
-              }}
+              className="v2-btn v2-btn-primary"
             >
-              <Check size={13} />
+              <Check size={15} />
               Accept
             </button>
           )}
@@ -404,44 +410,15 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               type="button"
               disabled={actionMutation.isPending}
               onClick={() => handleAction(order.id, 'reject')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--surface)',
-                border: '1px solid var(--destructive)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--destructive)',
-                cursor: actionMutation.isPending ? 'not-allowed' : 'pointer',
-                opacity: actionMutation.isPending ? 0.6 : 1,
-              }}
+              className="v2-btn v2-btn-danger"
             >
-              <X size={13} />
+              <X size={15} />
               Reject
             </button>
           )}
           {canRead && (
-            <button
-              type="button"
-              onClick={() => window.print()}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-                cursor: 'pointer',
-              }}
-            >
-              <Printer size={13} />
+            <button type="button" onClick={() => window.print()} className="v2-btn v2-btn-outline">
+              <Printer size={15} />
               Print
             </button>
           )}
@@ -451,609 +428,225 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               type="button"
               onClick={() => window.print()}
               title='Pilih "Save as PDF" pada dialog cetak untuk mengunduh PDF'
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-                cursor: 'pointer',
-              }}
+              className="v2-btn v2-btn-outline"
             >
-              <Download size={13} />
+              <Download size={15} />
               Download PDF
+            </button>
+          )}
+          {canUpdate && (
+            <button
+              type="button"
+              onClick={() => router.push(`/purchase/purchase-orders/${id}/edit`)}
+              disabled={isDeliveredStatus}
+              title={isDeliveredStatus ? 'Delivered — cannot edit' : 'Edit'}
+              className="v2-btn v2-btn-outline"
+            >
+              <Pencil size={15} />
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button type="button" onClick={() => setDeleteConfirm(true)} className="v2-btn v2-btn-danger">
+              <Trash2 size={15} />
+              Delete
             </button>
           )}
           <button
             type="button"
             onClick={() => router.push(`/sales/sales-orders/create?po_id=${id}`)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--accent)',
-              border: '1px solid var(--accent)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'white',
-              cursor: 'pointer',
-            }}
+            className="v2-btn v2-btn-primary"
           >
-            <ShoppingCart size={13} />
+            <ShoppingCart size={15} />
             Create Sales Order
           </button>
-          
-          { (order.status === 'accepted' || order.status === 'final' || order.status === 'partially_delivered') && (
+          {(order.status === 'accepted' || order.status === 'final' || order.status === 'partially_delivered') && (
             <button
               type="button"
               onClick={() => router.push(`/transfer/deliveries/create?po_id=${id}`)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--accent)',
-                border: '1px solid var(--accent)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'white',
-                cursor: 'pointer',
-              }}
+              className="v2-btn v2-btn-primary"
             >
-              <Truck size={13} />
+              <Truck size={15} />
               Create Delivery
             </button>
           )}
-
-          {canUpdate && (
-          <button
-            type="button"
-            onClick={() => router.push(`/purchase/purchase-orders/${id}/edit`)}
-            disabled={(order as any)?.status === 'delivered'}
-            title={
-              (order as any)?.status === 'delivered'
-                ? 'Delivered — cannot edit'
-                : 'Edit'
-            }
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: (order as any)?.status === 'delivered' ? 'not-allowed' : 'pointer',
-              opacity: (order as any)?.status === 'delivered' ? 0.4 : 1,
-            }}
-          >
-            <Pencil size={13} />
-            Edit
-          </button>
-          )}
-          {canDelete && (
-          <button
-            type="button"
-            onClick={() => setDeleteConfirm(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 14px',
-              background: 'var(--destructive-bg)',
-              border: '1px solid var(--destructive)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--destructive)',
-              cursor: 'pointer',
-            }}
-          >
-            <Trash2 size={13} />
-            Delete
-          </button>
-          )}
         </div>
       </div>
 
-      {/* Info grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 16,
-        }}
-      >
-        {/* Supplier */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Truck size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Supplier</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {order.supplier?.name ?? '—'}
-          </div>
-        </div>
-
-        {/* Buyer — nama buyer (GET /buyers/{id}), fallback nama company */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <UserRound size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Buyer</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {buyerName}
-          </div>
-        </div>
-
-        {/* Branch */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Building2 size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Branch</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {order.branch?.name ?? '—'}
-          </div>
-        </div>
-
-        {/* Date */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Order Date</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {order.date
-              ? formatDate(order.date)
-              : '—'}
-          </div>
-        </div>
-
-        {/* Fulfillment Date */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Fulfillment Date</span>
-          </div>
-          <div
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              fontFamily: 'var(--font-display)',
-            }}
-          >
-            {order.fulfillment_date
-              ? formatDate(order.fulfillment_date)
-              : '—'}
-          </div>
-        </div>
-
-        {/* Created By */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                background: 'var(--accent-light-bg)',
-                borderRadius: 'var(--radius-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <FileText size={15} style={{ color: 'var(--accent-light)' }} />
-            </div>
-            <span style={sectionLabelStyle}>Created By</span>
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: 'var(--foreground)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {order.created_by?.name ?? '—'}
-            </div>
-            {order.created_at && (
-              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)', marginTop: 4, display: 'block' }}>
-                {formatDateTime(order.created_at)}
+      {/* Summary */}
+      <div className="v2-card" style={{ marginTop: 20, overflow: 'hidden' }}>
+        <div className="po-meta-grid">
+          {[
+            { label: 'Supplier', value: order.supplier?.name ?? '—' },
+            { label: 'Buyer', value: buyerName },
+            { label: 'Branch', value: order.branch?.name ?? '—' },
+            { label: 'Order date', value: order.date ? formatDate(order.date) : '—' },
+            { label: 'Fulfillment date', value: order.fulfillment_date ? formatDate(order.fulfillment_date) : '—' },
+            {
+              label: 'Created by',
+              value: (
+                <>
+                  {order.created_by?.name ?? '—'}
+                  {order.created_at && (
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 400, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                      {formatDateTime(order.created_at)}
+                    </span>
+                  )}
+                </>
+              ),
+            },
+          ].map((f) => (
+            <div key={f.label} className="po-meta-cell">
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{f.label}</span>
+              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', minWidth: 0, overflowWrap: 'anywhere' }}>
+                {f.value}
               </span>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Description block */}
+      {/* Notes */}
       {order.description && (
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
-          }}
-        >
-          <span
-            style={{
-              ...sectionLabelStyle,
-              display: 'block',
-              marginBottom: 8,
-            }}
-          >
-            Notes
-          </span>
-          <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>
+        <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+          <div style={cardHeaderStyle}>
+            <h2 style={cardTitleStyle}>Notes</h2>
+          </div>
+          <p style={{ fontSize: 13.5, color: 'var(--foreground)', margin: 0, padding: '14px 20px', lineHeight: 1.6 }}>
             {order.description}
           </p>
         </div>
       )}
 
-      {/* Line items table */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        {/* Table header bar */}
-        <div
-          style={{
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--background)',
-    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={sectionLabelStyle}>Line Items</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      {/* Line items + totals */}
+      <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+        <div style={cardHeaderStyle}>
+          <h2 style={cardTitleStyle}>Line items</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {showFulfillment && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              <>
+                <span style={metaStyle}>
                   {`Fulfillment: ${totalReceived.toLocaleString('id-ID', { maximumFractionDigits: 2 })} of ${totalOrdered.toLocaleString('id-ID', { maximumFractionDigits: 2 })} received`}
                 </span>
                 <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '3px 10px',
-                    borderRadius: 99,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: fullyReceived
-                      ? 'var(--success-bg)'
-                      : 'var(--warning-bg)',
-                    color: fullyReceived ? 'var(--success)' : 'var(--warning)',
-                  }}
+                  style={pill(
+                    fullyReceived
+                      ? { color: 'var(--success)', bg: 'var(--success-bg)' }
+                      : { color: 'var(--warning)', bg: 'var(--warning-bg)' },
+                  )}
                 >
                   {fullyReceived ? 'Received' : 'Partial'}
                 </span>
-              </div>
+              </>
             )}
-            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-              {details.length} item(s)
+            <span style={metaStyle}>
+              {details.length} item{details.length === 1 ? '' : 's'}
             </span>
           </div>
         </div>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>Product</th>
-              <th style={{ ...thStyle, width: 100 }}>UOM</th>
-              <th style={{ ...thStyle, width: 80 }}>Qty</th>
-              <th style={{ ...thStyle, width: 130 }}>Received / Outstanding</th>
-              <th style={{ ...thStyle, width: 130 }}>Unit Price</th>
-              <th style={{ ...thStyle, width: 140 }}>Subtotal</th>
-              <th style={{ ...thStyle, width: 160 }}>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {details.map((detail, index) => (
-              <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  {index + 1}
-                </td>
-                <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {getProductUomName(detail.product_uom, detail.product_uom?.product?.name) || `Item #${detail.product_uom_id ?? detail.id}`}
-                    {detail.is_taxable && (
-                      <span style={{ fontSize: 10, padding: '2px 6px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--foreground-muted)' }}>
-                        Taxable
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td style={{ padding: '12px 16px' }}>
-                  <span style={pillStyle}>
-                    {detail.product_uom?.uom?.name ?? detail.product_uom?.uom?.code ?? '—'}
-                  </span>
-                </td>
-                <td
-                  style={{
-                    padding: '12px 16px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--foreground)',
-                  }}
-                >
-                  {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                </td>
-                <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  <span
-                    style={{
-                      fontWeight: 600,
-                      color:
-                        Number(detail.outstanding_qty ?? 0) > 0
-                          ? 'var(--warning)'
-                          : 'var(--foreground)',
-                    }}
-                  >
-                    {Number(detail.received_qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                  </span>
-                  <span style={{ color: 'var(--foreground-subtle)' }}>
-                    {' / ' + detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  {formatCurrency(detail.price)}
-                </td>
-                <td
-                  style={{
-                    padding: '12px 16px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: 'var(--foreground)',
-                  }}
-                >
-                  {formatCurrency(detail.qty * detail.price)}
-                </td>
-                <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  {detail.description || '—'}
-                </td>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="v2-table" style={{ minWidth: 760 }}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, width: 48 }}>#</th>
+                <th style={thStyle}>Product</th>
+                <th style={thStyle}>UOM</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Qty</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Received</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Unit price</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Subtotal</th>
+                <th style={thStyle}>Notes</th>
               </tr>
-            ))}
-
-            {/* Subtotal */}
-            <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-              <td
-                colSpan={6}
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'right',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                }}
-              >
-                Subtotal
-              </td>
-              <td style={{ padding: '14px 16px', fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
-                {formatCurrency((order as any).subtotal_price ?? details.reduce((sum, d) => sum + (d.qty * d.price), 0))}
-              </td>
-              <td style={{ padding: '14px 16px' }} />
-            </tr>
-            <tr style={{ background: 'var(--background)' }}>
-                  <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                    Tax
+            </thead>
+            <tbody>
+              {details.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ ...tdStyle, padding: '36px 20px', textAlign: 'center' }}>
+                    <PackageSearch size={28} style={{ color: 'var(--foreground-subtle)', margin: '0 auto 8px', display: 'block' }} />
+                    <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>No line items on this order</span>
                   </td>
-                  <td style={{ padding: '6px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                    {formatCurrency((order as any).tax_amount ?? 0)}
-                  </td>
-                  <td style={{ padding: '6px 16px' }} />
                 </tr>
+              ) : (
+                details.map((detail, index) => (
+                  <tr key={detail.id}>
+                    <td style={{ ...tdStyle, fontSize: 12.5, color: 'var(--foreground-subtle)' }}>{index + 1}</td>
+                    <td style={{ ...tdStyle, fontWeight: 500 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        {getProductUomName(detail.product_uom, detail.product_uom?.product?.name) || `Item #${detail.product_uom_id ?? detail.id}`}
+                        {detail.is_taxable && (
+                          <span
+                            style={pill({ color: 'var(--foreground-muted)', bg: 'var(--surface-muted)' })}
+                          >
+                            Taxable
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ ...tdStyle, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                      {detail.product_uom?.uom?.name ?? detail.product_uom?.uom?.code ?? '—'}
+                    </td>
+                    <td style={{ ...tdStyle, ...numStyle, fontWeight: 600 }}>
+                      {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ ...tdStyle, ...numStyle }}>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color:
+                            Number(detail.outstanding_qty ?? 0) > 0
+                              ? 'var(--warning)'
+                              : 'var(--foreground)',
+                        }}
+                      >
+                        {Number(detail.received_qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                      </span>
+                      <span style={{ color: 'var(--foreground-subtle)' }}>
+                        {' / ' + detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, ...numStyle, color: 'var(--foreground-muted)' }}>
+                      {formatCurrency(detail.price)}
+                    </td>
+                    <td style={{ ...tdStyle, ...numStyle, fontWeight: 600 }}>
+                      {formatCurrency(detail.qty * detail.price)}
+                    </td>
+                    <td style={{ ...tdStyle, fontSize: 12.5, color: 'var(--foreground-muted)', maxWidth: 200 }}>
+                      {detail.description || '—'}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Totals */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 20px 20px', borderTop: '1px solid var(--border)' }}>
+          <div style={{ width: '100%', maxWidth: 340, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {summaryRow('Subtotal', formatCurrency(subtotalValue))}
+            {summaryRow('Tax', formatCurrency((order as any).tax_amount ?? 0))}
             {(order?.additional_charges || []).map((c: any, i: number) => (
-              <tr key={i} style={{ background: 'var(--background)' }}>
-                <td colSpan={6} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  {c.name}
-                  {(c as any).tax ? ` (Incl. ${(c as any).tax.name} ${(c as any).tax.rate}%)` : ''}
-                </td>
-                <td style={{ padding: '6px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                  {formatCurrency(c.amount)}
-                </td>
-                <td style={{ padding: '6px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{c.description || ''}</td>
-              </tr>
+              <React.Fragment key={i}>
+                {summaryRow(
+                  <>
+                    {c.name}
+                    {(c as any).tax ? ` (Incl. ${(c as any).tax.name} ${(c as any).tax.rate}%)` : ''}
+                  </>,
+                  formatCurrency(c.amount),
+                  c.description || undefined,
+                )}
+              </React.Fragment>
             ))}
-            {/* Total row */}
-            <tr style={{ background: 'var(--background)', borderTop: '1px solid var(--border)' }}>
-              <td
-                colSpan={6}
-                style={{
-                  padding: '14px 16px',
-                  textAlign: 'right',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
-                }}
-              >
-                Total
-              </td>
-              <td style={{ padding: '14px 16px' }}>
-                <span
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: 'var(--accent)',
-                    fontFamily: 'var(--font-display)',
-                  }}
-                >
-                  {formatCurrency(order.total_price)}
-                </span>
-              </td>
-              <td style={{ padding: '14px 16px' }} />
-            </tr>
-          </tbody>
-        </table>
+            <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                {formatCurrency(order.total_price)}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Delete confirm dialog */}
@@ -1066,71 +659,44 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            padding: 16,
           }}
         >
           <div
+            className="v2-overlay"
             onClick={() => setDeleteConfirm(false)}
             style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
           />
           <div
+            className="v2-dialog"
             style={{
               position: 'relative',
               zIndex: 70,
               background: 'var(--surface)',
-              borderRadius: 'var(--radius-lg)',
-              padding: '28px 28px 24px',
+              borderRadius: 'var(--radius-xl)',
+              padding: 24,
               width: 400,
+              maxWidth: '100%',
               boxShadow: 'var(--shadow-lg)',
               border: '1px solid var(--border)',
             }}
           >
-            <h3
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: 17,
-                fontWeight: 600,
-                margin: '0 0 8px',
-                color: 'var(--foreground)',
-              }}
-            >
+            <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>
               Delete Purchase Order
             </h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px', lineHeight: 1.6 }}>
-              This will permanently remove order <strong>{order.code}</strong> and all its
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px', lineHeight: 1.6 }}>
+              This will permanently remove order <strong style={{ color: 'var(--foreground)' }}>{order.code}</strong> and all its
               line items. This action cannot be undone.
             </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setDeleteConfirm(false)}
-                style={{
-                  padding: '7px 16px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setDeleteConfirm(false)} className="v2-btn v2-btn-outline">
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                style={{
-                  padding: '7px 16px',
-                  background: 'var(--destructive)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: 'pointer',
-                  opacity: deleteMutation.isPending ? 0.7 : 1,
-                }}
+                className="v2-btn v2-btn-danger"
               >
                 Delete
               </button>
@@ -1351,11 +917,8 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         </div>
       </div>
 
+      <style>{metaGridCss}</style>
       <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
         .po-print { display: none; }
         @media print {
           @page { size: A4 portrait; margin: 15mm; }

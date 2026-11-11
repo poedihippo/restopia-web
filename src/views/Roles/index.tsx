@@ -5,13 +5,13 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { rolesService } from '@/services/roles.service'
+import { companiesService } from '@/services/companies.service'
 import { useAuth } from '@/hooks/useAuth'
 import RoleSheet from './RoleSheet'
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -20,6 +20,7 @@ import {
   Eye,
   X,
 } from 'lucide-react'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 
 interface Role {
   id: number
@@ -44,6 +45,8 @@ export default function RolesView() {
   const [editData, setEditData] = useState<Role | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<Role | null>(null)
+  const [companyFilter, setCompanyFilter] = useState('')
+  const canReadCompanies = hasPermission('company.read')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -52,10 +55,19 @@ export default function RolesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, companyFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['roles', page, perPage, debouncedSearch],
+  // Filter lookup: companies
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+    enabled: canReadCompanies,
+  })
+  const companyOptions: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['roles', page, perPage, debouncedSearch, companyFilter],
     queryFn: () =>
       rolesService
         .list({
@@ -64,9 +76,13 @@ export default function RolesView() {
           include: 'permissions',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
+          'filter[company_id]': companyFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Role[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -99,14 +115,6 @@ export default function RolesView() {
     verticalAlign: 'middle',
   }
 
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
 
   const actionBtnStyle: React.CSSProperties = {
     padding: 6,
@@ -169,41 +177,34 @@ export default function RolesView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search roles..."
+        activeCount={countActive(companyFilter)}
+        onClear={() => {
+          setCompanyFilter('')
+          setPage(1)
         }}
-      >
-        <div style={{ position: 'relative', maxWidth: 260 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search roles..."
-            style={{
-              ...inputBase,
-              width: 260,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+        quick={
+          canReadCompanies && (
+            <FilterSelect
+              value={companyFilter}
+              onChange={(e) => {
+                setCompanyFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Companies</option>
+              {companyOptions.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+          )
+        }
+      />
       {/* Table */}
       <div
         style={{

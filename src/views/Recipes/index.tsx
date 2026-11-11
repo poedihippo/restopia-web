@@ -8,6 +8,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import RecipeSheet from './RecipeSheet'
 import SearchableSelect from '@/components/SearchableSelect'
+import { FilterBar, FilterGroup, FilterField, countActive } from '@/components/ListFilters'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productsService } from '@/services/products.service'
 import { CustomPagination } from '@/components/ui/CustomPagination'
@@ -87,6 +88,10 @@ export default function RecipesView() {
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('')
   const [productSearch, setProductSearch] = useState('')
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
+  const [defaultFilter, setDefaultFilter] = useState<string>('')
+  const [materialFilter, setMaterialFilter] = useState<number | ''>('')
+  const [materialSearch, setMaterialSearch] = useState('')
+  const [debouncedMaterialSearch, setDebouncedMaterialSearch] = useState('')
   
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -120,8 +125,31 @@ export default function RecipesView() {
   })) ?? []
 
   React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedMaterialSearch(materialSearch), 400)
+    return () => clearTimeout(t)
+  }, [materialSearch])
+
+  // Ingredient (material product-UOM) options for the "Contains ingredient" filter
+  const { data: materialsData } = useQuery({
+    queryKey: ['product-uoms-all', 'recipes-material-filter', debouncedMaterialSearch],
+    queryFn: () =>
+      productUomsService
+        .list({
+          per_page: 50,
+          include: 'product,uom',
+          'filter[search]': debouncedMaterialSearch || undefined,
+        } as any)
+        .then((r) => r.data),
+  })
+  const materialOptions = ((materialsData as any)?.data ?? []).map((pu: any) => ({
+    value: pu.id as number,
+    label: withProductType(getProductUomName(pu, pu.product?.name) || pu.code || `#${pu.id}`, pu.product?.type),
+    sublabel: pu.code ? `SKU: ${pu.code}` : undefined,
+  }))
+
+  React.useEffect(() => {
     setPage(1)
-  }, [selectedProductId])
+  }, [selectedProductId, defaultFilter, materialFilter])
 
   // Auto-filter recipes by branch type from auth/me
   // production branch → only sees type:production recipes
@@ -147,8 +175,8 @@ export default function RecipesView() {
 
   const effectiveTypeFilter = isSuperadmin ? typeFilter : (typeFilter || branchType)
 
-  const { data: allRecipes = [], isLoading, isError } = useQuery({
-    queryKey: ['all-recipes-list', effectiveTypeFilter],
+  const { data: allRecipes = [], isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['all-recipes-list', effectiveTypeFilter, defaultFilter, materialFilter],
     queryFn: () =>
       recipesService
         .list({
@@ -156,10 +184,15 @@ export default function RecipesView() {
           include: 'product_uom,recipe_materials',
           sort: '-id',
           ...(effectiveTypeFilter ? { 'filter[type]': effectiveTypeFilter } : {}),
+          'filter[is_default]': defaultFilter || undefined,
+          'filter[material_product_uom_id]': materialFilter === '' ? undefined : String(materialFilter),
         } as any)
         .then((r) => (r.data as any)?.data ?? []),
     staleTime: 60 * 1000,
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   // Instant filtering across all recipes by selected product
   const filteredRecipes = React.useMemo(() => {
@@ -190,6 +223,7 @@ export default function RecipesView() {
     mutationFn: (id: number) => recipesService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
+      queryClient.invalidateQueries({ queryKey: ['all-recipes-list'] })
       toast.success('Recipe deleted')
       setDeleteConfirmId(null)
     },
@@ -247,39 +281,83 @@ export default function RecipesView() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ width: 280, maxWidth: '100%' }}>
-          <SearchableSelect
-            value={selectedProductId}
-            onChange={(val) => setSelectedProductId(val)}
-            onSearchChange={(val) => setProductSearch(val)}
-            options={[{ value: '', label: 'All Products' }, ...productOptions]}
-            placeholder="Filter by Product"
-            searchPlaceholder="Search product by name..."
-          />
-        </div>
-        <div style={{ width: 160 }}>
-          <SearchableSelect
-            value={effectiveTypeFilter ?? ''}
-            onChange={(val) => {
-              setTypeFilter(String(val))
-            }}
-            options={[
-              { value: '', label: 'All Types' },
-              { value: 'production', label: 'Production' },
-              { value: 'outlet', label: 'Outlet' },
-              { value: 'warehouse', label: 'Warehouse' },
-              { value: 'other', label: 'Other' },
-            ]}
-            placeholder="Filter by Type"
-          />
-        </div>
-        {effectiveTypeFilter && (
-          <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
-            {isSuperadmin ? 'Filtered' : 'Auto'}: <strong>{effectiveTypeFilter}</strong>
-          </span>
+      <FilterBar
+        activeCount={countActive(
+          selectedProductId,
+          (effectiveTypeFilter || '') !== (isSuperadmin ? '' : (branchType ?? '')),
+          defaultFilter,
+          materialFilter,
         )}
-      </div>
+        onClear={() => {
+          setSelectedProductId('')
+          setTypeFilter(isSuperadmin ? '' : (branchType ?? ''))
+          setDefaultFilter('')
+          setMaterialFilter('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            <div style={{ width: 280, maxWidth: '100%' }}>
+              <SearchableSelect
+                value={selectedProductId}
+                onChange={(val) => setSelectedProductId(val)}
+                onSearchChange={(val) => setProductSearch(val)}
+                options={[{ value: '', label: 'All Products' }, ...productOptions]}
+                placeholder="Filter by Product"
+                searchPlaceholder="Search product by name..."
+              />
+            </div>
+            <div style={{ width: 160 }}>
+              <SearchableSelect
+                value={effectiveTypeFilter ?? ''}
+                onChange={(val) => {
+                  setTypeFilter(String(val))
+                }}
+                options={[
+                  { value: '', label: 'All Types' },
+                  { value: 'production', label: 'Production' },
+                  { value: 'outlet', label: 'Outlet' },
+                  { value: 'warehouse', label: 'Warehouse' },
+                  { value: 'other', label: 'Other' },
+                ]}
+                placeholder="Filter by Type"
+              />
+            </div>
+          </>
+        }
+        actions={
+          effectiveTypeFilter ? (
+            <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+              {isSuperadmin ? 'Filtered' : 'Auto'}: <strong>{effectiveTypeFilter}</strong>
+            </span>
+          ) : undefined
+        }
+      >
+        <FilterGroup title="Recipe">
+          <FilterField label="Default">
+            <SearchableSelect
+              value={defaultFilter}
+              onChange={(val) => setDefaultFilter(String(val))}
+              options={[
+                { value: '', label: 'Default: All' },
+                { value: 'true', label: 'Default: Yes' },
+                { value: 'false', label: 'Default: No' },
+              ]}
+              placeholder="Default: All"
+            />
+          </FilterField>
+          <FilterField label="Contains ingredient">
+            <SearchableSelect
+              value={materialFilter}
+              onChange={(val) => setMaterialFilter(val === '' ? '' : Number(val))}
+              onSearchChange={(val) => setMaterialSearch(val)}
+              options={[{ value: '', label: 'All Ingredients' }, ...materialOptions]}
+              placeholder="Contains ingredient"
+              searchPlaceholder="Search ingredient..."
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* Recipe cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

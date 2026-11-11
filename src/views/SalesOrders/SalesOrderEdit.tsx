@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import { useQuery } from '@tanstack/react-query';
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service';
 import SalesOrderForm from './SalesOrderForm';
+import BackLink from '@/components/BackLink';
 
 export default function SalesOrderEdit() {
   const router = useRouter();
@@ -34,9 +35,7 @@ export default function SalesOrderEdit() {
   if (!order) return (
     <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)', color: 'var(--foreground-muted)' }}>
       Order not found.{' '}
-      <button onClick={() => router.back()} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-        <span className="v2-link">Go back</span>
-      </button>
+      <BackLink href="/sales/sales-orders" label="Sales Orders" />
     </div>
   );
 

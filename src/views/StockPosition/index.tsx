@@ -13,7 +13,8 @@ import { withProductType, productTypeLabel } from '@/utils/productUomName'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
 import type { ListParams } from '@/types/api'
-import { Download, LayoutGrid, Search } from 'lucide-react'
+import { Download, LayoutGrid } from 'lucide-react'
+import { FilterBar, DateRange, countActive } from '@/components/ListFilters'
 
 interface BranchStock {
   id: number
@@ -176,7 +177,7 @@ export default function StockPositionView() {
   const productTypesParam =
     productTypeFilter.length > 0 ? productTypeFilter.join(',') : activeProductTypes
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: [
       'stock-position',
       page,
@@ -203,6 +204,9 @@ export default function StockPositionView() {
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: StockPositionItem[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -314,27 +318,6 @@ export default function StockPositionView() {
     }
   }
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 500,
-    color: 'var(--foreground-muted)',
-    marginBottom: 4,
-    display: 'block',
-  }
-
-  const inputStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-    width: '100%',
-    boxSizing: 'border-box',
-  }
-
   const thStyle: React.CSSProperties = {
     padding: '10px 14px',
     textAlign: 'left',
@@ -409,77 +392,56 @@ export default function StockPositionView() {
       </div>
 
       {/* Filters */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 20,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 16,
-          boxShadow: 'var(--shadow-sm)',
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cari nama / kode UOM..."
+        activeCount={countActive(
+          productId,
+          productTypeFilter,
+          startDate !== getMonthStart() || endDate !== getToday(),
+        )}
+        onClear={() => {
+          setProductId(0)
+          setProductTypeFilter([])
+          setStartDate(getMonthStart())
+          setEndDate(getToday())
+          setPage(1)
         }}
-      >
-        <div>
-          <label style={labelStyle}>Cari</label>
-          <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari nama / kode UOM..."
-              style={{ ...inputStyle, paddingLeft: 30 }}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Produk</label>
-          <SearchableSelect
-            value={productId}
-            onChange={(val) => setProductId(Number(val) || 0)}
-            options={productOptions}
-            placeholder="Semua Produk"
-            searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-            loading={productsLoading}
-            onSearchChange={setProductSearch}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Tipe Produk</label>
-          <MultiSearchableSelect
-            value={productTypeFilter}
-            onChange={setProductTypeFilter}
-            options={productTypeOptions}
-            placeholder="Semua Tipe Produk"
-            searchPlaceholder="Cari tipe produk..."
-            loading={isLoadingProductTypes}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Dari Tanggal <span style={{ color: 'var(--destructive)' }}>*</span></label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Sampai Tanggal <span style={{ color: 'var(--destructive)' }}>*</span></label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+        quick={
+          <>
+            <div style={{ width: 280, maxWidth: '100%' }} title="Periode (wajib)">
+              <DateRange
+                from={startDate}
+                to={endDate}
+                onFromChange={setStartDate}
+                onToChange={setEndDate}
+              />
+            </div>
+            <div style={{ width: 240, maxWidth: '100%' }}>
+              <SearchableSelect
+                value={productId}
+                onChange={(val) => setProductId(Number(val) || 0)}
+                options={productOptions}
+                placeholder="Semua Produk"
+                searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
+                loading={productsLoading}
+                onSearchChange={setProductSearch}
+              />
+            </div>
+            <div style={{ width: 220, maxWidth: '100%' }}>
+              <MultiSearchableSelect
+                value={productTypeFilter}
+                onChange={setProductTypeFilter}
+                options={productTypeOptions}
+                placeholder="Semua Tipe Produk"
+                searchPlaceholder="Cari tipe produk..."
+                loading={isLoadingProductTypes}
+              />
+            </div>
+          </>
+        }
+      />
 
       {!hasDateRange && (
         <div style={{ fontSize: 13, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 6 }}>

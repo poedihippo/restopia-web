@@ -186,7 +186,7 @@ export default function SettlePayoutView() {
     'filter[date_lte]': dateLte || undefined,
   }
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: [
       'settle-payout-orders', tab, page, perPage, searchDebounced, channelId, branchId, dateGte, dateLte,
     ],
@@ -195,6 +195,9 @@ export default function SettlePayoutView() {
         .list({ ...listFilters, page, per_page: perPage } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
   const rawItems: any[] = (data as any)?.data ?? []
   // "Pending" here means waiting for payout: unpaid orders only.
   const items = tab === 'pending' ? rawItems.filter((o) => o.payment_status !== 'paid') : rawItems

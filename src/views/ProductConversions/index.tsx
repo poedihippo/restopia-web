@@ -6,13 +6,16 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { productConversionsService } from '@/services/product-conversions.service'
+import { productsService } from '@/services/products.service'
+import { uomsService } from '@/services/uoms.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductConversionSheet from './ProductConversionSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -52,6 +55,13 @@ export default function ProductConversionsView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<ProductConversion | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const [productFilter, setProductFilter] = useState<number>(0)
+  const [productSearch, setProductSearch] = useState('')
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
+  const [uomFilter, setUomFilter] = useState<number | ''>('')
+  const [targetUomFilter, setTargetUomFilter] = useState<number | ''>('')
+  const canReadProducts = hasPermission('product.read')
+  const canReadUoms = hasPermission('uom.read')
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -61,11 +71,40 @@ export default function ProductConversionsView() {
   }, [search])
 
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch])
+    const timer = setTimeout(() => setDebouncedProductSearch(productSearch), 400)
+    return () => clearTimeout(timer)
+  }, [productSearch])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-conversions', page, perPage, debouncedSearch],
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, productFilter, uomFilter, targetUomFilter])
+
+  const { data: productsData, isLoading: productsLoading } = useQuery({
+    queryKey: ['products-all', debouncedProductSearch],
+    queryFn: () =>
+      productsService
+        .list({ per_page: 50, sort: 'name', 'filter[search]': debouncedProductSearch || undefined } as any)
+        .then((r) => r.data),
+    enabled: canReadProducts,
+  })
+  const productOptions = [
+    { value: 0, label: 'All products' },
+    ...(((productsData as any)?.data ?? []) as any[]).map((p) => ({
+      value: p.id as number,
+      label: (p.name as string) ?? '',
+      sublabel: p.code as string | undefined,
+    })),
+  ]
+
+  const { data: uomsData } = useQuery({
+    queryKey: ['uoms-all'],
+    queryFn: () => uomsService.list({ per_page: 1000 } as any).then((r) => r.data),
+    enabled: canReadUoms,
+  })
+  const uoms: any[] = (uomsData as any)?.data ?? []
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['product-conversions', page, perPage, debouncedSearch, productFilter, uomFilter, targetUomFilter],
     queryFn: () =>
       productConversionsService
         .list({
@@ -73,9 +112,15 @@ export default function ProductConversionsView() {
           per_page: perPage,
           include: 'product,uom,target_uom',
           'filter[search]': debouncedSearch || undefined,
-        })
+          'filter[product_id]': productFilter ? String(productFilter) : undefined,
+          'filter[uom]': uomFilter === '' ? undefined : String(uomFilter),
+          'filter[target_uom]': targetUomFilter === '' ? undefined : String(targetUomFilter),
+        } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: ProductConversion[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -147,38 +192,66 @@ export default function ProductConversionsView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search conversions..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search conversions..."
+        activeCount={countActive(productFilter, uomFilter, targetUomFilter)}
+        onClear={() => {
+          setProductFilter(0)
+          setUomFilter('')
+          setTargetUomFilter('')
+          setPage(1)
+        }}
+        quick={
+          canReadProducts ? (
+            <div style={{ width: 240 }}>
+              <SearchableSelect
+                value={productFilter}
+                onChange={(val) => setProductFilter(Number(val) || 0)}
+                options={productOptions}
+                placeholder="All products"
+                searchPlaceholder="Search products..."
+                loading={productsLoading}
+                onSearchChange={setProductSearch}
+              />
+            </div>
+          ) : undefined
+        }
+      >
+        {canReadUoms && (
+          <FilterGroup title="Units">
+            <FilterField label="From UOM">
+              <FilterSelect
+                block
+                value={uomFilter}
+                onChange={(e) => setUomFilter(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">All from UOMs</option>
+                {uoms.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}{u.code ? ` (${u.code})` : ''}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+            <FilterField label="To UOM">
+              <FilterSelect
+                block
+                value={targetUomFilter}
+                onChange={(e) => setTargetUomFilter(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">All to UOMs</option>
+                {uoms.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}{u.code ? ` (${u.code})` : ''}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          </FilterGroup>
+        )}
+      </FilterBar>
       {/* Table */}
       <div
         style={{

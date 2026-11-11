@@ -24,7 +24,6 @@ import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/usePr
 import {
   Plus,
   Trash2,
-  ArrowLeft,
   Loader2,
   ChevronDown,
   Save,
@@ -32,6 +31,7 @@ import {
   Unlock,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import BackLink from '@/components/BackLink'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import RecipeImportModal from './RecipeImportModal'
@@ -517,7 +517,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       purchaseOrdersService.update(orderId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
-      queryClient.invalidateQueries({ queryKey: ['purchase-order-detail', orderId] })
+      queryClient.removeQueries({ queryKey: ['purchase-order-detail', orderId] })
       toast.success('Purchase order updated')
       router.push(`/purchase/purchase-orders/${orderId}/detail`)
     },
@@ -563,12 +563,13 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '9px 12px',
+    height: 38,
+    padding: '0 12px',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
-    fontSize: 13,
+    fontSize: 13.5,
     color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
+    background: 'var(--surface)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
@@ -582,16 +583,17 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   const selectStyle: React.CSSProperties = {
     ...inputStyle,
     cursor: 'pointer',
-    appearance: 'none' as any,
   }
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: 500,
     color: 'var(--foreground)',
-    marginBottom: 4,
+    marginBottom: 6,
     display: 'block',
   }
+
+  const requiredMark = <span style={{ color: 'var(--destructive)' }}> *</span>
 
   const errorStyle: React.CSSProperties = {
     fontSize: 12,
@@ -599,91 +601,113 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     marginTop: 4,
   }
 
-  const sectionHeaderStyle: React.CSSProperties = {
+  const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 0 }
+
+  const cardHeaderStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
     padding: '14px 20px',
     borderBottom: '1px solid var(--border)',
-    background: 'var(--background)',
-    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
   }
 
-  const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 12,
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: 14,
     fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
+    color: 'var(--foreground)',
+    margin: 0,
   }
 
-  const cardStyle: React.CSSProperties = {
+  const hintStyle: React.CSSProperties = {
+    fontSize: 12.5,
+    color: 'var(--foreground-muted)',
+  }
+
+  const triggerStyle: React.CSSProperties = {
+    height: 38,
+    padding: '0 12px',
+    fontSize: 13.5,
     background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    overflow: 'visible',
-    boxShadow: 'var(--shadow-sm)',
   }
 
   const lineInputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '8px 10px',
+    height: 34,
+    padding: '0 10px',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
     fontSize: 13,
     color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
+    background: 'var(--surface)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
+  }
+
+  const lineTriggerStyle: React.CSSProperties = {
+    height: 34,
+    padding: '0 10px',
+    fontSize: 13,
+    background: 'var(--surface)',
+  }
+
+  const thStyle: React.CSSProperties = {
+    height: 36,
+    padding: '0 10px',
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: 'var(--foreground-muted)',
+    background: 'var(--surface-muted)',
+    textTransform: 'uppercase',
+    letterSpacing: '.04em',
+    whiteSpace: 'nowrap',
+  }
+
+  const tdStyle: React.CSSProperties = {
+    padding: '10px',
+    verticalAlign: 'top',
+    height: 'auto',
+  }
+
+  const totalsRowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 16,
+    fontSize: 13,
+    color: 'var(--foreground-muted)',
+  }
+
+  const totalsValueStyle: React.CSSProperties = {
+    fontWeight: 500,
+    color: 'var(--foreground)',
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap',
   }
 
   return (
     <div
       className="po-form-container"
       style={{
-        padding: '32px 32px 64px',
-        maxWidth: 1400,
+        padding: '28px 24px 48px',
         width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
+        gap: 20,
       }}
     >
-      {/* Back button + title row */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 10px',
-            background: 'none',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
+      {/* Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 12 }}>
+        <BackLink href="/purchase/purchase-orders" label="Purchase Orders" />
         <div>
           <h1
             style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 24,
-              fontWeight: 500,
+              fontFamily: 'var(--font-sans)',
+              fontSize: 22,
+              fontWeight: 600,
+              letterSpacing: '-0.01em',
               margin: 0,
               color: 'var(--foreground)',
             }}
@@ -707,31 +731,29 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
       {/* Form */}
       <form
         onSubmit={handleSubmit(onSubmit, onInvalid)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
-          <span style={{ color: 'var(--destructive)' }}>*</span>
-          <span>Required fields</span>
-        </div>
         {/* Section 1 — Order Details */}
-        <div style={cardStyle}>
-          <div style={sectionHeaderStyle}>
-            <span style={sectionLabelStyle}>Order Details</span>
+        <div className="v2-card">
+          <div style={cardHeaderStyle}>
+            <h2 style={cardTitleStyle}>Order details</h2>
+            <span style={hintStyle}>
+              <span style={{ color: 'var(--destructive)' }}>*</span> Required fields
+            </span>
           </div>
           <div
             className="po-order-details-grid"
             style={{
               padding: 20,
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 16,
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: '16px 20px',
             }}
           >
             {/* Date */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Order Date
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>
+                Order Date{requiredMark}
               </label>
               <input
                 type="date"
@@ -742,10 +764,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             </div>
 
             {/* Fulfillment Date */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Fulfillment Date
-              </label>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Fulfillment Date</label>
               <input
                 type="date"
                 {...register('fulfillment_date')}
@@ -753,66 +773,39 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               />
               {errors.fulfillment_date && <span style={errorStyle}>{errors.fulfillment_date.message}</span>}
             </div>
+
             {/* Order source toggle — external Supplier or internal Branch */}
-            <div
-              className="po-span-2"
-              style={{
-                gridColumn: 'span 2',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginBottom: 16,
-              }}
-            >
-              <label
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground-muted)',
-                  marginRight: 8,
-                }}
-              >
-                Type:
-              </label>
-              {([
-                { key: 'supplier', label: 'Supplier' },
-              ] as const).map(({ key, label }) => {
-                const selected = watchType === key
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => {
-                      setValue('type', key)
-                      setValue('supplier_id', undefined)
-                      setValue('supplier_branch_id', undefined)
-                      setValue('buyer_id', 0)
-                    }}
-                    style={{
-                      padding: '6px 16px',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      background: selected ? 'var(--accent)' : 'var(--background)',
-                      color: selected ? 'white' : 'var(--foreground-muted)',
-                      border: selected
-                        ? '1px solid var(--accent)'
-                        : '1px solid var(--border)',
-                    }}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
+            <div className="po-span-2" style={{ ...fieldStyle, gridColumn: 'span 2' }}>
+              <label style={labelStyle}>Type</label>
+              <div className="v2-seg" style={{ alignSelf: 'flex-start' }}>
+                {([
+                  { key: 'supplier', label: 'Supplier' },
+                ] as const).map(({ key, label }) => {
+                  const selected = watchType === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-selected={selected}
+                      onClick={() => {
+                        setValue('type', key)
+                        setValue('supplier_id', undefined)
+                        setValue('supplier_branch_id', undefined)
+                        setValue('buyer_id', 0)
+                      }}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             {/* Supplier (external) — only when source is "supplier" */}
             {watchType === 'supplier' && (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  Supplier
-                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              <div style={fieldStyle}>
+                <label style={labelStyle}>
+                  Supplier{requiredMark}
                 </label>
                 <Controller
                   name="supplier_id"
@@ -827,7 +820,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       loading={suppliersLoading}
                       error={errors.supplier_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
-/>
+                      triggerStyle={triggerStyle}
+                    />
                   )}
                 />
               </div>
@@ -835,7 +829,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
             {/* Buyer (external) — opsional, hanya saat source "supplier" */}
             {watchType === 'supplier' && (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={fieldStyle}>
                 <label style={labelStyle}>Buyer</label>
                 <Controller
                   name="buyer_id"
@@ -850,6 +844,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       loading={buyersLoading}
                       error={errors.buyer_id?.message as string | undefined}
                       onSearchChange={setBuyerSearch}
+                      triggerStyle={triggerStyle}
                     />
                   )}
                 />
@@ -859,10 +854,9 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
             {/* Source Branch (internal) — only when source is "branch"; spans
                 the full row now that the destination "Branch" field is gone. */}
             {watchType === 'branch' && (
-              <div className="po-span-2" style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
-                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  Source Branch
-                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+              <div className="po-span-2" style={{ ...fieldStyle, gridColumn: 'span 2' }}>
+                <label style={labelStyle}>
+                  Source Branch{requiredMark}
                 </label>
                 <Controller
                   name="supplier_branch_id"
@@ -877,69 +871,56 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       loading={branchesLoading}
                       error={errors.supplier_branch_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
-/>
+                      triggerStyle={triggerStyle}
+                    />
                   )}
                 />
               </div>
             )}
 
             {/* Status */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
-                Status
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+            <div style={fieldStyle}>
+              <label style={labelStyle}>
+                Status{requiredMark}
               </label>
               <Controller
                 name="status"
                 control={control}
                 render={({ field }) => (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {(['pending', 'final'] as const).map((s) => {
-                      const isSelected = field.value === s
-                      const isPending = s === 'pending'
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          onClick={() => field.onChange(s)}
-                          style={{
-                            padding: '6px 16px',
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: 13,
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            background: isSelected
-                              ? isPending
-                                ? 'var(--warning-bg)'
-                                : 'var(--success-bg)'
-                              : 'var(--background)',
-                            color: isSelected
-                              ? isPending
-                                ? 'var(--warning)'
-                                : 'var(--success)'
-                              : 'var(--foreground-muted)',
-                            border: isSelected
-                              ? isPending
-                                ? '1px solid var(--warning)'
-                                : '1px solid var(--success)'
-                              : '1px solid var(--border)',
-                          }}
-                        >
-                          {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </button>
-                      )
-                    })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div className="v2-seg">
+                      {(['pending', 'final'] as const).map((s) => {
+                        const isSelected = field.value === s
+                        const isPending = s === 'pending'
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            aria-selected={isSelected}
+                            onClick={() => field.onChange(s)}
+                            style={
+                              isSelected
+                                ? { color: isPending ? 'var(--warning)' : 'var(--success)', fontWeight: 600 }
+                                : undefined
+                            }
+                          >
+                            {s.charAt(0).toUpperCase() + s.slice(1)}
+                          </button>
+                        )
+                      })}
+                    </div>
                     {field.value && field.value !== 'pending' && field.value !== 'final' && (
                       <span
                         title="Current status — kept when saving"
                         style={{
-                          padding: '6px 16px',
-                          borderRadius: 'var(--radius-md)',
-                          fontSize: 13,
-                          fontWeight: 500,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '3px 10px',
+                          borderRadius: 999,
+                          fontSize: 11.5,
+                          fontWeight: 600,
                           background: 'var(--info-bg)',
                           color: 'var(--info)',
-                          border: '1px solid var(--info)',
                         }}
                       >
                         {field.value.charAt(0).toUpperCase() + field.value.slice(1).replace(/_/g, ' ')}
@@ -950,124 +931,56 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
               />
             </div>
 
-
             {/* Notes — full width */}
-            <div className="po-span-2" style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+            <div className="po-span-2" style={{ ...fieldStyle, gridColumn: 'span 2' }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional order notes"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+                style={{ ...inputStyle, height: 'auto', padding: '10px 12px', resize: 'vertical', minHeight: 72, lineHeight: 1.5 }}
               />
             </div>
           </div>
         </div>
 
         {/* Section 2 — Line Items */}
-        <div style={cardStyle} className="po-form-responsive">
-          {/* Section header */}
-          <div
-            style={{
-              ...sectionHeaderStyle,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <h3
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--foreground-muted)',
-                letterSpacing: '0.5px',
-                margin: 0,
-              }}
-            >
-              LINE ITEMS
-            </h3>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button
-                type="button"
-                onClick={() => setShowRecipeModal(true)}
-                style={{
-                  padding: '6px 12px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
-                Load from Recipes
-              </button>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                style={{
-                  padding: '6px 12px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <Plus size={14} /> Add Item
-                <kbd style={{ fontSize: 10, opacity: 0.6, background: 'var(--muted)', padding: '1px 5px', borderRadius: 3, border: '1px solid var(--border)' }}>
-                  Ctrl+B
-                </kbd>
-              </button>
+        <div className="v2-card" style={{ overflow: 'hidden' }}>
+          <div style={cardHeaderStyle}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <h2 style={cardTitleStyle}>Line items</h2>
+              <span style={hintStyle}>
+                {fields.length} item{fields.length === 1 ? '' : 's'}
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowRecipeModal(true)}
+              className="v2-btn v2-btn-outline v2-btn-sm"
+            >
+              Load from Recipes
+            </button>
           </div>
 
-          {/* Column headers */}
-          {(() => {
-            const poGridCols = watchType === 'branch'
-              ? '36px minmax(280px, 3fr) 110px 140px minmax(180px, 2fr) 40px'
-              : '36px minmax(280px, 3fr) 110px 160px 80px 140px minmax(180px, 1.5fr) 40px'
-
-            return (
-              <>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: poGridCols,
-                    gap: 10,
-                    padding: '10px 20px',
-                    borderBottom: '1px solid var(--border)',
-                    background: 'var(--background)',
-                    alignItems: 'center',
-                  }}
-                >
-                  {(watchType === 'branch'
-                    ? ['#', 'Product / UOM', 'Qty', 'Subtotal', 'Notes', '']
-                    : ['#', 'Product / UOM', 'Qty', 'Unit Price', 'Taxable', 'Subtotal', 'Notes', '']
-                  ).map((h, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: 'var(--foreground-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        textAlign: h === 'Taxable' || h === '#' || h === '' ? 'center' : 'right',
-                      }}
-                    >
-                      {h}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Line item rows */}
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v2-table" style={{ minWidth: 760, tableLayout: 'auto' }}>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, width: 44, paddingLeft: 16, textAlign: 'center' }}>#</th>
+                  <th style={{ ...thStyle, textAlign: 'left' }}>Product / UOM</th>
+                  <th style={{ ...thStyle, width: 100, textAlign: 'right' }}>Qty</th>
+                  {watchType !== 'branch' && (
+                    <th style={{ ...thStyle, width: 170, textAlign: 'right' }}>Unit Price</th>
+                  )}
+                  {watchType !== 'branch' && (
+                    <th style={{ ...thStyle, width: 64, textAlign: 'center' }}>Taxable</th>
+                  )}
+                  <th style={{ ...thStyle, width: 120, textAlign: 'right' }}>Subtotal</th>
+                  <th style={{ ...thStyle, width: 150, textAlign: 'left' }}>Notes</th>
+                  <th style={{ ...thStyle, width: 44, paddingRight: 16 }} />
+                </tr>
+              </thead>
+              <tbody>
                 {(() => {
                   // Single useWatch for the whole array — keeps the hook count
                   // stable across renders (rules of hooks friendly).
@@ -1082,267 +995,286 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       watchType === 'branch'
                         ? Number(rowQty ?? 0)
                         : Number(rowQty ?? 0) * Number(rowPrice ?? 0)
+                    const priceLocked =
+                      watch(`details.${index}.is_price_locked`) !== false ||
+                      !getCanReadPrice() ||
+                      (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice)
                     return (
-                  <div
-                    key={field.id}
-                    data-po-row-index={index}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: poGridCols,
-                      gap: 10,
-                      padding: '12px 20px',
-                      borderBottom: '1px solid var(--border)',
-                      alignItems: 'start',
-                    }}
-                  >
-                    {/* Row index */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: 38,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: 'var(--foreground-muted)',
-                      }}
-                    >
-                      {index + 1}
-                    </div>
+                      <tr key={field.id} data-po-row-index={index}>
+                        {/* Row index */}
+                        <td
+                          style={{
+                            ...tdStyle,
+                            paddingLeft: 16,
+                            textAlign: 'center',
+                            lineHeight: '34px',
+                            fontSize: 12.5,
+                            color: 'var(--foreground-subtle)',
+                          }}
+                        >
+                          {index + 1}
+                        </td>
 
-                    {/* Product UOM */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-                <Controller
-                  name={`details.${index}.product_uom_id`}
-                  control={control}
-                  render={({ field: f }) => (
-                    <SearchableSelect
-                      dataFocusFirst={true}
-                      value={f.value ?? 0}
-                      onChange={(val) => {
-                        f.onChange(val)
+                        {/* Product UOM */}
+                        <td style={{ ...tdStyle, minWidth: 220 }}>
+                          <Controller
+                            name={`details.${index}.product_uom_id`}
+                            control={control}
+                            render={({ field: f }) => (
+                              <SearchableSelect
+                                dataFocusFirst={true}
+                                value={f.value ?? 0}
+                                onChange={(val) => {
+                                  f.onChange(val)
 
-                        const matchingUom = mergedProductUoms.find((pu: any) => pu.id === val)
-                        if (matchingUom) {
-                          setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
-                        }
-                      }}
-                      options={productUomOptions}
-                      placeholder="Select product..."
-                      searchPlaceholder="Search products..."
-                      loading={productUomsLoading}
-                      error={
-                        errors.details?.[index]?.product_uom_id?.message as
-                        | string
-                        | undefined
-                      }
-                      onSearchChange={setDropdownSearch}
-/>
-                  )}
-                />
-              </div>
+                                  const matchingUom = mergedProductUoms.find((pu: any) => pu.id === val)
+                                  if (matchingUom) {
+                                    setValue(`details.${index}.price`, matchingUom.base_price ?? 0)
+                                  }
+                                }}
+                                options={productUomOptions}
+                                placeholder="Select product..."
+                                searchPlaceholder="Search products..."
+                                loading={productUomsLoading}
+                                error={
+                                  errors.details?.[index]?.product_uom_id?.message as
+                                  | string
+                                  | undefined
+                                }
+                                onSearchChange={setDropdownSearch}
+                                triggerStyle={lineTriggerStyle}
+                              />
+                            )}
+                          />
+                        </td>
 
-              {/* Qty */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <Controller
-                  name={`details.${index}.qty`}
-                  control={control}
-                  render={({ field }) => (
-                    <LocalizedNumberInput
-                      value={field.value}
-                      onChange={field.onChange}
-                      decimals={2}
-                      padDecimals={false}
-                      disabled={isRowQtyLocked(index)}
-                      style={{
-                        ...lineInputStyle,
-                        ...(isRowQtyLocked(index) ? { background: 'var(--surface)', cursor: 'not-allowed' } : {})
-                      }}
-                    />
-                  )}
-                />
-              </div>
+                        {/* Qty */}
+                        <td style={tdStyle}>
+                          <Controller
+                            name={`details.${index}.qty`}
+                            control={control}
+                            render={({ field }) => (
+                              <LocalizedNumberInput
+                                value={field.value}
+                                onChange={field.onChange}
+                                decimals={2}
+                                padDecimals={false}
+                                disabled={isRowQtyLocked(index)}
+                                style={{
+                                  ...lineInputStyle,
+                                  textAlign: 'right',
+                                  ...(isRowQtyLocked(index) ? { background: 'var(--surface-muted)', cursor: 'not-allowed' } : {})
+                                }}
+                              />
+                            )}
+                          />
+                        </td>
 
-              {/* Price */}
-              {watchType !== 'branch' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <LocalizedNumberInput
-                      value={(() => {
-                        if (!getCanReadPrice()) return 0
-                        return watch(`details.${index}.price`) ?? 0
-                      })()}
-                      onChange={(val) => {
-                        setValue(`details.${index}.price`, Math.max(0, val))
-                      }}
-                      decimals={2}
-                      disabled={watch(`details.${index}.is_price_locked`) !== false || !getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice)}
-                      style={{
-                        ...lineInputStyle,
-                        flex: 1,
-                        ...((watch(`details.${index}.is_price_locked`) !== false || !getCanReadPrice() || (watchType === 'supplier' ? !canEditExternalPrice : !canEditInternalPrice))
-                          ? { background: 'var(--surface)', cursor: 'not-allowed' }
-                          : {}),
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentLocked = watch(`details.${index}.is_price_locked`)
-                        setValue(`details.${index}.is_price_locked`, currentLocked === false ? true : false)
-                      }}
-                      title={watch(`details.${index}.is_price_locked`) !== false ? "Unlock price" : "Lock price"}
-                      style={{
-                        padding: 6,
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        color: watch(`details.${index}.is_price_locked`) !== false ? 'var(--foreground-muted)' : 'var(--accent)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {watch(`details.${index}.is_price_locked`) !== false ? <Lock size={14} /> : <Unlock size={14} />}
-                    </button>
-                  </div>
-                  {(() => {
-                    if (watchType !== 'supplier') return null
-                    const uomId = Number(watch(`details.${index}.product_uom_id`))
-                    const last = uomId ? lastPriceByUom.get(uomId) : undefined
-                    if (!last) return null
-                    return (
-                      <span
-                        role="button"
-                        title="Tap to use this price"
-                        onClick={() =>
-                          setValue(`details.${index}.price`, last.price)
-                        }
-                        style={{
-                          fontSize: 11,
-                          color: 'var(--foreground-muted)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {getCanReadPrice()
-                          ? `Last: Rp ${formatCurrency(last.price, '')}`
-                          : `Last: Rp ***`}
-                        {last.date ? ` · ${String(last.date).slice(0, 10)}` : ''}
-                      </span>
-                    )
-                  })()}
-                </div>
-              )}
+                        {/* Price */}
+                        {watchType !== 'branch' && (
+                          <td style={tdStyle}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <LocalizedNumberInput
+                                value={(() => {
+                                  if (!getCanReadPrice()) return 0
+                                  return watch(`details.${index}.price`) ?? 0
+                                })()}
+                                onChange={(val) => {
+                                  setValue(`details.${index}.price`, Math.max(0, val))
+                                }}
+                                decimals={2}
+                                disabled={priceLocked}
+                                style={{
+                                  ...lineInputStyle,
+                                  textAlign: 'right',
+                                  flex: 1,
+                                  minWidth: 0,
+                                  ...(priceLocked ? { background: 'var(--surface-muted)', cursor: 'not-allowed' } : {}),
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="v2-icon-btn"
+                                onClick={() => {
+                                  const currentLocked = watch(`details.${index}.is_price_locked`)
+                                  setValue(`details.${index}.is_price_locked`, currentLocked === false ? true : false)
+                                }}
+                                title={watch(`details.${index}.is_price_locked`) !== false ? "Unlock price" : "Lock price"}
+                                style={{
+                                  flexShrink: 0,
+                                  color: watch(`details.${index}.is_price_locked`) !== false ? 'var(--foreground-muted)' : 'var(--accent)',
+                                }}
+                              >
+                                {watch(`details.${index}.is_price_locked`) !== false ? <Lock size={14} /> : <Unlock size={14} />}
+                              </button>
+                            </div>
+                            {(() => {
+                              if (watchType !== 'supplier') return null
+                              const uomId = Number(watch(`details.${index}.product_uom_id`))
+                              const last = uomId ? lastPriceByUom.get(uomId) : undefined
+                              if (!last) return null
+                              return (
+                                <span
+                                  role="button"
+                                  title="Tap to use this price"
+                                  onClick={() =>
+                                    setValue(`details.${index}.price`, last.price)
+                                  }
+                                  style={{
+                                    display: 'block',
+                                    marginTop: 4,
+                                    fontSize: 11.5,
+                                    color: 'var(--foreground-muted)',
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {getCanReadPrice()
+                                    ? `Last: Rp ${formatCurrency(last.price, '')}`
+                                    : `Last: Rp ***`}
+                                  {last.date ? ` · ${String(last.date).slice(0, 10)}` : ''}
+                                </span>
+                              )
+                            })()}
+                          </td>
+                        )}
 
-              {/* Taxable Checkbox */}
-              {watchType !== 'branch' && (
-                <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 8 }}>
-                  <input
-                    type="checkbox"
-                    {...register(`details.${index}.is_taxable`)}
-                    style={{ width: 16, height: 16, cursor: 'pointer' }}
-                  />
-                </div>
-              )}
+                        {/* Taxable Checkbox */}
+                        {watchType !== 'branch' && (
+                          <td style={{ ...tdStyle, textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              {...register(`details.${index}.is_taxable`)}
+                              style={{ width: 16, height: 16, marginTop: 9, cursor: 'pointer', accentColor: 'var(--accent)' }}
+                            />
+                          </td>
+                        )}
 
-              {/* Subtotal (qty × price, or qty for branch-type POs) */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'flex-end',
-                  height: 38,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: 'var(--foreground)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {watchType === 'branch'
-                  ? Number(rowQty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })
-                  : canReadPrice
-                    ? `Rp ${rowSubtotal.toLocaleString('id-ID')}`
-                    : 'Rp ***'}
-              </div>
+                        {/* Subtotal (qty × price, or qty for branch-type POs) */}
+                        <td
+                          style={{
+                            ...tdStyle,
+                            textAlign: 'right',
+                            lineHeight: '34px',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: 'var(--foreground)',
+                            whiteSpace: 'nowrap',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {watchType === 'branch'
+                            ? Number(rowQty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })
+                            : canReadPrice
+                              ? `Rp ${rowSubtotal.toLocaleString('id-ID')}`
+                              : 'Rp ***'}
+                        </td>
 
-              {/* Description */}
-              <input
-                {...register(`details.${index}.description`)}
-                placeholder="Optional note"
-                style={lineInputStyle}
-              />
+                        {/* Description */}
+                        <td style={tdStyle}>
+                          <input
+                            {...register(`details.${index}.description`)}
+                            placeholder="Optional note"
+                            style={lineInputStyle}
+                          />
+                        </td>
 
-              {/* Delete */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 38 }}>
-                <button
-                  type="button"
-                  onClick={() => remove(index)}
-                  disabled={fields.length === 1}
-                  style={{
-                    padding: 6,
-                    background: 'none',
-                    border: 'none',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                    color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
+                        {/* Delete */}
+                        <td style={{ ...tdStyle, paddingRight: 16, textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="v2-icon-btn"
+                            data-tone="danger"
+                            onClick={() => remove(index)}
+                            disabled={fields.length === 1}
+                            title="Remove item"
+                            style={{
+                              marginTop: 3,
+                              ...(fields.length === 1 ? { color: 'var(--border-strong)', cursor: 'not-allowed', background: 'transparent' } : {}),
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
                     )
                   })
                 })()}
-          </>
-          )})()}
+              </tbody>
+            </table>
+          </div>
 
-          {/* Additional Charges */}
-          <div style={{ marginTop: 24, marginBottom: 16, padding: '0 20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)', letterSpacing: '0.5px', margin: 0, textTransform: 'uppercase' }}>
-                Additional Charges
-              </h3>
-              <button
-                type="button"
-                onClick={() => appendCharge({ name: '', amount: 0, chart_of_account_id: 0 })}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 20px',
+              borderTop: '1px solid var(--border)',
+              flexWrap: 'wrap',
+            }}
+          >
+            <button
+              type="button"
+              onClick={handleAddItem}
+              className="v2-btn v2-btn-outline v2-btn-sm"
+            >
+              <Plus size={14} /> Add item
+              <kbd
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 12px',
-                  background: 'var(--surface)',
+                  fontSize: 10,
+                  opacity: 0.7,
+                  background: 'var(--surface-muted)',
+                  padding: '1px 5px',
+                  borderRadius: 4,
                   border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
                 }}
               >
-                <Plus size={14} /> Add Charge
-              </button>
+                Ctrl+B
+              </kbd>
+            </button>
+            {/* Array-level error */}
+            {errors.details && typeof (errors.details as any).message === 'string' && (
+              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
+                {(errors.details as any).message}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Section 3 — Additional charges + totals */}
+        <div className="v2-card">
+          <div style={cardHeaderStyle}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <h2 style={cardTitleStyle}>Additional charges</h2>
+              <span style={hintStyle}>Optional</span>
             </div>
-            {chargeFields.length > 0 && (
+            <button
+              type="button"
+              onClick={() => appendCharge({ name: '', amount: 0, chart_of_account_id: 0 })}
+              className="v2-btn v2-btn-outline v2-btn-sm"
+            >
+              <Plus size={14} /> Add charge
+            </button>
+          </div>
+
+          <div style={{ padding: chargeFields.length > 0 ? 20 : '16px 20px' }}>
+            {chargeFields.length > 0 ? (
               <div style={{ display: 'grid', gap: 10 }}>
                 {chargeFields.map((field, index) => (
-                  <div key={field.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <div style={{ flex: 2 }}>
+                  <div key={field.id} className="po-charge-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <div style={{ flex: 2, minWidth: 0 }}>
                       <input
                         {...register(`additional_charges.${index}.name`)}
                         placeholder="Charge Name *"
-                        style={lineInputStyle}
+                        style={errors.additional_charges?.[index]?.name ? { ...lineInputStyle, border: '1px solid var(--destructive)' } : lineInputStyle}
                       />
                       {errors.additional_charges?.[index]?.name && (
-                        <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{errors.additional_charges[index].name.message}</span>
+                        <span style={{ ...errorStyle, display: 'block' }}>{errors.additional_charges[index].name.message}</span>
                       )}
                     </div>
-                    <div style={{ flex: 2 }}>
+                    <div style={{ flex: 2, minWidth: 0 }}>
                       <Controller
                         name={`additional_charges.${index}.chart_of_account_id`}
                         control={control}
@@ -1356,12 +1288,12 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                             loading={coaLoading}
                             onSearchChange={setCoaSearch}
                             error={errors.additional_charges?.[index]?.chart_of_account_id?.message}
-                            triggerStyle={{ padding: '8px 10px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
+                            triggerStyle={{ ...lineTriggerStyle, borderRadius: 'var(--radius-md)' }}
                           />
                         )}
                       />
                     </div>
-                    <div style={{ flex: 1.5 }}>
+                    <div style={{ flex: 1.5, minWidth: 0 }}>
                       <div style={{ position: 'relative' }}>
                         <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--foreground-muted)' }}>Rp</span>
                         <input
@@ -1369,14 +1301,14 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                           step="any"
                           {...register(`additional_charges.${index}.amount`, { valueAsNumber: true })}
                           placeholder="Amount (0 = none)"
-                          style={{ ...lineInputStyle, paddingLeft: 32 }}
+                          style={{ ...lineInputStyle, paddingLeft: 32, fontVariantNumeric: 'tabular-nums' }}
                         />
                       </div>
                       {errors.additional_charges?.[index]?.amount && (
-                        <span style={{ fontSize: 11, color: 'var(--destructive)' }}>{errors.additional_charges[index].amount.message}</span>
+                        <span style={{ ...errorStyle, display: 'block' }}>{errors.additional_charges[index].amount.message}</span>
                       )}
                     </div>
-                    <div style={{ flex: 2 }}>
+                    <div style={{ flex: 2, minWidth: 0 }}>
                       <input
                         {...register(`additional_charges.${index}.description`)}
                         placeholder="Optional Note"
@@ -1385,110 +1317,113 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                     </div>
                     <button
                       type="button"
+                      className="v2-icon-btn"
+                      data-tone="danger"
                       onClick={() => removeCharge(index)}
-                      style={{ padding: '8px 6px', background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer' }}
+                      title="Remove charge"
+                      style={{ marginTop: 3, flexShrink: 0 }}
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={14} />
                     </button>
                   </div>
                 ))}
               </div>
+            ) : (
+              <span style={hintStyle}>No additional charges.</span>
             )}
           </div>
 
-          {/* Total row */}
-          {/* Additional Charges and Totals section */}
+          {/* Totals */}
           {watchType !== 'branch' && (
             <div
               style={{
-                padding: '14px 20px',
                 display: 'flex',
-                flexDirection: 'column',
                 justifyContent: 'flex-end',
-                alignItems: 'flex-end',
-                gap: 4,
+                padding: '16px 20px 20px',
                 borderTop: '1px solid var(--border)',
-                background: 'var(--background)',
               }}
             >
-              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
-                <span>Subtotal:</span>
-                <span><PriceDisplay amount={subtotal} prefix="Rp " /></span>
-              </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)', alignItems: 'center' }}>
-                <span>Tax:</span>
-                <Controller
-                  name="tax_id"
-                  control={control}
-                  render={({ field }) => (
-                    <select
-                      value={field.value || ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                      style={{ ...selectStyle, padding: '4px 8px', width: 'auto', flex: 1, minWidth: 150 }}
-                    >
-                      <option value="">No Tax</option>
-                      {taxes.map((t: any) => (
-                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
-                      ))}
-                    </select>
-                  )}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  <span>Tax Amount:</span>
-                  <span><PriceDisplay amount={taxAmount} prefix="Rp " /></span>
+              <div style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={totalsRowStyle}>
+                  <span>Subtotal</span>
+                  <span style={totalsValueStyle}><PriceDisplay amount={subtotal} prefix="Rp " /></span>
                 </div>
-              {additionalChargesTotal !== 0 && (
-                <div style={{ display: 'flex', gap: 12, fontSize: 13, color: 'var(--foreground-muted)' }}>
-                  <span>Additional Charges:</span>
-                  <span><PriceDisplay amount={additionalChargesTotal} prefix="Rp " /></span>
+                <div style={totalsRowStyle}>
+                  <span>Tax</span>
+                  <Controller
+                    name="tax_id"
+                    control={control}
+                    render={({ field }) => (
+                      <select
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                        className="v2-select"
+                        style={{ ...selectStyle, height: 32, width: 'auto', minWidth: 170, fontSize: 13 }}
+                      >
+                        <option value="">No Tax</option>
+                        {taxes.map((t: any) => (
+                          <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                        ))}
+                      </select>
+                    )}
+                  />
                 </div>
-              )}
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
-                <span
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: 'var(--accent)',
-                    fontFamily: 'var(--font-display)',
-                  }}
-                >
-                  <PriceDisplay amount={totalPrice} prefix="Rp " />
-                </span>
+                <div style={totalsRowStyle}>
+                  <span>Tax amount</span>
+                  <span style={totalsValueStyle}><PriceDisplay amount={taxAmount} prefix="Rp " /></span>
+                </div>
+                {additionalChargesTotal !== 0 && (
+                  <div style={totalsRowStyle}>
+                    <span>Additional charges</span>
+                    <span style={totalsValueStyle}><PriceDisplay amount={additionalChargesTotal} prefix="Rp " /></span>
+                  </div>
+                )}
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+                  <span
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: 'var(--foreground)',
+                      fontVariantNumeric: 'tabular-nums',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <PriceDisplay amount={totalPrice} prefix="Rp " />
+                  </span>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Array-level error */}
-          {errors.details && typeof (errors.details as any).message === 'string' && (
-            <div style={{ padding: '8px 20px' }}>
-              <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
-                {(errors.details as any).message}
-              </span>
             </div>
           )}
         </div>
 
-        {/* Form actions */}
+        {/* Form actions — sticky footer */}
         <div
           style={{
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 5,
             display: 'flex',
+            alignItems: 'center',
             justifyContent: 'flex-end',
-            gap: 10,
-            paddingTop: 4,
+            gap: 8,
+            padding: '12px 0',
+            marginTop: 8,
+            background: 'var(--surface)',
+            borderTop: '1px solid var(--border)',
             flexWrap: 'wrap',
           }}
         >
           {isDelivered && (
             <span
               style={{
-                fontSize: 12,
+                marginRight: 'auto',
+                fontSize: 12.5,
                 color: 'var(--warning)',
                 background: 'var(--warning-bg)',
                 padding: '6px 12px',
-                borderRadius: 'var(--radius-sm)',
-                alignSelf: 'center',
+                borderRadius: 'var(--radius-md)',
               }}
             >
               This order is delivered — editing is disabled.
@@ -1496,37 +1431,15 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           )}
           <button
             type="button"
-            onClick={() => router.back()}
-            style={{
-              padding: '9px 20px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
+            onClick={() => router.push('/purchase/purchase-orders')}
+            className="v2-btn v2-btn-outline"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isPending || isDelivered}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '9px 20px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: isPending || isDelivered ? 'not-allowed' : 'pointer',
-              opacity: isPending || isDelivered ? 0.5 : 1,
-            }}
+            className="v2-btn v2-btn-primary"
           >
             {isPending && (
               <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
@@ -1544,11 +1457,11 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        .po-form-responsive { overflow-x: auto; }
-        .po-form-responsive > * { min-width: 720px; }
-        @media (max-width: 900px) {
+        @media (max-width: 720px) {
           .po-order-details-grid { grid-template-columns: 1fr !important; }
           .po-order-details-grid > .po-span-2 { grid-column: span 1 !important; }
+          .po-charge-row { flex-wrap: wrap; }
+          .po-charge-row > div { flex: 1 1 100% !important; }
         }
         @media (max-width: 640px) {
           .po-form-container { padding: 16px 12px 48px !important; }
@@ -1557,4 +1470,3 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     </div>
   )
 }
-

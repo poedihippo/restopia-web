@@ -13,9 +13,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductSheet from './ProductSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -131,7 +131,7 @@ export default function ProductView() {
   })
   const categories = (categoriesData as any)?.data ?? []
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: ['products', page, perPage, debouncedSearch, typeFilter, categoryFilter, activeFilter, activeProductTypes, sortParam],
     queryFn: () =>
       productsService
@@ -147,6 +147,9 @@ export default function ProductView() {
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const rawItems: Product[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -219,91 +222,72 @@ export default function ProductView() {
         )}
       </div>
 
-      {/* Table card with toolbar */}
-      <div className="v2-card" style={{ overflow: 'hidden' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 12px',
-            borderBottom: '1px solid var(--border)',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 300 }}>
-            <Search
-              size={14}
-              style={{
-                position: 'absolute',
-                left: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--foreground-subtle)',
-                pointerEvents: 'none',
+      {/* Toolbar */}
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search products..."
+        activeCount={countActive(activeFilter !== 'true', typeFilter, categoryFilter)}
+        onClear={() => {
+          setActiveFilter('true')
+          setTypeFilter('')
+          setCategoryFilter('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            <div role="tablist" aria-label="Product status" className="v2-seg">
+              {([
+                ['true', 'Active'],
+                ['false', 'Inactive'],
+                ['', 'All'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeFilter === value}
+                  onClick={() => setActiveFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <FilterSelect
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value)
+                setPage(1)
               }}
-            />
-            <input
-              className="v2-input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products..."
-              style={{ width: '100%', paddingLeft: 30, background: 'var(--surface-muted)' }}
-            />
-          </div>
+            >
+              <option value="">All Types</option>
+              {availableTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </FilterSelect>
+            <FilterSelect
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+                setPage(1)
+              }}
+              style={{ maxWidth: 200 }}
+            >
+              <option value="">All Categories</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+      />
 
-          <div role="tablist" aria-label="Product status" className="v2-seg">
-            {([
-              ['true', 'Active'],
-              ['false', 'Inactive'],
-              ['', 'All'],
-            ] as const).map(([value, label]) => (
-              <button
-                key={label}
-                type="button"
-                role="tab"
-                aria-selected={activeFilter === value}
-                onClick={() => setActiveFilter(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          <select
-            className="v2-select"
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="">All Types</option>
-            {availableTypeOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="v2-select"
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
-              setPage(1)
-            }}
-            style={{ maxWidth: 200 }}
-          >
-            <option value="">All Categories</option>
-            {categories.map((c: any) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
+      {/* Table card */}
+      <div className="v2-card" style={{ overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table className="v2-table">
             <thead>

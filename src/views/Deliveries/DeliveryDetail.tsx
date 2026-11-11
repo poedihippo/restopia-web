@@ -14,19 +14,14 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
+import BackLink from '@/components/BackLink'
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   CheckCircle2,
   PackageSearch,
-  Calendar,
-  Building2,
-  Truck,
-  FileText,
   Printer,
   Download,
-  MapPin,
   ClipboardList, ArrowUpRight,
 } from 'lucide-react'
 
@@ -203,6 +198,8 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
     delivery?.source_type === 'transfer_to_branch'
 
   const details = delivery?.delivery_details ?? []
+  // Batch column only when at least one line was picked from a batch.
+  const hasBatches = details.some((d) => !!d.product_uom_batch)
   // Once any line has been received, editing would desync the receipts that
   // reference these delivery rows.
   const hasReceivedLines = details.some((d: any) => Number(d?.received_qty ?? 0) > 0)
@@ -214,667 +211,389 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
     (delivery as any)?.source_type,
   )
 
-  const backBtnStyle: React.CSSProperties = {
+  const pillStyle = (meta: { color: string; bg: string }): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '3px 10px',
+    borderRadius: 999,
+    fontSize: 11.5,
+    fontWeight: 600,
+    background: meta.bg,
+    color: meta.color,
+    whiteSpace: 'nowrap',
+  })
+
+  const cardHeaderStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: 6,
-    padding: '6px 10px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground-muted)',
-    cursor: 'pointer',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 20px',
+    borderBottom: '1px solid var(--border)',
   }
 
-  const thStyle: React.CSSProperties = {
-    padding: '10px 16px',
-    textAlign: 'left',
-    fontSize: 11,
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: 14,
     fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    whiteSpace: 'nowrap',
+    color: 'var(--foreground)',
+    margin: 0,
   }
 
-  const pillStyle: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--background)',
-    border: '1px solid var(--border)',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    color: 'var(--foreground-muted)',
-  }
-
-  const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
-  }
-
-  const infoCardStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    padding: 20,
+  const containerStyle: React.CSSProperties = {
+    padding: '28px 24px 48px',
+    width: '100%',
+    margin: '0 auto',
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 16,
   }
 
-  const iconBoxStyle: React.CSSProperties = {
-    width: 32,
-    height: 32,
-    background: 'var(--accent-light-bg)',
-    borderRadius: 'var(--radius-md)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+  const monoStyle: React.CSSProperties = {
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: 12.5,
   }
+
+  const numFmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 })
+
+  const sharedStyles = (
+    <style>{`
+      .dd-meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .dd-meta-cell { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; min-width: 0; }
+      .dd-meta-cell + .dd-meta-cell { border-left: 1px solid var(--border); }
+      @media (max-width: 720px) {
+        .dd-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .dd-meta-cell:nth-child(3) { border-left: none; }
+        .dd-meta-cell:nth-child(n + 3) { border-top: 1px solid var(--border); }
+      }
+      .dd-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+      .dd-table thead th {
+        padding: 10px 20px; height: auto; background: var(--surface-muted);
+        border-bottom: 1px solid var(--border); font-size: 11.5px; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .04em; color: var(--foreground-muted);
+        text-align: left; white-space: nowrap;
+      }
+      .dd-table tbody td {
+        padding: 12px 20px; height: auto; font-size: 13.5px; color: var(--foreground);
+        border-bottom: 1px solid var(--border); vertical-align: middle;
+      }
+      .dd-table tbody tr:last-child td { border-bottom: none; }
+      .dd-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    `}</style>
+  )
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 80,
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 99,
-              border: '3px solid var(--border)',
-              borderTop: '3px solid var(--accent)',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-            Loading delivery...
-          </span>
+      <div style={containerStyle}>
+        <div className="v2-skeleton" style={{ width: 110, height: 14, borderRadius: 6 }} />
+        <div className="v2-skeleton" style={{ width: 260, height: 26, borderRadius: 6 }} />
+        <div className="v2-skeleton" style={{ width: 320, height: 14, borderRadius: 6 }} />
+        <div className="v2-card dd-meta-grid" style={{ overflow: 'hidden' }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="dd-meta-cell">
+              <div className="v2-skeleton" style={{ width: 70, height: 11, borderRadius: 4 }} />
+              <div className="v2-skeleton" style={{ width: 120, height: 16, borderRadius: 4 }} />
+            </div>
+          ))}
         </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        <div className="v2-card" style={{ overflow: 'hidden' }}>
+          <div style={cardHeaderStyle}>
+            <div className="v2-skeleton" style={{ width: 90, height: 14, borderRadius: 4 }} />
+          </div>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} style={{ padding: '14px 20px', borderBottom: i < 3 ? '1px solid var(--border)' : 'none' }}>
+              <div className="v2-skeleton" style={{ width: '100%', height: 14, borderRadius: 4 }} />
+            </div>
+          ))}
+        </div>
+        {sharedStyles}
       </div>
     )
   }
 
   if (isError || !delivery) {
     return (
-      <div style={{ padding: 80, textAlign: 'center' }}>
-        <PackageSearch size={40} style={{ color: 'var(--foreground-subtle)', margin: '0 auto' }} />
-        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 12 }}>
-          Delivery not found
-        </p>
-        <button onClick={() => router.back()} style={{ ...backBtnStyle, margin: '16px auto 0' }}>
-          <ArrowLeft size={14} />
-          Go back
-        </button>
+      <div style={{ ...containerStyle, alignItems: 'center', padding: '80px 24px', textAlign: 'center' }}>
+        <PackageSearch size={36} style={{ color: 'var(--foreground-subtle)' }} />
+        <p style={{ fontSize: 13.5, color: 'var(--foreground-muted)', margin: 0 }}>Delivery not found</p>
+        <BackLink href="/transfer/deliveries" label="Deliveries" style={{ alignSelf: 'center' }} />
       </div>
     )
   }
 
+  const createdAt = delivery.created_at ? formatDateTime(delivery.created_at) : null
+
+  const metaCells: { label: string; value: React.ReactNode }[] = [
+    { label: 'Delivery date', value: delivery.date ? formatDate(delivery.date) : '—' },
+    {
+      label: delivery.purchase_order ? 'Purchase order' : delivery.sales_order ? 'Sales order' : 'Reference',
+      value: delivery.purchase_order ? (
+        <Link
+          href={`/purchase/purchase-orders/${delivery.purchase_order.id}/detail`}
+          title="Buka detail purchase order"
+          style={{ ...monoStyle, fontSize: 14, color: 'var(--accent)', textDecoration: 'none' }}
+        >
+          <span className="v2-link">{delivery.purchase_order.code}<ArrowUpRight size={12} /></span>
+        </Link>
+      ) : delivery.sales_order ? (
+        <span style={{ ...monoStyle, fontSize: 14 }}>{delivery.sales_order.code}</span>
+      ) : (
+        '—'
+      ),
+    },
+    {
+      label: 'Created by',
+      value: (
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span>{delivery.created_by?.name ?? '—'}</span>
+          {createdAt && (
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--foreground-muted)' }}>{createdAt}</span>
+          )}
+        </span>
+      ),
+    },
+    { label: 'Line items', value: `${details.length} item${details.length === 1 ? '' : 's'}` },
+  ]
+
   return (
     <>
-      <div
-        className="dd-screen"
-        style={{
-          padding: '32px 32px 64px',
-          maxWidth: 1400,
-          width: '100%',
-          margin: '0 auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 24,
-        }}
-      >
-        {/* Top bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingBottom: 20,
-            borderBottom: '1px solid var(--border)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button type="button" onClick={() => router.back()} style={backBtnStyle}>
-              <ArrowLeft size={14} />
-              Back
-            </button>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h1
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 22,
-                    fontWeight: 500,
-                    margin: 0,
-                    color: 'var(--foreground)',
-                  }}
-                >
+      <div className="dd-screen" style={containerStyle}>
+        {/* Header */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 4 }}>
+          <BackLink href="/transfer/deliveries" label="Deliveries" />
+
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h1 style={{ fontFamily: 'var(--font-sans)', fontSize: 22, fontWeight: 600, margin: 0, color: 'var(--foreground)' }}>
                   {delivery.code}
                 </h1>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '3px 10px',
-                    borderRadius: 99,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: statusMeta.bg,
-                    color: statusMeta.color,
-                  }}
-                >
-                  {statusMeta.label}
-                </span>
+                <span style={pillStyle(statusMeta)}>{statusMeta.label}</span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-                Delivery
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '6px 0 0' }}>
+                from <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>{delivery.branch?.name ?? '—'}</span>
+                {' → '}to <span style={{ color: 'var(--foreground)', fontWeight: 500 }}>{delivery.target_branch?.name ?? '—'}</span>
               </p>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            {canFinalize && (
-              <button
-                type="button"
-                onClick={handleFinalize}
-                disabled={finalizeMutation.isPending}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--accent)',
-                  border: '1px solid var(--accent)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: finalizeMutation.isPending ? 'not-allowed' : 'pointer',
-                  opacity: finalizeMutation.isPending ? 0.7 : 1,
-                }}
-              >
-                <CheckCircle2 size={13} />
-                {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {canRead && (
+                <button type="button" onClick={() => window.print()} className="v2-btn v2-btn-outline">
+                  <Printer size={15} />
+                  Print Surat Jalan
+                </button>
+              )}
 
-            {delivery?.status === 'final' &&
-              canCreateReceipt &&
-              canUserCreateReceiptForDelivery(delivery, user, isSuperadmin) && (
-              <button
-                type="button"
-                onClick={handleReceiptClick}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--accent)',
-                  border: '1px solid var(--accent)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'white',
-                  cursor: 'pointer',
-                }}
-              >
-                <ClipboardList size={13} />
-                Process Receipt
-              </button>
-            )}
-
-            {canRead && (
-              <button
-                type="button"
-                onClick={() => window.print()}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
-                <Printer size={13} />
-                Print Surat Jalan
-              </button>
-            )}
-
-            {/* Download PDF — memakai dialog cetak browser, pilih "Save as PDF" */}
-            {canRead && (
-              <button
-                type="button"
-                onClick={() => window.print()}
-                title='Pilih "Save as PDF" pada dialog cetak untuk mengunduh PDF'
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
-                <Download size={13} />
-                Download PDF
-              </button>
-            )}
-            {canUpdate && (
-            <button
-              type="button"
-              onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
-              disabled={!canEditDelivery}
-              title={hasReceivedLines ? 'Already received — cannot edit' : 'Edit'}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--foreground)',
-                cursor: canEditDelivery ? 'pointer' : 'not-allowed',
-                opacity: canEditDelivery ? 1 : 0.4,
-              }}
-            >
-              <Pencil size={13} />
-              Edit
-            </button>
-            )}
-            {canDelete && (
-            <button
-              type="button"
-              onClick={() => setDeleteConfirm(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '7px 14px',
-                background: 'var(--destructive-bg)',
-                border: '1px solid var(--destructive)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--destructive)',
-                cursor: 'pointer',
-              }}
-            >
-              <Trash2 size={13} />
-              Delete
-            </button>
-            )}
-          </div>
-        </div>
-
-        {/* Info grid 2x2 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-          <div style={infoCardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={iconBoxStyle}>
-                <Building2 size={15} style={{ color: 'var(--accent-light)' }} />
-              </div>
-              <span style={sectionLabelStyle}>From Branch</span>
-            </div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: 'var(--foreground)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {delivery.branch?.name ?? '—'}
-            </div>
-          </div>
-
-          <div style={infoCardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={iconBoxStyle}>
-                <Truck size={15} style={{ color: 'var(--accent-light)' }} />
-              </div>
-              <span style={sectionLabelStyle}>To Branch</span>
-            </div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: 'var(--foreground)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {delivery.target_branch?.name ?? '—'}
-            </div>
-          </div>
-
-          <div style={infoCardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={iconBoxStyle}>
-                <Calendar size={15} style={{ color: 'var(--accent-light)' }} />
-              </div>
-              <span style={sectionLabelStyle}>Delivery Date</span>
-            </div>
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 600,
-                color: 'var(--foreground)',
-                fontFamily: 'var(--font-display)',
-              }}
-            >
-              {delivery.date
-                ? formatDate(delivery.date)
-                : '—'}
-            </div>
-          </div>
-
-          <div style={infoCardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={iconBoxStyle}>
-                <FileText size={15} style={{ color: 'var(--accent-light)' }} />
-              </div>
-              <span style={sectionLabelStyle}>Created By</span>
-            </div>
-            <div>
-              <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: 'var(--foreground)',
-                  fontFamily: 'var(--font-display)',
-                }}
-              >
-                {delivery.created_by?.name ?? '—'}
-              </div>
-              {delivery.created_at && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--foreground-subtle)',
-                    marginTop: 4,
-                    display: 'block',
-                  }}
+              {/* Download PDF — memakai dialog cetak browser, pilih "Save as PDF" */}
+              {canRead && (
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  title='Pilih "Save as PDF" pada dialog cetak untuk mengunduh PDF'
+                  className="v2-btn v2-btn-outline"
                 >
-                  {formatDateTime(delivery.created_at)}
-                </span>
+                  <Download size={15} />
+                  Download PDF
+                </button>
+              )}
+
+              {canUpdate && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/transfer/deliveries/${id}/edit`)}
+                  disabled={!canEditDelivery}
+                  title={hasReceivedLines ? 'Already received — cannot edit' : 'Edit'}
+                  className="v2-btn v2-btn-outline"
+                >
+                  <Pencil size={15} />
+                  Edit
+                </button>
+              )}
+
+              {canDelete && (
+                <button type="button" onClick={() => setDeleteConfirm(true)} className="v2-btn v2-btn-danger">
+                  <Trash2 size={15} />
+                  Delete
+                </button>
+              )}
+
+              {canFinalize && (
+                <button
+                  type="button"
+                  onClick={handleFinalize}
+                  disabled={finalizeMutation.isPending}
+                  className="v2-btn v2-btn-primary"
+                >
+                  <CheckCircle2 size={15} />
+                  {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize'}
+                </button>
+              )}
+
+              {delivery?.status === 'final' &&
+                canCreateReceipt &&
+                canUserCreateReceiptForDelivery(delivery, user, isSuperadmin) && (
+                <button type="button" onClick={handleReceiptClick} className="v2-btn v2-btn-primary">
+                  <ClipboardList size={15} />
+                  Process Receipt
+                </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Linked PO card */}
-        {delivery.purchase_order && (
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 20,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 16,
-            }}
-          >
-            <span style={sectionLabelStyle}>Linked Purchase Order</span>
-            <Link
-              href={`/purchase/purchase-orders/${delivery.purchase_order.id}/detail`}
-              title="Buka detail purchase order"
-              className="linked-po-link"
-              style={{
-                ...pillStyle,
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--accent)',
-                textDecoration: 'none',
-              }}
-            >
-              <span className="v2-link">{delivery.purchase_order.code}<ArrowUpRight size={12} /></span>
-            </Link>
-          </div>
-        )}
+        {/* Summary */}
+        <div className="v2-card dd-meta-grid" style={{ overflow: 'hidden' }}>
+          {metaCells.map((f) => (
+            <div key={f.label} className="dd-meta-cell">
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{f.label}</span>
+              <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', minWidth: 0 }}>{f.value}</span>
+            </div>
+          ))}
+        </div>
 
-        {/* Description */}
+        {/* Notes */}
         {delivery.description && (
-          <div
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 20,
-            }}
-          >
-            <span style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>Notes</span>
-            <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>
+          <div className="v2-card" style={{ overflow: 'hidden' }}>
+            <div style={cardHeaderStyle}>
+              <h2 style={cardTitleStyle}>Notes</h2>
+            </div>
+            <p style={{ fontSize: 13.5, color: 'var(--foreground)', margin: 0, padding: '14px 20px', lineHeight: 1.6 }}>
               {delivery.description}
             </p>
           </div>
         )}
 
-        {/* Line items table */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            overflow: 'hidden',
-            boxShadow: 'var(--shadow-sm)',
-          }}
-        >
-          <div
-            style={{
-              padding: '14px 20px',
-              borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
-    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span style={sectionLabelStyle}>Line Items</span>
-            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-              {details.length} item(s)
+        {/* Line items */}
+        <div className="v2-card" style={{ overflow: 'hidden' }}>
+          <div style={cardHeaderStyle}>
+            <h2 style={cardTitleStyle}>Line items</h2>
+            <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+              {details.length} item{details.length === 1 ? '' : 's'}
             </span>
           </div>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-                <th style={{ ...thStyle, width: 50 }}>#</th>
-                <th style={thStyle}>Product</th>
-                <th style={{ ...thStyle, width: 100 }}>UOM</th>
-                <th style={{ ...thStyle, width: 80 }}>Qty</th>
-                <th style={{ ...thStyle, width: 140 }}>Delivered / Ordered</th>
-                <th style={{ ...thStyle, width: 110 }}>Status</th>
-                <th style={{ ...thStyle, width: 160 }}>Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {details.map((detail, index) => {
-                const detailStatus =
-                  STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
-                const pu = (detail as any).product_uom ?? getProductUom(detail.product_uom_id ?? 0)
-                return (
-                  <tr key={detail.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {index + 1}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
-                      {getProductUomName(pu) || `UOM #${detail.product_uom_id}`}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={pillStyle}>
-                        {pu?.uom?.name ?? pu?.uom?.code ?? '—'}
-                      </span>
-                    </td>
-                    <td
-                      style={{
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'var(--foreground)',
-                      }}
-                    >
-                      {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)' }}>
-                      {(() => {
-                        const ordered = detail.purchase_order_detail?.qty
-                        if (ordered == null) {
-                          return <span>{detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })} / —</span>
-                        }
-                        const partial = detail.qty < ordered
-                        return (
-                          <>
-                            <span
-                              style={{
-                                fontWeight: 600,
-                                color: partial ? 'var(--warning)' : 'var(--success)',
-                              }}
-                            >
-                              {detail.qty.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                            </span>
-                            <span>{' / ' + ordered.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</span>
-                          </>
-                        )
-                      })()}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '3px 10px',
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: detailStatus.bg,
-                          color: detailStatus.color,
-                        }}
-                      >
-                        {detailStatus.label}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {detail.description || '—'}
-                    </td>
+          {details.length === 0 ? (
+            <div style={{ padding: '36px 20px', textAlign: 'center' }}>
+              <PackageSearch size={28} style={{ color: 'var(--foreground-subtle)', margin: '0 auto 8px', display: 'block' }} />
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: 0 }}>No items on this delivery</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="dd-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 48 }}>#</th>
+                    <th>Product</th>
+                    <th style={{ width: 100 }}>UOM</th>
+                    {hasBatches && <th style={{ width: 170 }}>Batch</th>}
+                    <th className="num" style={{ width: 90 }}>Qty</th>
+                    <th className="num" style={{ width: 160 }}>Delivered / Ordered</th>
+                    <th style={{ width: 110 }}>Status</th>
+                    <th style={{ width: 180 }}>Notes</th>
                   </tr>
-                )
-              })}
-
-              {/* Total footer removed */}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {details.map((detail, index) => {
+                    const detailStatus =
+                      STATUS_META[detail.status as keyof typeof STATUS_META] ?? STATUS_META.pending
+                    const pu = (detail as any).product_uom ?? getProductUom(detail.product_uom_id ?? 0)
+                    return (
+                      <tr key={detail.id}>
+                        <td style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>{index + 1}</td>
+                        <td style={{ fontWeight: 500 }}>
+                          {getProductUomName(pu) || `UOM #${detail.product_uom_id}`}
+                        </td>
+                        <td style={{ color: 'var(--foreground-muted)' }}>
+                          {pu?.uom?.name ?? pu?.uom?.code ?? '—'}
+                        </td>
+                        {hasBatches && (
+                          <td>
+                            {detail.product_uom_batch ? (
+                              <>
+                                <div style={{ fontSize: 12.5, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                                  {detail.product_uom_batch.batch_code ?? `Batch #${detail.product_uom_batch.id}`}
+                                </div>
+                                <div style={{ fontSize: 11.5, color: 'var(--foreground-muted)' }}>
+                                  {detail.product_uom_batch.expiry_date
+                                    ? `Exp ${formatDate(detail.product_uom_batch.expiry_date)}`
+                                    : 'No expiry'}
+                                </div>
+                              </>
+                            ) : (
+                              <span style={{ color: 'var(--foreground-subtle)' }}>—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="num" style={{ fontWeight: 600 }}>{numFmt(detail.qty)}</td>
+                        <td className="num" style={{ color: 'var(--foreground-muted)' }}>
+                          {(() => {
+                            const ordered = detail.purchase_order_detail?.qty
+                            if (ordered == null) {
+                              return <span>{numFmt(detail.qty)} / —</span>
+                            }
+                            const partial = detail.qty < ordered
+                            return (
+                              <>
+                                <span style={{ fontWeight: 600, color: partial ? 'var(--warning)' : 'var(--success)' }}>
+                                  {numFmt(detail.qty)}
+                                </span>
+                                <span>{' / ' + numFmt(ordered)}</span>
+                              </>
+                            )
+                          })()}
+                        </td>
+                        <td>
+                          <span style={pillStyle(detailStatus)}>{detailStatus.label}</span>
+                        </td>
+                        <td style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+                          {detail.description || '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Delete confirm */}
         {deleteConfirm && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 60,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
+          <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div
+              className="v2-overlay"
               onClick={() => setDeleteConfirm(false)}
               style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }}
             />
             <div
+              className="v2-dialog"
               style={{
                 position: 'relative',
                 zIndex: 70,
                 background: 'var(--surface)',
                 borderRadius: 'var(--radius-lg)',
-                padding: '28px 28px 24px',
+                padding: '24px',
                 width: 400,
+                maxWidth: 'calc(100vw - 32px)',
                 boxShadow: 'var(--shadow-lg)',
                 border: '1px solid var(--border)',
               }}
             >
-              <h3
-                style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 17,
-                  fontWeight: 600,
-                  margin: '0 0 8px',
-                  color: 'var(--foreground)',
-                }}
-              >
+              <h3 style={{ fontSize: 16, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>
                 Delete Delivery
               </h3>
-              <p
-                style={{
-                  fontSize: 13,
-                  color: 'var(--foreground-muted)',
-                  margin: '0 0 24px',
-                  lineHeight: 1.6,
-                }}
-              >
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px', lineHeight: 1.6 }}>
                 This will permanently remove delivery <strong>{delivery.code}</strong> and all its
                 details. This action cannot be undone.
               </p>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirm(false)}
-                  style={{
-                    padding: '7px 16px',
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: 'var(--foreground)',
-                    cursor: 'pointer',
-                  }}
-                >
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setDeleteConfirm(false)} className="v2-btn v2-btn-ghost">
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={() => deleteMutation.mutate()}
                   disabled={deleteMutation.isPending}
-                  style={{
-                    padding: '7px 16px',
-                    background: 'var(--destructive)',
-                    border: 'none',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: 'white',
-                    cursor: 'pointer',
-                    opacity: deleteMutation.isPending ? 0.7 : 1,
-                  }}
+                  className="v2-btn v2-btn-danger"
                 >
                   Delete
                 </button>
@@ -883,20 +602,7 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
           </div>
         )}
 
-        <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .linked-po-link {
-          cursor: pointer;
-          transition: background 150ms ease, border-color 150ms ease;
-        }
-        .linked-po-link:hover {
-          background: var(--accent-bg);
-          border-color: var(--accent);
-        }
-      `}</style>
+        {sharedStyles}
       </div>
 
       {/* ── Printable A4 Surat Jalan (hidden on screen, shown only in print) ── */}

@@ -1,5 +1,6 @@
 'use client'
 
+import FinanceBranchSelect, { financeBranchParam, useFinanceBranchLabel, type FinanceBranchScope } from '../FinanceBranchSelect'
 import React, { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
@@ -159,13 +160,15 @@ export default function BalanceSheetView() {
   const canRead = isSuperadmin || hasPermission('journal.read')
 
   const [asOfDate, setAsOfDate] = useState<string>(today())
+  const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
+  const branchLabel = useFinanceBranchLabel(branchScope)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['balance-sheet', asOfDate],
+    queryKey: ['balance-sheet', asOfDate, branchScope],
     enabled: canRead && !!asOfDate,
     queryFn: () =>
       api
-        .get('/reports/balance-sheet', { params: { as_of_date: asOfDate } })
+        .get('/reports/balance-sheet', { params: { as_of_date: asOfDate, ...financeBranchParam(branchScope) } })
         .then((r) => r.data),
   })
 
@@ -228,7 +231,7 @@ export default function BalanceSheetView() {
   )
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
-    mutationFn: () => reportsService.exportBalanceSheet({ as_of_date: asOfDate }),
+    mutationFn: () => reportsService.exportBalanceSheet({ as_of_date: asOfDate, ...financeBranchParam(branchScope) }),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `balance-sheet-${asOfDate}.xlsx`)
     },
@@ -271,7 +274,7 @@ export default function BalanceSheetView() {
           </h1>
           <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
             {hasStatement
-              ? `Per tanggal ${formatDate(bs?.as_of_date ?? asOfDate)}`
+              ? `Per tanggal ${formatDate(bs?.as_of_date ?? asOfDate)} · ${branchLabel}`
               : 'Assets, liabilities, and equity as of a selected date (posted journals only)'}
           </p>
         </div>
@@ -325,6 +328,10 @@ export default function BalanceSheetView() {
                   onChange={(e) => setAsOfDate(e.target.value)}
                   style={inputStyle}
                 />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={labelStyle}>Branch</label>
+                <FinanceBranchSelect value={branchScope} onChange={setBranchScope} style={inputStyle} />
               </div>
             </div>
           </div>

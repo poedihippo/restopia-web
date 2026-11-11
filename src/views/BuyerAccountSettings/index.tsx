@@ -1,15 +1,19 @@
 'use client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { buyerAccountSettingsService } from '@/services/buyer-account-settings.service'
 import { buyersService } from '@/services/buyers.service'
+import { accountSettingsService } from '@/services/account-settings.service'
+import { chartOfAccountsService } from '@/services/accounting.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
 import BuyerAccountSettingSheet from './BuyerAccountSettingSheet'
 import { toastMutationApiError } from '@/utils/apiError'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { formatDate } from '@/utils/date'
-import { Plus, Search, Pencil, Trash2, UserRound, Filter } from 'lucide-react'
+import { Plus, Pencil, Trash2, UserRound } from 'lucide-react'
 
 export default function BuyerAccountSettingsView() {
   const qc = useQueryClient()
@@ -23,6 +27,10 @@ export default function BuyerAccountSettingsView() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [buyerFilter, setBuyerFilter] = useState<number | ''>('')
+  const [keyFilter, setKeyFilter] = useState<number | ''>('')
+  const [coaFilter, setCoaFilter] = useState(0)
+  const [coaFilterSearch, setCoaFilterSearch] = useState('')
+  const [debouncedCoaFilterSearch, setDebouncedCoaFilterSearch] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<any | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -32,7 +40,35 @@ export default function BuyerAccountSettingsView() {
     return () => clearTimeout(t)
   }, [search])
 
-  useEffect(() => { setPage(1) }, [debouncedSearch, buyerFilter])
+  useEffect(() => { setPage(1) }, [debouncedSearch, buyerFilter, keyFilter, coaFilter])
+
+  // Account setting keys (derived from the account-settings list, same as the sheet).
+  const { data: keyOptionsData } = useQuery({
+    queryKey: ['account-settings', 'key-options'],
+    queryFn: () => accountSettingsService.list({ per_page: 100, include: 'account_setting_key' } as any).then(r => r.data),
+  })
+  const keyOptions = useMemo(() => {
+    const map = new Map<number, { id: number; key: string; label?: string }>()
+    for (const s of ((keyOptionsData as any)?.data ?? []) as any[]) {
+      const e = s.account_setting_key_entity
+      if (e && !map.has(e.id)) map.set(e.id, { id: e.id, key: e.key, label: e.label })
+    }
+    return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key))
+  }, [keyOptionsData])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCoaFilterSearch(coaFilterSearch), 400)
+    return () => clearTimeout(t)
+  }, [coaFilterSearch])
+  const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'buyer-filter', debouncedCoaFilterSearch],
+    queryFn: () => chartOfAccountsService.list({ per_page: 50, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
+    placeholderData: (prev: any) => prev,
+  })
+  const coaFilterOptions = [
+    { value: 0, label: 'All Accounts' },
+    ...((coaFilterData as any)?.data ?? []).map((a: any) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+  ]
 
   const { data: buyersData } = useQuery({
     queryKey: ['buyers-all'],
@@ -40,8 +76,8 @@ export default function BuyerAccountSettingsView() {
   })
   const allBuyers: any[] = (buyersData as any)?.data ?? []
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['buyer-account-settings', page, perPage, debouncedSearch, buyerFilter],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['buyer-account-settings', page, perPage, debouncedSearch, buyerFilter, keyFilter, coaFilter],
     queryFn: () =>
       buyerAccountSettingsService
         .list({
@@ -51,9 +87,14 @@ export default function BuyerAccountSettingsView() {
           include: 'buyer,chart_of_account,account_setting_key',
           'filter[search]': debouncedSearch || undefined,
           'filter[buyer_id]': buyerFilter || undefined,
+          'filter[account_setting_key_id]': keyFilter || undefined,
+          'filter[chart_of_account_id]': coaFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -70,7 +111,6 @@ export default function BuyerAccountSettingsView() {
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
   const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
-  const inputBase: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)' }
   const actionBtnStyle: React.CSSProperties = { padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }
 
   return (
@@ -91,21 +131,41 @@ export default function BuyerAccountSettingsView() {
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search settings..." style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box' }} />
-        </div>
-        <div style={{ position: 'relative', minWidth: 200 }}>
-          <Filter size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <select value={buyerFilter} onChange={(e) => setBuyerFilter(e.target.value ? Number(e.target.value) : '')} style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box', appearance: 'none' }}>
-            <option value="">All Buyers</option>
-            {allBuyers.map((b: any) => (
-              <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search settings..."
+        activeCount={countActive(buyerFilter, keyFilter, coaFilter)}
+        onClear={() => { setBuyerFilter(''); setKeyFilter(''); setCoaFilter(0); setPage(1) }}
+        quick={
+          <>
+            <FilterSelect value={buyerFilter} onChange={(e) => setBuyerFilter(e.target.value ? Number(e.target.value) : '')} style={{ minWidth: 200 }}>
+              <option value="">All Buyers</option>
+              {allBuyers.map((b: any) => (
+                <option key={b.id} value={b.id}>{b.code} - {b.name}</option>
+              ))}
+            </FilterSelect>
+            <FilterSelect value={keyFilter} onChange={(e) => setKeyFilter(e.target.value ? Number(e.target.value) : '')} style={{ maxWidth: 240 }}>
+              <option value="">All Account Keys</option>
+              {keyOptions.map((k) => (
+                <option key={k.id} value={k.id}>{k.label || k.key}</option>
+              ))}
+            </FilterSelect>
+            <div style={{ minWidth: 240 }}>
+              <SearchableSelect
+                value={coaFilter}
+                onChange={(val) => setCoaFilter(Number(val) || 0)}
+                options={coaFilterOptions}
+                placeholder="All Accounts"
+                searchPlaceholder="Search account..."
+                triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
+                loading={coaFilterLoading}
+                onSearchChange={setCoaFilterSearch}
+              />
+            </div>
+          </>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

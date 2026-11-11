@@ -1,11 +1,14 @@
 'use client'
 
 import React, { useState, useEffect, useMemo } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { dimensionTransferRequestsService } from '@/services/dimension-transfer-requests.service'
 import { companiesService } from '@/services/companies.service'
 import { branchesService } from '@/services/branches.service'
+import { usersService } from '@/services/users.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import { productUomBatchesService } from '@/services/product-uom-batches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
@@ -16,7 +19,6 @@ import DimensionTransferRequestSheet from './DimensionTransferRequestSheet'
 import api from '@/hooks/useApi'
 import {
   Plus,
-  Search,
   ArrowRightLeft,
   Check,
   X as XIcon,
@@ -122,6 +124,10 @@ export default function DimensionTransferRequestsView() {
   const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'approved' | 'rejected'>('')
   const [companyFilter, setCompanyFilter] = useState<string>('')
   const [branchFilter, setBranchFilter] = useState<string>('')
+  const [requestedByFilter, setRequestedByFilter] = useState<number>(0)
+  const [approvedByFilter, setApprovedByFilter] = useState<number>(0)
+  const [userSearch, setUserSearch] = useState('')
+  const [debouncedUserSearch, setDebouncedUserSearch] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [rejectTarget, setRejectTarget] = useState<DimensionTransferRequestItem | null>(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -132,8 +138,27 @@ export default function DimensionTransferRequestsView() {
   }, [search])
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedUserSearch(userSearch), 400)
+    return () => clearTimeout(t)
+  }, [userSearch])
+
+  useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, companyFilter, branchFilter, directionTab])
+  }, [debouncedSearch, statusFilter, companyFilter, branchFilter, requestedByFilter, approvedByFilter, directionTab])
+
+  // Lookups: Users (for requested_by / approved_by filters)
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: ['users-all', debouncedUserSearch],
+    queryFn: () =>
+      usersService
+        .list({ 'filter[search]': debouncedUserSearch || undefined, per_page: 100 } as any)
+        .then((r) => r.data),
+  })
+  const userOptions = ((usersData as any)?.data ?? []).map((u: any) => ({
+    value: u.id as number,
+    label: (u.name as string) ?? `User #${u.id}`,
+    sublabel: (u.email as string | undefined) ?? undefined,
+  }))
 
   // Lookups: Companies
   const { data: companiesData } = useQuery({
@@ -194,8 +219,8 @@ export default function DimensionTransferRequestsView() {
   }, [batchesList])
 
   // Main Requests Query
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['dimension-transfer-requests', page, perPage, statusFilter, branchFilter, debouncedSearch.trim()],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError, refetch } = useQuery({
+    queryKey: ['dimension-transfer-requests', page, perPage, statusFilter, branchFilter, requestedByFilter, approvedByFilter, debouncedSearch.trim()],
     queryFn: () =>
       dimensionTransferRequestsService
         .list({
@@ -205,12 +230,17 @@ export default function DimensionTransferRequestsView() {
           sort: '-created_at',
           'filter[branch_id]': branchFilter || undefined,
           'filter[status]': statusFilter || undefined,
+          'filter[requested_by_id]': requestedByFilter || undefined,
+          'filter[approved_by_id]': approvedByFilter || undefined,
           // Server-side: description, reject reason, movement ref, from/to
           // owner/stage/location, and the batch's product name/code/batch code.
           'filter[search]': debouncedSearch.trim() || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const rawItems: DimensionTransferRequestItem[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -356,15 +386,6 @@ export default function DimensionTransferRequestsView() {
     padding: '12px 14px',
     borderBottom: '1px solid var(--border)',
     verticalAlign: 'middle',
-  }
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
   }
 
   const actionBtnStyle: React.CSSProperties = {
@@ -595,86 +616,80 @@ export default function DimensionTransferRequestsView() {
         </button>
       </div>
 
-      {/* Toolbar Filters */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cari produk, batch, owner, stage, lokasi, catatan..."
+        activeCount={countActive(statusFilter, companyFilter, branchFilter, requestedByFilter, approvedByFilter)}
+        onClear={() => {
+          setStatusFilter('')
+          setCompanyFilter('')
+          setBranchFilter('')
+          setRequestedByFilter(0)
+          setApprovedByFilter(0)
+          setPage(1)
         }}
+        quick={
+          <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+            <option value="">Semua Status</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </FilterSelect>
+        }
       >
-        {/* Search */}
-        <div style={{ position: 'relative', minWidth: 260 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari produk, batch, owner, stage, lokasi, catatan..."
-            style={{
-              ...inputBase,
-              width: 260,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {/* Status Filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          style={{ ...inputBase, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}
-        >
-          <option value="">Semua Status</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-        </select>
-
-        {/* PT / Company Filter */}
-        <select
-          value={companyFilter}
-          onChange={(e) => setCompanyFilter(e.target.value)}
-          style={{ ...inputBase, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}
-        >
-          <option value="">Semua PT / Owner</option>
-          <option value="GENERAL">Umum (GENERAL)</option>
-          {companies.map((c) => (
-            <option key={c.id} value={String(c.id)}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-
-        {/* Branch Filter (for Superadmin or multi-branch) */}
-        {(isSuperadmin || availableBranches.length > 1) && (
-          <select
-            value={branchFilter}
-            onChange={(e) => setBranchFilter(e.target.value)}
-            style={{ ...inputBase, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}
-          >
-            <option value="">Semua Cabang</option>
-            {availableBranches.map((b: any) => (
-              <option key={b.id} value={String(b.id)}>
-                {b.name} {b.company?.name ? `(${b.company.name})` : ''}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+        <FilterGroup title="Owner & location">
+          {/* PT / Company Filter */}
+          <FilterField label="PT / Owner">
+            <FilterSelect block value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)}>
+              <option value="">Semua PT / Owner</option>
+              <option value="GENERAL">Umum (GENERAL)</option>
+              {companies.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          {/* Branch Filter (for Superadmin or multi-branch) */}
+          {(isSuperadmin || availableBranches.length > 1) && (
+            <FilterField label="Cabang">
+              <FilterSelect block value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+                <option value="">Semua Cabang</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name} {b.company?.name ? `(${b.company.name})` : ''}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          )}
+        </FilterGroup>
+        <FilterGroup title="People">
+          <FilterField label="Peminta">
+            <SearchableSelect
+              value={requestedByFilter}
+              onChange={(v) => setRequestedByFilter(Number(v) || 0)}
+              options={[{ value: 0, label: 'Semua Peminta' }, ...userOptions]}
+              placeholder="Semua Peminta"
+              searchPlaceholder="Cari user..."
+              loading={usersLoading}
+              onSearchChange={setUserSearch}
+            />
+          </FilterField>
+          <FilterField label="Penyetuju">
+            <SearchableSelect
+              value={approvedByFilter}
+              onChange={(v) => setApprovedByFilter(Number(v) || 0)}
+              options={[{ value: 0, label: 'Semua Penyetuju' }, ...userOptions]}
+              placeholder="Semua Penyetuju"
+              searchPlaceholder="Cari user..."
+              loading={usersLoading}
+              onSearchChange={setUserSearch}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* Main Table */}
       <div

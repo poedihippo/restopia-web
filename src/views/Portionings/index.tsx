@@ -1,10 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { portioningsService } from '@/services/portionings.service'
+import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
@@ -12,7 +14,6 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 import type { Portioning } from '@/types/api'
 import {
   Plus,
-  Search,
   Eye,
   Pencil,
   Trash2,
@@ -98,7 +99,7 @@ function DetailMaterialList({ title, items }: { title: string; items: any[] }) {
 export default function PortioningsView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperadmin, user } = useAuth()
   const canRead = hasPermission('production.read')
   const canCreate = hasPermission('production.create')
   const canUpdate = hasPermission('production.update')
@@ -111,6 +112,7 @@ export default function PortioningsView() {
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [sort, setSort] = useState('-id')
   const [cancelConfirm, setCancelConfirm] = useState<Portioning | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -123,10 +125,22 @@ export default function PortioningsView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo, sort])
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, sort, branchFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['portionings', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, sort],
+  // Branch filter options: superadmin sees every branch, other users only
+  // the branches they're assigned to (filter hidden for single-branch users).
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !!isSuperadmin,
+  })
+  const availableBranches: any[] = isSuperadmin
+    ? (branchesData as any)?.data ?? []
+    : (user as any)?.branches ?? []
+  const showBranchFilter = !!isSuperadmin || availableBranches.length > 1
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['portionings', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, sort, branchFilter],
     queryFn: () =>
       portioningsService
         .list({
@@ -138,10 +152,14 @@ export default function PortioningsView() {
           'filter[status]': statusFilter || undefined,
           'filter[date_gte]': dateFrom || undefined,
           'filter[date_lte]': dateTo || undefined,
+          'filter[branch_id]': branchFilter || undefined,
         } as any)
         .then((r) => r.data),
     enabled: canRead,
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Portioning[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -170,20 +188,6 @@ export default function PortioningsView() {
     },
     onError: (err: any) => toastMutationApiError(err, 'Gagal membatalkan portioning'),
   })
-
-  const anyFilter = statusFilter || dateFrom || dateTo || debouncedSearch
-
-  const inputStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    cursor: 'pointer',
-    fontFamily: 'var(--font-sans)',
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -236,99 +240,66 @@ export default function PortioningsView() {
       </div>
 
       {/* TOOLBAR */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', maxWidth: 280 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search code or description..."
-            style={{
-              width: '100%',
-              padding: '8px 10px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-            }}
-          />
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={inputStyle}
-        >
-          <option value="">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="final">Final</option>
-        </select>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            style={{ ...inputStyle, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        <select value={sort} onChange={(e) => setSort(e.target.value)} style={inputStyle}>
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-
-        {anyFilter && (
-          <button
-            onClick={() => {
-              setSearch('')
-              setStatusFilter('')
-              setDateFrom('')
-              setDateTo('')
-              setSort('-id')
-              setPage(1)
-            }}
-            style={{
-              padding: '7px 12px',
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              color: 'var(--foreground-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
+      <FilterBar
+        style={{ marginBottom: 0 }}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search code or description..."
+        activeCount={countActive(statusFilter, branchFilter, dateFrom, dateTo)}
+        onClear={() => {
+          setSearch('')
+          setStatusFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setBranchFilter('')
+          setSort('-id')
+          setPage(1)
+        }}
+        quick={
+          <>
+            <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Final</option>
+            </FilterSelect>
+            {showBranchFilter && (
+              <FilterSelect
+                value={branchFilter}
+                onChange={(e) => {
+                  setBranchFilter(e.target.value)
+                }}
+              >
+                <option value="">All Branches</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            )}
+          </>
+        }
+        actions={
+          <FilterSelect value={sort} onChange={(e) => setSort(e.target.value)}>
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </FilterSelect>
+        }
+      >
+        <FilterGroup title="Dates">
+          <FilterField label="Portioning date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => setDateFrom(v)}
+              onToChange={(v) => setDateTo(v)}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* TABLE */}
       <div

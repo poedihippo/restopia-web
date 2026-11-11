@@ -3,6 +3,7 @@ import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
@@ -10,10 +11,13 @@ import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useBuyerNames } from '@/hooks/useBuyerNames'
+import { suppliersService } from '@/services/suppliers.service'
+import { branchesService } from '@/services/branches.service'
+import { buyersService } from '@/services/buyers.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -21,7 +25,6 @@ import {
   Trash2,
   PackageSearch,
   Filter,
-  ShoppingCart,
   Truck,
 } from 'lucide-react'
 
@@ -31,6 +34,9 @@ interface PurchaseOrder {
   date: string
   type?: string
   total_price: number
+  payment_status?: 'pending' | 'partial' | 'paid'
+  total_payment?: number
+  remaining_payment?: number
   status: 'pending' | 'accepted' | 'rejected' | 'fulfilled' | 'final' | 'partially_delivered' | 'delivered'
   description?: string
   created_at?: string
@@ -82,6 +88,35 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   },
 }
 
+const originTagStyle = (kind: 'supplier' | 'internal'): React.CSSProperties => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  padding: '1px 7px',
+  marginRight: 6,
+  borderRadius: 'var(--radius-sm)',
+  fontSize: 10.5,
+  fontWeight: 500,
+  verticalAlign: 'middle',
+  background: kind === 'supplier' ? 'var(--accent-light-bg)' : 'var(--info-bg)',
+  color: kind === 'supplier' ? 'var(--accent)' : 'var(--info)',
+})
+
+const PAYMENT_META: Record<'pending' | 'partial' | 'paid', { label: string; color: string; bg: string }> = {
+  pending: { label: 'Unpaid', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
+  partial: { label: 'Partially Paid', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  paid: { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' },
+}
+
+// Prefer the API's payment_status; fall back to total/remaining payment.
+function paymentStatusOf(po: PurchaseOrder): 'pending' | 'partial' | 'paid' {
+  if (po.payment_status) return po.payment_status
+  const total = Number(po.total_price ?? 0)
+  const paid = Number(po.total_payment ?? 0)
+  const remaining = po.remaining_payment != null ? Number(po.remaining_payment) : total - paid
+  if (total > 0 && remaining <= 0) return 'paid'
+  return paid > 0 ? 'partial' : 'pending'
+}
+
 export default function PurchaseOrdersView() {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -94,9 +129,21 @@ export default function PurchaseOrdersView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
-  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'delivered' | 'rejected' | 'partially_delivered'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'accepted' | 'delivered' | 'rejected' | 'partially_delivered'>('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'' | 'supplier' | 'branch'>('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'' | 'pending' | 'partial' | 'paid'>('')
+  const [remainingQtyFilter, setRemainingQtyFilter] = useState<'' | 'true' | 'false'>('')
+  const [supplierFilter, setSupplierFilter] = useState<number>(0)
+  const [supplierBranchFilter, setSupplierBranchFilter] = useState<number>(0)
+  const [buyerFilter, setBuyerFilter] = useState<number>(0)
+  const [supplierSearch, setSupplierSearch] = useState('')
+  const [debouncedSupplierSearch, setDebouncedSupplierSearch] = useState('')
+  const [supplierBranchSearch, setSupplierBranchSearch] = useState('')
+  const [debouncedSupplierBranchSearch, setDebouncedSupplierBranchSearch] = useState('')
+  const [buyerSearch, setBuyerSearch] = useState('')
+  const [debouncedBuyerSearch, setDebouncedBuyerSearch] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -105,11 +152,76 @@ export default function PurchaseOrdersView() {
   }, [search])
 
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo])
+    const t = setTimeout(() => {
+      setDebouncedSupplierSearch(supplierSearch)
+      setDebouncedSupplierBranchSearch(supplierBranchSearch)
+      setDebouncedBuyerSearch(buyerSearch)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [supplierSearch, supplierBranchSearch, buyerSearch])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['purchase-orders', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, (user as any)?.branch?.id],
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, typeFilter, paymentStatusFilter, remainingQtyFilter, supplierFilter, supplierBranchFilter, buyerFilter])
+
+  // ── Filter dropdown sources ───────────────────────────────────────────────
+  // Supplier picker only applies to supplier POs, supplier-branch picker only
+  // to branch (internal) POs — each is hidden & not fetched for the other type.
+  const showSupplierFilter = typeFilter !== 'branch'
+  const showSupplierBranchFilter = typeFilter !== 'supplier'
+
+  const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
+    queryKey: ['suppliers-all', debouncedSupplierSearch],
+    queryFn: () =>
+      suppliersService
+        .list({ 'filter[search]': debouncedSupplierSearch || undefined, per_page: 100 } as any)
+        .then((r) => r.data),
+    enabled: showSupplierFilter,
+  })
+  const supplierOptions = [
+    { value: 0, label: 'All suppliers' },
+    ...((suppliersData as any)?.data ?? []).map((s: any) => ({
+      value: s.id as number,
+      label: (s.name as string) ?? `Supplier #${s.id}`,
+      sublabel: s.code as string | undefined,
+    })),
+  ]
+
+  const { data: supplierBranchesData, isLoading: supplierBranchesLoading } = useQuery({
+    queryKey: ['branches-all', 'po-filter', debouncedSupplierBranchSearch],
+    queryFn: () =>
+      branchesService
+        .list({ 'filter[search]': debouncedSupplierBranchSearch || undefined, per_page: 100 } as any)
+        .then((r) => r.data),
+    enabled: showSupplierBranchFilter,
+  })
+  const supplierBranchOptions = [
+    { value: 0, label: 'All supplier branches' },
+    ...((supplierBranchesData as any)?.data ?? []).map((b: any) => ({
+      value: b.id as number,
+      label: (b.name as string) ?? `Branch #${b.id}`,
+      sublabel: b.code as string | undefined,
+    })),
+  ]
+
+  const { data: buyersData, isLoading: buyersLoading } = useQuery({
+    queryKey: ['buyers-all', debouncedBuyerSearch],
+    queryFn: () =>
+      buyersService
+        .list({ 'filter[search]': debouncedBuyerSearch || undefined, per_page: 100, sort: 'name' } as any)
+        .then((r) => r.data),
+  })
+  const buyerOptions = [
+    { value: 0, label: 'All buyers' },
+    ...((buyersData as any)?.data ?? []).map((b: any) => ({
+      value: b.id as number,
+      label: (b.name as string) ?? `Buyer #${b.id}`,
+      sublabel: b.code as string | undefined,
+    })),
+  ]
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['purchase-orders', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, typeFilter, paymentStatusFilter, remainingQtyFilter, supplierFilter, supplierBranchFilter, buyerFilter, (user as any)?.branch?.id],
     queryFn: () =>
       purchaseOrdersService
         .list({
@@ -122,9 +234,18 @@ export default function PurchaseOrdersView() {
           'filter[date_gte]': dateFrom || undefined,
           'filter[date_lte]': dateTo || undefined,
           'filter[branch_id]': (user as any)?.branch?.id || undefined,
-        })
+          'filter[type]': typeFilter || undefined,
+          'filter[payment_status]': paymentStatusFilter || undefined,
+          'filter[has_remaining_qty]': remainingQtyFilter || undefined,
+          'filter[supplier_id]': (showSupplierFilter && supplierFilter) || undefined,
+          'filter[supplier_branch_id]': (showSupplierBranchFilter && supplierBranchFilter) || undefined,
+          'filter[buyer_id]': buyerFilter || undefined,
+        } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: PurchaseOrder[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -149,232 +270,187 @@ export default function PurchaseOrdersView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const hasFilters = !!(statusFilter || dateFrom || dateTo)
-
-  const thStyle: React.CSSProperties = {
-    padding: '10px 16px',
-    textAlign: 'left',
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    borderBottom: '1px solid var(--border)',
+  // Header/cell look comes from .v2-table; only per-cell extras stay inline.
+  const thStyle: React.CSSProperties = { textAlign: 'left' }
+  const tdStyle: React.CSSProperties = { paddingTop: 8, paddingBottom: 8 }
+  const pillStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '2px 8px',
+    borderRadius: 99,
+    fontSize: 11,
+    fontWeight: 500,
     whiteSpace: 'nowrap',
   }
 
-  const tdStyle: React.CSSProperties = {
-    padding: '12px 16px',
-    borderBottom: '1px solid var(--border)',
-    verticalAlign: 'middle',
-  }
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
-
-  const actionBtnStyle: React.CSSProperties = {
-    padding: 6,
-    background: 'none',
-    border: 'none',
-    borderRadius: 'var(--radius-sm)',
-    cursor: 'pointer',
-    color: 'var(--foreground-muted)',
-    display: 'flex',
-  }
-
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Page header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          marginBottom: 28,
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <h1
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 26,
-              fontWeight: 600,
-              color: 'var(--foreground)',
-              margin: 0,
-            }}
-          >
+          <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
             Purchase Orders
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0 0' }}>
             Manage procurement orders to suppliers
           </p>
         </div>
-        {canCreate && (<button
-          onClick={() => router.push('/purchase/purchase-orders/create')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            background: 'var(--accent)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            cursor: 'pointer',
-          }}>
-          <Plus size={15} />New Order
-        </button>)}
-      </div>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
-        }}
-      >
-        {/* Search */}
-        <div style={{ position: 'relative', maxWidth: 280 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search orders..."
-            style={{
-              ...inputBase,
-              width: 280,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value as any)
-            setPage(1)
-          }}
-          style={{
-            ...inputBase,
-            padding: '8px 12px',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="final">Final</option>
-          <option value="delivered">Delivered</option>
-          <option value="rejected">Rejected</option>
-          <option value="partially_delivered">Partially Delivered</option>
-        </select>
-
-        {/* Date from */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            From
-          </label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value)
-              setPage(1)
-            }}
-            style={{
-              ...inputBase,
-              padding: '7px 10px',
-              fontSize: 12,
-            }}
-          />
-        </div>
-
-        {/* Date to */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            To
-          </label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => {
-              setDateTo(e.target.value)
-              setPage(1)
-            }}
-            style={{
-              ...inputBase,
-              padding: '7px 10px',
-              fontSize: 12,
-            }}
-          />
-        </div>
-
-        {/* Clear filters */}
-        {hasFilters && (
-          <button
-            onClick={() => {
-              setStatusFilter('')
-              setDateFrom('')
-              setDateTo('')
-              setPage(1)
-            }}
-            style={{
-              padding: '7px 12px',
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              color: 'var(--foreground-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            Clear filters
+        {canCreate && (
+          <button className="v2-btn v2-btn-primary" onClick={() => router.push('/purchase/purchase-orders/create')}>
+            <Plus size={14} />New Order
           </button>
         )}
       </div>
-      {/* Table */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search orders..."
+        activeCount={countActive(
+          statusFilter, typeFilter, paymentStatusFilter, remainingQtyFilter,
+          supplierFilter, supplierBranchFilter, buyerFilter, dateFrom, dateTo,
+        )}
+        onClear={() => {
+          setStatusFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setTypeFilter('')
+          setPaymentStatusFilter('')
+          setRemainingQtyFilter('')
+          setSupplierFilter(0)
+          setSupplierBranchFilter(0)
+          setBuyerFilter(0)
+          setPage(1)
         }}
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Final</option>
+              <option value="accepted">Accepted</option>
+              <option value="delivered">Delivered</option>
+              <option value="rejected">Rejected</option>
+              <option value="partially_delivered">Partially Delivered</option>
+            </FilterSelect>
+            <FilterSelect
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Types</option>
+              <option value="supplier">Supplier</option>
+              <option value="branch">Branch</option>
+            </FilterSelect>
+            <FilterSelect
+              value={paymentStatusFilter}
+              onChange={(e) => {
+                setPaymentStatusFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Payment Status</option>
+              <option value="pending">Unpaid</option>
+              <option value="partial">Partially Paid</option>
+              <option value="paid">Paid</option>
+            </FilterSelect>
+          </>
+        }
       >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <FilterGroup title="Parties">
+          {showSupplierFilter && (
+            <FilterField label="Supplier">
+              <SearchableSelect
+                value={supplierFilter}
+                onChange={(v) => {
+                  setSupplierFilter(Number(v) || 0)
+                  setPage(1)
+                }}
+                options={supplierOptions}
+                placeholder="All suppliers"
+                searchPlaceholder="Search suppliers..."
+                loading={suppliersLoading}
+                onSearchChange={setSupplierSearch}
+              />
+            </FilterField>
+          )}
+          {showSupplierBranchFilter && (
+            <FilterField label="Supplier branch">
+              <SearchableSelect
+                value={supplierBranchFilter}
+                onChange={(v) => {
+                  setSupplierBranchFilter(Number(v) || 0)
+                  setPage(1)
+                }}
+                options={supplierBranchOptions}
+                placeholder="All supplier branches"
+                searchPlaceholder="Search supplier branches..."
+                loading={supplierBranchesLoading}
+                onSearchChange={setSupplierBranchSearch}
+              />
+            </FilterField>
+          )}
+          <FilterField label="Buyer">
+            <SearchableSelect
+              value={buyerFilter}
+              onChange={(v) => {
+                setBuyerFilter(Number(v) || 0)
+                setPage(1)
+              }}
+              options={buyerOptions}
+              placeholder="All buyers"
+              searchPlaceholder="Search buyers..."
+              loading={buyersLoading}
+              onSearchChange={setBuyerSearch}
+            />
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dates & delivery">
+          <FilterField label="Order date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+          <FilterField label="Remaining qty">
+            <FilterSelect
+              block
+              value={remainingQtyFilter}
+              onChange={(e) => {
+                setRemainingQtyFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">Remaining Qty: All</option>
+              <option value="true">Has Remaining Qty</option>
+              <option value="false">Fully Delivered</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
+      {/* Table */}
+      <div className="v2-card" style={{ overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+        <table className="v2-table">
           <thead>
             <tr>
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 160 }}>Code</th>
               <th style={thStyle}>Order From</th>
               <th style={{ ...thStyle, width: 180 }}>Buyer</th>
-              <th style={{ ...thStyle, width: 160 }}>Branch</th>
               <th style={{ ...thStyle, width: 130 }}>Date</th>
-              <th style={{ ...thStyle, width: 150 }}>Total</th>
+              <th style={{ ...thStyle, width: 150, textAlign: 'right' }}>Total</th>
               <th style={{ ...thStyle, width: 110 }}>Status</th>
+              <th style={{ ...thStyle, width: 120 }}>Payment</th>
               <th style={{ ...thStyle, width: 100 }} />
             </tr>
           </thead>
@@ -459,16 +535,10 @@ export default function PurchaseOrdersView() {
                 return (
                   <tr
                     key={item.id}
-                    style={{ transition: 'background 120ms' }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--background)')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = 'transparent')
-                    }
+                    data-row
                   >
                     <td style={{ ...tdStyle, textAlign: 'center' }}>
-                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      <span style={{ color: 'var(--foreground-subtle)' }}>
                         {(page - 1) * perPage + idx + 1}
                       </span>
                     </td>
@@ -476,8 +546,7 @@ export default function PurchaseOrdersView() {
                       <span
                         style={{
                           fontFamily: 'monospace',
-                          fontSize: 13,
-                          fontWeight: 600,
+                          fontSize: 12,
                           color: 'var(--accent)',
                         }}
                       >
@@ -485,60 +554,27 @@ export default function PurchaseOrdersView() {
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: 'var(--foreground)',
-                        }}
-                      >
+                      <span>
                         {supplierName ? (
-                          <span
-                            style={{
-                              color: 'var(--foreground-muted)',
-                              fontSize: '0.75rem',
-                              marginRight: '0.25rem',
-                            }}
-                          >
-                            Supplier ·{' '}
-                          </span>
+                          <span style={originTagStyle('supplier')}>Supplier</span>
                         ) : branchName ? (
-                          <span
-                            style={{
-                              color: 'var(--foreground-muted)',
-                              fontSize: '0.75rem',
-                              marginRight: '0.25rem',
-                            }}
-                          >
-                            Internal ·{' '}
-                          </span>
+                          <span style={originTagStyle('internal')}>Internal</span>
                         ) : null}
                         {orderFromLabel}
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <span style={{ fontSize: 13, color: 'var(--foreground)' }}>
+                      <span>
                         {buyerLabelOf(po)}
                       </span>
                     </td>
                     <td style={tdStyle}>
-                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-                        {item.branch?.name ?? '—'}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+                      <span style={{ color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
                         {item.date}
                       </span>
                     </td>
-                    <td style={tdStyle}>
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: 'var(--foreground)',
-                        }}
-                      >
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <span style={{ fontWeight: 500, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         {isInternal
                           ? ''
                           : getCanReadPrice()
@@ -557,12 +593,7 @@ export default function PurchaseOrdersView() {
                       >
                         <span
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            padding: '3px 10px',
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 600,
+                            ...pillStyle,
                             background: statusMeta.bg,
                             color: statusMeta.color,
                           }}
@@ -572,12 +603,7 @@ export default function PurchaseOrdersView() {
                         {showFulfillment && (
                           <span
                             style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '3px 10px',
-                              borderRadius: 99,
-                              fontSize: 11,
-                              fontWeight: 600,
+                              ...pillStyle,
                               background: fullyReceived
                                 ? 'var(--success-bg)'
                                 : 'var(--warning-bg)',
@@ -594,23 +620,45 @@ export default function PurchaseOrdersView() {
                       </div>
                     </td>
                     <td style={tdStyle}>
+                      {isInternal || item.status === 'rejected' ? (
+                        <span style={{ color: 'var(--foreground-subtle)' }}>—</span>
+                      ) : (() => {
+                        const payStatus = paymentStatusOf(item)
+                        const pay = PAYMENT_META[payStatus]
+                        const remaining =
+                          item.remaining_payment != null
+                            ? Number(item.remaining_payment)
+                            : Number(item.total_price ?? 0) - Number(item.total_payment ?? 0)
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
+                          <span
+                            style={{
+                              ...pillStyle,
+                              background: pay.bg,
+                              color: pay.color,
+                            }}
+                          >
+                            {pay.label}
+                          </span>
+                          {payStatus !== 'paid' && (
+                            <span style={{ fontSize: 11.5, color: 'var(--foreground-muted)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                              {getCanReadPrice() ? formatCurrency(remaining) : '***'}
+                            </span>
+                          )}
+                          </div>
+                        )
+                      })()}
+                    </td>
+                    <td style={tdStyle}>
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 4,
+                          gap: 2,
                           justifyContent: 'flex-end',
                         }}
                       >
-                        <button
-                          onClick={() =>
-                            router.push(`/purchase/purchase-orders/${item.id}/detail`)
-                          }
-                          style={actionBtnStyle}
-                          title="View"
-                        >
-                          <Eye size={14} />
-                        </button>
+                        {/* Extra actions go first so View/Edit/Delete stay aligned on the right. */}
                         {(item.status === 'accepted' || item.status === 'final') && (
                           <button
                             onClick={(e) => {
@@ -618,7 +666,7 @@ export default function PurchaseOrdersView() {
                               const sourceType = item.type === 'branch' ? 'po_from_branch' : 'po_from_supplier'
                               router.push(`/transfer/deliveries/create?po_id=${item.id}&source_type=${sourceType}`)
                             }}
-                            style={actionBtnStyle}
+                            className="v2-icon-btn"
                             title="Create Delivery"
                           >
                             <Truck size={14} />
@@ -626,12 +674,12 @@ export default function PurchaseOrdersView() {
                         )}
                         <button
                           onClick={() =>
-                            router.push(`/sales/sales-orders/create?po_id=${item.id}`)
+                            router.push(`/purchase/purchase-orders/${item.id}/detail`)
                           }
-                          style={actionBtnStyle}
-                          title="Create Sales Order"
+                          className="v2-icon-btn"
+                          title="View"
                         >
-                          <ShoppingCart size={14} />
+                          <Eye size={14} />
                         </button>
                         {canEdit && (<button
                           onClick={() => {
@@ -642,12 +690,8 @@ export default function PurchaseOrdersView() {
                             router.push(`/purchase/purchase-orders/${item.id}/edit`)
                           }}
                           disabled={item.status === 'delivered'}
-                          style={{
-                            ...actionBtnStyle,
-                            ...(item.status === 'delivered'
-                              ? { opacity: 0.4, cursor: 'not-allowed' }
-                              : {}),
-                          }}
+                          className="v2-icon-btn"
+                          style={item.status === 'delivered' ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                           title={
                             item.status === 'delivered'
                               ? 'Delivered — cannot edit'
@@ -658,7 +702,8 @@ export default function PurchaseOrdersView() {
                         </button>)}
                         {canDelete && (<button
                           onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
+                          className="v2-icon-btn"
+                          data-tone="danger"
                           title="Delete">
                           <Trash2 size={14} />
                         </button>)}
@@ -670,6 +715,7 @@ export default function PurchaseOrdersView() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
       {/* Pagination */}
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />

@@ -1,14 +1,15 @@
 'use client'
 import { formatDate } from '@/utils/date'
 import React, { useState, useEffect, useMemo } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { stockOpnamesService } from '@/services/stock-opnames.service'
+import { branchesService } from '@/services/branches.service'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   Eye,
 } from 'lucide-react'
 
@@ -37,7 +38,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 
 export default function StockOpnamesView() {
   const router = useRouter()
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperadmin, user } = useAuth()
   const canCreate = hasPermission('stock-opname.create') || hasPermission('product-inventory.create')
   const canRead = hasPermission('stock-opname.read') || hasPermission('stock-opname.menu') || hasPermission('product-inventory.menu')
 
@@ -48,6 +49,7 @@ export default function StockOpnamesView() {
   const [statusFilter, setStatusFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -59,10 +61,22 @@ export default function StockOpnamesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [statusFilter, dateFrom, dateTo])
+  }, [statusFilter, dateFrom, dateTo, branchFilter])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['stock-opnames', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo],
+  // Branch filter options: superadmin sees every branch, other users only
+  // the branches they're assigned to (filter hidden for single-branch users).
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !!isSuperadmin,
+  })
+  const availableBranches: any[] = isSuperadmin
+    ? (branchesData as any)?.data ?? []
+    : (user as any)?.branches ?? []
+  const showBranchFilter = !!isSuperadmin || availableBranches.length > 1
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['stock-opnames', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, branchFilter],
     queryFn: () =>
       stockOpnamesService
         .list({
@@ -74,10 +88,14 @@ export default function StockOpnamesView() {
           'filter[status]': statusFilter || undefined,
           'filter[date_gte]': dateFrom || undefined,
           'filter[date_lte]': dateTo || undefined,
-        })
+          'filter[branch_id]': branchFilter || undefined,
+        } as any)
         .then((r) => r.data),
     enabled: canRead,
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   // Unwrap list body: { data: [], meta } or { success, data: { data: [], meta } }
   const listBody = useMemo(() => {
@@ -151,98 +169,57 @@ export default function StockOpnamesView() {
       </div>
 
       {/* Filters */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 12,
-          padding: 16,
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          flexWrap: 'wrap',
+      <FilterBar
+        style={{ marginBottom: 0 }}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by code..."
+        activeCount={countActive(statusFilter, branchFilter, dateFrom, dateTo)}
+        onClear={() => {
+          setStatusFilter('')
+          setBranchFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setPage(1)
         }}
+        quick={
+          <>
+            <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="counting">Counting</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </FilterSelect>
+            {showBranchFilter && (
+              <FilterSelect
+                value={branchFilter}
+                onChange={(e) => {
+                  setBranchFilter(e.target.value)
+                }}
+              >
+                <option value="">All Branches</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            )}
+          </>
+        }
       >
-        <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 400 }}>
-          <Search
-            size={16}
-            style={{
-              position: 'absolute',
-              left: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-            }}
-          />
-          <input
-            type="text"
-            placeholder="Search by code..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '8px 12px 8px 36px',
-              background: 'var(--background)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              outline: 'none',
-            }}
-          />
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{
-            padding: '8px 12px',
-            background: 'var(--background)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            outline: 'none',
-            minWidth: 140,
-          }}
-        >
-          <option value="">All Status</option>
-          <option value="draft">Draft</option>
-          <option value="counting">Counting</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          title="Date from"
-          style={{
-            padding: '8px 12px',
-            background: 'var(--background)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            outline: 'none',
-          }}
-        />
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          title="Date to"
-          style={{
-            padding: '8px 12px',
-            background: 'var(--background)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            outline: 'none',
-          }}
-        />
-      </div>
+        <FilterGroup title="Dates">
+          <FilterField label="Opname date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => setDateFrom(v)}
+              onToChange={(v) => setDateTo(v)}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* Table */}
       <div

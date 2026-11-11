@@ -9,10 +9,10 @@ import { useAuth } from '@/hooks/useAuth'
 import BundleSheet from './BundleSheet'
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { getProductUomName } from '@/utils/productUomName'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -104,7 +104,7 @@ export default function BundlesView() {
     setPage(1)
   }, [debouncedSearch, statusFilter])
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: ['bundles', page, perPage, debouncedSearch, statusFilter],
     queryFn: () =>
       bundlesService
@@ -118,6 +118,9 @@ export default function BundlesView() {
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Bundle[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -131,15 +134,6 @@ export default function BundlesView() {
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete bundle'),
   })
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
 
   const actionBtnStyle: React.CSSProperties = {
     padding: 6,
@@ -213,50 +207,26 @@ export default function BundlesView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search bundles..."
+        activeCount={countActive(statusFilter)}
+        onClear={() => {
+          setStatusFilter('')
+          setPage(1)
         }}
-      >
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search bundles..."
-            style={{
-              ...inputBase,
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'inactive')}
-          style={{ ...inputBase, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-      </div>
+        quick={
+          <FilterSelect
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'inactive')}
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </FilterSelect>
+        }
+      />
       {/* Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {isLoading ? (

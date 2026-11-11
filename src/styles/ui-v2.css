@@ -662,7 +662,8 @@
   color: var(--foreground-muted);
   white-space: nowrap;
 }
-:root[data-ui="v2"] main table:not(.v2-table) td {
+/* Full-width cells (empty / loading / error rows) keep their own padding. */
+:root[data-ui="v2"] main table:not(.v2-table) td:not([colspan]) {
   padding-top: 8px !important;
   padding-bottom: 8px !important;
 }

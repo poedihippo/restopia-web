@@ -1,5 +1,6 @@
 'use client'
 
+import { formatDateShort } from '@/utils/date'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/router'
 import { useForm, useFieldArray, Controller } from 'react-hook-form'
@@ -18,7 +19,8 @@ import { dimensionTransferRequestsService } from '@/services/dimension-transfer-
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import api from '@/hooks/useApi'
-import { Plus, Trash2, ArrowLeft, Loader2, Save, ArrowRightLeft } from 'lucide-react'
+import { Plus, Trash2, Loader2, Save, ArrowRightLeft } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import SearchableSelect from '@/components/SearchableSelect'
 
 import { getCanReadPrice } from '@/utils/price'
@@ -156,6 +158,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const { mode, initialData, deliveryId, prefill } = props
   const router = useRouter()
+  const isFulfillRoute = router.pathname.startsWith('/purchase/requested-orders')
+  const listHref = isFulfillRoute ? '/purchase/requested-orders' : '/transfer/deliveries'
+  const listLabel = isFulfillRoute ? 'Incoming PO Requests' : 'Deliveries'
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const myBranchId = (user as any)?.branch?.id ?? (user as any)?.branch_id
@@ -1033,7 +1038,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
       deliveriesService.update(deliveryId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deliveries'] })
-      queryClient.invalidateQueries({ queryKey: ['delivery-detail', deliveryId] })
+      queryClient.removeQueries({ queryKey: ['delivery-detail', deliveryId] })
       toast.success('Delivery updated')
       router.push(`/transfer/deliveries/${deliveryId}/detail`)
     },
@@ -1171,12 +1176,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '9px 12px',
+    height: 38,
+    padding: '0 12px',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
-    fontSize: 13,
+    fontSize: 13.5,
     color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
+    background: 'var(--surface)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
@@ -1190,14 +1196,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   const selectStyle: React.CSSProperties = {
     ...inputStyle,
     cursor: 'pointer',
-    appearance: 'none' as any,
   }
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: 500,
     color: 'var(--foreground)',
-    marginBottom: 4,
+    marginBottom: 6,
     display: 'block',
   }
 
@@ -1207,113 +1212,112 @@ export default function DeliveryForm(props: DeliveryFormProps) {
     marginTop: 4,
   }
 
+  const helpStyle: React.CSSProperties = {
+    fontSize: 12,
+    color: 'var(--foreground-muted)',
+    marginTop: 4,
+    display: 'block',
+  }
+
   const sectionHeaderStyle: React.CSSProperties = {
     padding: '14px 20px',
     borderBottom: '1px solid var(--border)',
-    background: 'var(--background)',
-    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
   }
 
   const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
+    color: 'var(--foreground)',
   }
 
   const cardStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
     overflow: 'visible',
-    boxShadow: 'var(--shadow-sm)',
+  }
+
+  const fieldGridStyle: React.CSSProperties = {
+    padding: 20,
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '16px 20px',
   }
 
   const lineInputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '8px 10px',
+    height: 34,
+    padding: '0 10px',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
     fontSize: 13,
     color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
+    background: 'var(--surface)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
+  }
+
+  // Trigger sizing for SearchableSelect so it matches the native controls.
+  const fieldTriggerStyle: React.CSSProperties = {
+    height: 38,
+    padding: '0 12px',
+    fontSize: 13.5,
+    background: 'var(--surface)',
+  }
+  const lineTriggerStyle: React.CSSProperties = {
+    height: 34,
+    padding: '0 10px',
+    fontSize: 13,
+    background: 'var(--surface)',
   }
 
   // Prefer the backend-converted qty in the LINE's own uom (e.g. "240
   // PACK") when available; otherwise fall back to the batch's own (base)
   // uom qty (e.g. "24,000 GR"). Never pair a base-uom number with a uom
   // label it wasn't converted into.
+  // Batch code + expiry date, then the stock: "B2611-07 · Exp 12 Nov 2026 (24 PCS)".
+  const batchCodeExpiry = (b: any) => {
+    const code = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
+    return b.expiry_date ? `${code} · Exp ${formatDateShort(b.expiry_date)}` : code
+  }
   const formatBatchOptionLabel = (b: any) => {
-    const rawCode = b.code ? String(b.code).trim() : `Batch #${b.batchId}`
-    const shortCode = rawCode.length > 7 ? `${rawCode.substring(0, 7)}...` : rawCode
+    const label = batchCodeExpiry(b)
     if (b.stock !== undefined) {
-      return `${shortCode} (${fmtQty(b.stock)}${b.unit ? ` ${b.unit}` : ''})`
+      return `${label} (${fmtQty(b.stock)}${b.unit ? ` ${b.unit}` : ''})`
     }
-    return shortCode
+    return label
   }
 
   const deliveryGridCols = requiresBatch
-    ? '36px minmax(260px, 3fr) minmax(140px, 1.2fr) 90px 120px minmax(160px, 1.8fr) 40px'
-    : '36px minmax(280px, 3.5fr) 90px 120px minmax(180px, 2fr) 40px'
+    ? '28px minmax(240px, 3fr) minmax(130px, 1.3fr) 96px 116px minmax(110px, 1.3fr) 32px'
+    : '28px minmax(260px, 3.5fr) 96px 116px minmax(130px, 1.6fr) 32px'
 
   return (
     <div
+      className="df-root"
       style={{
-        padding: '32px 32px 64px',
-        maxWidth: 1400,
+        padding: '28px 24px 48px',
         width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
+        gap: 20,
       }}
     >
-      {/* Top bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 10px',
-            background: 'none',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
+      {/* Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <BackLink href={listHref} label={listLabel} />
         <div>
           <h1
             style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 24,
-              fontWeight: 500,
+              fontFamily: 'var(--font-sans)',
+              fontSize: 22,
+              fontWeight: 600,
               margin: 0,
               color: 'var(--foreground)',
             }}
           >
             {mode === 'edit' ? 'Edit Delivery' : 'New Delivery'}
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '6px 0 0' }}>
             {mode === 'edit'
               ? 'Update the details of this delivery'
               : 'Fill in the details below to create a new delivery'}
@@ -1323,25 +1327,18 @@ export default function DeliveryForm(props: DeliveryFormProps) {
 
       <form
         onSubmit={handleSubmit(onSubmit, onInvalid)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--foreground-muted)', marginBottom: -4 }}>
           <span style={{ color: 'var(--destructive)' }}>*</span>
           <span>Required fields</span>
         </div>
         {/* Section 1 — Delivery Info */}
-        <div style={cardStyle}>
+        <div className="v2-card" style={cardStyle}>
           <div style={sectionHeaderStyle}>
             <span style={sectionLabelStyle}>Delivery Info</span>
           </div>
-          <div
-            style={{
-              padding: 20,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 16,
-            }}
-          >
+          <div className="df-grid" style={fieldGridStyle}>
 
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1390,11 +1387,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 <div
                   style={{
                     width: '100%',
-                    padding: '9px 12px',
+                    height: 38,
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 12px',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
-                    background: 'var(--background)',
-                    fontSize: 13,
+                    background: 'var(--surface-muted)',
+                    fontSize: 13.5,
+                    boxSizing: 'border-box',
                     color: 'var(--foreground-muted)',
                     fontFamily: 'var(--font-sans)',
                   }}
@@ -1414,6 +1415,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                         (o: any) => !myBranchId || o.value !== myBranchId,
                       )}
                       placeholder="Select target branch..."
+                      triggerStyle={fieldTriggerStyle}
                       searchPlaceholder="Search branches..."
                       loading={branchesLoading}
                       error={errors.target_branch_id?.message as string | undefined}
@@ -1436,6 +1438,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       onChange={(v) => field.onChange(v > 0 ? v : undefined)}
                       options={purchaseOrderOptions}
                       placeholder="No linked PO"
+                      triggerStyle={fieldTriggerStyle}
                       searchPlaceholder="Search POs..."
                       loading={purchaseOrdersLoading}
                       onSearchChange={setPoSearch}
@@ -1443,14 +1446,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   )}
                 />
                 {!!watchPurchaseOrderId && watchPurchaseOrderId > 0 && poDetail && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--success)',
-                      marginTop: 4,
-                      display: 'block',
-                    }}
-                  >
+                  <span style={{ ...helpStyle, color: 'var(--success)' }}>
                     ✓ {poDetail.purchase_order_details?.length ?? 0} item(s) loaded from PO
                   </span>
                 )}
@@ -1469,6 +1465,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       onChange={(v) => field.onChange(v > 0 ? v : undefined)}
                       options={salesOrderOptions}
                       placeholder="No linked SO"
+                      triggerStyle={fieldTriggerStyle}
                       searchPlaceholder="Search SOs..."
                       loading={salesOrdersLoading}
                       onSearchChange={setSoSearch}
@@ -1476,45 +1473,31 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   )}
                 />
                 {!!watchSalesOrderId && watchSalesOrderId > 0 && soDetail && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--success)',
-                      marginTop: 4,
-                      display: 'block',
-                    }}
-                  >
+                  <span style={{ ...helpStyle, color: 'var(--success)' }}>
                     ✓ {soDetail.sales_order_details?.length ?? 0} item(s) loaded from SO
                   </span>
                 )}
               </div>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: '1 / -1' }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional delivery notes"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+                style={{ ...inputStyle, height: 'auto', padding: '9px 12px', resize: 'vertical', minHeight: 72, lineHeight: 1.5 }}
               />
             </div>
           </div>
         </div>
 
         {/* Section 1b — Konsumsi Dari */}
-        <div style={cardStyle}>
+        <div className="v2-card" style={cardStyle}>
           <div style={sectionHeaderStyle}>
             <span style={sectionLabelStyle}>Konsumsi Dari</span>
           </div>
-          <div
-            style={{
-              padding: 20,
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 16,
-            }}
-          >
+          <div className="df-grid" style={fieldGridStyle}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <label style={labelStyle}>
                 Owner <span style={{ color: 'var(--destructive)' }}>*</span>
@@ -1527,12 +1510,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     readOnly
                     style={{
                       ...inputStyle,
-                      background: 'var(--muted)',
+                      background: 'var(--surface-muted)',
                       cursor: 'not-allowed',
                       color: 'var(--foreground-muted)',
                     }}
                   />
-                  <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
+                  <span style={helpStyle}>
                     Cabang outlet selalu menggunakan owner GENERAL
                   </span>
                 </>
@@ -1546,6 +1529,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       onChange={field.onChange}
                       options={buildCompanyOptions(companies, field.value)}
                       placeholder="Pilih owner..."
+                      triggerStyle={fieldTriggerStyle}
                       searchPlaceholder="Cari perusahaan..."
                       loading={companiesLoading}
                       error={errors.source_owner_ref?.message as string | undefined}
@@ -1568,6 +1552,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                     onChange={field.onChange}
                     options={stageOptions}
                     placeholder="Pilih stage..."
+                    triggerStyle={fieldTriggerStyle}
                     searchPlaceholder="Cari stage..."
                     loading={stagesLoading}
                     error={errors.source_stage?.message as string | undefined}
@@ -1580,7 +1565,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         </div>
 
         {/* Section 1c — Dimension Transfer (Optional) */}
-        <div style={cardStyle}>
+        <div className="v2-card" style={cardStyle}>
           <div
             style={{
               ...sectionHeaderStyle,
@@ -1592,7 +1577,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             onClick={() => setEnableDimensionTransfer(!enableDimensionTransfer)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ArrowRightLeft size={14} style={{ color: 'var(--accent)' }} />
+              <ArrowRightLeft size={15} style={{ color: 'var(--foreground-muted)' }} />
               <span style={sectionLabelStyle}>Dimension Transfer (Opsional)</span>
             </div>
             <div
@@ -1622,16 +1607,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
           </div>
 
           {enableDimensionTransfer && (
-            <div
-              style={{
-                padding: 20,
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 16,
-              }}
-            >
-              <div style={{ gridColumn: 'span 2' }}>
-                <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: 0 }}>
+            <div className="df-grid" style={fieldGridStyle}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: 0 }}>
                   Pindahkan stok dari dimensi asal (Owner/Stage di atas) ke dimensi tujuan yang baru.
                 </p>
               </div>
@@ -1645,6 +1623,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   onChange={setDimTransferToOwner}
                   options={buildCompanyOptions(targetCompanies, dimTransferToOwner)}
                   placeholder="Pilih owner tujuan..."
+                  triggerStyle={fieldTriggerStyle}
                   searchPlaceholder="Cari perusahaan..."
                   loading={targetCompaniesLoading}
                   onSearchChange={setTargetCompanySearch}
@@ -1660,6 +1639,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   onChange={setDimTransferToStage}
                   options={stageOptions}
                   placeholder="Pilih stage tujuan..."
+                  triggerStyle={fieldTriggerStyle}
                   searchPlaceholder="Cari stage..."
                   loading={stagesLoading}
                 />
@@ -1672,7 +1652,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   value={dimTransferToLocation}
                   onChange={(e) => setDimTransferToLocation(e.target.value)}
                   placeholder="GENERAL"
-                  style={lineInputStyle}
+                  style={inputStyle}
                 />
               </div>
 
@@ -1683,7 +1663,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   value={dimTransferDescription}
                   onChange={(e) => setDimTransferDescription(e.target.value)}
                   placeholder="Opsional"
-                  style={lineInputStyle}
+                  style={inputStyle}
                 />
               </div>
             </div>
@@ -1691,7 +1671,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         </div>
 
         {/* Section 2 — Line Items */}
-        <div style={cardStyle}>
+        <div className="v2-card" style={cardStyle}>
           <div
             style={{
               ...sectionHeaderStyle,
@@ -1701,29 +1681,12 @@ export default function DeliveryForm(props: DeliveryFormProps) {
             }}
           >
             <span style={sectionLabelStyle}>Delivery Items</span>
-            <button
-              type="button"
-              onClick={handleAddItem}
-              title="Add Item (Ctrl+B)"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 10px',
-                background: 'var(--accent-light-bg)',
-                color: 'var(--accent)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus size={13} />
-              Add Item
-            </button>
+            <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+              {fields.length} item{fields.length === 1 ? '' : 's'}
+            </span>
           </div>
 
+          <div className="df-lines" style={{ overflowX: 'auto' }}>
           <div
             style={{
               display: 'grid',
@@ -1731,7 +1694,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               gap: 10,
               padding: '10px 20px',
               borderBottom: '1px solid var(--border)',
-              background: 'var(--background)',
+              background: 'var(--surface-muted)',
               alignItems: 'center',
             }}
           >
@@ -1742,12 +1705,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
               <span
                 key={i}
                 style={{
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: 600,
                   color: 'var(--foreground-muted)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  textAlign: h === '#' || h === '' ? 'center' : 'left',
+                  letterSpacing: '0.04em',
+                  whiteSpace: 'nowrap',
+                  textAlign: h === '#' || h === '' ? 'center' : h === 'Qty' ? 'right' : 'left',
                 }}
               >
                 {h}
@@ -1762,8 +1726,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 display: 'grid',
                 gridTemplateColumns: deliveryGridCols,
                 gap: 10,
-                padding: '12px 20px',
-                borderBottom: '1px solid var(--border)',
+                padding: '10px 20px',
+                borderBottom: index === fields.length - 1 ? 'none' : '1px solid var(--border)',
                 alignItems: 'start',
               }}
             >
@@ -1773,10 +1737,10 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  height: 38,
+                  height: 34,
                   fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--foreground-muted)',
+                  fontWeight: 500,
+                  color: 'var(--foreground-subtle)',
                 }}
               >
                 {index + 1}
@@ -1818,6 +1782,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       }}
                       options={productUomOptions}
                       placeholder="Select product..."
+                      triggerStyle={lineTriggerStyle}
                       searchPlaceholder="Search products..."
                       loading={productUomsLoading}
                       error={
@@ -1934,9 +1899,26 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                             })}
                           </select>
                         )}
+                        {!showBatchLoading && f.value ? (() => {
+                          const sel = batchOptions.find((b: any) => b.batchId === f.value)
+                          return sel && (sel.code || sel.expiry_date) ? (
+                            <span
+                              title={batchCodeExpiry(sel)}
+                              style={{
+                                fontSize: 11.5,
+                                color: 'var(--foreground-muted)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {batchCodeExpiry(sel)}
+                            </span>
+                          ) : null
+                        })() : null}
                         {batchError && (
                           <span
-                            style={{ fontSize: 10, color: 'var(--destructive)' }}
+                            style={{ fontSize: 12, color: 'var(--destructive)' }}
                           >
                             {batchError}
                           </span>
@@ -1961,12 +1943,14 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       {...register(`details.${index}.qty`, { valueAsNumber: true })}
                       style={{
                         ...lineInputStyle,
+                        textAlign: 'right',
+                        fontVariantNumeric: 'tabular-nums',
                         border: `1px solid ${message ? 'var(--destructive)' : 'var(--border)'}`,
                       }}
                       onWheel={(e) => (e.target as HTMLElement).blur()}
                     />
                     {message && (
-                      <span style={{ fontSize: 10, color: 'var(--destructive)', lineHeight: 1.3 }}>
+                      <span style={{ fontSize: 12, color: 'var(--destructive)', lineHeight: 1.3 }}>
                         {message}
                       </span>
                     )}
@@ -1996,30 +1980,36 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                 style={lineInputStyle}
               />
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 38 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 34 }}>
                 <button
                   type="button"
                   onClick={() => remove(index)}
                   disabled={fields.length === 1}
-                  style={{
-                    padding: 6,
-                    background: 'none',
-                    border: 'none',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: fields.length === 1 ? 'not-allowed' : 'pointer',
-                    color: fields.length === 1 ? 'var(--border)' : 'var(--destructive)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                  className="v2-icon-btn"
+                  data-tone="danger"
+                  aria-label="Remove item"
+                  style={fields.length === 1 ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
                 >
                   <Trash2 size={14} />
                 </button>
               </div>
             </div>
           ))}
+          </div>
 
           {/* total footer removed */}
+
+          <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+            <button
+              type="button"
+              onClick={handleAddItem}
+              title="Add Item (Ctrl+B)"
+              className="v2-btn v2-btn-outline v2-btn-sm"
+            >
+              <Plus size={13} />
+              Add Item
+            </button>
+          </div>
 
           {errors.details && typeof (errors.details as any).message === 'string' && (
             <div style={{ padding: '8px 20px' }}>
@@ -2033,50 +2023,34 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         {/* Form actions */}
         <div
           style={{
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 5,
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: 10,
-            paddingTop: 4,
+            gap: 8,
+            padding: '12px 0',
+            marginTop: 8,
+            background: 'var(--surface)',
+            borderTop: '1px solid var(--border)',
           }}
         >
           <button
             type="button"
-            onClick={() => router.back()}
-            style={{
-              padding: '9px 20px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
+            onClick={() => router.push(listHref)}
+            className="v2-btn v2-btn-outline"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={isPending}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '9px 20px',
-              background: 'var(--accent)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-              opacity: isPending ? 0.7 : 1,
-            }}
+            className="v2-btn v2-btn-primary"
           >
             {isPending && (
-              <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
             )}
-            <Save size={14} />
+            <Save size={15} />
             {mode === 'edit'
               ? isPending
                 ? 'Saving...'
@@ -2092,6 +2066,9 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @media (max-width: 720px) {
+          .df-root .df-grid { grid-template-columns: minmax(0, 1fr) !important; }
         }
       `}</style>
     </div>

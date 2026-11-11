@@ -13,8 +13,9 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import {
-  Plus, Search, Pencil, Trash2,
+  Plus, Pencil, Trash2,
   X, Loader2, Tag, TrendingUp, TrendingDown, Download,
 } from 'lucide-react'
 
@@ -70,6 +71,7 @@ export default function AccountCategoriesView() {
   const canDelete = isSuperadmin || hasPermission('account-category.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [normalBalanceFilter, setNormalBalanceFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -79,10 +81,13 @@ export default function AccountCategoriesView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['account-categories', page, perPage, debouncedSearch],
-    queryFn: () => accountCategoriesService.list({ page, per_page: perPage, sort: 'code', 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['account-categories', page, perPage, debouncedSearch, normalBalanceFilter],
+    queryFn: () => accountCategoriesService.list({ page, per_page: perPage, sort: 'code', 'filter[search]': debouncedSearch || undefined, 'filter[normal_balance]': normalBalanceFilter || undefined } as any).then(r => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: AccountCategory[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -147,14 +152,20 @@ export default function AccountCategoriesView() {
         </div>
       </div>
 
-      {/* Search */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12 }}>
-        <div style={{ position: 'relative', width: 300 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account categories..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search account categories..."
+        activeCount={countActive(normalBalanceFilter)}
+        onClear={() => { setNormalBalanceFilter(''); setPage(1) }}
+        quick={
+          <FilterSelect value={normalBalanceFilter} onChange={(e) => { setNormalBalanceFilter(e.target.value); setPage(1) }}>
+            <option value="">All Normal Balance</option>
+            <option value="debit">Debit</option>
+            <option value="credit">Credit</option>
+          </FilterSelect>
+        }
+      />
 
       {/* Table */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>

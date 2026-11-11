@@ -5,7 +5,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { stockOpnamesService } from '@/services/stock-opnames.service'
 import { toastMutationApiError } from '@/utils/apiError'
-import { ChevronLeft, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 
 export default function StockOpnameForm() {
   const router = useRouter()
@@ -52,25 +53,9 @@ export default function StockOpnameForm() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 560, margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, margin: '0 auto' }}>
+      <BackLink href="/products/product-inventory/stock-opname" label="Stock Opnames" />
       <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <button
-          onClick={() => router.push('/products/product-inventory/stock-opname')}
-          style={{
-            width: 36,
-            height: 36,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border)',
-            background: 'var(--surface)',
-            color: 'var(--foreground)',
-            cursor: 'pointer',
-          }}
-        >
-          <ChevronLeft size={18} />
-        </button>
         <div>
           <h1
             style={{
@@ -182,7 +167,7 @@ export default function StockOpnameForm() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push('/products/product-inventory/stock-opname')}
             disabled={createMutation.isPending}
             style={{
               padding: '9px 16px',

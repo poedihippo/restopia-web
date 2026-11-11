@@ -4,6 +4,7 @@ import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowUpRight, BookOpen, Loader2 } from 'lucide-react'
 import { journalsService } from '@/services/accounting.service'
+import { paymentsService } from '@/services/payments.service'
 import { formatCurrency } from '@/utils/price'
 import { formatDateShort } from '@/utils/date'
 
@@ -11,6 +12,8 @@ import { formatDateShort } from '@/utils/date'
  * Both journals of a sale, so the accountant sees the Piutang step:
  *   1. Sales journal   — D Piutang Dagang / K Pendapatan (+ HPP), referencing the order.
  *   2. Payment journal — D Kas/Bank (the method's account) / K Piutang, one per payment.
+ *      A method that requires settlement posts nothing at payment: the amount
+ *      stays in Piutang until Settle Payments posts D Bank (+ fee) / K Piutang.
  * /journals cannot filter by reference, so the sales journal is found by searching
  * the order code and keeping the journal whose reference is this order.
  */
@@ -92,7 +95,14 @@ export default function SaleJournals({
   cardTitleStyle,
 }: {
   order: any
-  payments: { id?: number; journal_id?: number | null; method?: string; number?: string }[]
+  payments: {
+    id?: number
+    journal_id?: number | null
+    method?: string
+    number?: string
+    settlement_status?: 'pending' | 'settled' | null
+    settlement_id?: number | null
+  }[]
   cardStyle: React.CSSProperties
   cardHeaderStyle: React.CSSProperties
   cardTitleStyle: React.CSSProperties
@@ -127,8 +137,34 @@ export default function SaleJournals({
       ),
   })
 
-  const loading = salesLoading || (journalIds.length > 0 && paymentsLoading)
+  // Settled payments: their journal belongs to the settlement (one per batch).
+  const settlementIds = Array.from(new Set(payments.map((p) => Number(p.settlement_id)).filter((v) => v > 0))).sort((a, b) => a - b)
+  const { data: settlementJournals = [], isLoading: settlementsLoading } = useQuery({
+    queryKey: ['sale-payment-journals', 'settlements', settlementIds],
+    enabled: settlementIds.length > 0,
+    queryFn: () =>
+      Promise.all(
+        settlementIds.map((sid) =>
+          paymentsService
+            .findSettlement(sid)
+            .then((r) => (r.data as any)?.data ?? null)
+            .then((st: any) =>
+              st?.journal_id
+                ? journalsService
+                    .findById(Number(st.journal_id), { include: INCLUDE })
+                    .then((r) => ({ settlement: st, journal: (r.data as any)?.data ?? null }))
+                : { settlement: st, journal: null },
+            )
+            .catch(() => null),
+        ),
+      ),
+  })
+
+  const loading =
+    salesLoading || (journalIds.length > 0 && paymentsLoading) || (settlementIds.length > 0 && settlementsLoading)
   const paymentRows = payments.filter((p) => Number(p.journal_id) > 0)
+  const pendingRows = payments.filter((p) => p.settlement_status === 'pending' && !(Number(p.journal_id) > 0))
+  const settledRows = (settlementJournals as any[]).filter((x) => x?.journal)
 
   return (
     <section style={cardStyle}>
@@ -151,10 +187,35 @@ export default function SaleJournals({
             ) : (
               <div style={{ fontSize: 12.5, color: 'var(--foreground-subtle)' }}>1. Sales journal: not found (the order may not be final yet).</div>
             )}
-            {paymentRows.length === 0 ? (
-              <div style={{ fontSize: 12.5, color: 'var(--foreground-subtle)' }}>
-                2. Payment journal: none yet. A Credit payment has no payment journal; it stays on Piutang.
+            {pendingRows.map((p, i) => (
+              <div
+                key={`pending-${p.id ?? i}`}
+                style={{
+                  fontSize: 12.5,
+                  color: 'var(--warning)',
+                  background: 'var(--warning-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '8px 12px',
+                }}
+              >
+                2. {[p.method, p.number].filter(Boolean).join(' · ') || 'Payment'}: menunggu settlement — masih di Piutang Dagang
+                sampai dana masuk bank (Payments → Settle Payments).
               </div>
+            ))}
+            {settledRows.map((x: any) => (
+              <JournalBlock
+                key={`settle-${x.journal.id}`}
+                title="2. Settlement journal"
+                journal={x.journal}
+                note={[x.settlement?.code, 'Bank ← Piutang'].filter(Boolean).join(' · ')}
+              />
+            ))}
+            {paymentRows.length === 0 ? (
+              pendingRows.length === 0 && settledRows.length === 0 && (
+                <div style={{ fontSize: 12.5, color: 'var(--foreground-subtle)' }}>
+                  2. Payment journal: none yet. A Credit payment has no payment journal; it stays on Piutang.
+                </div>
+              )
             ) : (
               paymentRows.map((p, i) => {
                 const j = (paymentJournals as any[]).find((x) => x && Number(x.id) === Number(p.journal_id))

@@ -3,19 +3,21 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
+import BackLink from '@/components/BackLink'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { suppliersService } from '@/services/suppliers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { paymentsService } from '@/services/payments.service'
-import { paymentMethodsService } from '@/services/payment-methods.service'
+import { bankAccountsService } from '@/services/bank-accounts.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { formatDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
-import { ArrowLeft, Building2, FileText, AlertCircle, Loader2, ExternalLink, Wallet, X } from 'lucide-react'
+import { Building2, FileText, AlertCircle, Loader2, ExternalLink, Wallet, X } from 'lucide-react'
 
 interface Supplier {
   id: number
@@ -34,6 +36,8 @@ interface PurchaseOrder {
   total_payment?: number
   remaining_payment?: number
   supplier?: Supplier
+  branch_id?: number
+  branch?: { id: number; name: string }
 }
 
 // Pending (draft) and rejected POs are never a payable debt.
@@ -47,6 +51,7 @@ interface DisbursePayment {
   amount: number
   is_reversed?: boolean
   payment_method?: { id: number; name: string }
+  bank_account?: { id: number; bank_name?: string; account_number?: string; account_name?: string }
   allocations?: { purchase_order_id?: number; amount: number }[]
 }
 
@@ -124,7 +129,8 @@ function PayModal({
   onClose: () => void
 }) {
   const qc = useQueryClient()
-  const [paymentMethodId, setPaymentMethodId] = useState<number>(0)
+  // Source of funds (Zahir's "Akun Kas"): the bank/cash account the money leaves.
+  const [bankAccountId, setBankAccountId] = useState<number>(0)
   const [amounts, setAmounts] = useState<Record<number, number>>(() =>
     Object.fromEntries(targets.map((t) => [t.id, t.outstanding])),
   )
@@ -138,23 +144,25 @@ function PayModal({
     return () => clearTimeout(t)
   }, [search])
 
-  const { data: pmData, isLoading: pmLoading } = useQuery({
-    queryKey: ['payment-methods-all', 'purchase_orders', debouncedSearch],
+  const { data: bankData, isLoading: bankLoading } = useQuery({
+    queryKey: ['bank-accounts-all', 'active', debouncedSearch],
     queryFn: () =>
-      paymentMethodsService
+      bankAccountsService
         .list({
           'filter[search]': debouncedSearch || undefined,
-          per_page: 100,
-          sort: 'id',
-          'filter[type]': 'purchase_orders',
-          include: 'bank_account',
+          per_page: 200,
+          sort: 'bank_name',
+          'filter[is_active]': true,
         } as any)
         .then((r) => r.data),
   })
-  const methodOptions = ((pmData as any)?.data ?? []).map((m: any) => ({
-    value: m.id as number,
-    label: (m.name as string) ?? `Method #${m.id}`,
+  const bankAccounts: any[] = ((bankData as any)?.data ?? []).filter((b: any) => b.is_active !== false)
+  const bankOptions = bankAccounts.map((b: any) => ({
+    value: b.id as number,
+    label: `${b.bank_name ?? 'Bank'} ${b.account_number ?? ''}`.trim(),
+    sublabel: b.account_name ?? undefined,
   }))
+  const selectedBank = bankAccounts.find((b: any) => b.id === bankAccountId)
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -163,7 +171,7 @@ function PayModal({
         date,
         payments: [
           {
-            payment_method_id: paymentMethodId,
+            bank_account_id: bankAccountId,
             amount: totalAmount,
             description: description || undefined,
             allocations: targets
@@ -186,8 +194,8 @@ function PayModal({
   })
 
   const handleSubmit = () => {
-    if (paymentMethodId === 0) {
-      toast.error('Pilih metode pembayaran')
+    if (bankAccountId === 0) {
+      toast.error('Pilih akun kas/bank sumber dana')
       return
     }
     if (targets.some((t) => Number(amounts[t.id] || 0) > t.outstanding) || !(totalAmount > 0)) {
@@ -234,16 +242,21 @@ function PayModal({
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: '70vh', overflowY: 'auto' }}>
 
           <div>
-            <label style={labelStyle}>Metode Pembayaran *</label>
+            <label style={labelStyle}>Akun Kas/Bank *</label>
             <SearchableSelect
-              value={paymentMethodId}
-              onChange={(v) => setPaymentMethodId(Number(v))}
-              options={methodOptions}
-              placeholder="Pilih metode..."
-              searchPlaceholder="Cari metode..."
-              loading={pmLoading}
+              value={bankAccountId}
+              onChange={(v) => setBankAccountId(Number(v))}
+              options={bankOptions}
+              placeholder="Pilih akun bank..."
+              searchPlaceholder="Cari bank / no. rekening..."
+              loading={bankLoading}
               onSearchChange={setSearch}
             />
+            {selectedBank && !selectedBank.chart_of_account_id && (
+              <div style={{ marginTop: 6, fontSize: 12, color: 'var(--warning)' }}>
+                Akun bank ini belum punya Chart of Account. Atur dulu di Bank Accounts.
+              </div>
+            )}
           </div>
 
           <div>
@@ -342,6 +355,11 @@ export default function SupplierDebtDetailView() {
   const { hasPermission, isSuperadmin } = useAuth()
   const canRead = isSuperadmin || hasPermission('report.read') || hasPermission('purchase-order.read')
   const canPay = isSuperadmin || hasPermission('payment.create')
+  // Warehouse / production read the company's debts (?branch_id= narrows), but
+  // pay only their own branch's POs: a payment is recorded at the PO's branch.
+  const { isCentral, activeBranchId, scopeParams } = useCentralCompanyScope()
+  const branchId = isCentral ? Number(router.query.branch_id) || 0 : 0
+  const isOwnPo = (po: PurchaseOrder) => !isCentral || po.branch_id === activeBranchId
 
   const { data: supplierData, isLoading: supplierLoading } = useQuery({
     queryKey: ['supplier-debt-detail-supplier', supplierId],
@@ -350,7 +368,7 @@ export default function SupplierDebtDetailView() {
   })
 
   const { data: posData, isLoading: posLoading } = useQuery({
-    queryKey: ['supplier-debt-detail-pos', supplierId, buyerId],
+    queryKey: ['supplier-debt-detail-pos', supplierId, buyerId, branchId, scopeParams.scope],
     enabled: canRead && !!supplierId,
     queryFn: () =>
       purchaseOrdersService
@@ -360,20 +378,23 @@ export default function SupplierDebtDetailView() {
           'filter[type]': 'supplier',
           'filter[supplier_id]': supplierId,
           'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
+          'filter[branch_id]': branchId > 0 ? branchId : undefined,
           include: 'supplier,purchase_order_details',
+          ...scopeParams,
         } as any)
         .then((r) => r.data),
   })
 
   const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
-    queryKey: ['supplier-debt-detail-payments', supplierId],
+    queryKey: ['supplier-debt-detail-payments', supplierId, scopeParams.scope],
     enabled: canRead && !!supplierId,
     queryFn: () =>
       paymentsService
         .list({
           per_page: 2000,
           'filter[type]': 'disburse',
-          include: 'allocations,payment_method',
+          include: 'allocations,payment_method,bank_account',
+          ...scopeParams,
         } as any)
         .then((r) => r.data),
   })
@@ -409,7 +430,8 @@ export default function SupplierDebtDetailView() {
   const totalOutstanding = useMemo(() => poRows.reduce((sum, row) => sum + row.outstanding, 0), [poRows])
 
   const selectedRows = poRows.filter((r) => selected.has(r.id))
-  const allSelected = poRows.length > 0 && selectedRows.length === poRows.length
+  const payableRows = poRows.filter(isOwnPo)
+  const allSelected = payableRows.length > 0 && selectedRows.length === payableRows.length
   const toggleOne = (id: number) =>
     setSelected((prev) => {
       const next = new Set(prev)
@@ -427,7 +449,7 @@ export default function SupplierDebtDetailView() {
 
   if (!canRead) {
     return (
-      <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ padding: '32px 32px 64px', margin: '0 auto' }}>
         <div style={{ ...sectionStyle, color: 'var(--warning)', background: 'var(--warning-bg)', borderColor: 'var(--warning)', fontSize: 13 }}>
           You do not have permission to view supplier debt details.
         </div>
@@ -436,23 +458,19 @@ export default function SupplierDebtDetailView() {
   }
 
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 1200, margin: '0 auto' }}>
-      {/* Back link */}
-      <Link
-        href={{ pathname: '/accounting/reports/supplier-debts', query: buyerId > 0 ? { buyer_id: buyerId } : {} }}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: 13,
-          color: 'var(--foreground-muted)',
-          textDecoration: 'none',
-          marginBottom: 20,
-        }}
-      >
-        <ArrowLeft size={14} />
-        Kembali ke Kartu Hutang Supplier
-      </Link>
+    <div style={{ padding: '32px 32px 64px', margin: '0 auto' }}>
+      {/* Back link — keeps the list's buyer/branch filter */}
+      <BackLink
+        href={`/accounting/reports/supplier-debts${(() => {
+          const qs = new URLSearchParams({
+            ...(buyerId > 0 ? { buyer_id: String(buyerId) } : {}),
+            ...(branchId > 0 ? { branch_id: String(branchId) } : {}),
+          }).toString()
+          return qs ? `?${qs}` : ''
+        })()}`}
+        label="Kartu Hutang Supplier"
+        style={{ marginBottom: 20 }}
+      />
 
       {/* Header */}
       <div
@@ -581,7 +599,7 @@ export default function SupplierDebtDetailView() {
                         type="checkbox"
                         checked={allSelected}
                         onChange={() =>
-                          setSelected(allSelected ? new Set() : new Set(poRows.map((r) => r.id)))
+                          setSelected(allSelected ? new Set() : new Set(payableRows.map((r) => r.id)))
                         }
                       />
                     </th>
@@ -605,13 +623,24 @@ export default function SupplierDebtDetailView() {
                     <tr key={row.id}>
                       {canPay && (
                         <td style={tdStyle}>
-                          <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggleOne(row.id)} />
+                          <input
+                            type="checkbox"
+                            checked={selected.has(row.id)}
+                            disabled={!isOwnPo(row)}
+                            title={isOwnPo(row) ? undefined : 'Dibayar oleh cabang pemilik PO'}
+                            onChange={() => toggleOne(row.id)}
+                          />
                         </td>
                       )}
                       <td style={tdStyle}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--foreground)' }}>
                           {row.code}
                         </span>
+                        {isCentral && row.branch?.name && (
+                          <div style={{ fontSize: 11.5, color: 'var(--foreground-muted)', marginTop: 2 }}>
+                            {row.branch.name}
+                          </div>
+                        )}
                       </td>
                       <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>
                         {row.date ? formatDate(row.date) : '—'}
@@ -639,7 +668,7 @@ export default function SupplierDebtDetailView() {
                       </td>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                        {canPay && (
+                        {canPay && isOwnPo(row) && (
                           <button
                             type="button"
                             onClick={() => setPayTargets([toPayTarget(row)])}
@@ -661,6 +690,7 @@ export default function SupplierDebtDetailView() {
                             Bayar
                           </button>
                         )}
+                        {isOwnPo(row) && (
                         <Link
                           href={`/purchase/purchase-orders/${row.id}/detail`}
                           style={{
@@ -675,6 +705,7 @@ export default function SupplierDebtDetailView() {
                         >
                           <ExternalLink size={14} />
                         </Link>
+                        )}
                         </div>
                       </td>
                     </tr>
@@ -738,7 +769,7 @@ export default function SupplierDebtDetailView() {
                 <tr>
                   <th style={thStyle}>Tanggal</th>
                   <th style={thStyle}>No. Pembayaran</th>
-                  <th style={thStyle}>Metode</th>
+                  <th style={thStyle}>Kas/Bank</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Jumlah</th>
                   <th style={thStyle}>PO yang Dibayar</th>
                 </tr>
@@ -750,7 +781,11 @@ export default function SupplierDebtDetailView() {
                     <td style={{ ...tdStyle, fontFamily: 'monospace' }}>
                       {p.payment_number ?? `PMT-${p.id}`}
                     </td>
-                    <td style={tdStyle}>{p.payment_method?.name ?? '—'}</td>
+                    <td style={tdStyle}>
+                      {p.bank_account
+                        ? `${p.bank_account.bank_name ?? 'Bank'} ${p.bank_account.account_number ?? ''}`.trim()
+                        : p.payment_method?.name ?? '—'}
+                    </td>
                     <td style={{ ...amountTdStyle, fontWeight: 600, color: 'var(--success)' }}>
                       {formatCurrency(p.amount)}
                     </td>

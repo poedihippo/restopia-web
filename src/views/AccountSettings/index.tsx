@@ -1,4 +1,5 @@
 'use client'
+import { FilterBar } from '@/components/ListFilters'
 import React, { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -6,17 +7,20 @@ import { accountSettingsService } from '@/services/account-settings.service'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import AccountSettingSheet from './AccountSettingSheet'
-import { Settings, Pencil, Search, Download } from 'lucide-react'
+import { Settings, Pencil, Download } from 'lucide-react'
 
 export default function AccountSettingsView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<any | null>(null)
   const [search, setSearch] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: ['account-settings'],
     queryFn: () => accountSettingsService.list({ per_page: 1000, include: 'chart_of_account,account_setting_key' } as any).then(r => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
     mutationFn: () => reportsService.exportAccountSettings(),
@@ -57,20 +61,16 @@ export default function AccountSettingsView() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, justifyContent: 'space-between' }}>
-        <div style={{ position: 'relative', width: 320 }}>
-          <Search size={16} style={{ position: 'absolute', left: 12, top: 10, color: 'var(--foreground-muted)' }} />
-          <input
-            placeholder="Search settings..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '9px 12px 9px 36px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 14, outline: 'none' }}
-          />
-        </div>
-        <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
-          <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
-        </button>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search settings..."
+        actions={
+          <button type="button" onClick={() => exportExcel()} disabled={isExporting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--foreground)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: isExporting ? 'not-allowed' : 'pointer', opacity: isExporting ? 0.6 : 1 }}>
+            <Download size={14} /> {isExporting ? 'Exporting...' : 'Export Excel'}
+          </button>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
         <div style={{ overflowX: 'auto' }}>

@@ -1,5 +1,6 @@
 'use client'
 
+import FinanceBranchSelect, { financeBranchParam, type FinanceBranchScope } from '../FinanceBranchSelect'
 import React, { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -80,10 +81,12 @@ export default function ComparativeReportsView() {
   // Card 1: Comparative Income Statement
   const [lrFiscalYearId, setLrFiscalYearId] = useState<number | undefined>(undefined)
   const [lrYear, setLrYear] = useState<number>(currentYear)
+  const [lrBranch, setLrBranch] = useState<FinanceBranchScope>('')
 
   // Card 2: Comparative Balance Sheet
   const [bsFiscalYearId, setBsFiscalYearId] = useState<number | undefined>(undefined)
   const [bsYear, setBsYear] = useState<number>(currentYear)
+  const [bsBranch, setBsBranch] = useState<FinanceBranchScope>('')
 
   // Card 3: AR Card
   const [arCustomerId, setArCustomerId] = useState<number | undefined>(undefined)
@@ -101,6 +104,7 @@ export default function ComparativeReportsView() {
       reportsService.exportComparativeIncomeStatement({
         fiscal_year_id: lrFiscalYearId,
         year: !lrFiscalYearId ? lrYear : undefined,
+        ...financeBranchParam(lrBranch),
       }),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `comparative-income-statement-${lrYear}.xlsx`)
@@ -114,6 +118,7 @@ export default function ComparativeReportsView() {
       reportsService.exportComparativeBalanceSheet({
         fiscal_year_id: bsFiscalYearId,
         year: !bsFiscalYearId ? bsYear : undefined,
+        ...financeBranchParam(bsBranch),
       }),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `comparative-balance-sheet-${bsYear}.xlsx`)
@@ -261,6 +266,11 @@ export default function ComparativeReportsView() {
                   max={2030}
                 />
               </div>
+
+              <div>
+                <label style={labelStyle}>Branch</label>
+                <FinanceBranchSelect value={lrBranch} onChange={setLrBranch} style={{ ...inputStyle, width: '100%' }} />
+              </div>
             </div>
           </div>
 
@@ -347,6 +357,11 @@ export default function ComparativeReportsView() {
                   min={2020}
                   max={2030}
                 />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Branch</label>
+                <FinanceBranchSelect value={bsBranch} onChange={setBsBranch} style={{ ...inputStyle, width: '100%' }} />
               </div>
             </div>
           </div>

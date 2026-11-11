@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Plus, Search, MoreHorizontal, Trash, X, FileText, LayoutList } from 'lucide-react'
+import { Plus, MoreHorizontal, Trash, X, FileText, LayoutList } from 'lucide-react'
 import { formatDateTime } from '@/utils/date'
 import { priceListsService } from '@/services/price-lists.service'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 
 export default function PriceListsView() {
   const { hasPermission } = useAuth()
@@ -21,16 +22,25 @@ export default function PriceListsView() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 500)
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('')
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<{ id: number; name: string; is_active?: boolean } | null>(null)
   
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['price-lists', page, debouncedSearch],
-    queryFn: () => priceListsService.list({ page, 'filter[search]': debouncedSearch }),
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['price-lists', page, debouncedSearch, activeFilter],
+    queryFn: () =>
+      priceListsService.list({
+        page,
+        'filter[search]': debouncedSearch,
+        'filter[is_active]': activeFilter || undefined,
+      } as any),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const deleteMutation = useMutation({
     mutationFn: priceListsService.delete,
@@ -44,6 +54,7 @@ export default function PriceListsView() {
   })
 
   const lists = (data as any)?.data?.data ?? []
+  const meta = (data as any)?.data?.meta
 
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -75,31 +86,34 @@ export default function PriceListsView() {
         </button>
       </div>
 
-      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
-        <div style={{ padding: 16, borderBottom: '1px solid var(--border)', display: 'flex', gap: 16 }}>
-          <div style={{ position: 'relative', width: 300 }}>
-            <Search size={16} style={{ position: 'absolute', left: 12, top: 10, color: 'var(--foreground-muted)' }} />
-            <input
-              placeholder="Search price lists..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value)
-                setPage(1)
-              }}
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 36px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 14,
-                background: 'var(--surface)',
-                color: 'var(--foreground)',
-                outline: 'none',
-              }}
-            />
-          </div>
-        </div>
+      <FilterBar
+        search={search}
+        onSearchChange={(v) => {
+          setSearch(v)
+          setPage(1)
+        }}
+        searchPlaceholder="Search price lists..."
+        activeCount={countActive(activeFilter)}
+        onClear={() => {
+          setActiveFilter('')
+          setPage(1)
+        }}
+        quick={
+          <FilterSelect
+            value={activeFilter}
+            onChange={(e) => {
+              setActiveFilter(e.target.value as 'true' | 'false' | '')
+              setPage(1)
+            }}
+          >
+            <option value="">All Status</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </FilterSelect>
+        }
+      />
 
+      <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
@@ -126,6 +140,9 @@ export default function PriceListsView() {
               ) : (
                 lists.map((item: any, idx: number) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      {(page - 1) * (meta?.per_page ?? lists.length) + idx + 1}
+                    </td>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
                       {item.name}
                     </td>

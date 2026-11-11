@@ -15,6 +15,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Controller } from 'react-hook-form'
 import {
@@ -62,6 +63,10 @@ export default function BudgetsView() {
   const canCreate = isSuperadmin || hasPermission('budget.create')
   const canUpdate = isSuperadmin || hasPermission('budget.update')
   const canDelete = isSuperadmin || hasPermission('budget.delete')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [coaFilter, setCoaFilter] = useState(0)
+  const [periodFilter, setPeriodFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -75,10 +80,36 @@ export default function BudgetsView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedPeriodSearch(periodSearch), 400); return () => clearTimeout(t) }, [periodSearch])
   useEffect(() => { const t = setTimeout(() => setDebouncedCoaSearch(coaSearch), 400); return () => clearTimeout(t) }, [coaSearch])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['budgets', page, perPage],
-    queryFn: () => budgetsService.list({ page, per_page: perPage, sort: '-id', include: 'chart_of_account,period' }).then((r) => r.data),
+  useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
+  useEffect(() => { setPage(1) }, [debouncedSearch])
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['budgets', page, perPage, debouncedSearch, coaFilter, periodFilter],
+    queryFn: () => budgetsService.list({
+      page, per_page: perPage, sort: '-id', include: 'chart_of_account,period',
+      'filter[search]': debouncedSearch || undefined,
+      'filter[chart_of_account_id]': coaFilter || undefined,
+      'filter[period_id]': periodFilter || undefined,
+    } as any).then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
+
+  // Filter dropdowns: full lists, independent of the sheet's dropdown searches.
+  const { data: filterPeriodsData } = useQuery({
+    queryKey: ['periods-all', ''],
+    queryFn: () => periodsService.list({ per_page: 1000, sort: '-id' } as any).then((r) => r.data),
+  })
+  const { data: filterCoaData } = useQuery({
+    queryKey: ['chart-of-accounts-all', 'budgets-filter'],
+    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code' } as any).then((r) => r.data),
+  })
+  const filterPeriods: Period[] = (filterPeriodsData as any)?.data ?? []
+  const filterCoaOptions = [
+    { value: 0, label: 'All Accounts' },
+    ...(((filterCoaData as any)?.data ?? []) as CoA[]).map((a) => ({ value: a.id, label: `${a.code} – ${a.name}` })),
+  ]
 
   const { data: periodsData } = useQuery({
     queryKey: ['periods-all', debouncedPeriodSearch],
@@ -153,6 +184,32 @@ export default function BudgetsView() {
           )}
         </div>
       </div>
+
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search budgets..."
+        activeCount={countActive(coaFilter, periodFilter)}
+        onClear={() => { setCoaFilter(0); setPeriodFilter(''); setPage(1) }}
+        quick={
+          <>
+            <div style={{ width: 260 }}>
+              <SearchableSelect
+                value={coaFilter}
+                onChange={(val) => { setCoaFilter(Number(val) || 0); setPage(1) }}
+                options={filterCoaOptions}
+                placeholder="All Accounts"
+                searchPlaceholder="Search account..."
+                triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
+              />
+            </div>
+            <FilterSelect value={periodFilter} onChange={(e) => { setPeriodFilter(e.target.value); setPage(1) }} style={{ maxWidth: 220 }}>
+              <option value="">All Periods</option>
+              {filterPeriods.map((p) => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
+            </FilterSelect>
+          </>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

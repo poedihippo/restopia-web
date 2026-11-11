@@ -1,4 +1,5 @@
 'use client'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { formatCurrency, getCanReadPrice } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 import { getInvoiceDueInfo } from '@/utils/invoiceDue';
@@ -8,13 +9,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { invoicesService } from '@/services/invoices.service'
-import { deliveriesService } from '@/services/deliveries.service'
 import { receiptsService } from '@/services/receipts.service'
+import { branchesService } from '@/services/branches.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { toastMutationApiError } from '@/utils/apiError'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
-  Search,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -39,7 +40,6 @@ interface Invoice {
   description?: string
   created_at?: string
   billed_branch?: { id: number; name: string }
-  delivery?: { id: number; code: string }
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -60,16 +60,40 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   },
 }
 
+const PAYMENT_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: 'Unpaid', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  partial: { label: 'Partial', color: 'var(--info)', bg: 'var(--info-bg)' },
+  paid: { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' },
+}
+
+/** Backend payment_status, falling back to total_payment vs total_price. */
+function paymentStatusOf(item: Pick<Invoice, 'payment_status' | 'total_payment' | 'total_price'>): string {
+  if (item.payment_status) return item.payment_status
+  const paid = Number(item.total_payment ?? 0)
+  if (paid <= 0) return 'pending'
+  return paid >= Number(item.total_price ?? 0) ? 'paid' : 'partial'
+}
+
 export default function InvoicesView() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
+  // Warehouse / production: every invoice of the company (Branch filter narrows).
+  const { scopeParams } = useCentralCompanyScope()
   const canRead = hasPermission('invoice.read')
   const canCreate = hasPermission('invoice.create')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+  const [billedBranchFilter, setBilledBranchFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [dueDateFrom, setDueDateFrom] = useState('')
+  const [dueDateTo, setDueDateTo] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -80,15 +104,36 @@ export default function InvoicesView() {
     setPage(1)
   }, [debouncedSearch])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['invoices', page, perPage, debouncedSearch],
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    enabled: canRead,
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const branchOptions: { id: number; name: string }[] = (branchesData as any)?.data ?? []
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: [
+      'invoices', page, perPage, debouncedSearch, statusFilter, paymentStatusFilter,
+      branchFilter, billedBranchFilter, dateFrom, dateTo, dueDateFrom, dueDateTo, scopeParams.scope,
+    ],
     enabled: canRead,
     queryFn: () => {
-      const params: any = { page, per_page: perPage, sort: '-created_at', include: 'billed_branch,delivery' }
+      const params: any = { page, per_page: perPage, sort: '-created_at', include: 'billed_branch', ...scopeParams }
       if (debouncedSearch && debouncedSearch.trim()) params['filter[search]'] = debouncedSearch.trim()
+      if (statusFilter) params['filter[status]'] = statusFilter
+      if (paymentStatusFilter) params['filter[payment_status]'] = paymentStatusFilter
+      if (branchFilter) params['filter[branch_id]'] = branchFilter
+      if (billedBranchFilter) params['filter[billed_branch_id]'] = billedBranchFilter
+      if (dateFrom) params['filter[date_gte]'] = dateFrom
+      if (dateTo) params['filter[date_lte]'] = dateTo
+      if (dueDateFrom) params['filter[due_date_gte]'] = dueDateFrom
+      if (dueDateTo) params['filter[due_date_lte]'] = dueDateTo
       return invoicesService.list(params).then((r) => r.data)
     },
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Invoice[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -111,14 +156,6 @@ export default function InvoicesView() {
     verticalAlign: 'middle',
   }
 
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
 
   const actionBtnStyle: React.CSSProperties = {
     padding: 6,
@@ -130,16 +167,6 @@ export default function InvoicesView() {
     display: 'flex',
   }
 
-  const deliveryPillStyle: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '2px 8px',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--background)',
-    border: '1px solid var(--border)',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    color: 'var(--foreground-muted)',
-  }
 
   if (!canRead) {
     return (
@@ -210,41 +237,79 @@ export default function InvoicesView() {
       </div>
 
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search invoices..."
+        activeCount={countActive(
+          statusFilter, paymentStatusFilter, branchFilter, billedBranchFilter,
+          dateFrom, dateTo, dueDateFrom, dueDateTo,
+        )}
+        onClear={() => {
+          setStatusFilter('')
+          setPaymentStatusFilter('')
+          setBranchFilter('')
+          setBilledBranchFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setDueDateFrom('')
+          setDueDateTo('')
+          setPage(1)
         }}
+        quick={
+          <>
+            <FilterSelect value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}>
+              <option value="">All Status</option>
+              <option value="issued">Issued</option>
+              <option value="paid">Paid</option>
+              <option value="void">Void</option>
+            </FilterSelect>
+            <FilterSelect value={paymentStatusFilter} onChange={(e) => { setPaymentStatusFilter(e.target.value); setPage(1) }}>
+              <option value="">All Payment</option>
+              <option value="pending">Pending</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+            </FilterSelect>
+          </>
+        }
       >
-        <div style={{ position: 'relative', maxWidth: 280 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search invoices..."
-            style={{
-              ...inputBase,
-              width: 280,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+        <FilterGroup title="Branches">
+          <FilterField label="Branch">
+            <FilterSelect block value={branchFilter} onChange={(e) => { setBranchFilter(e.target.value); setPage(1) }}>
+              <option value="">All branches</option>
+              {branchOptions.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Billed branch">
+            <FilterSelect block value={billedBranchFilter} onChange={(e) => { setBilledBranchFilter(e.target.value); setPage(1) }}>
+              <option value="">All billed branches</option>
+              {branchOptions.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dates">
+          <FilterField label="Invoice date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+          <FilterField label="Due date">
+            <DateRange
+              from={dueDateFrom}
+              to={dueDateTo}
+              onFromChange={(v) => { setDueDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDueDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* Table */}
       <div
@@ -252,7 +317,7 @@ export default function InvoicesView() {
           background: 'var(--surface)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
+          overflowX: 'auto',
         }}
       >
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -261,10 +326,10 @@ export default function InvoicesView() {
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 180 }}>Invoice Code</th>
               <th style={{ ...thStyle, width: 160 }}>Billed Branch</th>
-              <th style={{ ...thStyle, width: 160 }}>Delivery</th>
               <th style={{ ...thStyle, width: 120 }}>Date</th>
               <th style={{ ...thStyle, width: 150 }}>Due Date</th>
               <th style={{ ...thStyle, width: 140 }}>Total</th>
+              <th style={{ ...thStyle, width: 150 }}>Payment</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: 60 }} />
             </tr>
@@ -317,6 +382,10 @@ export default function InvoicesView() {
               items.map((item, idx) => {
                 const statusMeta = STATUS_META[item.status] ?? STATUS_META.issued
                 const due = getInvoiceDueInfo(item)
+                const paymentMeta = PAYMENT_STATUS_META[paymentStatusOf(item)] ?? PAYMENT_STATUS_META.pending
+                const total = Number(item.total_price ?? 0)
+                const paid = Number(item.total_payment ?? 0)
+                const paidPct = total > 0 ? Math.min(100, Math.max(0, (paid / total) * 100)) : 0
                 // Unpaid past its due date → tinted row so it stands out.
                 const rowBg = due.isOverdue ? 'var(--destructive-bg)' : 'transparent'
                 return (
@@ -349,13 +418,6 @@ export default function InvoicesView() {
                       <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>
                         {item.billed_branch?.name ?? '—'}
                       </span>
-                    </td>
-                    <td style={tdStyle}>
-                      {item.delivery?.code ? (
-                        <span style={deliveryPillStyle}>{item.delivery.code}</span>
-                      ) : (
-                        <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>—</span>
-                      )}
                     </td>
                     <td style={tdStyle}>
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -396,6 +458,39 @@ export default function InvoicesView() {
                           ? `Rp ${Number(item.total_price ?? 0).toLocaleString('id-ID')}`
                           : '***'}
                       </span>
+                    </td>
+                    <td style={tdStyle}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 110 }}>
+                        <span
+                          style={{
+                            alignSelf: 'flex-start',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '3px 10px',
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: paymentMeta.bg,
+                            color: paymentMeta.color,
+                          }}
+                        >
+                          <span style={{ width: 6, height: 6, borderRadius: 99, background: paymentMeta.color }} />
+                          {paymentMeta.label}
+                        </span>
+                        {getCanReadPrice() && (
+                          <>
+                            <div style={{ height: 4, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
+                              <div style={{ width: `${paidPct}%`, height: '100%', background: paymentMeta.color, borderRadius: 99 }} />
+                            </div>
+                            {paymentStatusOf(item) === 'partial' && (
+                              <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                                Rp {paid.toLocaleString('id-ID')} paid
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                     <td style={tdStyle}>
                       <span

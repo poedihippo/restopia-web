@@ -4,7 +4,8 @@ import { formatDateShort, formatDateTime } from '@/utils/date';
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, X, Search, Globe, Store } from 'lucide-react'
+import { Eye, X, Globe, Store } from 'lucide-react'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { useAuth } from '@/hooks/useAuth'
 import SalesChannelBranchAccounts from './SalesChannelBranchAccounts'
@@ -36,7 +37,7 @@ export default function SalesChannelsView() {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: ['sales-channels', debouncedSearch, typeFilter],
     queryFn: () =>
       salesChannelsService
@@ -48,6 +49,9 @@ export default function SalesChannelsView() {
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
   const items = ((data as any)?.data ?? []).filter(
     (c: any) => !typeFilter || c.sales_order_type === typeFilter,
   )
@@ -151,58 +155,23 @@ export default function SalesChannelsView() {
           }}>+ Add Channel
         </button>)}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-      <div style={{ position: 'relative', width: 280, maxWidth: '100%' }}>
-        <Search
-          size={15}
-          style={{
-            position: 'absolute',
-            left: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--foreground-muted)',
-            pointerEvents: 'none',
-          }}
-        />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search sales channels..."
-          style={{
-            width: '100%',
-            padding: '8px 12px 8px 32px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            fontFamily: 'var(--font-sans)',
-            boxSizing: 'border-box',
-          }}
-        />
-      </div>
-      <select
-        value={typeFilter}
-        onChange={(e) => setTypeFilter(e.target.value as '' | 'online' | 'offline')}
-        style={{
-          height: 36,
-          padding: '0 12px',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          fontSize: 13,
-          color: 'var(--foreground)',
-          background: 'var(--surface-raised)',
-          outline: 'none',
-          fontFamily: 'var(--font-sans)',
-          cursor: 'pointer',
-        }}
-      >
-        <option value="">Semua tipe</option>
-        <option value="online">Online</option>
-        <option value="offline">Offline</option>
-      </select>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search sales channels..."
+        activeCount={countActive(typeFilter)}
+        onClear={() => setTypeFilter('')}
+        quick={
+          <FilterSelect
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as '' | 'online' | 'offline')}
+          >
+            <option value="">Semua tipe</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+          </FilterSelect>
+        }
+      />
       <div
         style={{
           background: 'var(--surface)',

@@ -18,12 +18,12 @@ import { departmentsService, Department } from '@/services/departments.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { formatCurrency } from '@/utils/price'
 import { formatDate, formatDateTime } from '@/utils/date'
 import { toastMutationApiError } from '@/utils/apiError'
 import {
   Plus,
-  Search,
   Trash2,
   Eye,
   X,
@@ -155,7 +155,7 @@ export default function CashTransactionsView() {
   }, [debouncedSearch, typeFilter, bankAccountFilter, startDate, endDate])
 
   // Fetch Cash Transactions
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: [
       'cash-transactions',
       page,
@@ -174,14 +174,20 @@ export default function CashTransactionsView() {
           include:
             'bankAccount,transferToBankAccount,chartOfAccount,journalEntry,department,created_by,updated_by',
           sort: '-transaction_date,-id',
+          // Spec filters: date_from, date_to, transaction_number, type.
+          // filter[search] / filter[bank_account_id] are not in the spec (kept; likely ignored).
           'filter[search]': debouncedSearch || undefined,
+          'filter[transaction_number]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
           'filter[bank_account_id]': bankAccountFilter || undefined,
-          'filter[start_date]': startDate || undefined,
-          'filter[end_date]': endDate || undefined,
+          'filter[date_from]': startDate || undefined,
+          'filter[date_to]': endDate || undefined,
         } as any)
         .then((res) => res.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const transactions: CashTransaction[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -205,7 +211,7 @@ export default function CashTransactionsView() {
     queryKey: ['chart-of-accounts-for-cash', debouncedCoaDropdownSearch],
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'account_code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
+        .list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
   const coaList: any[] = (coaData as any)?.data ?? []
@@ -433,84 +439,43 @@ export default function CashTransactionsView() {
       </div>
 
       {/* Toolbar & Filters */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          flexWrap: 'wrap',
-          marginBottom: 20,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search transaction number..."
+        activeCount={countActive(typeFilter, bankAccountFilter, startDate, endDate)}
+        onClear={() => {
+          setTypeFilter('')
+          setBankAccountFilter('')
+          setStartDate('')
+          setEndDate('')
+          setPage(1)
         }}
+        quick={
+          <>
+            <FilterSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="">All Types</option>
+              <option value="cash_in">Cash In</option>
+              <option value="cash_out">Cash Out</option>
+              <option value="transfer">Transfer</option>
+            </FilterSelect>
+            <FilterSelect value={bankAccountFilter} onChange={(e) => setBankAccountFilter(e.target.value)}>
+              <option value="">All Bank Accounts</option>
+              {bankAccounts.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.bank_name} - {b.account_number}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
       >
-        {/* Search */}
-        <div style={{ position: 'relative', minWidth: 240 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 11,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search number, description..."
-            style={{
-              ...inputStyle,
-              paddingLeft: 34,
-            }}
-          />
-        </div>
-
-        {/* Type Filter */}
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          style={{ ...inputStyle, width: 'auto', minWidth: 140, cursor: 'pointer' }}
-        >
-          <option value="">All Types</option>
-          <option value="cash_in">Cash In</option>
-          <option value="cash_out">Cash Out</option>
-          <option value="transfer">Transfer</option>
-        </select>
-
-        {/* Bank Account Filter */}
-        <select
-          value={bankAccountFilter}
-          onChange={(e) => setBankAccountFilter(e.target.value)}
-          style={{ ...inputStyle, width: 'auto', minWidth: 180, cursor: 'pointer' }}
-        >
-          <option value="">All Bank Accounts</option>
-          {bankAccounts.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.bank_name} - {b.account_number}
-            </option>
-          ))}
-        </select>
-
-        {/* Date range */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            style={{ ...inputStyle, width: 'auto' }}
-            title="Start Date"
-          />
-          <span style={{ color: 'var(--foreground-muted)', fontSize: 12 }}>to</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            style={{ ...inputStyle, width: 'auto' }}
-            title="End Date"
-          />
-        </div>
-      </div>
+        <FilterGroup title="Dates">
+          <FilterField label="Transaction date">
+            <DateRange from={startDate} to={endDate} onFromChange={setStartDate} onToChange={setEndDate} />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* Table */}
       <div

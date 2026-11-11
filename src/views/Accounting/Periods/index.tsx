@@ -13,11 +13,12 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Controller } from 'react-hook-form'
 import {
-  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
-  X, Loader2, Calendar, CheckCircle2, Lock, Download,
+  Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
+  X, Loader2, Calendar, CheckCircle2, Lock, LockOpen, Download,
 } from 'lucide-react'
 
 interface Period {
@@ -66,11 +67,15 @@ export default function PeriodsView() {
   const canDelete = isSuperadmin || hasPermission('period.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [fiscalYearFilter, setFiscalYearFilter] = useState('')
+  const [activeFilter, setActiveFilter] = useState('')
+  const [closedFilter, setClosedFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Period | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [lockTarget, setLockTarget] = useState<{ period: Period; action: 'close' | 'reopen' } | null>(null)
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
 
@@ -78,10 +83,19 @@ export default function PeriodsView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['periods', page, perPage, debouncedSearch],
-    queryFn: () => periodsService.list({ page, per_page: perPage, sort: '-id', include: 'fiscal_year', 'filter[search]': debouncedSearch || undefined }).then((r) => r.data),
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['periods', page, perPage, debouncedSearch, fiscalYearFilter, activeFilter, closedFilter],
+    queryFn: () => periodsService.list({
+      page, per_page: perPage, sort: '-id', include: 'fiscal_year',
+      'filter[search]': debouncedSearch || undefined,
+      'filter[fiscal_year_id]': fiscalYearFilter || undefined,
+      'filter[is_active]': activeFilter || undefined,
+      'filter[is_closed]': closedFilter || undefined,
+    } as any).then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const { data: fiscalData } = useQuery({
     queryKey: ['fiscal-years-all', debouncedDropdownSearch],
@@ -91,6 +105,13 @@ export default function PeriodsView() {
   const items: Period[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
   const fiscalYears: FiscalYear[] = (fiscalData as any)?.data ?? []
+
+  // Filter dropdown: full fiscal-year list (independent of the sheet's dropdown search).
+  const { data: filterFiscalData } = useQuery({
+    queryKey: ['fiscal-years-all', ''],
+    queryFn: () => fiscalYearsService.list({ per_page: 1000, sort: '-id' } as any).then((r) => r.data),
+  })
+  const filterFiscalYears: FiscalYear[] = (filterFiscalData as any)?.data ?? []
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => periodsService.delete(id),
@@ -107,6 +128,19 @@ export default function PeriodsView() {
     if (editData) reset({ fiscal_year_id: editData.fiscal_year_id, name: editData.name, start_date: toInputDate(editData.start_date), end_date: toInputDate(editData.end_date), is_active: editData.is_active ?? true, is_closed: editData.is_closed ?? false })
     else reset({ fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true, is_closed: false })
   }, [editData, reset])
+
+  const lockMutation = useMutation({
+    mutationFn: ({ period, action }: { period: Period; action: 'close' | 'reopen' }) =>
+      action === 'close' ? periodsService.close(period.id) : periodsService.reopen(period.id),
+    onSuccess: (_res, { action }) => {
+      queryClient.invalidateQueries({ queryKey: ['periods'] })
+      queryClient.invalidateQueries({ queryKey: ['periods-all'] })
+      toast.success(action === 'close' ? 'Period closed' : 'Period reopened')
+      setLockTarget(null)
+    },
+    onError: (err: any, { action }) =>
+      toastMutationApiError(err, action === 'close' ? 'Failed to close period' : 'Failed to reopen period'),
+  })
 
   const createMutation = useMutation({
     mutationFn: (data: PeriodRequest) => periodsService.create(data),
@@ -151,13 +185,31 @@ export default function PeriodsView() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ position: 'relative', width: 280 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search periods..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search periods..."
+        activeCount={countActive(fiscalYearFilter, activeFilter, closedFilter)}
+        onClear={() => { setFiscalYearFilter(''); setActiveFilter(''); setClosedFilter(''); setPage(1) }}
+        quick={
+          <>
+            <FilterSelect value={fiscalYearFilter} onChange={(e) => { setFiscalYearFilter(e.target.value); setPage(1) }} style={{ maxWidth: 220 }}>
+              <option value="">All Fiscal Years</option>
+              {filterFiscalYears.map((f) => <option key={f.id} value={String(f.id)}>{f.name}</option>)}
+            </FilterSelect>
+            <FilterSelect value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1) }}>
+              <option value="">Active: All</option>
+              <option value="1">Active: Yes</option>
+              <option value="0">Active: No</option>
+            </FilterSelect>
+            <FilterSelect value={closedFilter} onChange={(e) => { setClosedFilter(e.target.value); setPage(1) }}>
+              <option value="">Closed: All</option>
+              <option value="1">Closed: Yes</option>
+              <option value="0">Closed: No</option>
+            </FilterSelect>
+          </>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -208,6 +260,11 @@ export default function PeriodsView() {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                      {canUpdate && (
+                        item.is_closed
+                          ? <button title="Reopen period" onClick={() => setLockTarget({ period: item, action: 'reopen' })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><LockOpen size={14} /></button>
+                          : <button title="Close period" onClick={() => setLockTarget({ period: item, action: 'close' })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Lock size={14} /></button>
+                      )}
                       {!item.is_closed && (
                         <>
                           {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
@@ -224,6 +281,28 @@ export default function PeriodsView() {
       </div>
 
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
+
+      {lockTarget && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setLockTarget(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 400, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>
+              {lockTarget.action === 'close' ? 'Close' : 'Reopen'} {lockTarget.period.name}
+            </h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px', lineHeight: 1.5 }}>
+              {lockTarget.action === 'close'
+                ? 'No journals can be written into this period after it is closed; later corrections go into an open period. Every journal in it must already be posted.'
+                : 'Journals can be written into this period again until it is closed.'}
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setLockTarget(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => lockMutation.mutate(lockTarget)} disabled={lockMutation.isPending} style={{ padding: '7px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: lockMutation.isPending ? 0.7 : 1 }}>
+                {lockTarget.action === 'close' ? 'Close period' : 'Reopen period'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteConfirmId !== null && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

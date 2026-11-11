@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ArrowLeft, Plus, Search, Trash, FileText } from 'lucide-react'
+import { Plus, Search, Trash, FileText } from 'lucide-react'
 import { priceListsService } from '@/services/price-lists.service'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import PriceListItemSheet from './PriceListItemSheet'
@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/router'
+import BackLink from '@/components/BackLink'
 import { formatCurrency } from '@/utils/price'
 import { getProductUomName } from '@/utils/productUomName'
 
@@ -38,7 +39,7 @@ export default function PriceListItemsView() {
     enabled: !!priceListId
   })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: ['price-list-items', priceListId, page, debouncedSearch],
     queryFn: () => {
       const params: any = { page, include: 'product_uom' }
@@ -47,6 +48,9 @@ export default function PriceListItemsView() {
     },
     enabled: !!priceListId
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const deleteMutation = useMutation({
     mutationFn: (itemId: number) => priceListsService.deleteItem(priceListId, itemId),
@@ -64,13 +68,8 @@ export default function PriceListItemsView() {
 
   return (
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <BackLink href="/products/price-lists" label="Price Lists" style={{ marginBottom: -12 }} />
       <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-        <button
-          onClick={() => router.push('/products/price-lists')}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 8, display: 'flex', alignItems: 'center' }}
-        >
-          <ArrowLeft size={20} />
-        </button>
         <h1 className="text-xl sm:text-2xl font-bold">
           {priceListData?.data?.data?.name ? `${priceListData.data.data.name} - Items` : 'Price List Items'}
         </h1>

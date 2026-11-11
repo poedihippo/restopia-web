@@ -2,19 +2,19 @@
 import { formatDate } from '@/utils/date'
 
 import React, { useMemo } from 'react'
-import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { invoicesService } from '@/services/invoices.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import {
-  ArrowLeft,
   Printer,
   FileSpreadsheet,
   PackageSearch,
   Loader2,
-  Plus, ArrowUpRight,
+  Plus, ArrowUpRight, Wallet,
 } from 'lucide-react'
 import { getInvoiceDueInfo } from '@/utils/invoiceDue'
+import BackLink from '@/components/BackLink'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
@@ -63,11 +63,16 @@ interface InvoiceSalesOrderRef {
 interface InvoiceFull {
   id: number
   code: string
+  branch_id?: number
+  billed_branch_id?: number
   date: string
   subtotal_price?: number
   discount_price?: number
   additional_charge_price?: number
   tax_amount?: number
+  /** Cross-company handling fee — 0 when not applied. */
+  handling_fee_percent?: number
+  handling_fee_amount?: number
   total_price: number
   total_payment?: number
   status: 'issued' | 'paid' | 'void'
@@ -126,13 +131,14 @@ const rpRounded = (n: number | string | null | undefined) =>
   `Rp ${Math.round(Number(n ?? 0)).toLocaleString('id-ID')}`
 
 export default function InvoiceDetail({ id }: InvoiceDetailProps) {
-  const router = useRouter()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canRead = hasPermission('invoice.read')
+  // Warehouse / production also open the company's other branches' invoices.
+  const { isCentral, activeBranchId, scopeParams } = useCentralCompanyScope()
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['invoice-detail', id],
+    queryKey: ['invoice-detail', id, scopeParams.scope],
     queryFn: () =>
       invoicesService
         .get(id, {
@@ -141,6 +147,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           // Catatan: include `sales_order_details` membuat GET /invoices/{id}
           // membalas 500 — jangan dipakai di sini.
           include: 'updated_by,billed_branch,invoice_sales_orders,created_by,additional_charges',
+          ...scopeParams,
         })
         .then((r) => r.data),
     enabled: canRead && !!id && !isNaN(id),
@@ -154,7 +161,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const [paymentDescription, setPaymentDescription] = React.useState<string>('')
 
   const { data: paymentsData } = useQuery({
-    queryKey: ['invoice-payments', id],
+    queryKey: ['invoice-payments', id, scopeParams.scope],
     enabled: canRead && !!id && !isNaN(id),
     queryFn: () =>
       paymentsService
@@ -162,6 +169,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           per_page: 50,
           include: 'payment_method,allocations',
           'filter[invoice_id]': id,
+          ...scopeParams,
         } as any)
         .then((r) => r.data),
   })
@@ -171,13 +179,21 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     p.allocations?.some((a: any) => a.invoice_id === Number(id))
   )
 
+  // An invoice raised from purchase orders (every billed SO came from a PO —
+  // the inter-branch flow) is paid with purchase-side methods; any other
+  // invoice with sales-side ones. filter[type] also returns type "all". The
+  // API applies the same rule to a receive payment.
+  const invoiceSalesOrders = invoice?.invoice_sales_orders ?? []
+  const fromPurchaseOrders =
+    invoiceSalesOrders.length > 0 &&
+    invoiceSalesOrders.every((ref) => !!ref.sales_order?.purchase_order?.id)
+  const methodType = fromPurchaseOrders ? 'purchase_orders' : 'sales_orders'
   const { data: pmData } = useQuery({
-    // Invoice payments are money received → customer-side methods.
-    queryKey: ['payment-methods-all', 'sales_orders'],
-    enabled: canRead && !!id,
+    queryKey: ['payment-methods-all', methodType],
+    enabled: canRead && !!id && !!invoice,
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': methodType } as any)
         .then((r) => r.data),
   })
   const paymentMethods = (pmData as any)?.data ?? []
@@ -185,7 +201,9 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const createPaymentMutation = useMutation({
     mutationFn: () =>
       paymentsService.create({
-        type: 'disburse',
+        // Money received against the issuer's receivable (receive journal:
+        // DR the method's account / CR Piutang), whichever method list is shown.
+        type: 'receive',
         date: new Date().toLocaleDateString('en-CA'),
         payments: [{
           payment_method_id: paymentMethodId,
@@ -219,11 +237,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         : 'partial')
   const paymentMeta = PAYMENT_STATUS_META[paymentStatusValue] ?? PAYMENT_STATUS_META.pending
   const due = getInvoiceDueInfo(invoice)
-  const infoValueStyle: React.CSSProperties = {
-    fontSize: 14,
-    fontWeight: 600,
-    color: 'var(--foreground)',
-  }
 
   // Excel copy of what the page shows: header info, orders, totals, payments.
   const exportExcel = () => {
@@ -258,6 +271,9 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
       ...(invoice.additional_charges ?? []).map(
         (ac) => ['', '', '', ac.name, money(ac.amount)] as ExcelRow,
       ),
+      ...(Number(invoice.handling_fee_amount ?? 0) > 0
+        ? [['', '', '', `Handling fee (${Number(invoice.handling_fee_percent ?? 0)}%)`, money(Number(invoice.handling_fee_amount))] as ExcelRow]
+        : []),
       ['', '', '', 'Tax', money(Math.round(Number(invoice.tax_amount ?? 0)))],
       ['', '', '', 'Total', money(invoice.total_price)],
       ['', '', '', 'Total paid', money(totalPaid)],
@@ -281,19 +297,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     ])
   }
 
-  const backBtnStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 10px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground-muted)',
-    cursor: 'pointer',
-  }
-
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
     textAlign: 'left',
@@ -305,13 +308,6 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     whiteSpace: 'nowrap',
   }
 
-  const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
-  }
 
   if (!canRead) {
     return (
@@ -349,261 +345,296 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
       <div style={{ padding: 80, textAlign: 'center' }}>
         <PackageSearch size={40} style={{ color: 'var(--foreground-subtle)', margin: '0 auto' }} />
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 12 }}>Invoice not found</p>
-        <button onClick={() => router.back()} style={{ ...backBtnStyle, margin: '16px auto 0' }}>
-          <ArrowLeft size={14} />
-          Go back
-        </button>
+        <BackLink href="/transfer/invoices" label="Invoices" style={{ marginTop: 16 }} />
       </div>
     )
+  }
+
+  const total = Number(invoice.total_price ?? 0)
+  const paid = Number(invoice.total_payment ?? 0)
+  const balance = Math.max(0, total - paid)
+  const paidPct = total > 0 ? Math.min(100, Math.max(0, (paid / total) * 100)) : 0
+  // A payment is recorded at the invoice's own branches: a warehouse viewing
+  // another branch's invoice (company scope) only reads it.
+  const ownInvoice =
+    !isCentral || invoice.branch_id === activeBranchId || invoice.billed_branch_id === activeBranchId
+  const canRecordPayment =
+    ownInvoice && invoice.status !== 'paid' && invoice.status !== 'void' && !showPaymentForm && total > 0 && balance > 0
+
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-lg)',
+    boxShadow: 'var(--shadow-sm)',
+    overflow: 'hidden',
+  }
+
+  const cardHeaderStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: '14px 20px',
+    borderBottom: '1px solid var(--border)',
+  }
+
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--foreground)',
+    margin: 0,
+  }
+
+  const pillStyle = (meta: { color: string; bg: string }): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '3px 10px',
+    borderRadius: 99,
+    fontSize: 12,
+    fontWeight: 600,
+    background: meta.bg,
+    color: meta.color,
+    whiteSpace: 'nowrap',
+  })
+
+  const secondaryBtnStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 14px',
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--foreground)',
+    cursor: 'pointer',
+  }
+
+  const primaryBtnStyle: React.CSSProperties = {
+    ...secondaryBtnStyle,
+    background: 'var(--accent)',
+    border: '1px solid var(--accent)',
+    color: 'white',
+  }
+
+  const tdStyle: React.CSSProperties = {
+    padding: '12px 20px',
+    fontSize: 13,
+    borderBottom: '1px solid var(--border)',
+  }
+
+  const summaryRow = (label: React.ReactNode, value: React.ReactNode, opts?: { color?: string }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 13 }}>
+      <span style={{ color: opts?.color ?? 'var(--foreground-muted)' }}>{label}</span>
+      <span style={{ fontWeight: 500, color: opts?.color ?? 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+    </div>
+  )
+
+  const fieldLabelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 500,
+    color: 'var(--foreground-muted)',
+    marginBottom: 6,
+  }
+
+  const fieldInputStyle: React.CSSProperties = {
+    width: '100%',
+    height: 38,
+    padding: '0 12px',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius-md)',
+    background: 'var(--surface)',
+    fontSize: 13,
+    color: 'var(--foreground)',
   }
 
   return (
     <div
       style={{
-        padding: '32px 32px 64px',
-        maxWidth: 960,
+        padding: '28px 32px 64px',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
+        gap: 20,
       }}
     >
-      {/* Top bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button type="button" onClick={() => router.push('/transfer/invoices')} style={backBtnStyle}>
-            <ArrowLeft size={14} />
-            Back
-          </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <BackLink href="/transfer/invoices" label="Invoices" />
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h1
                 style={{
-                  fontFamily: 'var(--font-display)',
-                  fontSize: 22,
-                  fontWeight: 500,
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: 24,
+                  fontWeight: 700,
+                  letterSpacing: '-0.02em',
                   margin: 0,
                   color: 'var(--foreground)',
                 }}
               >
                 {invoice.code}
               </h1>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '3px 10px',
-                  borderRadius: 99,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  background: statusMeta.bg,
-                  color: statusMeta.color,
-                }}
-              >
-                {statusMeta.label}
+              <span style={pillStyle(statusMeta)}>{statusMeta.label}</span>
+              <span style={pillStyle(paymentMeta)}>
+                <span style={{ width: 6, height: 6, borderRadius: 99, background: paymentMeta.color }} />
+                {paymentMeta.label}
               </span>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Invoice</p>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '6px 0 0' }}>
+              Billed to <strong style={{ color: 'var(--foreground)', fontWeight: 600 }}>{invoice.billed_branch?.name ?? '—'}</strong>
+              {invoice.branch?.name && (
+                <> · from <strong style={{ color: 'var(--foreground)', fontWeight: 600 }}>{invoice.branch.name}</strong></>
+              )}
+            </p>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          type="button"
-          onClick={exportExcel}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '7px 14px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            color: 'var(--foreground)',
-            cursor: 'pointer',
-          }}
-        >
-          <FileSpreadsheet size={13} />
-          Export Excel
-        </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '7px 14px',
-            background: 'var(--accent)',
-            border: '1px solid var(--accent)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            fontWeight: 500,
-            color: 'white',
-            cursor: 'pointer',
-          }}
-        >
-          <Printer size={13} />
-          Print Invoice
-        </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={exportExcel} style={secondaryBtnStyle}>
+              <FileSpreadsheet size={14} />
+              Export Excel
+            </button>
+            <button type="button" onClick={() => window.print()} style={primaryBtnStyle}>
+              <Printer size={14} />
+              Print
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Info strip — one row of small bordered tiles */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-          gap: 10,
-        }}
-      >
-        {[
-          { label: 'Billed Branch', value: <span style={infoValueStyle}>{invoice.billed_branch?.name ?? '—'}</span> },
-          { label: 'Seller Branch', value: <span style={infoValueStyle}>{invoice.branch?.name ?? '—'}</span> },
-          { label: 'Invoice Date', value: <span style={infoValueStyle}>{invoice.date ? formatDate(invoice.date) : '—'}</span> },
-          {
-            label: 'Due Date',
-            value: (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ ...infoValueStyle, color: due.isOverdue ? 'var(--destructive)' : 'var(--foreground)' }}>
-                  {invoice.due_date ? formatDate(invoice.due_date) : '—'}
-                </span>
-                {due.isOverdue && (
-                  <span
-                    style={{
-                      padding: '1px 8px',
-                      borderRadius: 99,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      background: 'var(--destructive)',
-                      color: 'white',
-                    }}
-                  >
-                    Overdue {due.daysOverdue} day{due.daysOverdue === 1 ? '' : 's'}
+      {/* Summary: key dates + payment progress */}
+      <div style={cardStyle}>
+        <div className="inv-meta-grid">
+          {[
+            { label: 'Invoice date', value: invoice.date ? formatDate(invoice.date) : '—' },
+            {
+              label: 'Due date',
+              value: (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ color: due.isOverdue ? 'var(--destructive)' : 'var(--foreground)' }}>
+                    {invoice.due_date ? formatDate(invoice.due_date) : '—'}
                   </span>
-                )}
-              </span>
-            ),
-          },
-          {
-            label: 'Payment',
-            value: (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span
-                  style={{
-                    padding: '1px 8px',
-                    borderRadius: 99,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    background: paymentMeta.bg,
-                    color: paymentMeta.color,
-                  }}
-                >
-                  {paymentMeta.label}
+                  {due.isOverdue && (
+                    <span style={pillStyle({ color: 'var(--destructive)', bg: 'var(--destructive-bg)' })}>
+                      {due.daysOverdue} day{due.daysOverdue === 1 ? '' : 's'} overdue
+                    </span>
+                  )}
                 </span>
-                <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  {rp(invoice.total_payment ?? 0)} / {rp(invoice.total_price)}
-                </span>
-              </span>
-            ),
-          },
-        ].map((f) => (
-          <div
-            key={f.label}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              minWidth: 0,
-              padding: '12px 14px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-sm)',
-            }}
-          >
-            <span style={sectionLabelStyle}>{f.label}</span>
-            {f.value}
-          </div>
-        ))}
-      </div>
+              ),
+            },
+            { label: 'Billed to', value: invoice.billed_branch?.name ?? '—' },
+            { label: 'Issued by', value: invoice.branch?.name ?? '—' },
+          ].map((f) => (
+            <div key={f.label} className="inv-meta-cell">
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{f.label}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', minWidth: 0 }}>{f.value}</span>
+            </div>
+          ))}
+        </div>
 
-      {/* Description block */}
-      {invoice.description && (
         <div
           style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 20,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'space-between',
+            gap: 24,
+            flexWrap: 'wrap',
+            padding: '18px 20px 20px',
+            borderTop: '1px solid var(--border)',
+            background: 'var(--background)',
           }}
         >
-          <span style={{ ...sectionLabelStyle, display: 'block', marginBottom: 8 }}>Notes</span>
-          <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>
-            {invoice.description}
-          </p>
+          <div>
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              {balance > 0 ? 'Balance due' : 'Fully paid'}
+            </span>
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                color: balance > 0 ? (due.isOverdue ? 'var(--destructive)' : 'var(--foreground)') : 'var(--success)',
+                fontVariantNumeric: 'tabular-nums',
+                lineHeight: 1.2,
+                marginTop: 2,
+              }}
+            >
+              {rp(balance > 0 ? balance : total)}
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>of {rp(total)} total</span>
+          </div>
+
+          <div style={{ flex: '1 1 260px', maxWidth: 420 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 8 }}>
+              <span style={{ color: 'var(--foreground-muted)' }}>
+                Paid <strong style={{ color: 'var(--foreground)', fontWeight: 600 }}>{rp(paid)}</strong>
+              </span>
+              <span style={{ fontWeight: 600, color: paymentMeta.color }}>{Math.round(paidPct)}%</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
+              <div
+                style={{
+                  width: `${paidPct}%`,
+                  height: '100%',
+                  borderRadius: 99,
+                  background: paymentMeta.color,
+                  transition: 'width 300ms ease',
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      {invoice.description && (
+        <div style={{ ...cardStyle, padding: '14px 20px' }}>
+          <span style={{ display: 'block', fontSize: 12, color: 'var(--foreground-muted)', marginBottom: 6 }}>Notes</span>
+          <p style={{ fontSize: 13, color: 'var(--foreground)', margin: 0, lineHeight: 1.6 }}>{invoice.description}</p>
         </div>
       )}
 
-      {/* Line items table */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-sm)',
-        }}
-      >
-        <div
-          style={{
-            padding: '14px 20px',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--background)',
-    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={sectionLabelStyle}>Purchase Orders</span>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>{orderRows.length} order(s)</span>
+      {/* Orders + totals */}
+      <div style={cardStyle}>
+        <div style={cardHeaderStyle}>
+          <h2 style={cardTitleStyle}>Orders</h2>
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+            {orderRows.length} order{orderRows.length === 1 ? '' : 's'}
+          </span>
         </div>
 
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ ...thStyle, width: 50 }}>#</th>
-              <th style={thStyle}>PO / SO</th>
-              <th style={thStyle}>Date</th>
-              <th style={{ ...thStyle, width: 160, textAlign: 'right' }}>Total</th>
+            <tr style={{ background: 'var(--background)' }}>
+              <th style={{ ...thStyle, width: 48, padding: '10px 20px' }}>#</th>
+              <th style={{ ...thStyle, padding: '10px 20px' }}>Purchase order</th>
+              <th style={{ ...thStyle, padding: '10px 20px' }}>Date</th>
+              <th style={{ ...thStyle, padding: '10px 20px', textAlign: 'right' }}>Amount</th>
             </tr>
           </thead>
           <tbody>
             {orderRows.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13 }}>
-                  No orders found
+                <td colSpan={4} style={{ ...tdStyle, padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                  No orders on this invoice
                 </td>
               </tr>
             ) : (
               orderRows.map((row, index) => (
-                <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--foreground-muted)' }}>{index + 1}</td>
-                  <td style={{ padding: '12px 16px', fontSize: 13 }}>
+                <tr key={row.key}>
+                  <td style={{ ...tdStyle, color: 'var(--foreground-subtle)', fontSize: 12 }}>{index + 1}</td>
+                  <td style={tdStyle}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       {row.poId ? (
-                        <Link href={`/purchase/purchase-orders/${row.poId}/detail`} style={{ fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}>
+                        <Link
+                          href={`/purchase/purchase-orders/${row.poId}/detail`}
+                          style={{ fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', fontFamily: 'monospace' }}
+                        >
                           <span className="v2-link">{row.poCode}<ArrowUpRight size={12} /></span>
                         </Link>
                       ) : (
@@ -612,120 +643,71 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                       <span style={{ fontSize: 11, color: 'var(--foreground-muted)', fontFamily: 'monospace' }}>{row.soCode}</span>
                     </div>
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                  <td style={{ ...tdStyle, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
                     {row.date ? formatDate(row.date) : '—'}
                   </td>
-                  <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--foreground)', textAlign: 'right' }}>
+                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>
                     {rp(row.total)}
                   </td>
                 </tr>
               ))
             )}
-
-            {/* Totals */}
-            <tr style={{ background: 'var(--background)', borderTop: '2px solid var(--border)' }}>
-              <td colSpan={3} style={{ padding: '10px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                Subtotal
-              </td>
-              <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
-                {rp(invoice.subtotal_price ?? 0)}
-              </td>
-            </tr>
-            {(invoice.discount_price ?? 0) > 0 && (
-              <tr style={{ background: 'var(--background)' }}>
-                <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  Discount
-                </td>
-                <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
-                  -{rp(invoice.discount_price)}
-                </td>
-              </tr>
-            )}
-            {invoice.additional_charges?.length ? (
-              invoice.additional_charges.map((ac) => (
-                <tr key={`ac-${ac.id}`} style={{ background: 'var(--background)' }}>
-                  <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                    {ac.name || 'Additional Charges'}
-                  </td>
-                  <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
-                    {rp(ac.amount)}
-                  </td>
-                </tr>
-              ))
-            ) : (invoice.additional_charge_price ?? 0) !== 0 ? (
-              <tr style={{ background: 'var(--background)' }}>
-                <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                  Additional Charges
-                </td>
-                <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
-                  {rp(invoice.additional_charge_price)}
-                </td>
-              </tr>
-            ) : null}
-            <tr style={{ background: 'var(--background)' }}>
-              <td colSpan={3} style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 12, color: 'var(--foreground-muted)' }}>
-                Tax
-              </td>
-              <td style={{ padding: '6px 16px 14px', textAlign: 'right', fontSize: 13, fontWeight: 500 }}>
-                {rpRounded(invoice.tax_amount)}
-              </td>
-            </tr>
-            <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-              <td colSpan={3} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--foreground-muted)' }}>
-                Grand Total
-              </td>
-              <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--foreground)', fontFamily: 'var(--font-display)' }}>
-                  {rp(invoice.total_price)}
-                </span>
-              </td>
-            </tr>
-            {invoice.total_payment ? (
-              <>
-                <tr style={{ background: 'var(--surface)' }}>
-                  <td colSpan={3} style={{ padding: '6px 16px', textAlign: 'right', fontSize: 12, color: 'var(--success)' }}>
-                    Total Paid
-                  </td>
-                  <td style={{ padding: '6px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--success)' }}>
-                    -{rp(invoice.total_payment)}
-                  </td>
-                </tr>
-                <tr style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
-                  <td colSpan={3} style={{ padding: '14px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: 'var(--destructive)' }}>
-                    Balance Due
-                  </td>
-                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--destructive)', fontFamily: 'var(--font-display)' }}>
-                      {rp(invoice.total_price - invoice.total_payment)}
-                    </span>
-                  </td>
-                </tr>
-              </>
-            ) : null}
           </tbody>
         </table>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 20px 20px' }}>
+          <div style={{ width: '100%', maxWidth: 340, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {summaryRow('Subtotal', rp(invoice.subtotal_price ?? 0))}
+            {(invoice.discount_price ?? 0) > 0 && summaryRow('Discount', `-${rp(invoice.discount_price)}`)}
+            {invoice.additional_charges?.length
+              ? invoice.additional_charges.map((ac) => (
+                  <React.Fragment key={`ac-${ac.id}`}>{summaryRow(ac.name || 'Additional charges', rp(ac.amount))}</React.Fragment>
+                ))
+              : (invoice.additional_charge_price ?? 0) !== 0 && summaryRow('Additional charges', rp(invoice.additional_charge_price))}
+            {Number(invoice.handling_fee_amount ?? 0) > 0 &&
+              summaryRow(`Handling fee (${Number(invoice.handling_fee_percent ?? 0)}%)`, rp(invoice.handling_fee_amount))}
+            {summaryRow('Tax', rpRounded(invoice.tax_amount))}
+            <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>Total</span>
+              <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--foreground)', fontVariantNumeric: 'tabular-nums' }}>{rp(total)}</span>
+            </div>
+            {paid > 0 && (
+              <>
+                {summaryRow('Paid', `-${rp(paid)}`, { color: 'var(--success)' })}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>Balance due</span>
+                  <span
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 700,
+                      color: balance > 0 ? 'var(--destructive)' : 'var(--success)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {rp(total - paid)}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      <div style={{ marginTop: 32, marginBottom: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)' }}>Payments</h2>
-          {invoice.status !== 'paid' && invoice.status !== 'void' && !showPaymentForm && Number(invoice.total_price ?? 0) > 0 && (
+      {/* Payments */}
+      <div style={cardStyle}>
+        <div style={cardHeaderStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h2 style={cardTitleStyle}>Payments</h2>
+            {payments.length > 0 && (
+              <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>· {payments.length}</span>
+            )}
+          </div>
+          {canRecordPayment && (
             <button
               type="button"
               onClick={() => setShowPaymentForm(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
+              style={{ ...primaryBtnStyle, padding: '6px 12px' }}
             >
               <Plus size={14} />
               Record Payment
@@ -734,27 +716,14 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         </div>
 
         {showPaymentForm && (
-          <div
-            style={{
-              padding: 20,
-              background: 'var(--background)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
-              marginBottom: 24,
-            }}
-          >
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)', marginBottom: 16 }}>
-              New Payment
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          <div style={{ padding: 20, background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)', marginBottom: 6 }}>
-                  Payment Method
-                </label>
+                <label style={fieldLabelStyle}>Payment method</label>
                 <select
                   value={paymentMethodId}
                   onChange={(e) => setPaymentMethodId(Number(e.target.value))}
-                  style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)' }}
+                  style={fieldInputStyle}
                 >
                   <option value={0}>Select method...</option>
                   {paymentMethods.map((pm: any) => (
@@ -763,9 +732,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 </select>
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)', marginBottom: 6 }}>
-                  Amount
-                </label>
+                <label style={fieldLabelStyle}>Amount</label>
                 {/* Pemisah ribuan otomatis saat mengetik (1000 → 1.000) */}
                 <LocalizedNumberInput
                   value={paymentAmount || null}
@@ -777,33 +744,18 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 />
               </div>
             </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--foreground-muted)', marginBottom: 6 }}>
-                Description (Optional)
-              </label>
+            <div style={{ marginBottom: 16 }}>
+              <label style={fieldLabelStyle}>Description (optional)</label>
               <input
                 type="text"
                 value={paymentDescription}
                 onChange={(e) => setPaymentDescription(e.target.value)}
                 placeholder="Payment notes..."
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)' }}
+                style={fieldInputStyle}
               />
             </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setShowPaymentForm(false)}
-                style={{
-                  padding: '7px 14px',
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--foreground)',
-                  cursor: 'pointer',
-                }}
-              >
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setShowPaymentForm(false)} style={secondaryBtnStyle}>
                 Cancel
               </button>
               <button
@@ -811,65 +763,53 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 onClick={() => createPaymentMutation.mutate()}
                 disabled={paymentMethodId === 0 || paymentAmount <= 0 || createPaymentMutation.isPending}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  background: 'var(--accent)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  fontWeight: 500,
+                  ...primaryBtnStyle,
                   cursor: paymentMethodId === 0 || paymentAmount <= 0 || createPaymentMutation.isPending ? 'not-allowed' : 'pointer',
-                  opacity: paymentMethodId === 0 || paymentAmount <= 0 || createPaymentMutation.isPending ? 0.7 : 1,
+                  opacity: paymentMethodId === 0 || paymentAmount <= 0 || createPaymentMutation.isPending ? 0.6 : 1,
                 }}
               >
                 {createPaymentMutation.isPending && <Loader2 size={13} className="animate-spin" />}
-                Record Payment
+                Save Payment
               </button>
             </div>
           </div>
         )}
 
         {payments.length > 0 ? (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'var(--background)' }}>
-                  <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Method</th>
-                  <th style={thStyle}>Reference</th>
-                  <th style={thStyle}>Allocated Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((p: any) => {
-                  const allocation = p.allocations?.find((a: any) => a.invoice_id === invoice.id)
-                  return (
-                    <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                        {formatDate(p.date)}
-                      </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                        {p.payment_method?.name ?? '-'}
-                      </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground)' }}>
-                        {p.reference_number ?? '-'}
-                      </td>
-                      <td style={{ padding: '12px 16px', fontSize: 13, fontWeight: 600, color: 'var(--foreground)' }}>
-                        {rp(allocation?.amount ?? p.amount)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--background)' }}>
+                <th style={{ ...thStyle, padding: '10px 20px' }}>Date</th>
+                <th style={{ ...thStyle, padding: '10px 20px' }}>Method</th>
+                <th style={{ ...thStyle, padding: '10px 20px' }}>Reference</th>
+                <th style={{ ...thStyle, padding: '10px 20px', textAlign: 'right' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments.map((p: any) => {
+                const allocation = p.allocations?.find((a: any) => a.invoice_id === invoice.id)
+                return (
+                  <tr key={p.id}>
+                    <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{formatDate(p.date)}</td>
+                    <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{p.payment_method?.name ?? '—'}</td>
+                    <td style={{ ...tdStyle, color: 'var(--foreground-muted)', fontFamily: 'monospace', fontSize: 12 }}>
+                      {p.reference_number ?? '—'}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>
+                      {rp(allocation?.amount ?? p.amount)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         ) : (
-          <div style={{ padding: 32, textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 'var(--radius-lg)' }}>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>No payments recorded for this invoice.</p>
-          </div>
+          !showPaymentForm && (
+            <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+              <Wallet size={28} style={{ color: 'var(--foreground-subtle)', margin: '0 auto 8px' }} />
+              <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: 0 }}>No payments recorded yet</p>
+            </div>
+          )
         )}
       </div>
 
@@ -1002,6 +942,12 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                     <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.additional_charge_price)}</td>
                   </tr>
                 ) : null}
+                {Number(invoice.handling_fee_amount ?? 0) > 0 && (
+                  <tr>
+                    <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Handling fee ({Number(invoice.handling_fee_percent ?? 0)}%)</td>
+                    <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rp(invoice.handling_fee_amount)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td style={{ padding: '4px 0', fontSize: '10pt', color: '#5c3a21' }}>Tax</td>
                   <td style={{ padding: '4px 0', textAlign: 'right', fontSize: '10pt', fontWeight: 600, color: '#5c3a21' }}>{rpRounded(invoice.tax_amount)}</td>
@@ -1021,6 +967,14 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
       </div>
 
       <style>{`
+        .inv-meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .inv-meta-cell { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; min-width: 0; }
+        .inv-meta-cell + .inv-meta-cell { border-left: 1px solid var(--border); }
+        @media (max-width: 760px) {
+          .inv-meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .inv-meta-cell:nth-child(3) { border-left: none; }
+          .inv-meta-cell:nth-child(n + 3) { border-top: 1px solid var(--border); }
+        }
         .invoice-print { display: none; }
         @media print {
           @page { size: A4 portrait; margin: 15mm; }

@@ -1,5 +1,6 @@
 'use client'
 
+import FinanceBranchSelect, { financeBranchParam, useFinanceBranchLabel, type FinanceBranchScope } from '../FinanceBranchSelect'
 import React, { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
@@ -176,13 +177,15 @@ export default function IncomeStatementView() {
 
   const [startDate, setStartDate] = useState<string>(firstOfYear())
   const [endDate, setEndDate] = useState<string>(today())
+  const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
+  const branchLabel = useFinanceBranchLabel(branchScope)
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['income-statement', startDate, endDate],
+    queryKey: ['income-statement', startDate, endDate, branchScope],
     enabled: canRead && !!startDate && !!endDate,
     queryFn: () =>
       api
-        .get('/reports/income-statement', { params: { start_date: startDate, end_date: endDate } })
+        .get('/reports/income-statement', { params: { start_date: startDate, end_date: endDate, ...financeBranchParam(branchScope) } })
         .then((r) => r.data),
   })
 
@@ -246,7 +249,7 @@ export default function IncomeStatementView() {
   )
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
-    mutationFn: () => reportsService.exportIncomeStatement({ start_date: startDate, end_date: endDate }),
+    mutationFn: () => reportsService.exportIncomeStatement({ start_date: startDate, end_date: endDate, ...financeBranchParam(branchScope) }),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `income-statement-${startDate}_${endDate}.xlsx`)
     },
@@ -289,7 +292,7 @@ export default function IncomeStatementView() {
           </h1>
           <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
             {hasStatement
-              ? `Periode: ${formatDate(stmt?.start_date ?? startDate)} – ${formatDate(stmt?.end_date ?? endDate)}`
+              ? `Periode: ${formatDate(stmt?.start_date ?? startDate)} – ${formatDate(stmt?.end_date ?? endDate)} · ${branchLabel}`
               : 'Profit & loss for a selected date range (posted journals only)'}
           </p>
         </div>
@@ -331,6 +334,10 @@ export default function IncomeStatementView() {
                   onChange={(e) => setEndDate(e.target.value)}
                   style={inputStyle}
                 />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={labelStyle}>Branch</label>
+                <FinanceBranchSelect value={branchScope} onChange={setBranchScope} style={inputStyle} />
               </div>
             </div>
           </div>

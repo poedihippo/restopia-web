@@ -2,14 +2,15 @@
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import {
-  Search,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -111,7 +112,12 @@ export default function RequestedOrdersView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
-  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'delivered' | 'rejected' | 'partially_delivered'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'accepted' | 'delivered' | 'rejected' | 'partially_delivered'>('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'' | 'pending' | 'partial' | 'paid'>('')
+  const [remainingQtyFilter, setRemainingQtyFilter] = useState<'' | 'true' | 'false'>('')
+  const [requesterBranchFilter, setRequesterBranchFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [acceptModalPO, setAcceptModalPO] = useState<RequestedPO | null>(null)
 
@@ -122,10 +128,21 @@ export default function RequestedOrdersView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter])
+  }, [debouncedSearch, statusFilter, paymentStatusFilter, remainingQtyFilter, requesterBranchFilter, dateFrom, dateTo])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['requested-orders', page, perPage, debouncedSearch, statusFilter, myBranchId],
+  // Requesting-branch options (the PO's branch_id). supplier_branch_id is
+  // pinned to my branch and type to 'branch', so neither is exposed.
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !!myBranchId,
+  })
+  const requesterBranches: any[] = ((branchesData as any)?.data ?? []).filter(
+    (b: any) => b.id !== myBranchId,
+  )
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['requested-orders', page, perPage, debouncedSearch, statusFilter, paymentStatusFilter, remainingQtyFilter, requesterBranchFilter, dateFrom, dateTo, myBranchId],
     enabled: !!myBranchId,
     queryFn: () =>
       purchaseOrdersService
@@ -139,9 +156,17 @@ export default function RequestedOrdersView() {
           'filter[type]': 'branch',
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
+          'filter[payment_status]': paymentStatusFilter || undefined,
+          'filter[has_remaining_qty]': remainingQtyFilter || undefined,
+          'filter[branch_id]': requesterBranchFilter || undefined,
+          'filter[date_gte]': dateFrom || undefined,
+          'filter[date_lte]': dateTo || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: RequestedPO[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -169,15 +194,6 @@ export default function RequestedOrdersView() {
       if (!window.confirm(`Are you sure you want to ${action} this order?`)) return
       actionMutation.mutate({ id: item.id, action })
     }
-  }
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
   }
 
   const sectionLabelStyle: React.CSSProperties = {
@@ -220,62 +236,97 @@ export default function RequestedOrdersView() {
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 20,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by code..."
+        activeCount={countActive(
+          statusFilter, paymentStatusFilter, remainingQtyFilter, requesterBranchFilter, dateFrom, dateTo,
+        )}
+        onClear={() => {
+          setStatusFilter('')
+          setPaymentStatusFilter('')
+          setRemainingQtyFilter('')
+          setRequesterBranchFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setPage(1)
         }}
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as any)
+              }
+            >
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Fulfilled</option>
+              <option value="accepted">Accepted</option>
+              <option value="delivered">Delivered</option>
+              <option value="rejected">Rejected</option>
+              <option value="partially_delivered">Partially Delivered</option>
+            </FilterSelect>
+            <FilterSelect
+              value={paymentStatusFilter}
+              onChange={(e) => {
+                setPaymentStatusFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Payment Status</option>
+              <option value="pending">Unpaid</option>
+              <option value="partial">Partially Paid</option>
+              <option value="paid">Paid</option>
+            </FilterSelect>
+          </>
+        }
       >
-        <div style={{ position: 'relative', maxWidth: 280, width: '100%' }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by code..."
-            style={{
-              ...inputBase,
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) =>
-            setStatusFilter(e.target.value as any)
-          }
-          style={{
-            ...inputBase,
-            padding: '8px 12px',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="final">Fulfilled</option>
-          <option value="delivered">Delivered</option>
-          <option value="rejected">Rejected</option>
-          <option value="partially_delivered">Partially Delivered</option>
-        </select>
-      </div>
+        <FilterGroup title="Location">
+          <FilterField label="Requesting branch">
+            <FilterSelect
+              block
+              value={requesterBranchFilter}
+              onChange={(e) => {
+                setRequesterBranchFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Requesting Branches</option>
+              {requesterBranches.map((b: any) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dates & delivery">
+          <FilterField label="Order date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+          <FilterField label="Remaining qty">
+            <FilterSelect
+              block
+              value={remainingQtyFilter}
+              onChange={(e) => {
+                setRemainingQtyFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">Remaining Qty: All</option>
+              <option value="true">Has Remaining Qty</option>
+              <option value="false">Fully Delivered</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

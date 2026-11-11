@@ -11,9 +11,9 @@ import { stagesService } from '@/services/stages.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -317,6 +317,7 @@ export default function StagesView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<Stage | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('')
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
@@ -325,10 +326,10 @@ export default function StagesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, activeFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['stages', page, perPage, debouncedSearch],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['stages', page, perPage, debouncedSearch, activeFilter],
     enabled: canRead,
     queryFn: () =>
       stagesService
@@ -337,9 +338,13 @@ export default function StagesView() {
           per_page: perPage,
           sort: '-id',
           'filter[search]': debouncedSearch || undefined,
-        })
+          'filter[is_active]': activeFilter || undefined,
+        } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Stage[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -417,38 +422,26 @@ export default function StagesView() {
       ) : (
         <>
           {/* Toolbar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-              <Search
-                size={14}
-                style={{
-                  position: 'absolute',
-                  left: 10,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--foreground-muted)',
-                  pointerEvents: 'none',
-                }}
-              />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari stage..."
-                style={{
-                  width: '100%',
-                  padding: '8px 10px 8px 32px',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 13,
-                  color: 'var(--foreground)',
-                  background: 'var(--surface-raised)',
-                  outline: 'none',
-                  fontFamily: 'var(--font-sans)',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
+          <FilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Cari stage..."
+            activeCount={countActive(activeFilter)}
+            onClear={() => {
+              setActiveFilter('')
+              setPage(1)
+            }}
+            quick={
+              <FilterSelect
+                value={activeFilter}
+                onChange={(e) => setActiveFilter(e.target.value as 'true' | 'false' | '')}
+              >
+                <option value="">Semua Status</option>
+                <option value="true">Aktif</option>
+                <option value="false">Nonaktif</option>
+              </FilterSelect>
+            }
+          />
 
           {/* Table */}
           <div

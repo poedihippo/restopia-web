@@ -2,6 +2,7 @@ import { queryClient } from "@/hooks/query";
 import { AuthProvider } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { installClickGuard } from "@/lib/clickGuard";
+import { installLoadingGuard } from "@/lib/loadingGuard";
 import "@/styles/globals.css";
 import "@/styles/pos-print.css";
 import "@/styles/ui-v2.css";
@@ -22,6 +23,10 @@ export default function App({ Component, pageProps }: AppProps) {
   // Global double-click guard: no button can fire twice within 350ms.
   // Covers every route, including the layout-less / and /pos pages.
   useEffect(() => installClickGuard(document), []);
+
+  // Submit buttons are held (disabled) while any on-screen query is still on
+  // its first load, so nothing is saved before its data has arrived.
+  useEffect(() => installLoadingGuard(document, queryClient), []);
 
   const noLayout =
     NO_LAYOUT_ROUTES.includes(router.pathname) ||

@@ -13,8 +13,9 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import {
-  Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, CalendarRange, CheckCircle2, Lock, Download,
 } from 'lucide-react'
 
@@ -60,6 +61,8 @@ export default function FiscalYearsView() {
   const canDelete = isSuperadmin || hasPermission('fiscal-year.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [activeFilter, setActiveFilter] = useState('')
+  const [closedFilter, setClosedFilter] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -69,10 +72,18 @@ export default function FiscalYearsView() {
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['fiscal-years', page, perPage, debouncedSearch],
-    queryFn: () => fiscalYearsService.list({ page, per_page: perPage, sort: '-id', 'filter[search]': debouncedSearch || undefined }).then((r) => r.data),
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['fiscal-years', page, perPage, debouncedSearch, activeFilter, closedFilter],
+    queryFn: () => fiscalYearsService.list({
+      page, per_page: perPage, sort: '-id',
+      'filter[search]': debouncedSearch || undefined,
+      'filter[is_active]': activeFilter || undefined,
+      'filter[is_closed]': closedFilter || undefined,
+    } as any).then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: FiscalYear[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -136,13 +147,27 @@ export default function FiscalYearsView() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ position: 'relative', width: 280 }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search fiscal years..."
-            style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search fiscal years..."
+        activeCount={countActive(activeFilter, closedFilter)}
+        onClear={() => { setActiveFilter(''); setClosedFilter(''); setPage(1) }}
+        quick={
+          <>
+            <FilterSelect value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1) }}>
+              <option value="">Active: All</option>
+              <option value="1">Active: Yes</option>
+              <option value="0">Active: No</option>
+            </FilterSelect>
+            <FilterSelect value={closedFilter} onChange={(e) => { setClosedFilter(e.target.value); setPage(1) }}>
+              <option value="">Closed: All</option>
+              <option value="1">Closed: Yes</option>
+              <option value="0">Closed: No</option>
+            </FilterSelect>
+          </>
+        }
+      />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

@@ -1,10 +1,10 @@
 'use client'
 
 import React from 'react'
-import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { deliveriesService } from '@/services/deliveries.service'
 import DeliveryForm from './DeliveryForm'
+import BackLink from '@/components/BackLink'
 import { PackageSearch } from 'lucide-react'
 import { parseDate } from '@/helper/parseDate'
 
@@ -13,8 +13,6 @@ interface DeliveryEditProps {
 }
 
 export default function DeliveryEdit({ id }: DeliveryEditProps) {
-  const router = useRouter()
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ['delivery-detail', id],
     queryFn: () =>
@@ -91,66 +89,47 @@ export default function DeliveryEdit({ id }: DeliveryEditProps) {
     }
     : undefined
 
+  const containerStyle: React.CSSProperties = {
+    padding: '28px 24px 48px',
+    width: '100%',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  }
+
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 80,
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 99,
-              border: '3px solid var(--border)',
-              borderTop: '3px solid var(--accent)',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)', marginTop: 12 }}>
-            Loading delivery...
-          </span>
-        </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <div style={containerStyle}>
+        <div className="v2-skeleton" style={{ width: 80, height: 28, borderRadius: 6 }} />
+        <div className="v2-skeleton" style={{ width: 240, height: 26, borderRadius: 6 }} />
+        {[0, 1].map((i) => (
+          <div key={i} className="v2-card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div className="v2-skeleton" style={{ width: 120, height: 14, borderRadius: 4 }} />
+            </div>
+            <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px 20px' }}>
+              {[0, 1, 2, 3].map((j) => (
+                <div key={j} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div className="v2-skeleton" style={{ width: 90, height: 12, borderRadius: 4 }} />
+                  <div className="v2-skeleton" style={{ width: '100%', height: 38, borderRadius: 8 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     )
   }
 
   if (isError || !delivery) {
     return (
-      <div
-        style={{
-          padding: 80,
-          textAlign: 'center',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <PackageSearch size={40} style={{ color: 'var(--foreground-subtle)' }} />
-        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: 0 }}>
+      <div style={{ ...containerStyle, alignItems: 'center', padding: '80px 24px', textAlign: 'center' }}>
+        <PackageSearch size={36} style={{ color: 'var(--foreground-subtle)' }} />
+        <p style={{ fontSize: 13.5, color: 'var(--foreground-muted)', margin: 0 }}>
           Delivery not found
         </p>
-        <button
-          onClick={() => router.back()}
-          style={{
-            padding: '7px 14px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          Go back
-        </button>
+        <BackLink href="/transfer/deliveries" label="Deliveries" style={{ alignSelf: 'center' }} />
       </div>
     )
   }

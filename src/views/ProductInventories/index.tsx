@@ -20,6 +20,7 @@ import StockMovementSheet from '../StockMovement/StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import api from '@/hooks/useApi'
 import {
   loadStoredMode,
@@ -30,7 +31,6 @@ import {
 } from '@/utils/unitDisplay'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -142,6 +142,10 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [stockGte, setStockGte] = useState<string>('')
   const [stockLte, setStockLte] = useState<string>('')
   const [expiryDateGte, setExpiryDateGte] = useState<string>('')
+  const [expiryDateLte, setExpiryDateLte] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | ''>('active')
+  const [branchTypeFilter, setBranchTypeFilter] = useState<string>('')
+  const [branchFilter, setBranchFilter] = useState<number>(0)
   const [categoryFilter, setCategoryFilter] = useState<number | ''>('')
   const [typeFilter, setTypeFilter] = useState<string | ''>(defaultType ?? '')
   const [ownerRefFilter, setOwnerRefFilter] = useState<(number | string)[]>([])
@@ -155,6 +159,7 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
   const [debouncedStockGte, setDebouncedStockGte] = useState<string>('')
   const [debouncedStockLte, setDebouncedStockLte] = useState<string>('')
   const [debouncedExpiryDateGte, setDebouncedExpiryDateGte] = useState<string>('')
+  const [debouncedExpiryDateLte, setDebouncedExpiryDateLte] = useState<string>('')
   const [debouncedOwnerRef, setDebouncedOwnerRef] = useState<(number | string)[]>([])
   const [debouncedStage, setDebouncedStage] = useState<(number | string)[]>([])
   const [debouncedLocationRef, setDebouncedLocationRef] = useState<(number | string)[]>([])
@@ -178,22 +183,6 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     display: 'flex',
   }
 
-  // Gaya kontrol filter (search, stock range, tanggal, select) supaya
-  // tinggi & bentuknya seragam dan tidak menyusut saat baris penuh.
-  const filterControl: React.CSSProperties = {
-    height: 36,
-    padding: '0 10px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-    boxSizing: 'border-box',
-    flexShrink: 0,
-  }
-
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   // Dedicated key: product inventory has its own mode default ('branch' —
@@ -214,22 +203,18 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
       setDebouncedStockGte(stockGte)
       setDebouncedStockLte(stockLte)
       setDebouncedExpiryDateGte(expiryDateGte)
+      setDebouncedExpiryDateLte(expiryDateLte)
       setDebouncedOwnerRef(ownerRefFilter)
       setDebouncedStage(stageFilter)
       setDebouncedLocationRef(locationRefFilter)
     }, 500)
     return () => clearTimeout(t)
-  }, [search, stockGte, stockLte, expiryDateGte, ownerRefFilter, stageFilter, locationRefFilter])
+  }, [search, stockGte, stockLte, expiryDateGte, expiryDateLte, ownerRefFilter, stageFilter, locationRefFilter])
 
   const handleExport = async () => {
     try {
       setIsExporting(true)
-      const response = await productInventoriesService.exportExcel({
-        'filter[search]': debouncedSearch || undefined,
-        'filter[product_type]': activeProductTypes,
-        // Same stock floor as the table, so "Hide empty batches" applies to the file too.
-        'filter[stock_gte]': (hideEmpty ? String(Math.max(0.0001, Number(debouncedStockGte) || 0)) : debouncedStockGte) || undefined,
-      })
+      const response = await productInventoriesService.exportExcel(filterParams as any)
 
       const blob = new Blob([response.data], {
         type:
@@ -254,7 +239,24 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, debouncedOwnerRef, debouncedStage, debouncedLocationRef, hideEmpty])
+  }, [debouncedSearch, debouncedStockGte, debouncedStockLte, debouncedExpiryDateGte, debouncedExpiryDateLte, categoryFilter, typeFilter, debouncedOwnerRef, debouncedStage, debouncedLocationRef, hideEmpty, statusFilter, branchTypeFilter, branchFilter])
+
+  // Non-superadmins are always scoped to their active branch by the API, so
+  // the branch filter is only offered (and fetched) for superadmins.
+  const isSuperadmin = (user as any)?.type === 'superadmin'
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: isSuperadmin,
+  })
+  const branchOptions = [
+    { value: 0, label: 'All locations' },
+    ...(((branchesData as any)?.data ?? []) as any[]).map((b) => ({
+      value: b.id as number,
+      label: (b.name as string) ?? '',
+      sublabel: b.code as string | undefined,
+    })),
+  ]
 
   const { data: categoriesData } = useQuery({
     queryKey: ['product-categories-all'],
@@ -314,8 +316,29 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
     ? String(Math.max(HIDE_EMPTY_MIN, Number(debouncedStockGte) || 0))
     : debouncedStockGte
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['product-inventories', page, perPage, debouncedSearch, effectiveStockGte, debouncedStockLte, debouncedExpiryDateGte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef],
+  // Shared by the list query and the Excel export so both apply the same filters.
+  const filterParams = {
+    'filter[search]': debouncedSearch || undefined,
+    // Default hanya inventori aktif (kolom Status sudah tidak ditampilkan).
+    'filter[status]': statusFilter || undefined,
+    'filter[branch_type]': branchTypeFilter || undefined,
+    'filter[branch_id]': isSuperadmin && branchFilter ? String(branchFilter) : undefined,
+    'filter[stock_gte]': effectiveStockGte || undefined,
+    'filter[stock_lte]': debouncedStockLte || undefined,
+    'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
+    'filter[expiry_date_lte]': debouncedExpiryDateLte || undefined,
+    'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
+    // Backend hanya menerima SATU nilai untuk filter[product_type] —
+    // nilai berkoma ("raw,wip,final,supply") menghasilkan 0 baris.
+    // Kirim hanya saat tipe tunggal; multi-tipe disaring di FE (lihat items).
+    'filter[product_type]': requestedType || undefined,
+    'filter[owner_refs]': debouncedOwnerRef.length > 0 ? debouncedOwnerRef.join(',') : undefined,
+    'filter[stages]': debouncedStage.length > 0 ? debouncedStage.join(',') : undefined,
+    'filter[location_refs]': debouncedLocationRef.length > 0 ? debouncedLocationRef.join(',') : undefined,
+  }
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['product-inventories', page, perPage, debouncedSearch, effectiveStockGte, debouncedStockLte, debouncedExpiryDateGte, debouncedExpiryDateLte, categoryFilter, typeFilter, activeProductTypes, debouncedOwnerRef, debouncedStage, debouncedLocationRef, statusFilter, branchTypeFilter, branchFilter],
     queryFn: () =>
       productInventoriesService
         .list({
@@ -323,23 +346,13 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           per_page: perPage,
           sort: '-id',
           include: 'branch,product_uom_batch,product_uom,product,uom',
-          'filter[search]': debouncedSearch || undefined,
-          // Default hanya inventori aktif (kolom Status sudah tidak ditampilkan).
-          'filter[status]': 'active',
-          'filter[stock_gte]': effectiveStockGte || undefined,
-          'filter[stock_lte]': debouncedStockLte || undefined,
-          'filter[expiry_date_gte]': debouncedExpiryDateGte || undefined,
-          'filter[product_category_id]': categoryFilter === '' ? undefined : String(categoryFilter),
-          // Backend hanya menerima SATU nilai untuk filter[product_type] —
-          // nilai berkoma ("raw,wip,final,supply") menghasilkan 0 baris.
-          // Kirim hanya saat tipe tunggal; multi-tipe disaring di FE (lihat items).
-          'filter[product_type]': requestedType || undefined,
-          'filter[owner_refs]': debouncedOwnerRef.length > 0 ? debouncedOwnerRef.join(',') : undefined,
-          'filter[stages]': debouncedStage.length > 0 ? debouncedStage.join(',') : undefined,
-          'filter[location_refs]': debouncedLocationRef.length > 0 ? debouncedLocationRef.join(',') : undefined,
+          ...filterParams,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const rawItems: ProductInventory[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -484,64 +497,182 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
           </button>
         </div>
       </div>
-      {/* Toolbar — flex-wrap supaya kontrol tidak saling dorong; pencarian
-            selalu dapat lebar minimal sehingga teks yang diketik terbaca. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div
-          style={{
-            position: 'relative',
-            flex: '1 1 260px',
-            minWidth: 220,
-            maxWidth: 340,
-          }}
-        >
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search inventory..."
-            style={{ ...filterControl, width: '100%', padding: '0 10px 0 32px' }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <input
-            type="number"
-            value={stockGte}
-            onChange={(e) => setStockGte(e.target.value)}
-            placeholder="Min stock"
-            style={{ ...filterControl, width: 96 }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>-</span>
-          <input
-            type="number"
-            value={stockLte}
-            onChange={(e) => setStockLte(e.target.value)}
-            placeholder="Max stock"
-            style={{ ...filterControl, width: 96 }}
-          />
-          <input
-            type="date"
-            value={expiryDateGte}
-            onChange={(e) => setExpiryDateGte(e.target.value)}
-            style={{ ...filterControl, padding: '0 8px' }}
-            title="Min Expiry Date"
-          />
-        </div>
-
-        {/* Dimension Filters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <div style={{ width: 170 }}>
+      {/* Toolbar */}
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search inventory..."
+        activeCount={countActive(
+          statusFilter !== 'active', categoryFilter, defaultType ? '' : typeFilter,
+          stockGte, stockLte, expiryDateGte, expiryDateLte,
+          ownerRefFilter, stageFilter, locationRefFilter,
+          branchTypeFilter, branchFilter,
+        )}
+        onClear={() => {
+          setStatusFilter('active')
+          setCategoryFilter('')
+          setTypeFilter(defaultType ?? '')
+          setStockGte('')
+          setStockLte('')
+          setExpiryDateGte('')
+          setExpiryDateLte('')
+          setOwnerRefFilter([])
+          setStageFilter([])
+          setLocationRefFilter([])
+          setBranchTypeFilter('')
+          setBranchFilter(0)
+          setPage(1)
+        }}
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as 'active' | 'inactive' | '')
+                setPage(1)
+              }}
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="">All Status</option>
+            </FilterSelect>
+            <FilterSelect
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
+                setPage(1)
+              }}
+              style={{ maxWidth: 180 }}
+            >
+              <option value="">All Categories</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+            {!defaultType && (
+              <FilterSelect
+                value={typeFilter}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value)
+                  setPage(1)
+                }}
+                style={{ maxWidth: 160 }}
+              >
+                <option value="">All Types</option>
+                {availableTypeOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </FilterSelect>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {/* Unit display mode toggle */}
+            <div
+              role="group"
+              aria-label="Unit display mode"
+              style={{
+                display: 'inline-flex',
+                flexShrink: 0,
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                overflow: 'hidden',
+                background: 'var(--surface-raised)',
+              }}
+            >
+              {([
+                { key: 'smallest', label: 'Smallest', hint: 'base_qty + base_uom (e.g. 4.200 GR)' },
+                { key: 'largest', label: 'Largest', hint: 'convert to largest UOM (e.g. 1 PACK)' },
+                { key: 'branch', label: 'Branch Type', hint: 'convert ke UOM sesuai branch type kamu (e.g. 50 KG)' },
+              ] as { key: UnitDisplayMode; label: string; hint: string }[]).map((opt) => {
+                const active = unitMode === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setUnitMode(opt.key)}
+                    title={opt.hint}
+                    style={{
+                      padding: '8px 12px',
+                      border: 'none',
+                      background: active ? 'var(--accent)' : 'transparent',
+                      color: active ? 'white' : 'var(--foreground-muted)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-sans)',
+                      transition: 'all 0.12s ease',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            {/* Hide empty batches toggle */}
+            <button
+              onClick={() => setHideEmpty(!hideEmpty)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 36,
+                padding: '0 12px',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                background: hideEmpty ? 'var(--accent-light-bg)' : 'var(--surface)',
+                border: `1px solid ${hideEmpty ? 'var(--accent-light)' : 'var(--border)'}`,
+                borderRadius: 'var(--radius-md)',
+                fontSize: 12,
+                fontWeight: 500,
+                color: hideEmpty ? 'var(--accent)' : 'var(--foreground-muted)',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-sans)',
+              }}
+            >
+              <Boxes size={13} />
+              Hide empty batches
+            </button>
+          </>
+        }
+      >
+        <FilterGroup title="Stock">
+          <FilterField label="Stock range">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <FilterInput
+                type="number"
+                value={stockGte}
+                onChange={(e) => setStockGte(e.target.value)}
+                placeholder="Min stock"
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <span style={{ color: 'var(--foreground-subtle)', fontSize: 12 }}>–</span>
+              <FilterInput
+                type="number"
+                value={stockLte}
+                onChange={(e) => setStockLte(e.target.value)}
+                placeholder="Max stock"
+                style={{ flex: 1, minWidth: 0 }}
+              />
+            </div>
+          </FilterField>
+          <FilterField label="Expiry date">
+            <DateRange
+              from={expiryDateGte}
+              to={expiryDateLte}
+              onFromChange={setExpiryDateGte}
+              onToChange={setExpiryDateLte}
+            />
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dimensions">
+          <FilterField label="Owner">
             <MultiSearchableSelect
               value={ownerRefFilter}
               onChange={setOwnerRefFilter}
@@ -549,8 +680,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
               placeholder="Semua Owner"
               searchPlaceholder="Cari owner..."
             />
-          </div>
-          <div style={{ width: 150 }}>
+          </FilterField>
+          <FilterField label="Stage">
             <MultiSearchableSelect
               value={stageFilter}
               onChange={setStageFilter}
@@ -558,8 +689,8 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
               placeholder="Semua Stage"
               searchPlaceholder="Cari stage..."
             />
-          </div>
-          <div style={{ width: 150 }}>
+          </FilterField>
+          <FilterField label="Location">
             <MultiSearchableSelect
               value={locationRefFilter}
               onChange={setLocationRefFilter}
@@ -567,112 +698,42 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
               placeholder="Semua Lokasi"
               searchPlaceholder="Cari lokasi..."
             />
-          </div>
-        </div>
-
-        {/* Unit display mode toggle */}
-        <div
-          role="group"
-          aria-label="Unit display mode"
-          style={{
-            display: 'inline-flex',
-            flexShrink: 0,
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            overflow: 'hidden',
-            background: 'var(--surface-raised)',
-          }}
-        >
-          {([
-            { key: 'smallest', label: 'Smallest', hint: 'base_qty + base_uom (e.g. 4.200 GR)' },
-            { key: 'largest', label: 'Largest', hint: 'convert to largest UOM (e.g. 1 PACK)' },
-            { key: 'branch', label: 'Branch Type', hint: 'convert ke UOM sesuai branch type kamu (e.g. 50 KG)' },
-          ] as { key: UnitDisplayMode; label: string; hint: string }[]).map((opt) => {
-            const active = unitMode === opt.key
-            return (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => setUnitMode(opt.key)}
-                title={opt.hint}
-                style={{
-                  padding: '8px 12px',
-                  border: 'none',
-                  background: active ? 'var(--accent)' : 'transparent',
-                  color: active ? 'white' : 'var(--foreground-muted)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-sans)',
-                  transition: 'all 0.12s ease',
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Branches">
+          <FilterField label="Branch type">
+            <FilterSelect
+              block
+              value={branchTypeFilter}
+              onChange={(e) => {
+                setBranchTypeFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Branch Types</option>
+              <option value="warehouse">Warehouse</option>
+              <option value="production">Production</option>
+              <option value="outlet">Outlet</option>
+              <option value="other">Other</option>
+            </FilterSelect>
+          </FilterField>
+          {isSuperadmin && (
+            <FilterField label="Branch">
+              <SearchableSelect
+                value={branchFilter}
+                onChange={(v) => {
+                  setBranchFilter(Number(v) || 0)
+                  setPage(1)
                 }}
-              >
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <select
-          value={categoryFilter}
-          onChange={(e) => {
-            setCategoryFilter(e.target.value === '' ? '' : Number(e.target.value))
-            setPage(1)
-          }}
-          style={{ ...filterControl, maxWidth: 180, cursor: 'pointer' }}
-        >
-          <option value="">All Categories</option>
-          {categories.map((c: any) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-
-        {!defaultType && (
-          <select
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value)
-              setPage(1)
-            }}
-            style={{ ...filterControl, maxWidth: 160, cursor: 'pointer' }}
-          >
-            <option value="">All Types</option>
-            {availableTypeOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        )}
-
-        {/* Hide empty batches toggle */}
-        <button
-          onClick={() => setHideEmpty(!hideEmpty)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 36,
-            padding: '0 12px',
-            flexShrink: 0,
-            whiteSpace: 'nowrap',
-            background: hideEmpty ? 'var(--accent-light-bg)' : 'var(--surface)',
-            border: `1px solid ${hideEmpty ? 'var(--accent-light)' : 'var(--border)'}`,
-            borderRadius: 'var(--radius-md)',
-            fontSize: 12,
-            fontWeight: 500,
-            color: hideEmpty ? 'var(--accent)' : 'var(--foreground-muted)',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          <Boxes size={13} />
-          Hide empty batches
-        </button>
-      </div>
+                options={branchOptions}
+                placeholder="All locations"
+                searchPlaceholder="Search location..."
+                triggerStyle={{ height: 36, padding: '0 12px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
+              />
+            </FilterField>
+          )}
+        </FilterGroup>
+      </FilterBar>
       {/* Summary bar */}
       {meta && (
         <div
@@ -902,14 +963,18 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
                             || puFallback?.code
                             || `Item #${item.id}`}
                         </div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: 'var(--foreground-muted)',
-                          }}
-                        >
-                          {item.code}
-                        </div>
+                        {(() => {
+                          // Product UoM code (SKU), else the product code, then the
+                          // inventory code when it differs.
+                          const pu = item.product_uom_batch?.product_uom ?? item.product_uom ?? puFallback
+                          const skuCode = pu?.code || (pu?.product as any)?.code
+                          const codes = [skuCode, item.code !== skuCode ? item.code : null].filter(Boolean)
+                          return codes.length > 0 ? (
+                            <div style={{ fontSize: 12, color: 'var(--foreground-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                              {codes.join(' · ')}
+                            </div>
+                          ) : null
+                        })()}
                       </div>
                     </td>
                     {/* UOM */}

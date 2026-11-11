@@ -4,7 +4,8 @@ import { formatDateShort, formatDateTime } from '@/utils/date';
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Eye, X, Search, Download } from 'lucide-react'
+import { Eye, X, Download } from 'lucide-react'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { taxesService } from '@/services/taxes.service'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
@@ -31,23 +32,28 @@ export default function TaxesView() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['taxes', debouncedSearch],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['taxes', debouncedSearch, activeFilter],
     queryFn: () =>
       taxesService
         .list({
           per_page: 1000,
           sort: 'id',
           'filter[search]': debouncedSearch || undefined,
+          'filter[is_active]': activeFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
   const items = (data as any)?.data ?? []
 
   const resetForm = () => {
@@ -170,36 +176,23 @@ export default function TaxesView() {
           </button>)}
         </div>
       </div>
-      <div style={{ marginBottom: 16, position: 'relative', maxWidth: 280 }}>
-        <Search
-          size={15}
-          style={{
-            position: 'absolute',
-            left: 10,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--foreground-muted)',
-            pointerEvents: 'none',
-          }}
-        />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search taxes..."
-          style={{
-            width: '100%',
-            padding: '8px 12px 8px 32px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground)',
-            background: 'var(--surface-raised)',
-            outline: 'none',
-            fontFamily: 'var(--font-sans)',
-            boxSizing: 'border-box',
-          }}
-        />
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search taxes..."
+        activeCount={countActive(activeFilter)}
+        onClear={() => setActiveFilter('')}
+        quick={
+          <FilterSelect
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value as 'true' | 'false' | '')}
+          >
+            <option value="">All Status</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </FilterSelect>
+        }
+      />
       <div
         style={{
           background: 'var(--surface)',

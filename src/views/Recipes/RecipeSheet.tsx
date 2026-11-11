@@ -332,6 +332,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
     mutationFn: (data: FormValues) => recipesService.create(data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
+      queryClient.invalidateQueries({ queryKey: ['all-recipes-list'] })
       toast.success('Recipe created')
       onClose()
     },
@@ -344,6 +345,7 @@ export default function RecipeSheet({ open, onClose, editData }: RecipeSheetProp
       recipesService.update(editData!.id, data as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
+      queryClient.invalidateQueries({ queryKey: ['all-recipes-list'] })
       toast.success('Recipe updated')
       onClose()
     },

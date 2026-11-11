@@ -23,13 +23,25 @@ export interface CreateInvoiceRequest {
   description?: string
 }
 
+export interface InvoiceHandlingFeePreview {
+  applies: boolean
+  /** 0 when !applies */
+  handling_fee_percent: number
+}
+
 export const invoicesService = {
   list: (params?: ListParams) =>
     api.get<ApiResponse<PaginatedData<unknown>>>('/invoices', { params }),
 
-  get: (id: number, params?: { include?: string }) =>
+  get: (id: number, params?: { include?: string; scope?: 'company' }) =>
     api.get<ApiResponse<unknown>>(`/invoices/${id}`, { params }),
 
   create: (data: CreateInvoiceRequest) =>
     api.post<ApiResponse<unknown>>('/invoices', data),
+
+  /** Preview of the cross-company handling fee for the create form. */
+  handlingFee: (salesOrderIds: number[]) =>
+    api.get<ApiResponse<InvoiceHandlingFeePreview>>('/invoices/handling-fee', {
+      params: { sales_order_ids: salesOrderIds.join(',') },
+    }),
 }

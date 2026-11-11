@@ -17,7 +17,6 @@ import { companiesService } from '@/services/companies.service'
 import {
   Plus,
   Trash2,
-  ArrowLeft,
   ArrowRight,
   Loader2,
   Save,
@@ -26,6 +25,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import BackLink from '@/components/BackLink'
 import { FloatingPanel } from '@/components/FloatingPanel'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
@@ -1929,7 +1929,7 @@ export default function ProductionForm({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productions'] })
       queryClient.invalidateQueries({ queryKey: ['production', productionId] })
-      queryClient.invalidateQueries({ queryKey: ['production-detail', productionId] })
+      queryClient.removeQueries({ queryKey: ['production-detail', productionId] })
       toast.success('Production updated')
       router.push(`/production/${productionId}/detail`)
     },
@@ -2021,13 +2021,12 @@ export default function ProductionForm({
   const isPending = createMutation.isPending || updateMutation.isPending
 
   return (
-    <div className="v2-form" style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1120 }}>
+    <div className="v2-form" style={{ display: 'flex', flexDirection: 'column', gap: 16, }}>
+
+      <BackLink href="/production" label="Productions" />
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button type="button" className="v2-btn v2-btn-ghost" onClick={() => router.back()} aria-label="Back" style={{ width: 34, height: 34, padding: 0, justifyContent: 'center' }}>
-          <ArrowLeft size={15} />
-        </button>
         <div>
           <h1
             style={{
@@ -2882,7 +2881,7 @@ export default function ProductionForm({
             paddingTop: 2,
           }}
         >
-          <button type="button" className="v2-btn v2-btn-ghost" onClick={() => router.back()} style={{ height: 36, padding: '0 18px' }}>
+          <button type="button" className="v2-btn v2-btn-ghost" onClick={() => router.push('/production')} style={{ height: 36, padding: '0 18px' }}>
             Cancel
           </button>
           <button type="submit" className="v2-btn v2-btn-primary" disabled={isPending} style={{ height: 36, padding: '0 18px' }}>

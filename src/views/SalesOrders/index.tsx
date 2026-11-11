@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
-import { Download, Loader2, SlidersHorizontal, X, ArrowUpRight } from 'lucide-react'
+import { Download, Loader2, ArrowUpRight } from 'lucide-react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import { salesOrdersService as salesOrderService } from '@/services/sales-orders.service'
 import { branchesService } from '@/services/branches.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
@@ -24,6 +25,10 @@ const SETTLEMENT_META = {
   settled: { label: 'Settled', color: 'var(--success)', bg: 'var(--success-bg)' },
   cancelled: { label: 'Cancelled', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
 }
+// funds_status: a Cash/Visa/BCA payment still waiting for Settle Payments.
+// Shown in the Settlement column in place of settlement_status (which drives
+// the sale journal and stays as it is).
+const AWAITING_FUNDS_META = { label: 'Menunggu settlement', color: 'var(--warning)', bg: 'var(--warning-bg)' }
 
 const PAYMENT_STATUS_META = {
   pending: { label: 'Unpaid', color: 'var(--warning)', bg: 'var(--warning-bg)' },
@@ -59,7 +64,7 @@ export default function SalesOrdersView() {
   const [searchDebounced, setSearchDebounced] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [settlementFilter, setSettlementFilter] = useState<
-    '' | 'pending' | 'credit' | 'settled' | 'cancelled'
+    '' | 'pending' | 'credit' | 'settled' | 'cancelled' | 'awaiting_settlement'
   >('')
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<
     '' | 'pending' | 'partial' | 'paid'
@@ -70,7 +75,6 @@ export default function SalesOrdersView() {
   const [typeFilter, setTypeFilter] = useState('')
   const [dateGte, setDateGte] = useState('')
   const [dateLte, setDateLte] = useState('')
-  const [showMoreFilters, setShowMoreFilters] = useState(false)
 
   const [branchId, setBranchId] = useState<number | ''>('')
   const [salesChannelId, setSalesChannelId] = useState<number | ''>('')
@@ -84,6 +88,8 @@ export default function SalesOrdersView() {
   const [hasInvoice, setHasInvoice] = useState<'' | 'true' | 'false'>('')
   const [hasPurchaseOrder, setHasPurchaseOrder] = useState<'' | 'true' | 'false'>('')
   const [hasDelivery, setHasDelivery] = useState<'' | 'true' | 'false'>('')
+  const [isCredit, setIsCredit] = useState<'' | 'true' | 'false'>('')
+  const [buyerBranchId, setBuyerBranchId] = useState<number | ''>('')
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerSearchDebounced, setCustomerSearchDebounced] = useState('')
   const [customerId, setCustomerId] = useState<number | ''>('')
@@ -144,43 +150,13 @@ export default function SalesOrdersView() {
 
   const { data: customersData } = useQuery({
     queryKey: ['so-filter-customers', customerSearchDebounced],
-    enabled: showMoreFilters && customerSearchDebounced.length > 0,
+    enabled: customerSearchDebounced.length > 0,
     queryFn: () =>
       customersService
         .list({ per_page: 20, 'filter[search]': customerSearchDebounced } as any)
         .then((r) => r.data),
   })
   const customerOptions: any[] = (customersData as any)?.data ?? []
-
-  const activeAdvancedCount = useMemo(() => {
-    let n = 0
-    if (branchId !== '') n++
-    if (salesChannelId !== '') n++
-    if (customerId !== '') n++
-    if (creditById !== '') n++
-    if (voucherId !== '') n++
-    if (shiftId !== '') n++
-    if (fulfillmentGte || fulfillmentLte) n++
-    if (settlementAtGte || settlementAtLte) n++
-    if (hasInvoice) n++
-    if (hasPurchaseOrder) n++
-    if (hasDelivery) n++
-    return n
-  }, [
-    branchId, salesChannelId, customerId, creditById, voucherId, shiftId,
-    fulfillmentGte, fulfillmentLte, settlementAtGte, settlementAtLte,
-    hasInvoice, hasPurchaseOrder, hasDelivery,
-  ])
-
-  const hasAnyFilter = useMemo(() => {
-    return Boolean(
-      search || statusFilter || settlementFilter || paymentStatusFilter ||
-      creditTypeFilter || typeFilter || dateGte || dateLte || activeAdvancedCount > 0,
-    )
-  }, [
-    search, statusFilter, settlementFilter, paymentStatusFilter,
-    creditTypeFilter, typeFilter, dateGte, dateLte, activeAdvancedCount,
-  ])
 
   const clearAllFilters = () => {
     setSearch('')
@@ -205,20 +181,44 @@ export default function SalesOrdersView() {
     setHasInvoice('')
     setHasPurchaseOrder('')
     setHasDelivery('')
+    setIsCredit('')
+    setBuyerBranchId('')
     setPage(1)
+  }
+
+  // Shared by the list query and the Excel export so both apply the same filters.
+  const filterParams = {
+    'filter[search]': searchDebounced || undefined,
+    'filter[status]': statusFilter || undefined,
+    'filter[settlement_status]':
+      settlementFilter && settlementFilter !== 'awaiting_settlement' ? settlementFilter : undefined,
+    'filter[funds_status]': settlementFilter === 'awaiting_settlement' ? 'awaiting_settlement' : undefined,
+    'filter[payment_status]': paymentStatusFilter || undefined,
+    'filter[credit_type]': creditTypeFilter || undefined,
+    'filter[type]': typeFilter || undefined,
+    'filter[date_gte]': dateGte || undefined,
+    'filter[date_lte]': dateLte || undefined,
+    'filter[branch_id]': branchId || undefined,
+    'filter[sales_channel_id]': salesChannelId || undefined,
+    'filter[customer_id]': customerId || undefined,
+    'filter[credit_by_id]': creditById || undefined,
+    'filter[voucher_id]': voucherId || undefined,
+    'filter[shift_id]': shiftId || undefined,
+    'filter[fulfillment_date_gte]': fulfillmentGte || undefined,
+    'filter[fulfillment_date_lte]': fulfillmentLte || undefined,
+    'filter[settlement_at_gte]': settlementAtGte || undefined,
+    'filter[settlement_at_lte]': settlementAtLte || undefined,
+    'filter[has_invoice]': hasInvoice || undefined,
+    'filter[has_purchase_order]': hasPurchaseOrder || undefined,
+    'filter[has_delivery]': hasDelivery || undefined,
+    'filter[is_credit]': isCredit || undefined,
+    'filter[buyer_branch_id]': buyerBranchId || undefined,
   }
 
   const handleExport = async () => {
     try {
       setIsExporting(true)
-      const response = await salesOrderService.exportExcel({
-        'filter[search]': searchDebounced || undefined,
-        'filter[status]': statusFilter || undefined,
-        'filter[type]': typeFilter || undefined,
-        'filter[settlement_status]': settlementFilter || undefined,
-        'filter[payment_status]': paymentStatusFilter || undefined,
-        'filter[credit_type]': creditTypeFilter || undefined,
-      })
+      const response = await salesOrderService.exportExcel(filterParams)
 
       const blob = new Blob([response.data], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -239,7 +239,7 @@ export default function SalesOrdersView() {
     }
   }
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: [
       'sales-orders',
       page, perPage,
@@ -264,6 +264,8 @@ export default function SalesOrdersView() {
       hasInvoice,
       hasPurchaseOrder,
       hasDelivery,
+      isCredit,
+      buyerBranchId,
     ],
     queryFn: () =>
       salesOrderService
@@ -272,30 +274,13 @@ export default function SalesOrdersView() {
           per_page: perPage,
           sort: '-created_at',
           include: 'customer,sales_channel,credit_by,shift,additional_charges,updated_by',
-          'filter[search]': searchDebounced || undefined,
-          'filter[status]': statusFilter || undefined,
-          'filter[settlement_status]': settlementFilter || undefined,
-          'filter[payment_status]': paymentStatusFilter || undefined,
-          'filter[credit_type]': creditTypeFilter || undefined,
-          'filter[type]': typeFilter || undefined,
-          'filter[date_gte]': dateGte || undefined,
-          'filter[date_lte]': dateLte || undefined,
-          'filter[branch_id]': branchId || undefined,
-          'filter[sales_channel_id]': salesChannelId || undefined,
-          'filter[customer_id]': customerId || undefined,
-          'filter[credit_by_id]': creditById || undefined,
-          'filter[voucher_id]': voucherId || undefined,
-          'filter[shift_id]': shiftId || undefined,
-          'filter[fulfillment_date_gte]': fulfillmentGte || undefined,
-          'filter[fulfillment_date_lte]': fulfillmentLte || undefined,
-          'filter[settlement_at_gte]': settlementAtGte || undefined,
-          'filter[settlement_at_lte]': settlementAtLte || undefined,
-          'filter[has_invoice]': hasInvoice || undefined,
-          'filter[has_purchase_order]': hasPurchaseOrder || undefined,
-          'filter[has_delivery]': hasDelivery || undefined,
+          ...filterParams,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -321,7 +306,7 @@ export default function SalesOrdersView() {
     paymentStatusFilter, creditTypeFilter, typeFilter, dateGte, dateLte,
     branchId, salesChannelId, customerId, creditById, voucherId, shiftId,
     fulfillmentGte, fulfillmentLte, settlementAtGte, settlementAtLte,
-    hasInvoice, hasPurchaseOrder, hasDelivery,
+    hasInvoice, hasPurchaseOrder, hasDelivery, isCredit, buyerBranchId,
   ])
 
   const { mutate: doBulkSettlement, isPending: bulkUpdating } = useMutation({
@@ -497,306 +482,176 @@ export default function SalesOrdersView() {
         </div>
       </div>
 
-      {/* Core filters */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 12,
-          marginBottom: 12,
-          flexWrap: 'wrap',
-          alignItems: 'flex-end',
+      <FilterBar
+        search={search}
+        onSearchChange={(v) => {
+          setSearch(v)
+          setPage(1)
         }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Search</span>
-          <input
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            placeholder="Code / customer..."
-            style={{ ...controlStyle, width: 220, padding: '0 12px' }}
-          />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value)
-              setPage(1)
-            }}
-            style={controlStyle}
-          >
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="final">Final</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Settlement</span>
-          <select
-            value={settlementFilter}
-            onChange={(e) => {
-              setSettlementFilter(e.target.value as any)
-              setPage(1)
-            }}
-            style={controlStyle}
-          >
-            <option value="">All Settlements</option>
-            <option value="pending">Pending</option>
-            <option value="credit">Credit</option>
-            <option value="settled">Settled</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Payment</span>
-          <select
-            value={paymentStatusFilter}
-            onChange={(e) => {
-              setPaymentStatusFilter(e.target.value as any)
-              setPage(1)
-            }}
-            style={controlStyle}
-          >
-            <option value="">All Payments</option>
-            <option value="pending">Unpaid</option>
-            <option value="partial">Partial</option>
-            <option value="paid">Paid</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Credit Type</span>
-          <select
-            value={creditTypeFilter}
-            onChange={(e) => {
-              setCreditTypeFilter(e.target.value as any)
-              setPage(1)
-            }}
-            style={controlStyle}
-          >
-            <option value="">All Credit Types</option>
-            <option value="user">Staff (user)</option>
-            <option value="customer">Customer</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Type</span>
-          <select
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value)
-              setPage(1)
-            }}
-            style={controlStyle}
-          >
-            <option value="">All Types</option>
-            <option value="offline">Offline</option>
-            <option value="online">Online</option>
-            <option value="franchise">Franchise</option>
-          </select>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Sales Channel</span>
-          <select
-            value={salesChannelId}
-            onChange={(e) => {
-              setSalesChannelId(e.target.value ? Number(e.target.value) : '')
-              setPage(1)
-            }}
-            style={{ ...controlStyle, minWidth: 160 }}
-          >
-            <option value="">All Channels</option>
-            {channelOptions.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Order Date</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <input
-              type="date"
-              value={dateGte}
+        searchPlaceholder="Code / customer..."
+        activeCount={countActive(
+          statusFilter, settlementFilter, paymentStatusFilter, creditTypeFilter, typeFilter,
+          dateGte, dateLte, fulfillmentGte, fulfillmentLte, settlementAtGte, settlementAtLte,
+          branchId, buyerBranchId, salesChannelId,
+          customerId, creditById, voucherId, shiftId,
+          hasInvoice, hasPurchaseOrder, hasDelivery, isCredit,
+        )}
+        onClear={clearAllFilters}
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
               onChange={(e) => {
-                setDateGte(e.target.value)
+                setStatusFilter(e.target.value)
                 setPage(1)
-              }}
-              style={controlStyle}
-            />
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>–</span>
-            <input
-              type="date"
-              value={dateLte}
-              onChange={(e) => {
-                setDateLte(e.target.value)
-                setPage(1)
-              }}
-              style={controlStyle}
-            />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'transparent', userSelect: 'none' }}>.</span>
-          <button
-            type="button"
-            onClick={() => setShowMoreFilters((v) => !v)}
-            style={{
-              height: 36,
-              padding: '0 12px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              border: `1px solid ${showMoreFilters || activeAdvancedCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
-              borderRadius: 'var(--radius-md)',
-              background: showMoreFilters || activeAdvancedCount > 0 ? 'var(--accent-light-bg)' : 'var(--surface)',
-              color: showMoreFilters || activeAdvancedCount > 0 ? 'var(--accent)' : 'var(--foreground-muted)',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            <SlidersHorizontal size={14} />
-            More filters
-            {activeAdvancedCount > 0 && (
-              <span
-                style={{
-                  minWidth: 18,
-                  height: 18,
-                  padding: '0 5px',
-                  borderRadius: 99,
-                  background: 'var(--accent)',
-                  color: 'white',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {activeAdvancedCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {hasAnyFilter && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'transparent', userSelect: 'none' }}>.</span>
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              style={{
-                height: 36,
-                padding: '0 12px',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--surface)',
-                cursor: 'pointer',
-                fontSize: 13,
-                color: 'var(--foreground-muted)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
               }}
             >
-              <X size={14} />
-              Clear
-            </button>
-          </div>
-        )}
-      </div>
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Final</option>
+            </FilterSelect>
+            <FilterSelect
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Types</option>
+              <option value="offline">Offline</option>
+              <option value="online">Online</option>
+              <option value="franchise">Franchise</option>
+            </FilterSelect>
+          </>
+        }
+      >
+        <FilterGroup title="Status">
+          <FilterField label="Settlement">
+            <FilterSelect
+              block
+              value={settlementFilter}
+              onChange={(e) => {
+                setSettlementFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Settlements</option>
+              <option value="pending">Pending</option>
+              <option value="credit">Credit</option>
+              <option value="awaiting_settlement">Menunggu settlement</option>
+              <option value="settled">Settled</option>
+              <option value="cancelled">Cancelled</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Payment">
+            <FilterSelect
+              block
+              value={paymentStatusFilter}
+              onChange={(e) => {
+                setPaymentStatusFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Payments</option>
+              <option value="pending">Unpaid</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Credit type">
+            <FilterSelect
+              block
+              value={creditTypeFilter}
+              onChange={(e) => {
+                setCreditTypeFilter(e.target.value as any)
+                setPage(1)
+              }}
+            >
+              <option value="">All Credit Types</option>
+              <option value="user">Staff (user)</option>
+              <option value="customer">Customer</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
 
-      {/* Advanced filters panel */}
-      {showMoreFilters && (
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 16,
-            marginBottom: 16,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Branch</span>
-            <select
+        <FilterGroup title="Dates">
+          <FilterField label="Order date">
+            <DateRange
+              from={dateGte}
+              to={dateLte}
+              onFromChange={(v) => { setDateGte(v); setPage(1) }}
+              onToChange={(v) => { setDateLte(v); setPage(1) }}
+            />
+          </FilterField>
+          <FilterField label="Fulfillment date">
+            <DateRange
+              from={fulfillmentGte}
+              to={fulfillmentLte}
+              onFromChange={(v) => { setFulfillmentGte(v); setPage(1) }}
+              onToChange={(v) => { setFulfillmentLte(v); setPage(1) }}
+            />
+          </FilterField>
+          <FilterField label="Settlement date">
+            <DateRange
+              from={settlementAtGte}
+              to={settlementAtLte}
+              onFromChange={(v) => { setSettlementAtGte(v); setPage(1) }}
+              onToChange={(v) => { setSettlementAtLte(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+
+        <FilterGroup title="Branches & channel">
+          <FilterField label="Branch">
+            <FilterSelect
+              block
               value={branchId}
               onChange={(e) => {
                 setBranchId(e.target.value ? Number(e.target.value) : '')
                 setPage(1)
               }}
-              style={controlStyle}
             >
               <option value="">All branches</option>
               {branchOptions.map((b: any) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Credit By</span>
-            <select
-              value={creditById}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Buyer branch">
+            <FilterSelect
+              block
+              value={buyerBranchId}
               onChange={(e) => {
-                setCreditById(e.target.value ? Number(e.target.value) : '')
+                setBuyerBranchId(e.target.value ? Number(e.target.value) : '')
                 setPage(1)
               }}
-              style={controlStyle}
             >
-              <option value="">All users</option>
-              {creditUserOptions.map((u: any) => (
-                <option key={u.id} value={u.id}>{u.name}</option>
+              <option value="">All buyer branches</option>
+              {branchOptions.map((b: any) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
               ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Voucher</span>
-            <select
-              value={voucherId}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Sales channel">
+            <FilterSelect
+              block
+              value={salesChannelId}
               onChange={(e) => {
-                setVoucherId(e.target.value ? Number(e.target.value) : '')
+                setSalesChannelId(e.target.value ? Number(e.target.value) : '')
                 setPage(1)
               }}
-              style={controlStyle}
             >
-              <option value="">All vouchers</option>
-              {voucherOptions.map((v: any) => (
-                <option key={v.id} value={v.id}>{v.code || v.name || `#${v.id}`}</option>
+              <option value="">All Channels</option>
+              {channelOptions.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
-            </select>
-          </div>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Shift</span>
-            <select
-              value={shiftId}
-              onChange={(e) => {
-                setShiftId(e.target.value ? Number(e.target.value) : '')
-                setPage(1)
-              }}
-              style={controlStyle}
-            >
-              <option value="">All shifts</option>
-              {shiftOptions.map((s: any) => (
-                <option key={s.id} value={s.id}>
-                  {s.code || s.name || `Shift #${s.id}`}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Customer</span>
-            <input
+        <FilterGroup title="Related">
+          <FilterField label="Customer">
+            <FilterInput
               value={customerId !== '' ? selectedCustomerLabel : customerSearch}
               onChange={(e) => {
                 setCustomerId('')
@@ -804,7 +659,6 @@ export default function SalesOrdersView() {
                 setPage(1)
               }}
               placeholder="Search customer..."
-              style={controlStyle}
             />
             {customerId !== '' && (
               <button
@@ -828,14 +682,15 @@ export default function SalesOrdersView() {
               </button>
             )}
             {customerId === '' && customerOptions.length > 0 && (
-              <select
+              <FilterSelect
+                block
                 value=""
                 onChange={(e) => {
                   if (!e.target.value) return
                   setCustomerId(Number(e.target.value))
                   setPage(1)
                 }}
-                style={{ ...controlStyle, fontSize: 12 }}
+                style={{ fontSize: 12 }}
               >
                 <option value="">Select customer...</option>
                 {customerOptions.map((c: any) => (
@@ -843,107 +698,82 @@ export default function SalesOrdersView() {
                     {c.name}{c.phone ? ` — ${c.phone}` : ''}
                   </option>
                 ))}
-              </select>
+              </FilterSelect>
             )}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Fulfillment From</span>
-            <input
-              type="date"
-              value={fulfillmentGte}
+          </FilterField>
+          <FilterField label="Credit by">
+            <FilterSelect
+              block
+              value={creditById}
               onChange={(e) => {
-                setFulfillmentGte(e.target.value)
+                setCreditById(e.target.value ? Number(e.target.value) : '')
                 setPage(1)
               }}
-              style={controlStyle}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Fulfillment To</span>
-            <input
-              type="date"
-              value={fulfillmentLte}
-              onChange={(e) => {
-                setFulfillmentLte(e.target.value)
-                setPage(1)
-              }}
-              style={controlStyle}
-            />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Settlement From</span>
-            <input
-              type="date"
-              value={settlementAtGte}
-              onChange={(e) => {
-                setSettlementAtGte(e.target.value)
-                setPage(1)
-              }}
-              style={controlStyle}
-            />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Settlement To</span>
-            <input
-              type="date"
-              value={settlementAtLte}
-              onChange={(e) => {
-                setSettlementAtLte(e.target.value)
-                setPage(1)
-              }}
-              style={controlStyle}
-            />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Has Invoice</span>
-            <select
-              value={hasInvoice}
-              onChange={(e) => {
-                setHasInvoice(e.target.value as any)
-                setPage(1)
-              }}
-              style={controlStyle}
             >
-              <option value="">All</option>
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Has Purchase Order</span>
-            <select
-              value={hasPurchaseOrder}
+              <option value="">All users</option>
+              {creditUserOptions.map((u: any) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Voucher">
+            <FilterSelect
+              block
+              value={voucherId}
               onChange={(e) => {
-                setHasPurchaseOrder(e.target.value as any)
+                setVoucherId(e.target.value ? Number(e.target.value) : '')
                 setPage(1)
               }}
-              style={controlStyle}
             >
-              <option value="">All</option>
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Has Delivery</span>
-            <select
-              value={hasDelivery}
+              <option value="">All vouchers</option>
+              {voucherOptions.map((v: any) => (
+                <option key={v.id} value={v.id}>{v.code || v.name || `#${v.id}`}</option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Shift">
+            <FilterSelect
+              block
+              value={shiftId}
               onChange={(e) => {
-                setHasDelivery(e.target.value as any)
+                setShiftId(e.target.value ? Number(e.target.value) : '')
                 setPage(1)
               }}
-              style={controlStyle}
             >
-              <option value="">All</option>
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-        </div>
-      )}
+              <option value="">All shifts</option>
+              {shiftOptions.map((s: any) => (
+                <option key={s.id} value={s.id}>
+                  {s.code || s.name || `Shift #${s.id}`}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+
+        <FilterGroup title="Flags">
+          {([
+            ['Is credit', isCredit, setIsCredit],
+            ['Has invoice', hasInvoice, setHasInvoice],
+            ['Has purchase order', hasPurchaseOrder, setHasPurchaseOrder],
+            ['Has delivery', hasDelivery, setHasDelivery],
+          ] as const).map(([label, value, setter]) => (
+            <FilterField key={label} label={label}>
+              <FilterSelect
+                block
+                value={value}
+                onChange={(e) => {
+                  setter(e.target.value as any)
+                  setPage(1)
+                }}
+              >
+                <option value="">All</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </FilterSelect>
+            </FilterField>
+          ))}
+        </FilterGroup>
+      </FilterBar>
 
       {/* Bulk settlement bar */}
       {canBulkSettlement && selectedIds.length > 0 && (
@@ -1197,9 +1027,11 @@ export default function SalesOrdersView() {
                   <td style={tdStyle}>
                     {canRead ? (() => {
                       const settlementMeta =
-                        SETTLEMENT_META[
-                          item.settlement_status as keyof typeof SETTLEMENT_META
-                        ] ?? SETTLEMENT_META.pending
+                        item.funds_status === 'awaiting_settlement'
+                          ? AWAITING_FUNDS_META
+                          : SETTLEMENT_META[
+                              item.settlement_status as keyof typeof SETTLEMENT_META
+                            ] ?? SETTLEMENT_META.pending
                       const creditTypeLabel =
                         item.credit_type === 'user'
                           ? 'Staff'

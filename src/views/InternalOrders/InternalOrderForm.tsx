@@ -12,7 +12,8 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { branchesService } from '@/services/branches.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { useAuth } from '@/hooks/useAuth'
-import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
+import { Plus, Trash2, Loader2, Save } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import RecipeImportModal from '@/views/PurchaseOrders/RecipeImportModal'
@@ -28,6 +29,13 @@ const detailSchema = z.object({
   qty: z.coerce.number().min(0.01, 'Qty must be > 0'),
   description: z.string().optional(),
 })
+
+// Default "Order From" on create, per company (client request). Matched by
+// branch name so it works on every environment; company 3+ has no default.
+const DEFAULT_SOURCE_BRANCH_BY_COMPANY: Record<number, string> = {
+  1: 'Warehouse Kranggan',
+  2: 'Production Kranggan Tridaya',
+}
 
 const schema = z.object({
   supplier_branch_id: z.coerce.number().min(1, 'Source branch is required'),
@@ -136,8 +144,33 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
   const allProductUoms = (productUomsData as any)?.data ?? []
   const productUoms = allProductUoms
 
-  // Internal-source branches: every branch except our own.
-  const sourceBranchOptions = branches
+  const companyId = Number((user as any)?.branch?.company_id ?? (user as any)?.branch?.company?.id) || 0
+  const defaultSourceName = DEFAULT_SOURCE_BRANCH_BY_COMPANY[companyId]
+  const { data: defaultSourceData } = useQuery({
+    queryKey: ['branches-all', 'default-source', defaultSourceName],
+    enabled: mode === 'create' && !!defaultSourceName,
+    queryFn: () =>
+      branchesService.list({ 'filter[search]': defaultSourceName, per_page: 20 } as any).then((r) => r.data),
+  })
+  const defaultSourceBranch = ((defaultSourceData as any)?.data ?? []).find(
+    (b: any) =>
+      String(b.name ?? '').trim().toLowerCase() === String(defaultSourceName ?? '').toLowerCase() &&
+      b.id !== myBranchId,
+  )
+  useEffect(() => {
+    if (mode !== 'create' || !defaultSourceBranch) return
+    if (!Number(watch('supplier_branch_id'))) {
+      setValue('supplier_branch_id', Number(defaultSourceBranch.id), { shouldValidate: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, defaultSourceBranch?.id])
+
+  // Internal-source branches: every branch except our own (plus the default,
+  // so its label shows even when the dropdown search hides it).
+  const sourceBranchOptions = [
+    ...branches,
+    ...(defaultSourceBranch && !branches.some((b: any) => b.id === defaultSourceBranch.id) ? [defaultSourceBranch] : []),
+  ]
     .filter((b: any) => b.id !== myBranchId)
     .map((b: any) => ({
       value: b.id as number,
@@ -241,7 +274,9 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
       purchaseOrdersService.update(orderId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['internal-orders'] })
-      queryClient.invalidateQueries({ queryKey: ['internal-order-detail', orderId] })
+      // Drop the cached detail so the detail page loads fresh (with its loader)
+      // instead of flashing the pre-update version.
+      queryClient.removeQueries({ queryKey: ['internal-order-detail', orderId] })
       toast.success('Internal order updated')
       router.push(`/purchase/internal-orders/${orderId}/detail`)
     },
@@ -353,7 +388,6 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
       className="io-form-container"
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 1400,
         width: '100%',
         margin: '0 auto',
         display: 'flex',
@@ -361,36 +395,17 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
         gap: 24,
       }}
     >
-      {/* Back button + title row */}
+      {/* Back link + title row */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: 'column',
           gap: 12,
           paddingBottom: 20,
           borderBottom: '1px solid var(--border)',
-          flexWrap: 'wrap',
         }}
       >
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 10px',
-            background: 'none',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
+        <BackLink href="/purchase/internal-orders" label="Internal Orders" />
         <div>
           <h1
             style={{
@@ -838,7 +853,7 @@ export default function InternalOrderForm(props: InternalOrderFormProps) {
           )}
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push('/purchase/internal-orders')}
             style={{
               padding: '9px 20px',
               background: 'var(--surface)',

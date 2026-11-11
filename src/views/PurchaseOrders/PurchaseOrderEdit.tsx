@@ -1,11 +1,11 @@
 'use client'
 
 import React from 'react'
-import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import PurchaseOrderForm from './PurchaseOrderForm'
 import { PackageSearch } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import { parseDate } from '@/helper/parseDate'
 
 interface PurchaseOrderEditProps {
@@ -13,8 +13,6 @@ interface PurchaseOrderEditProps {
 }
 
 export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
-  const router = useRouter()
-
   const { data, isLoading, isError } = useQuery({
     queryKey: ['purchase-order-detail', id],
     queryFn: () =>
@@ -77,35 +75,32 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
     return (
       <div
         style={{
+          padding: '28px 24px 48px',
+          width: '100%',
+          margin: '0 auto',
           display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 80,
+          flexDirection: 'column',
+          gap: 16,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 12,
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 99,
-              border: '3px solid var(--border)',
-              borderTop: '3px solid var(--accent)',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)', marginTop: 12 }}>
-            Loading order...
-          </span>
-        </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        <div className="v2-skeleton" style={{ width: 72, height: 28 }} />
+        <div className="v2-skeleton" style={{ width: 240, height: 24 }} />
+        <div className="v2-skeleton" style={{ width: 320, height: 14 }} />
+        {[0, 1].map((card) => (
+          <div key={card} className="v2-card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+              <div className="v2-skeleton" style={{ width: 110, height: 14 }} />
+            </div>
+            <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px 20px' }}>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div className="v2-skeleton" style={{ width: '35%', height: 12 }} />
+                  <div className="v2-skeleton" style={{ width: '100%', height: 38 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     )
   }
@@ -114,7 +109,7 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
     return (
       <div
         style={{
-          padding: 80,
+          padding: '80px 24px',
           textAlign: 'center',
           display: 'flex',
           flexDirection: 'column',
@@ -122,24 +117,11 @@ export default function PurchaseOrderEdit({ id }: PurchaseOrderEditProps) {
           gap: 12,
         }}
       >
-        <PackageSearch size={40} style={{ color: 'var(--foreground-subtle)' }} />
-        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: 0 }}>
+        <PackageSearch size={36} style={{ color: 'var(--foreground-subtle)' }} />
+        <p style={{ fontSize: 13.5, color: 'var(--foreground-muted)', margin: 0 }}>
           Purchase order not found
         </p>
-        <button
-          onClick={() => router.back()}
-          style={{
-            padding: '7px 14px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          Go back
-        </button>
+        <BackLink href="/purchase/purchase-orders" label="Purchase Orders" style={{ alignSelf: 'center', marginTop: 4 }} />
       </div>
     )
   }

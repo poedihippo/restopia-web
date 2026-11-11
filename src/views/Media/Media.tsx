@@ -6,6 +6,17 @@ import { MediaModal } from './Modal/MediaModal'
 import useMedia from './useMedia'
 import { Button } from '@/components/ui/button'
 import usePermission from '@/hooks/usePermission'
+import { useState } from 'react'
+
+// MediaType enum from GET /v1/enums
+const MEDIA_TYPE_OPTIONS = [
+    { value: 'productions', label: 'Productions' },
+    { value: 'purchase_orders', label: 'Purchase Orders' },
+    { value: 'deliveries', label: 'Deliveries' },
+    { value: 'receipts', label: 'Receipts' },
+    { value: 'receipt_details', label: 'Receipt Details' },
+    { value: 'sales_orders', label: 'Sales Orders' },
+]
 
 interface Props {
     media_type?: string;
@@ -13,6 +24,7 @@ interface Props {
 }
 
 const Media = ({ media_id, media_type }: Props) => {
+    const [mediaTypeFilter, setMediaTypeFilter] = useState<string>('')
     const {
         medias,
         pagination,
@@ -22,7 +34,7 @@ const Media = ({ media_id, media_type }: Props) => {
         handleSearch,
         createModal,
         deleteModal
-    } = useMedia({ media_type, media_id })
+    } = useMedia({ media_type, media_id, mediaTypeFilter })
     const {
         canDelete,
         canRead
@@ -49,6 +61,31 @@ const Media = ({ media_id, media_type }: Props) => {
                             onChange={(e) => handleSearch(e.target.value)}
                             className="w-full sm:max-w-sm"
                         />
+                        <select
+                            value={mediaTypeFilter}
+                            onChange={(e) => {
+                                setMediaTypeFilter(e.target.value)
+                                handlePageChange(1)
+                            }}
+                            style={{
+                                padding: '8px 12px',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-md)',
+                                fontSize: 13,
+                                color: 'var(--foreground)',
+                                background: 'var(--surface-raised)',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                fontFamily: 'var(--font-sans)',
+                            }}
+                        >
+                            <option value="">All Types</option>
+                            {MEDIA_TYPE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                     {/* <Button
                         onClick={() => createModal.openModal()}

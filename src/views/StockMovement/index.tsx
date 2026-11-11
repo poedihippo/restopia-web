@@ -2,11 +2,13 @@
 import { formatDateTime, parseApiDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useQuery } from '@tanstack/react-query'
 import { stockMovementsService } from '@/services/stock-movements.service'
 import { productsService } from '@/services/products.service'
+import { branchesService } from '@/services/branches.service'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
@@ -20,7 +22,6 @@ import {
 } from '@/utils/unitDisplay'
 import {
   Plus,
-  Search,
   TrendingUp,
   TrendingDown,
   ArrowUpDown, ArrowUpRight,
@@ -399,18 +400,6 @@ const cellBase: React.CSSProperties = {
   borderBottom: '1px solid var(--border)',
 }
 
-const controlBase: React.CSSProperties = {
-  height: 36,
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
-  fontSize: 13,
-  color: 'var(--foreground)',
-  background: 'var(--surface-raised)',
-  outline: 'none',
-  fontFamily: 'var(--font-sans)',
-  boxSizing: 'border-box',
-}
-
 const DIRECTION_TABS: { value: '' | 'in' | 'out'; label: string }[] = [
   { value: '', label: 'Semua' },
   { value: 'in', label: 'Masuk' },
@@ -425,14 +414,26 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
 }
 
 // Opsi filter jenis dokumen sumber (untuk filter reference_type di API).
+// Nilai mengikuti enum StockMovementReferenceType (GET /v1/enums) —
+// 'purchase_orders' bukan reference_type yang valid, jadi tidak ditawarkan.
 const REFERENCE_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'Semua Dokumen' },
-  ...Object.entries(REFERENCE_LABELS).map(([value, label]) => ({ value, label })),
+  { value: 'productions', label: 'Production' },
+  { value: 'deliveries', label: 'Delivery' },
+  { value: 'receipts', label: 'Receipt' },
+  { value: 'sales_orders', label: 'Sales Order' },
+  { value: 'stock_movements', label: 'Stock Movement' },
+  { value: 'dimension_transfer', label: 'Dimension Transfer' },
+  { value: 'stock_opnames', label: 'Stock Opname' },
+  { value: 'conversions', label: 'Conversion' },
+  { value: 'portionings', label: 'Portioning' },
+  { value: 'stock_reversals', label: 'Stock Reversal' },
+  { value: 'stock_cutover', label: 'Stock Cutover' },
 ]
 
 export default function StockMovementView() {
   const router = useRouter()
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperadmin, user } = useAuth()
   const canRead = hasPermission("stock-movement.read");
   const canCreate = hasPermission('stock-movement.create')
   const [search, setSearch] = useState('')
@@ -451,6 +452,10 @@ export default function StockMovementView() {
   // Filter tipe produk — dipakai menu "Stock Movements Raw"/"WIP".
   // Backend belum punya filter[product_types]; parameter sudah dikirim dari FE.
   const [productTypes, setProductTypes] = useState('')
+  // Single product type (filter[product_type]) — only offered when the menu
+  // hasn't already pinned filter[product_types] via the URL.
+  const [productTypeFilter, setProductTypeFilter] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
   // Tanggal/Dokumen, Produk, Batch, In, Out, Balance
@@ -487,7 +492,19 @@ export default function StockMovementView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, directionFilter, refTypeFilter, productId, startDate, endDate])
+  }, [debouncedSearch, directionFilter, refTypeFilter, productId, startDate, endDate, productTypeFilter, branchFilter])
+
+  // Branch filter options: superadmin sees every branch, other users only
+  // the branches they're assigned to (filter hidden for single-branch users).
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !!isSuperadmin,
+  })
+  const availableBranches: any[] = isSuperadmin
+    ? (branchesData as any)?.data ?? []
+    : (user as any)?.branches ?? []
+  const showBranchFilter = !!isSuperadmin || availableBranches.length > 1
 
   const { data: productsData, isLoading: productsLoading } = useQuery({
     queryKey: ['stock-movements-product-search', productSearchDebounced],
@@ -529,8 +546,8 @@ export default function StockMovementView() {
       : []),
   ]
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productTypes],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['stock-movements', page, perPage, debouncedSearch, directionFilter, refTypeFilter, productId, productTypes, productTypeFilter, branchFilter],
     queryFn: () =>
       stockMovementsService
         .list({
@@ -544,15 +561,20 @@ export default function StockMovementView() {
           // Filter tipe produk untuk menu Stock Movements Raw / WIP
           // (filter[product_types] sudah didukung backend).
           'filter[product_types]': productTypes || undefined,
+          'filter[product_type]': (!productTypes && productTypeFilter) || undefined,
+          'filter[branch_id]': branchFilter || undefined,
           include:
             'branch,product_inventory,' +
             'product_inventory.product_uom_batch,' +
             'product_inventory.product_uom_batch.product_uom,' +
             'product_inventory.product_uom_batch.product_uom.product,' +
             'product_inventory.product_uom_batch.product_uom.uom',
-        })
+        } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: StockMovement[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -645,117 +667,147 @@ export default function StockMovementView() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 300 }}>
-          <Search
-            size={14}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari pergerakan..."
-            style={{ ...controlBase, width: '100%', padding: '0 10px 0 32px' }}
-          />
-        </div>
+      <FilterBar
+        style={{ marginBottom: 0 }}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cari pergerakan..."
+        activeCount={countActive(
+          directionFilter, refTypeFilter, productId, productTypeFilter, branchFilter, startDate, endDate,
+        )}
+        onClear={() => {
+          setDirectionFilter('')
+          setRefTypeFilter('')
+          setProductId(0)
+          setProductTypeFilter('')
+          setBranchFilter('')
+          setStartDate('')
+          setEndDate('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            {/* Direction filter: segmented control */}
+            <div
+              role="tablist"
+              style={{
+                display: 'inline-flex',
+                padding: 3,
+                gap: 2,
+                height: 36,
+                boxSizing: 'border-box',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--background)',
+              }}
+            >
+              {DIRECTION_TABS.map((t) => {
+                const active = directionFilter === t.value
+                return (
+                  <button
+                    key={t.value || 'all'}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => {
+                      setDirectionFilter(t.value)
+                      setPage(1)
+                    }}
+                    style={{
+                      padding: '0 14px',
+                      border: 'none',
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: active ? 600 : 500,
+                      fontFamily: 'var(--font-sans)',
+                      cursor: 'pointer',
+                      background: active ? 'var(--surface-raised)' : 'transparent',
+                      color: active ? 'var(--foreground)' : 'var(--foreground-muted)',
+                      boxShadow: active ? 'var(--shadow-sm)' : 'none',
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                )
+              })}
+            </div>
 
-        {/* Direction filter: segmented control */}
-        <div
-          role="tablist"
-          style={{
-            display: 'inline-flex',
-            padding: 3,
-            gap: 2,
-            height: 36,
-            boxSizing: 'border-box',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--background)',
-          }}
-        >
-          {DIRECTION_TABS.map((t) => {
-            const active = directionFilter === t.value
-            return (
-              <button
-                key={t.value || 'all'}
-                role="tab"
-                aria-selected={active}
-                onClick={() => {
-                  setDirectionFilter(t.value)
-                  setPage(1)
-                }}
-                style={{
-                  padding: '0 14px',
-                  border: 'none',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 500,
-                  fontFamily: 'var(--font-sans)',
-                  cursor: 'pointer',
-                  background: active ? 'var(--surface-raised)' : 'transparent',
-                  color: active ? 'var(--foreground)' : 'var(--foreground-muted)',
-                  boxShadow: active ? 'var(--shadow-sm)' : 'none',
-                }}
+            {/* Filter jenis dokumen sumber (reference_type) */}
+            <FilterSelect
+              value={refTypeFilter}
+              onChange={(e) => setRefTypeFilter(e.target.value)}
+              title="Filter jenis dokumen"
+            >
+              {REFERENCE_TYPE_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+      >
+        <FilterGroup title="Product">
+          <FilterField label="Produk">
+            <SearchableSelect
+              value={productId}
+              onChange={(val) => setProductId(Number(val))}
+              options={productOptions}
+              placeholder="Semua Produk"
+              searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
+              loading={productsLoading}
+              onSearchChange={setProductSearch}
+            />
+          </FilterField>
+          {/* Filter tipe produk (filter[product_type]) — disembunyikan bila menu
+              sudah mengunci product_types lewat URL (Raw / WIP). */}
+          {!productTypes && (
+            <FilterField label="Tipe produk">
+              <FilterSelect
+                block
+                value={productTypeFilter}
+                onChange={(e) => setProductTypeFilter(e.target.value)}
+                title="Filter tipe produk"
               >
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Filter jenis dokumen sumber (reference_type) */}
-        <select
-          value={refTypeFilter}
-          onChange={(e) => setRefTypeFilter(e.target.value)}
-          title="Filter jenis dokumen"
-          style={{ ...controlBase, padding: '0 10px', cursor: 'pointer' }}
-        >
-          {REFERENCE_TYPE_OPTIONS.map((o) => (
-            <option key={o.value || 'all'} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-
-        {/* Date range (client-side), satu kelompok */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            title="Dari tanggal"
-            style={{ ...controlBase, padding: '0 10px' }}
-          />
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>s/d</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            title="Sampai tanggal"
-            style={{ ...controlBase, padding: '0 10px' }}
-          />
-        </div>
-
-        {/* Product filter */}
-        <div style={{ width: 240 }}>
-          <SearchableSelect
-            value={productId}
-            onChange={(val) => setProductId(Number(val))}
-            options={productOptions}
-            placeholder="Semua Produk"
-            searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-            loading={productsLoading}
-            onSearchChange={setProductSearch}
-          />
-        </div>
-      </div>
+                <option value="">Semua Tipe Produk</option>
+                {Object.entries(PRODUCT_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          )}
+        </FilterGroup>
+        <FilterGroup title={showBranchFilter ? 'Branch & dates' : 'Dates'}>
+          {/* Filter cabang (filter[branch_id]) */}
+          {showBranchFilter && (
+            <FilterField label="Cabang">
+              <FilterSelect
+                block
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                title="Filter cabang"
+              >
+                <option value="">Semua Cabang</option>
+                {availableBranches.map((b: any) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            </FilterField>
+          )}
+          {/* Date range (client-side) */}
+          <FilterField label="Tanggal">
+            <DateRange
+              from={startDate}
+              to={endDate}
+              onFromChange={(v) => setStartDate(v)}
+              onToChange={(v) => setEndDate(v)}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {/* Table */}
       <div
@@ -873,6 +925,11 @@ export default function StockMovementView() {
                   const uomCode =
                     item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
                     item.product_inventory?.product_uom?.uom?.code
+                  // Product UoM code (SKU), else the product code.
+                  const pu =
+                    item.product_inventory?.product_uom_batch?.product_uom ??
+                    item.product_inventory?.product_uom
+                  const skuCode: string | undefined = pu?.code || pu?.product?.code
                   const productName =
                     getProductUomName(
                       item.product_inventory?.product_uom_batch?.product_uom ??
@@ -903,9 +960,15 @@ export default function StockMovementView() {
                         <div style={{ fontWeight: 500, fontSize: 14, color: 'var(--foreground)' }}>
                           {productName}
                         </div>
-                        {(item.product_inventory?.code || uomCode) && (
-                          <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2 }}>
-                            {[item.product_inventory?.code, uomCode].filter(Boolean).join(' · ')}
+                        {(skuCode || item.product_inventory?.code || uomCode) && (
+                          <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                            {[
+                              skuCode,
+                              item.product_inventory?.code !== skuCode ? item.product_inventory?.code : null,
+                              uomCode,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
                           </div>
                         )}
                         {canRead && item.description && (

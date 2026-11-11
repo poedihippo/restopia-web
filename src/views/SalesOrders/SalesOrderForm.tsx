@@ -22,6 +22,7 @@ import { paymentMethodsService } from '@/services/payment-methods.service'
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import BackLink from '@/components/BackLink'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
@@ -735,8 +736,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
     },
     onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['sales-orders'] })
-      qc.invalidateQueries({ queryKey: ['sales-order-detail'] })
-      qc.invalidateQueries({ queryKey: ['sales-order-edit'] })
+      // Detail/edit load fresh (with their loader) instead of the pre-save copy.
+      qc.removeQueries({ queryKey: ['sales-order-detail'] })
+      qc.removeQueries({ queryKey: ['sales-order-edit'] })
       qc.invalidateQueries({ queryKey: ['unpaid-offline-orders'] })
       if (!isEdit && paymentMode !== 'none' && status === 'final') {
         toast.success('Order created with payment recorded')
@@ -778,8 +780,9 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
-      style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)', maxWidth: 960, margin: '0 auto' }}
+      style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)', margin: '0 auto' }}
     >
+      <BackLink href="/sales/sales-orders" label="Sales Orders" style={{ marginBottom: 12 }} />
       {/* Page header */}
       <div
         style={{
@@ -807,22 +810,6 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               : 'Fill in the order details and add line items'}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            height: 38,
-            padding: '0 16px',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--surface)',
-            cursor: 'pointer',
-            fontSize: 13,
-            color: 'var(--foreground)',
-          }}
-        >
-          ← Back
-        </button>
       </div>
 
       {isLockedOnline && (
@@ -2051,7 +2038,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
           <div style={{ display: 'flex', gap: 12 }}>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => router.push('/sales/sales-orders')}
               style={{
                 flex: 1,
                 height: 44,

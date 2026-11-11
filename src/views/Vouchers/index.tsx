@@ -7,14 +7,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { vouchersService } from '@/services/vouchers.service'
+import { companiesService } from '@/services/companies.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import VoucherSheet from './VoucherSheet'
 import VoucherDetail from './VoucherDetail'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -59,6 +60,14 @@ export default function VouchersView() {
   const [perPage, setPerPage] = useState(20)
   const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
   const [discountTypeFilter, setDiscountTypeFilter] = useState<'' | 'percent' | 'fixed'>('')
+  const [scopeFilter, setScopeFilter] = useState<'' | 'company' | 'branch'>('')
+  const [companyFilter, setCompanyFilter] = useState('')
+  const [validFromGte, setValidFromGte] = useState('')
+  const [validFromLte, setValidFromLte] = useState('')
+  const [validUntilGte, setValidUntilGte] = useState('')
+  const [validUntilLte, setValidUntilLte] = useState('')
+  const [activatedGte, setActivatedGte] = useState('')
+  const [activatedLte, setActivatedLte] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Voucher | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
@@ -88,8 +97,19 @@ export default function VouchersView() {
     setPage(1)
   }, [debouncedSearch, statusFilter, discountTypeFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['vouchers', page, perPage, debouncedSearch, statusFilter, discountTypeFilter],
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies-all'],
+    enabled: canRead,
+    queryFn: () => companiesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const companyOptions: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: [
+      'vouchers', page, perPage, debouncedSearch, statusFilter, discountTypeFilter,
+      scopeFilter, companyFilter, validFromGte, validFromLte, validUntilGte, validUntilLte,
+      activatedGte, activatedLte,
+    ],
     queryFn: () =>
       vouchersService
         .list({
@@ -100,9 +120,20 @@ export default function VouchersView() {
           'filter[search]': debouncedSearch || undefined,
           'filter[status]': statusFilter || undefined,
           'filter[discount_type]': discountTypeFilter || undefined,
+          'filter[scope]': scopeFilter || undefined,
+          'filter[company_id]': companyFilter || undefined,
+          'filter[valid_from_gte]': validFromGte || undefined,
+          'filter[valid_from_lte]': validFromLte || undefined,
+          'filter[valid_until_gte]': validUntilGte || undefined,
+          'filter[valid_until_lte]': validUntilLte || undefined,
+          'filter[activated_at_gte]': activatedGte || undefined,
+          'filter[activated_at_lte]': activatedLte || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Voucher[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -143,15 +174,6 @@ export default function VouchersView() {
     padding: '12px 16px',
     borderBottom: '1px solid var(--border)',
     verticalAlign: 'middle',
-  }
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
   }
 
   const actionBtnStyle: React.CSSProperties = {
@@ -224,67 +246,112 @@ export default function VouchersView() {
                             </button>)}
       </div>
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search vouchers..."
+        activeCount={countActive(
+          statusFilter, discountTypeFilter, scopeFilter, companyFilter,
+          validFromGte, validFromLte, validUntilGte, validUntilLte, activatedGte, activatedLte,
+        )}
+        onClear={() => {
+          setStatusFilter('')
+          setDiscountTypeFilter('')
+          setScopeFilter('')
+          setCompanyFilter('')
+          setValidFromGte('')
+          setValidFromLte('')
+          setValidUntilGte('')
+          setValidUntilLte('')
+          setActivatedGte('')
+          setActivatedLte('')
+          setPage(1)
         }}
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as '' | 'active' | 'inactive')
+                setPage(1)
+              }}
+            >
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </FilterSelect>
+            <FilterSelect
+              value={discountTypeFilter}
+              onChange={(e) => {
+                setDiscountTypeFilter(e.target.value as '' | 'percent' | 'fixed')
+                setPage(1)
+              }}
+            >
+              <option value="">All Types</option>
+              <option value="percent">Percent</option>
+              <option value="fixed">Fixed Amount</option>
+            </FilterSelect>
+          </>
+        }
       >
-        <div style={{ position: 'relative', maxWidth: 260 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search vouchers..."
-            style={{
-              ...inputBase,
-              width: 260,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value as '' | 'active' | 'inactive')
-            setPage(1)
-          }}
-          style={{ ...inputBase, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-
-        <select
-          value={discountTypeFilter}
-          onChange={(e) => {
-            setDiscountTypeFilter(e.target.value as '' | 'percent' | 'fixed')
-            setPage(1)
-          }}
-          style={{ ...inputBase, padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}
-        >
-          <option value="">All Types</option>
-          <option value="percent">Percent</option>
-          <option value="fixed">Fixed Amount</option>
-        </select>
-      </div>
+        <FilterGroup title="Scope">
+          <FilterField label="Scope">
+            <FilterSelect
+              block
+              value={scopeFilter}
+              onChange={(e) => {
+                setScopeFilter(e.target.value as '' | 'company' | 'branch')
+                setPage(1)
+              }}
+            >
+              <option value="">All Scopes</option>
+              <option value="company">Company</option>
+              <option value="branch">Branch</option>
+            </FilterSelect>
+          </FilterField>
+          <FilterField label="Company">
+            <FilterSelect
+              block
+              value={companyFilter}
+              onChange={(e) => {
+                setCompanyFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Companies</option>
+              {companyOptions.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dates">
+          <FilterField label="Valid from">
+            <DateRange
+              from={validFromGte}
+              to={validFromLte}
+              onFromChange={(v) => { setValidFromGte(v); setPage(1) }}
+              onToChange={(v) => { setValidFromLte(v); setPage(1) }}
+            />
+          </FilterField>
+          <FilterField label="Valid until">
+            <DateRange
+              from={validUntilGte}
+              to={validUntilLte}
+              onFromChange={(v) => { setValidUntilGte(v); setPage(1) }}
+              onToChange={(v) => { setValidUntilLte(v); setPage(1) }}
+            />
+          </FilterField>
+          <FilterField label="Activated">
+            <DateRange
+              from={activatedGte}
+              to={activatedLte}
+              onFromChange={(v) => { setActivatedGte(v); setPage(1) }}
+              onToChange={(v) => { setActivatedLte(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
       {/* Table */}
       <div
         style={{

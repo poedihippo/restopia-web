@@ -5,9 +5,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Eye, X, Search } from "lucide-react";
+import { Eye, X } from "lucide-react";
+import { FilterBar, FilterSelect, countActive } from "@/components/ListFilters";
 import { paymentMethodsService as paymentMethodService } from "@/services/payment-methods.service";
 import { chartOfAccountsService } from "@/services/accounting.service";
+import { companiesService } from "@/services/companies.service";
 import SearchableSelect from "@/components/SearchableSelect";
 import { useAuth } from "@/hooks/useAuth";
 import PaymentMethodBranchAccounts from "./PaymentMethodBranchAccounts";
@@ -25,6 +27,10 @@ export default function PaymentMethodsView() {
   const [name, setName] = useState("");
   const [type, setType] = useState("all");
   const [chartOfAccountId, setChartOfAccountId] = useState<number | null>(null);
+  // Customer payments with this method stay in Piutang until they are settled
+  // (Payments → Settle Payments); the fee account takes received < total.
+  const [requiresSettlement, setRequiresSettlement] = useState(false);
+  const [feeAccountId, setFeeAccountId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [selectedItem, setSelectedItem] = useState<{
     id: number;
@@ -58,6 +64,17 @@ export default function PaymentMethodsView() {
   const [bankAccountFilter, setBankAccountFilter] = useState<number | null>(
     null,
   );
+  const [typeFilter, setTypeFilter] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("");
+
+  const { data: companiesData } = useQuery({
+    queryKey: ["companies-all"],
+    enabled: canRead,
+    queryFn: () =>
+      companiesService.list({ per_page: 100 }).then((r) => r.data),
+  });
+  const companyOptions: { id: number; name: string }[] =
+    (companiesData as any)?.data ?? [];
 
   const { data: chartOfAccountsData, isLoading: chartOfAccountsLoading } =
     useQuery({
@@ -73,6 +90,30 @@ export default function PaymentMethodsView() {
       enabled: showForm,
     });
   const chartOfAccounts = chartOfAccountsData ?? [];
+  // Default fee account for settlements: any active, non-header debit
+  // (expense) account, e.g. Biaya Admin Bank / MDR.
+  const { data: feeAccountsData, isLoading: feeAccountsLoading } = useQuery({
+    queryKey: ["chart-of-accounts-fee"],
+    queryFn: () =>
+      chartOfAccountsService
+        .list({
+          per_page: 1000,
+          sort: "code",
+          "filter[is_header]": "false",
+          "filter[is_active]": "true",
+          "filter[normal_balance]": "debit",
+        } as any)
+        .then((r) => (r.data as any)?.data ?? []),
+    enabled: showForm && requiresSettlement,
+  });
+  const feeAccountOptions = [
+    { value: 0, label: "— None —" },
+    ...((feeAccountsData ?? []) as any[]).map((coa: any) => ({
+      value: coa.id as number,
+      label: (coa.name as string) ?? `COA #${coa.id}`,
+      sublabel: (coa.code as string) ?? undefined,
+    })),
+  ];
 
   // Searchable options for the COA picker (searchable by name and code).
   const coaSelectOptions = [
@@ -99,8 +140,14 @@ export default function PaymentMethodsView() {
     }
   }, [router.isReady, router.query]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["payment-methods", debouncedSearch],
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: [
+      "payment-methods",
+      debouncedSearch,
+      typeFilter,
+      companyFilter,
+      bankAccountFilter,
+    ],
     queryFn: () =>
       paymentMethodService
         .list({
@@ -108,9 +155,15 @@ export default function PaymentMethodsView() {
           sort: "id",
           include: "bank_account,chart_of_account",
           "filter[search]": debouncedSearch || undefined,
+          "filter[type]": typeFilter || undefined,
+          "filter[company_id]": companyFilter || undefined,
+          "filter[bank_account_id]": bankAccountFilter || undefined,
         } as any)
         .then((r) => r.data),
   });
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
   const allItems = (data as any)?.data ?? [];
   const items = allItems.filter((item: any) => {
     if (bankAccountFilter && item.bank_account_id !== bankAccountFilter)
@@ -125,7 +178,14 @@ export default function PaymentMethodsView() {
 
   const { mutate: save, isPending: saving } = useMutation({
     mutationFn: () => {
-      const payload: any = { name, type };
+      const payload: any = {
+        name,
+        type,
+        requires_settlement: requiresSettlement,
+        settlement_fee_chart_of_account_id: requiresSettlement
+          ? feeAccountId
+          : null,
+      };
       if (chartOfAccountId !== null)
         payload.chart_of_account_id = chartOfAccountId;
       return editing
@@ -141,6 +201,8 @@ export default function PaymentMethodsView() {
       setName("");
       setType("all");
       setChartOfAccountId(null);
+      setRequiresSettlement(false);
+      setFeeAccountId(null);
     },
     onError: (err: any) => {
       const errData = err?.response?.data;
@@ -221,6 +283,8 @@ export default function PaymentMethodsView() {
               setName("");
               setType("all");
               setChartOfAccountId(null);
+              setRequiresSettlement(false);
+              setFeeAccountId(null);
               setShowForm(true);
             }}
             style={{
@@ -239,77 +303,72 @@ export default function PaymentMethodsView() {
           </button>
         )}
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          marginBottom: 16,
-          flexWrap: "wrap",
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search payment methods..."
+        activeCount={countActive(typeFilter, companyFilter, bankAccountFilter)}
+        onClear={() => {
+          setTypeFilter("");
+          setCompanyFilter("");
+          setBankAccountFilter(null);
         }}
-      >
-        <div style={{ position: "relative", maxWidth: 280, minWidth: 220 }}>
-          <Search
-            size={15}
-            style={{
-              position: "absolute",
-              left: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "var(--foreground-muted)",
-              pointerEvents: "none",
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search payment methods..."
-            style={{
-              width: "100%",
-              padding: "8px 12px 8px 32px",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)",
-              fontSize: 13,
-              color: "var(--foreground)",
-              background: "var(--surface-raised)",
-              outline: "none",
-              fontFamily: "var(--font-sans)",
-              boxSizing: "border-box",
-            }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {(
-            [
-              { key: "all", label: "All" },
-              { key: "manual", label: "Manual" },
-              { key: "bank", label: "Bank-linked" },
-              { key: "coa", label: "COA-linked" },
-            ] as const
-          ).map((tab) => {
-            const active = originFilter === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setOriginFilter(tab.key)}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: "var(--radius-md)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-                  background: active ? "var(--accent)" : "var(--surface)",
-                  color: active ? "white" : "var(--foreground-muted)",
-                }}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+        quick={
+          <>
+            <div style={{ display: "flex", gap: 6 }}>
+              {(
+                [
+                  { key: "all", label: "All" },
+                  { key: "manual", label: "Manual" },
+                  { key: "bank", label: "Bank-linked" },
+                  { key: "coa", label: "COA-linked" },
+                ] as const
+              ).map((tab) => {
+                const active = originFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setOriginFilter(tab.key)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "var(--radius-md)",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                      background: active ? "var(--accent)" : "var(--surface)",
+                      color: active ? "white" : "var(--foreground-muted)",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+            <FilterSelect
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="">All Types</option>
+              <option value="all">All (SO &amp; PO)</option>
+              <option value="sales_orders">Sales Orders</option>
+              <option value="purchase_orders">Purchase Orders</option>
+            </FilterSelect>
+            <FilterSelect
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+            >
+              <option value="">All Companies</option>
+              {companyOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+      />
       <div
         style={{
           background: "var(--surface)",
@@ -395,6 +454,18 @@ export default function PaymentMethodsView() {
                     }}
                   >
                     {canRead ? item.type || "—" : "***"}
+                    {canRead && item.requires_settlement && (
+                      <div
+                        title="Customer payments stay in Piutang until settled"
+                        style={{
+                          marginTop: 4,
+                          fontSize: 11,
+                          color: "var(--warning)",
+                        }}
+                      >
+                        Needs settlement
+                      </div>
+                    )}
                   </td>
                   <td style={{ ...tdStyle, verticalAlign: "top" }}>
                     {canRead ? (
@@ -601,6 +672,10 @@ export default function PaymentMethodsView() {
                             setType(item.type || "all");
                             setChartOfAccountId(
                               item.chart_of_account_id ?? null,
+                            );
+                            setRequiresSettlement(!!item.requires_settlement);
+                            setFeeAccountId(
+                              item.settlement_fee_chart_of_account_id ?? null,
                             );
                             setShowForm(true);
                           }}
@@ -836,6 +911,93 @@ export default function PaymentMethodsView() {
               >
                 Account used to record payments made with this method.
               </p>
+              {type !== "purchase_orders" && (
+                <div
+                  style={{
+                    marginTop: 16,
+                    padding: 12,
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    background: "var(--background)",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      cursor: "pointer",
+                      fontSize: 13,
+                      color: "var(--foreground)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={requiresSettlement}
+                      onChange={(e) => setRequiresSettlement(e.target.checked)}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span>
+                      Requires settlement
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 12,
+                          color: "var(--foreground-muted)",
+                          marginTop: 2,
+                        }}
+                      >
+                        Customer payments stay in Piutang Dagang and only move
+                        to Kas/Bank when they are settled in Settle Payments
+                        (e.g. Visa, BCA EDC, cash deposited later).
+                      </span>
+                    </span>
+                  </label>
+                  {requiresSettlement && (
+                    <>
+                      <label
+                        style={{
+                          fontSize: 13,
+                          color: "var(--foreground-muted)",
+                          display: "block",
+                          marginBottom: 6,
+                          marginTop: 12,
+                        }}
+                      >
+                        Default fee account
+                      </label>
+                      <SearchableSelect
+                        value={feeAccountId ?? 0}
+                        onChange={(val: any) =>
+                          setFeeAccountId(
+                            val && Number(val) > 0 ? Number(val) : null,
+                          )
+                        }
+                        options={feeAccountOptions}
+                        placeholder="— None —"
+                        searchPlaceholder="Search account name or code..."
+                        loading={feeAccountsLoading}
+                        triggerStyle={{
+                          height: 40,
+                          padding: "0 12px",
+                          fontSize: 14,
+                          borderRadius: "var(--radius-sm)",
+                        }}
+                      />
+                      <p
+                        style={{
+                          fontSize: 12,
+                          color: "var(--foreground-muted)",
+                          marginTop: 6,
+                        }}
+                      >
+                        Pre-filled as the first "biaya lainnya" row when settling
+                        (e.g. Biaya Admin Bank / MDR). It can be changed there.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <div
               style={{

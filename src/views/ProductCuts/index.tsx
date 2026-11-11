@@ -12,6 +12,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductCutSheet from './ProductCutSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { FilterBar, countActive } from '@/components/ListFilters'
 import { Plus, Pencil, Trash2, Scissors, Eye, X, ArrowRight } from 'lucide-react'
 
 /** Human label for an embedded product-UOM: product name, falling back to the unit's own name. */
@@ -93,7 +94,7 @@ export default function ProductCutsView() {
   }
 
   // No product picked: normal paginated list.
-  const { data, isLoading: listLoading, isError: listError } = useQuery({
+  const { data, isLoading: listLoadingFirstLoad, isFetching: listLoadingFetching, isError: listError } = useQuery({
     queryKey: ['product-cuts', page, perPage],
     enabled: canRead && !productId,
     placeholderData: (prev: any) => prev,
@@ -102,6 +103,9 @@ export default function ProductCutsView() {
         .list({ page, per_page: perPage, ...listParams } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const listLoading = listLoadingFirstLoad || listLoadingFetching
 
   // Product picked: its cuts as parent and as child, merged (a product has
   // only a handful of cuts, so one page of each is enough).
@@ -173,33 +177,30 @@ export default function ProductCutsView() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ width: 360 }}>
-          <SearchableSelect
-            value={productId}
-            onChange={(v) => { setProductSel(productOpts.options.find((o) => o.value === Number(v)) ?? null); setPage(1) }}
-            options={[{ value: 0, label: 'Semua produk' }, ...productOpts.options]}
-            placeholder="Cari produk (induk atau anak)..."
-            searchPlaceholder="Ketik nama / kode produk..."
-            loading={productOpts.isFetching}
-            onSearchChange={setProductSearch}
-          />
-        </div>
-        {productId > 0 && (
-          <button
-            type="button"
-            onClick={() => { setProductSel(null); setPage(1) }}
-            style={{ padding: '8px 12px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--foreground-muted)', cursor: 'pointer' }}
-          >
-            Reset filter
-          </button>
-        )}
-        {totalCount != null && (
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--foreground-muted)' }}>
-            {Number(totalCount).toLocaleString('id-ID')} cut{productSel ? ` untuk ${productSel.label}` : ''}
-          </span>
-        )}
-      </div>
+      <FilterBar
+        activeCount={countActive(productId)}
+        onClear={() => { setProductSel(null); setPage(1) }}
+        quick={
+          <div style={{ width: 360, maxWidth: '100%' }}>
+            <SearchableSelect
+              value={productId}
+              onChange={(v) => { setProductSel(productOpts.options.find((o) => o.value === Number(v)) ?? null); setPage(1) }}
+              options={[{ value: 0, label: 'Semua produk' }, ...productOpts.options]}
+              placeholder="Cari produk (induk atau anak)..."
+              searchPlaceholder="Ketik nama / kode produk..."
+              loading={productOpts.isFetching}
+              onSearchChange={setProductSearch}
+            />
+          </div>
+        }
+        actions={
+          totalCount != null ? (
+            <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              {Number(totalCount).toLocaleString('id-ID')} cut{productSel ? ` untuk ${productSel.label}` : ''}
+            </span>
+          ) : undefined
+        }
+      />
 
       {/* Table */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>

@@ -10,7 +10,8 @@ import SearchableSelect from '@/components/SearchableSelect'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { withProductType, productTypeLabel } from '@/utils/productUomName'
-import { LayoutGrid, Search } from 'lucide-react'
+import { LayoutGrid } from 'lucide-react'
+import { FilterBar, countActive } from '@/components/ListFilters'
 
 interface OutletStockBranch {
   id: number
@@ -143,7 +144,7 @@ export default function OutletStockView() {
 
   // API baru /product-uoms/branch-stock: product UOM + stok per branch.
   // total_in_branches hanya memuat branch yang stoknya tidak nol.
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: [
       'outlet-stock',
       page,
@@ -165,6 +166,9 @@ export default function OutletStockView() {
         })
         .then((r) => r.data as unknown as BranchStockPayload),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: OutletStockItem[] = data?.data ?? []
   const meta = data?.meta
@@ -201,27 +205,6 @@ export default function OutletStockView() {
       .map((b) => Number(b.total_stock ?? 0))
     if (vals.length === 0) return null
     return vals.reduce((s, v) => s + v, 0)
-  }
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 12,
-    fontWeight: 500,
-    color: 'var(--foreground-muted)',
-    marginBottom: 4,
-    display: 'block',
-  }
-
-  const inputStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-    width: '100%',
-    boxSizing: 'border-box',
   }
 
   const thStyle: React.CSSProperties = {
@@ -278,67 +261,42 @@ export default function OutletStockView() {
       </div>
 
       {/* Filters */}
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: 20,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 16,
-          boxShadow: 'var(--shadow-sm)',
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Cari nama / kode UOM..."
+        activeCount={countActive(productId, productTypeFilter)}
+        onClear={() => {
+          setProductId(0)
+          setProductTypeFilter([])
+          setPage(1)
         }}
-      >
-        <div>
-          <label style={labelStyle}>Cari</label>
-          <div style={{ position: 'relative' }}>
-            <Search
-              size={14}
-              style={{
-                position: 'absolute',
-                left: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--foreground-muted)',
-                pointerEvents: 'none',
-              }}
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari nama / kode UOM..."
-              style={{ ...inputStyle, paddingLeft: 30 }}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Produk</label>
-          <SearchableSelect
-            value={productId}
-            onChange={(val) => setProductId(Number(val) || 0)}
-            options={productOptions}
-            placeholder="Semua Produk"
-            searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-            loading={productsLoading}
-            onSearchChange={setProductSearch}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Tipe Produk</label>
-          <MultiSearchableSelect
-            value={productTypeFilter}
-            onChange={setProductTypeFilter}
-            options={productTypeOptions}
-            placeholder="Semua Tipe Produk"
-            searchPlaceholder="Cari tipe produk..."
-            loading={isLoadingProductTypes}
-          />
-        </div>
-      </div>
+        quick={
+          <>
+            <div style={{ width: 260, maxWidth: '100%' }}>
+              <SearchableSelect
+                value={productId}
+                onChange={(val) => setProductId(Number(val) || 0)}
+                options={productOptions}
+                placeholder="Semua Produk"
+                searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
+                loading={productsLoading}
+                onSearchChange={setProductSearch}
+              />
+            </div>
+            <div style={{ width: 220, maxWidth: '100%' }}>
+              <MultiSearchableSelect
+                value={productTypeFilter}
+                onChange={setProductTypeFilter}
+                options={productTypeOptions}
+                placeholder="Semua Tipe Produk"
+                searchPlaceholder="Cari tipe produk..."
+                loading={isLoadingProductTypes}
+              />
+            </div>
+          </>
+        }
+      />
 
       {/* Matrix table */}
       <div

@@ -16,7 +16,8 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { usePrice } from '@/hooks/usePrice'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
-import { Plus, Trash2, ArrowLeft, Loader2, Save } from 'lucide-react'
+import { Plus, Trash2, Loader2, Save } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import SearchableSelect from '@/components/SearchableSelect'
 
 const formatNumber = (n: number | undefined): string => {
@@ -415,7 +416,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
       receiptsService.update(receiptId!, buildPayload(values) as any),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['receipts'] })
-      queryClient.invalidateQueries({ queryKey: ['receipt-detail', receiptId] })
+      queryClient.removeQueries({ queryKey: ['receipt-detail', receiptId] })
       toast.success('Receipt updated')
       router.push(`/transfer/receipts/${receiptId}/detail`)
     },
@@ -478,12 +479,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '9px 12px',
+    height: 38,
+    padding: '0 12px',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
-    fontSize: 13,
+    fontSize: 13.5,
     color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
+    background: 'var(--surface)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
@@ -494,115 +496,106 @@ export default function ReceiptForm(props: ReceiptFormProps) {
     border: '1px solid var(--destructive)',
   }
 
-  const selectStyle: React.CSSProperties = {
-    ...inputStyle,
-    cursor: 'pointer',
-    appearance: 'none' as any,
-  }
-
   const labelStyle: React.CSSProperties = {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: 500,
     color: 'var(--foreground)',
-    marginBottom: 4,
+    marginBottom: 6,
     display: 'block',
   }
+
+  const requiredMark = <span style={{ color: 'var(--destructive)' }}> *</span>
 
   const errorStyle: React.CSSProperties = {
     fontSize: 12,
     color: 'var(--destructive)',
-    marginTop: 4,
+    marginTop: 6,
   }
 
-  const sectionHeaderStyle: React.CSSProperties = {
+  const cardHeaderStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
     padding: '14px 20px',
     borderBottom: '1px solid var(--border)',
-    background: 'var(--background)',
-    borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
   }
 
-  const sectionLabelStyle: React.CSSProperties = {
-    fontSize: 12,
+  const cardTitleStyle: React.CSSProperties = {
+    fontSize: 14,
     fontWeight: 600,
-    color: 'var(--foreground-muted)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.6px',
+    color: 'var(--foreground)',
+    margin: 0,
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-lg)',
-    overflow: 'visible',
-    boxShadow: 'var(--shadow-sm)',
+  const cardHintStyle: React.CSSProperties = {
+    fontSize: 12.5,
+    color: 'var(--foreground-muted)',
+  }
+
+  const thStyle: React.CSSProperties = {
+    height: 'auto',
+    padding: '10px 8px',
+    fontSize: 11.5,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    color: 'var(--foreground-muted)',
+    background: 'var(--surface-muted)',
+    whiteSpace: 'nowrap',
+  }
+
+  const tdStyle: React.CSSProperties = {
+    height: 'auto',
+    padding: '10px 8px',
+    fontSize: 13,
+    color: 'var(--foreground)',
+    verticalAlign: 'top',
   }
 
   const lineInputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '8px 10px',
+    height: 34,
+    padding: '0 8px',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
     fontSize: 13,
     color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
+    background: 'var(--surface)',
     outline: 'none',
     fontFamily: 'var(--font-sans)',
     boxSizing: 'border-box',
   }
 
+  const submitDisabled = isPending || (mode === 'create' && isFullyReceived)
+
   return (
     <div
       style={{
-        padding: '32px 32px 64px',
-        maxWidth: 1400,
+        padding: '28px 24px 48px',
         width: '100%',
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          paddingBottom: 20,
-          borderBottom: '1px solid var(--border)',
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => router.back()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 10px',
-            background: 'none',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back
-        </button>
+      {/* Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 14 }}>
+        <BackLink href="/transfer/receipts" label="Receipts" />
         <div>
           <h1
             style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 24,
-              fontWeight: 500,
+              fontFamily: 'var(--font-sans)',
+              fontSize: 22,
+              fontWeight: 600,
+              letterSpacing: '-0.02em',
               margin: 0,
               color: 'var(--foreground)',
             }}
           >
             {mode === 'edit' ? 'Edit Receipt' : 'New Receipt'}
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '6px 0 0' }}>
             {mode === 'edit' ? 'Update receipt details' : 'Record goods received from a delivery'}
           </p>
         </div>
@@ -610,30 +603,22 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
       <form
         onSubmit={handleSubmit(onSubmit, onInvalid)}
-        style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 20 }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--foreground-subtle)' }}>
-          <span style={{ color: 'var(--destructive)' }}>*</span>
-          <span>Required fields</span>
-        </div>
         {/* Section 1 — Receipt Info */}
-        <div style={cardStyle}>
-          <div style={sectionHeaderStyle}>
-            <span style={sectionLabelStyle}>Receipt Info</span>
+        <div className="v2-card">
+          <div style={cardHeaderStyle}>
+            <h2 style={cardTitleStyle}>Receipt info</h2>
+            <span style={cardHintStyle}>
+              <span style={{ color: 'var(--destructive)' }}>*</span> Required fields
+            </span>
           </div>
-          <div
-            style={{
-              padding: 20,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 16,
-            }}
-          >
+          <div className="rcpt-form-grid" style={{ padding: 20 }}>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <label style={labelStyle}>
                 Receipt Date
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                {requiredMark}
               </label>
               <input
                 type="date"
@@ -643,14 +628,14 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               {errors.date && <span style={errorStyle}>{errors.date.message}</span>}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <label style={labelStyle}>
                 Status
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                {requiredMark}
               </label>
               <select
                 {...register('status')}
-                style={errors.status ? inputErrorStyle : inputStyle}
+                style={{ ...(errors.status ? inputErrorStyle : inputStyle), cursor: 'pointer' }}
               >
                 <option value="pending">Pending</option>
                 <option value="final">Final</option>
@@ -658,10 +643,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
               {errors.status && <span style={errorStyle}>{errors.status.message}</span>}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <div className="rcpt-form-span" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <label style={labelStyle}>
                 Linked Delivery
-                <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                {requiredMark}
               </label>
               <Controller
                 name="delivery_id"
@@ -677,18 +662,17 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     disabled={mode === 'edit'}
                     error={errors.delivery_id?.message as string | undefined}
                     onSearchChange={setDropdownSearch}
-/>
+                    triggerStyle={{
+                      height: 38,
+                      padding: '0 12px',
+                      fontSize: 13.5,
+                      ...(Number(field.value) > 0 ? { color: 'var(--foreground)' } : {}),
+                    }}
+                  />
                 )}
               />
               {!!watchDeliveryId && watchDeliveryId > 0 && deliveryDetail && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--success)',
-                    marginTop: 4,
-                    display: 'block',
-                  }}
-                >
+                <span style={{ fontSize: 12, color: 'var(--success)', marginTop: 6, display: 'block' }}>
                   ✓ {deliveryDetail.delivery_details?.length ?? 0} item(s) loaded from delivery
                 </span>
               )}
@@ -710,26 +694,19 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                 </div>
               )}
               {deliveryAlreadyReceived && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--warning)',
-                    marginTop: 4,
-                    display: 'block',
-                  }}
-                >
+                <span style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6, display: 'block' }}>
                   Pengiriman ini sudah diterima sepenuhnya. Membuka receipt yang sudah ada...
                 </span>
               )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gridColumn: 'span 2' }}>
+            <div className="rcpt-form-span" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <label style={labelStyle}>Notes</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Optional notes"
-                style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+                style={{ ...inputStyle, height: 'auto', padding: '9px 12px', resize: 'vertical', minHeight: 64 }}
               />
             </div>
 
@@ -738,10 +715,10 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
         {/* Section 2 — Receipt Items */}
         {mode === 'create' && !!watchDeliveryId && watchDeliveryId > 0 && deliveryDetail && isFullyReceived ? (
-          <div style={cardStyle}>
+          <div className="v2-card">
             <div
               style={{
-                padding: 32,
+                padding: '36px 20px',
                 textAlign: 'center',
                 display: 'flex',
                 flexDirection: 'column',
@@ -758,16 +735,12 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             </div>
           </div>
         ) : (
-        <div style={cardStyle}>
-          <div
-            style={{
-              ...sectionHeaderStyle,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <span style={sectionLabelStyle}>Received Items</span>
+        <div className="v2-card">
+          <div style={cardHeaderStyle}>
+            <h2 style={cardTitleStyle}>Received items</h2>
+            <span style={cardHintStyle}>
+              {fields.length} item{fields.length === 1 ? '' : 's'}
+            </span>
             {/* Add Item button hidden as per requirements */}
             {false && (
               <button
@@ -784,19 +757,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     client_ref: `RCP-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
                   })
                 }
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '5px 10px',
-                  background: 'var(--accent-light-bg)',
-                  color: 'var(--accent)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                }}
+                className="v2-btn v2-btn-outline v2-btn-sm"
               >
                 <Plus size={13} />
                 Add Item
@@ -804,219 +765,201 @@ export default function ReceiptForm(props: ReceiptFormProps) {
             )}
           </div>
 
-          <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)' }}>
-            <div style={{ minWidth: 900 }}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: `28px minmax(250px, 2fr) 100px 100px 120px 140px minmax(150px, 1fr) 40px`,
-                  gap: 10,
-                  padding: '10px 20px',
-                  borderBottom: '1px solid var(--border)',
-                  background: 'var(--background)',
-                  alignItems: 'center',
-                }}
-              >
-                {['#', 'Product / UOM', 'Batch', 'Qty', 'Status', 'Expiry', 'Notes', ''].map((h, i) => (
-                  <span
-                    key={i}
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--foreground-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                      textAlign: h === '#' ? 'center' : 'left',
-                    }}
-                  >
-                    {h}
-                  </span>
-                ))}
-              </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="v2-table" style={{ tableLayout: 'fixed', minWidth: 780 }}>
+              <colgroup>
+                <col style={{ width: 40 }} />
+                <col />
+                <col style={{ width: 112 }} />
+                <col style={{ width: 92 }} />
+                <col style={{ width: 106 }} />
+                <col style={{ width: 138 }} />
+                <col style={{ width: 128 }} />
+                <col style={{ width: 48 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={{ ...thStyle, paddingLeft: 20, paddingRight: 4 }}>#</th>
+                  <th style={thStyle}>Product / UOM</th>
+                  <th style={thStyle}>Batch</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Qty</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Expiry</th>
+                  <th style={thStyle}>Notes</th>
+                  <th style={{ ...thStyle, paddingRight: 16 }} aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {fields.map((field, index) => {
+                  const detailId = watchDetails[index]?.delivery_detail_id as number
+                  const remainingForRow = remainingQtyByDetailId.get(detailId)
+                  const isDone = remainingForRow === 0
+                  const delivered = deliveredQtyByDetailId.get(detailId)
+                  return (
+                    <tr key={field.id}>
+                      {/* Row index */}
+                      <td
+                        style={{
+                          ...tdStyle,
+                          paddingLeft: 20,
+                          paddingRight: 4,
+                          lineHeight: '34px',
+                          fontSize: 12,
+                          color: 'var(--foreground-subtle)',
+                        }}
+                      >
+                        {index + 1}
+                      </td>
 
-              {fields.map((field, index) => (
-                <div
-                  key={field.id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: `28px minmax(250px, 2fr) 100px 100px 120px 140px minmax(150px, 1fr) 40px`,
-                    gap: 10,
-                    padding: '12px 20px',
-                    borderBottom: '1px solid var(--border)',
-                    alignItems: 'start',
-                  }}
-                >
-                  {/* Row index */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: 38,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: 'var(--foreground-muted)',
-                    }}
-                  >
-                    {index + 1}
-                  </div>
+                      <td style={tdStyle}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                          <Controller
+                            name={`details.${index}.product_uom_id`}
+                            control={control}
+                            render={({ field: f }) => (
+                              <SearchableSelect
+                                value={f.value ?? 0}
+                                onChange={(val) => {
+                                  f.onChange(val)
+                                  const opt = productUomOptions.find((o: any) => o.value === val)
+                                  if (opt && opt.base_price) setValue(`details.${index}.price`, opt.base_price)
+                                }}
+                                options={productUomOptions.filter((o: any) => {
+                                  const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
+                                  return !selectedIds.includes(o.value) || o.value === f.value
+                                })}
+                                placeholder="Select product..."
+                                searchPlaceholder="Search products..."
+                                loading={false}
+                                disabled={true}
+                                error={
+                                  errors.details?.[index]?.product_uom_id?.message as
+                                  | string
+                                  | undefined
+                                }
+                                onSearchChange={setDropdownSearch}
+                                triggerStyle={{
+                                  height: 34,
+                                  padding: '0 8px',
+                                  fontSize: 13,
+                                  ...(Number(f.value) > 0 ? { color: 'var(--foreground)' } : {}),
+                                }}
+                              />
+                            )}
+                          />
+                          {delivered !== undefined && (() => {
+                            const received = receivedQtyByDetailId.get(detailId) ?? 0
+                            const remaining = remainingForRow ?? 0
+                            const entered = Number(watchDetails[index]?.qty ?? 0)
+                            return (
+                              <span
+                                style={{
+                                  fontSize: 11.5,
+                                  lineHeight: 1.4,
+                                  fontVariantNumeric: 'tabular-nums',
+                                  color:
+                                    entered > remaining
+                                      ? 'var(--destructive)'
+                                      : 'var(--foreground-muted)',
+                                }}
+                              >
+                                Dikirim: {delivered.toLocaleString('id-ID', { maximumFractionDigits: 2 })} · Diterima: {received.toLocaleString('id-ID', { maximumFractionDigits: 2 })} · Sisa: {remaining.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                              </span>
+                            )
+                          })()}
+                        </div>
+                      </td>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <Controller
-                      name={`details.${index}.product_uom_id`}
-                      control={control}
-                      render={({ field: f }) => (
-                        <SearchableSelect
-                          value={f.value ?? 0}
-                          onChange={(val) => {
-                            f.onChange(val)
-                            const opt = productUomOptions.find((o: any) => o.value === val)
-                            if (opt && opt.base_price) setValue(`details.${index}.price`, opt.base_price)
-                          }}
-                          options={productUomOptions.filter((o: any) => {
-                            const selectedIds = watch('details').map((d: any) => d.product_uom_id).filter((id: number) => id > 0)
-                            return !selectedIds.includes(o.value) || o.value === f.value
-                          })}
-                          placeholder="Select product..."
-                          searchPlaceholder="Search products..."
-                          loading={false}
-                          disabled={true}
-                          error={
-                            errors.details?.[index]?.product_uom_id?.message as
-                            | string
-                            | undefined
-                          }
-                          onSearchChange={setDropdownSearch}
-/>
-                      )}
-                    />
-                  </div>
+                      <td style={tdStyle}>
+                        <input
+                          type="text"
+                          {...register(`details.${index}.planned_batch_code`)}
+                          placeholder="Batch code..."
+                          style={lineInputStyle}
+                        />
+                      </td>
 
-                  <input
-                    type="text"
-                    {...register(`details.${index}.planned_batch_code`)}
-                    placeholder="Batch code..."
-                    style={{
-                      ...lineInputStyle,
-                      background: 'var(--background)',
-                      color: 'var(--foreground)'
-                    }}
-                  />
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    {(() => {
-                      const detailId = watchDetails[index]?.delivery_detail_id as number
-                      const remaining = remainingQtyByDetailId.get(detailId)
-                      const isDone = remaining === 0
-                      return (
+                      <td style={tdStyle}>
                         <input
                           type="number"
                           min={0}
                           step={0.001}
-                          max={remaining ?? undefined}
+                          max={remainingForRow ?? undefined}
                           disabled={isDone}
                           {...register(`details.${index}.qty`, { valueAsNumber: true })}
                           style={{
                             ...lineInputStyle,
+                            textAlign: 'right',
+                            fontVariantNumeric: 'tabular-nums',
                             ...(isDone
-                              ? { background: 'var(--surface)', cursor: 'not-allowed' }
-                              : { background: 'var(--background)', color: 'var(--foreground)' }),
+                              ? { background: 'var(--surface-muted)', color: 'var(--foreground-muted)', cursor: 'not-allowed' }
+                              : {}),
                           }}
                           onWheel={(e) => (e.target as HTMLElement).blur()}
                         />
-                      )
-                    })()}
-                    {(() => {
-                      const detailId = watchDetails[index]?.delivery_detail_id as number
-                      const delivered = deliveredQtyByDetailId.get(detailId)
-                      if (delivered === undefined) return null
-                      const received = receivedQtyByDetailId.get(detailId) ?? 0
-                      const remaining = remainingQtyByDetailId.get(detailId) ?? 0
-                      const entered = Number(watchDetails[index]?.qty ?? 0)
-                      return (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            color:
-                              entered > remaining
-                                ? 'var(--destructive)'
-                                : 'var(--foreground-subtle)',
-                          }}
+                      </td>
+
+                      {/* price inputs removed */}
+
+                      <td style={tdStyle}>
+                        <Controller
+                          name={`details.${index}.status`}
+                          control={control}
+                          render={({ field: f }) => (
+                            <select
+                              value={f.value}
+                              onChange={(e) => f.onChange(e.target.value)}
+                              style={{ ...lineInputStyle, cursor: 'pointer' }}
+                            >
+                              <option value="success">Success</option>
+                              <option value="pending">Pending</option>
+                              <option value="failed">Failed</option>
+                            </select>
+                          )}
+                        />
+                      </td>
+
+                      <td style={tdStyle}>
+                        <input
+                          type="date"
+                          {...register(`details.${index}.planned_expiry_date`)}
+                          style={{ ...lineInputStyle, padding: '0 6px' }}
+                        />
+                      </td>
+
+                      <td style={tdStyle}>
+                        <input
+                          {...register(`details.${index}.description`)}
+                          placeholder="Note"
+                          style={lineInputStyle}
+                        />
+                        <input type="hidden" {...register(`details.${index}.client_ref`)} />
+                      </td>
+
+                      <td style={{ ...tdStyle, paddingRight: 16, textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          disabled={true}
+                          className="v2-icon-btn"
+                          data-tone="danger"
+                          aria-label="Remove item"
+                          style={{ marginTop: 3, opacity: 0.35, cursor: 'not-allowed' }}
                         >
-                          Dikirim: {delivered.toLocaleString('id-ID', { maximumFractionDigits: 2 })} · Diterima: {received.toLocaleString('id-ID', { maximumFractionDigits: 2 })} · Sisa: {remaining.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                        </span>
-                      )
-                    })()}
-                  </div>
-
-                  {/* price inputs removed */}
-
-                  <Controller
-                    name={`details.${index}.status`}
-                    control={control}
-                    render={({ field: f }) => (
-                      <select
-                        value={f.value}
-                        onChange={(e) => f.onChange(e.target.value)}
-                        style={{ ...lineInputStyle, cursor: 'pointer' }}
-                      >
-                        <option value="success">Success</option>
-                        <option value="pending">Pending</option>
-                        <option value="failed">Failed</option>
-                      </select>
-                    )}
-                  />
-
-                  <input
-                    type="date"
-                    {...register(`details.${index}.planned_expiry_date`)}
-                    style={{
-                      ...lineInputStyle,
-                      background: 'var(--background)',
-                      color: 'var(--foreground)'
-                    }}
-                  />
-
-                  <input
-                    {...register(`details.${index}.description`)}
-                    placeholder="Note"
-                    style={{
-                      ...lineInputStyle,
-                      background: 'var(--background)',
-                      color: 'var(--foreground)'
-                    }}
-                  />
-
-                  <input type="hidden" {...register(`details.${index}.client_ref`)} />
-
-                  <button
-                    type="button"
-                    onClick={() => remove(index)}
-                    disabled={true}
-                    style={{
-                      padding: '6px 8px',
-                      background: 'var(--destructive-bg)',
-                      border: '1px solid var(--destructive)',
-                      borderRadius: 'var(--radius-md)',
-                      cursor: 'not-allowed',
-                      color: 'var(--destructive)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: 0.3,
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
 
           {/* footer removed */}
 
           {errors.details && typeof (errors.details as any).message === 'string' && (
-            <div style={{ padding: '8px 20px' }}>
+            <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border)' }}>
               <span style={{ fontSize: 12, color: 'var(--destructive)' }}>
                 {(errors.details as any).message}
               </span>
@@ -1028,51 +971,36 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         {/* Form actions */}
         <div
           style={{
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 5,
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: 10,
-            paddingTop: 4,
+            gap: 8,
+            padding: '12px 0',
+            marginTop: 8,
+            background: 'var(--surface)',
+            borderTop: '1px solid var(--border)',
           }}
         >
           <button
             type="button"
-            onClick={() => router.back()}
-            style={{
-              padding: '9px 20px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--foreground)',
-              cursor: 'pointer',
-            }}
+            onClick={() => router.push('/transfer/receipts')}
+            className="v2-btn v2-btn-outline"
           >
             Cancel
           </button>
           {canCreateReceipt && (
             <button
               type="submit"
-              disabled={isPending || (mode === 'create' && isFullyReceived)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '9px 20px',
-                background: 'var(--accent)',
-                color: 'white',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: isPending || (mode === 'create' && isFullyReceived) ? 'not-allowed' : 'pointer',
-                opacity: isPending || (mode === 'create' && isFullyReceived) ? 0.7 : 1,
-              }}
+              disabled={submitDisabled}
+              className="v2-btn v2-btn-primary"
             >
-              {isPending && (
-                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              {isPending ? (
+                <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <Save size={15} />
               )}
-              <Save size={14} />
               {mode === 'edit'
                 ? isPending
                   ? 'Saving...'
@@ -1089,6 +1017,12 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        .rcpt-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+        .rcpt-form-span { grid-column: span 2; }
+        @media (max-width: 720px) {
+          .rcpt-form-grid { grid-template-columns: minmax(0, 1fr); }
+          .rcpt-form-span { grid-column: auto; }
         }
       `}</style>
     </div>

@@ -192,3 +192,90 @@ input[type="week"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
 }
 
+
+/* Every selector shows a pointer: native <select>, Radix/shadcn Select and
+   combobox triggers, their options, cmdk items and react-select controls.
+   Unlayered on purpose, so it wins over Tailwind's `cursor-default` utility. */
+select,
+button[role="combobox"],
+[role="combobox"]:not(input):not(textarea),
+[role="option"],
+[role="menuitem"],
+[role="menuitemradio"],
+[role="menuitemcheckbox"],
+[cmdk-item],
+[class*="__control"],
+[class*="__option"],
+[class*="__indicator"],
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+select:disabled,
+[role="combobox"]:disabled,
+[role="combobox"][aria-disabled="true"],
+[role="option"][aria-disabled="true"],
+[role="option"][data-disabled],
+[cmdk-item][data-disabled="true"],
+[class*="__control--is-disabled"],
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
+/* Submit controls held while an on-screen query is still loading
+   (src/lib/loadingGuard.ts): the label becomes a spinner + "Please wait…" until
+   the data is in. The guard freezes the control's width and swallows clicks,
+   so pointer events stay on for the progress cursor and the tooltip. The
+   label (text nodes via font-size 0, elements via display none) is hidden and
+   the pseudo elements take its place, inheriting the button's own colour. */
+:root[data-api-loading] [data-loading-held] {
+  opacity: 0.75 !important;
+  cursor: progress !important;
+  font-size: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  white-space: nowrap !important;
+}
+:root[data-api-loading] [data-loading-held] > * {
+  display: none !important;
+}
+:root[data-api-loading] [data-loading-held]::before {
+  content: "";
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-right: 7px;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: loading-held-spin 0.7s linear infinite;
+}
+:root[data-api-loading] [data-loading-held]::after {
+  content: "Please wait…";
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+@keyframes loading-held-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-api-loading] [data-loading-held]::before {
+    animation-duration: 2s;
+  }
+}
+
+/* BackLink (src/components/BackLink.tsx): the shared "← List" on create / edit /
+   detail pages. */
+.back-link:hover {
+  color: var(--foreground) !important;
+}
+.back-link:focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

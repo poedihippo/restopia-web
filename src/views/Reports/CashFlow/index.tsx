@@ -6,13 +6,15 @@ import { toast } from 'sonner'
 import { Download } from 'lucide-react'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
+import FinanceBranchSelect, { financeBranchParam, type FinanceBranchScope } from '../FinanceBranchSelect'
 
 export default function CashFlowView() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
 
   const { mutate: exportExcel, isPending } = useMutation({
-    mutationFn: () => reportsService.exportCashFlow({ start_date: startDate, end_date: endDate }),
+    mutationFn: () => reportsService.exportCashFlow({ start_date: startDate, end_date: endDate, ...financeBranchParam(branchScope) }),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `cash-flow.xlsx`)
     },
@@ -35,6 +37,10 @@ export default function CashFlowView() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 500 }}>End Date *</label>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 'var(--radius-md)', background: '#ffffff', color: '#111827', outline: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>Branch</label>
+            <FinanceBranchSelect value={branchScope} onChange={setBranchScope} style={{ padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-raised)', color: 'var(--foreground)', outline: 'none' }} />
           </div>
           <button 
             onClick={() => {

@@ -2,6 +2,7 @@
 import { formatDate, formatDateTime } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
+import { FilterBar } from '@/components/ListFilters'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { suppliersService } from '@/services/suppliers.service'
@@ -11,7 +12,6 @@ import SupplierSheet from './SupplierSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -58,7 +58,7 @@ export default function SuppliersView() {
     setPage(1)
   }, [debouncedSearch])
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: ['suppliers', page, perPage, debouncedSearch],
     queryFn: () =>
       suppliersService
@@ -70,6 +70,9 @@ export default function SuppliersView() {
         })
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Supplier[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -147,39 +150,7 @@ export default function SuppliersView() {
           <Plus size={16} />New Supplier
                               </button>)}
       </div>
-      {/* Toolbar */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ position: 'relative', width: 280 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search suppliers..."
-            style={{
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 13,
-              color: 'var(--foreground)',
-              background: 'var(--surface-raised)',
-              outline: 'none',
-              fontFamily: 'var(--font-sans)',
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+      <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search suppliers..." />
       {/* Table */}
       <div
         style={{

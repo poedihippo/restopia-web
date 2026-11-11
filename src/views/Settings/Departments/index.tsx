@@ -16,9 +16,10 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { toastMutationApiError } from '@/utils/apiError'
 import { formatDate, formatDateTime } from '@/utils/date'
 import {
-  Plus, Search, Pencil, Trash2, ChevronRight, ChevronDown,
+  Plus, Pencil, Trash2, ChevronRight, ChevronDown,
   X, Loader2, Building, FolderTree, Eye, CheckCircle2, AlertCircle, CornerDownRight,
 } from 'lucide-react'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 
 const schema = z.object({
   company_id: z.coerce.number().optional().default(1),
@@ -103,6 +104,7 @@ export default function DepartmentsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [parentFilter, setParentFilter] = useState<string>('')
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({})
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Department | null>(null)
@@ -114,8 +116,17 @@ export default function DepartmentsView() {
     return () => clearTimeout(t)
   }, [search])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['departments', debouncedSearch, statusFilter],
+  // Filter lookup: unfiltered department list for the parent filter options
+  const { data: allDepartmentsData } = useQuery({
+    queryKey: ['departments-all'],
+    enabled: canRead,
+    queryFn: () => departmentsService.list({ per_page: 100 } as any).then((r) => r.data),
+  })
+  const parentFilterOptions: Department[] = (allDepartmentsData as any)?.data ?? []
+
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
+    queryKey: ['departments', debouncedSearch, statusFilter, parentFilter],
     enabled: canRead,
     queryFn: () =>
       departmentsService
@@ -125,9 +136,13 @@ export default function DepartmentsView() {
           include: 'parent,children,created_by,updated_by',
           'filter[search]': debouncedSearch || undefined,
           'filter[is_active]': statusFilter !== '' ? statusFilter : undefined,
+          'filter[parent_id]': parentFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const rawItems: Department[] = useMemo(() => (data as any)?.data ?? [], [data])
 
@@ -252,6 +267,7 @@ export default function DepartmentsView() {
     mutationFn: (data: DepartmentRequest) => departmentsService.create(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['departments-all'] })
       qc.invalidateQueries({ queryKey: ['departments-active'] })
       toast.success('Department created successfully')
       setSheetOpen(false)
@@ -263,6 +279,7 @@ export default function DepartmentsView() {
     mutationFn: (data: DepartmentRequest) => departmentsService.update(editData!.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['departments-all'] })
       qc.invalidateQueries({ queryKey: ['departments-active'] })
       toast.success('Department updated successfully')
       setSheetOpen(false)
@@ -274,6 +291,7 @@ export default function DepartmentsView() {
     mutationFn: (id: number) => departmentsService.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['departments'] })
+      qc.invalidateQueries({ queryKey: ['departments-all'] })
       qc.invalidateQueries({ queryKey: ['departments-active'] })
       toast.success('Department deleted successfully')
       setDeleteConfirmId(null)
@@ -377,43 +395,33 @@ export default function DepartmentsView() {
       </div>
 
       {/* Filters */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', width: 320 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by code or name..."
-            style={{
-              ...inputStyle,
-              paddingLeft: 32,
-            }}
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{
-            ...inputStyle,
-            width: 150,
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search by code or name..."
+        activeCount={countActive(statusFilter, parentFilter)}
+        onClear={() => {
+          setStatusFilter('')
+          setParentFilter('')
+        }}
+        quick={
+          <>
+            <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </FilterSelect>
+            <FilterSelect value={parentFilter} onChange={(e) => setParentFilter(e.target.value)}>
+              <option value="">All Parents</option>
+              {parentFilterOptions.map((d) => (
+                <option key={d.id} value={String(d.id)}>
+                  {d.code} — {d.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+      />
 
       {/* Tree / Grid Table */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>

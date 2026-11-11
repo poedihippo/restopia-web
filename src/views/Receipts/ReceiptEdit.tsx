@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { receiptsService } from '@/services/receipts.service'
 import ReceiptForm from './ReceiptForm'
 import { ReceiptText } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import { parseDate } from '@/helper/parseDate'
 
 interface ReceiptEditProps {
@@ -36,9 +37,10 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
       code: receipt.code,
       delivery_id: receipt.delivery?.id ?? receipt.delivery_id ?? 0,
       date: parseDate(receipt.date),
-      // Keep the stored status — a pending receipt stays pending unless the
-      // user explicitly switches it to final.
-      status: receipt.status ?? 'final',
+      // A final delivery auto-creates its receipt as pending; editing it is
+      // the act of receiving, so the status selector starts on final. The
+      // user can still switch it back to pending before saving.
+      status: 'final',
       description: receipt.description ?? '',
       total_price: receipt.total_price ?? 0,
       details: rawDetails.length
@@ -56,7 +58,9 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
               : '',
           qty: d.qty ?? 1,
           price: d.price ?? 0,
-          status: d.status ?? 'success',
+          // Same as the header: receiving starts every pending line on
+          // success. A line already marked failed keeps its status.
+          status: d.status === 'failed' ? 'failed' : 'success',
           description: d.description ?? '',
           client_ref: d.client_ref ?? '',
         }))
@@ -78,97 +82,89 @@ export default function ReceiptEdit({ id }: ReceiptEditProps) {
     }
     : undefined
 
+  const containerStyle: React.CSSProperties = {
+    padding: '28px 24px 48px',
+    width: '100%',
+    margin: '0 auto',
+    display: 'flex',
+    flexDirection: 'column',
+  }
+
+  const messageStyle: React.CSSProperties = {
+    ...containerStyle,
+    paddingTop: 80,
+    alignItems: 'center',
+    textAlign: 'center',
+    gap: 12,
+  }
+
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: 80,
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 99,
-              border: '3px solid var(--border)',
-              borderTop: '3px solid var(--accent)',
-              animation: 'spin 0.8s linear infinite',
-            }}
-          />
-          <span style={{ fontSize: 13, color: 'var(--foreground-muted)', marginTop: 12 }}>
-            Loading receipt...
-          </span>
+      <div style={containerStyle} aria-busy="true">
+        <div className="v2-skeleton" style={{ width: 64, height: 28 }} />
+        <div className="v2-skeleton" style={{ width: 180, height: 26, marginTop: 14 }} />
+        <div className="v2-skeleton" style={{ width: 240, height: 13, marginTop: 8 }} />
+        <div className="v2-card" style={{ marginTop: 20, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+            <div className="v2-skeleton" style={{ width: 100, height: 14 }} />
+          </div>
+          <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px 20px' }}>
+            {[0, 1].map((i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className="v2-skeleton" style={{ width: 90, height: 12 }} />
+                <div className="v2-skeleton" style={{ height: 38 }} />
+              </div>
+            ))}
+            <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="v2-skeleton" style={{ width: 110, height: 12 }} />
+              <div className="v2-skeleton" style={{ height: 38 }} />
+            </div>
+          </div>
         </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        <div className="v2-card" style={{ marginTop: 16, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+            <div className="v2-skeleton" style={{ width: 120, height: 14 }} />
+          </div>
+          {[0, 1, 2].map((i) => (
+            <div key={i} style={{ display: 'flex', gap: 12, padding: '14px 20px', borderBottom: i < 2 ? '1px solid var(--border)' : 'none' }}>
+              <div className="v2-skeleton" style={{ flex: 1, height: 34 }} />
+              <div className="v2-skeleton" style={{ width: 100, height: 34 }} />
+              <div className="v2-skeleton" style={{ width: 80, height: 34 }} />
+              <div className="v2-skeleton" style={{ width: 120, height: 34 }} />
+            </div>
+          ))}
+        </div>
+        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+          Loading receipt...
+        </span>
       </div>
     )
   }
 
   if (isError || !receipt) {
     return (
-      <div
-        style={{
-          padding: 80,
-          textAlign: 'center',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <ReceiptText size={40} style={{ color: 'var(--foreground-subtle)' }} />
+      <div style={messageStyle}>
+        <ReceiptText size={36} style={{ color: 'var(--foreground-subtle)' }} />
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: 0 }}>
           Receipt not found
         </p>
-        <button
-          onClick={() => router.back()}
-          style={{
-            padding: '7px 14px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
-        >
-          Go back
-        </button>
+        <BackLink href="/transfer/receipts" label="Receipts" style={{ alignSelf: 'center', marginTop: 4 }} />
       </div>
     )
   }
 
   if (receipt.status === 'final') {
     return (
-      <div
-        style={{
-          padding: 80,
-          textAlign: 'center',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 12,
-        }}
-      >
-        <ReceiptText size={40} style={{ color: 'var(--foreground-subtle)' }} />
+      <div style={messageStyle}>
+        <ReceiptText size={36} style={{ color: 'var(--foreground-subtle)' }} />
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: 0 }}>
           Final receipt cannot be edited.
         </p>
         <button
+          type="button"
           onClick={() => router.push(`/transfer/receipts/${id}/detail`)}
-          style={{
-            padding: '7px 14px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 13,
-            color: 'var(--foreground-muted)',
-            cursor: 'pointer',
-          }}
+          className="v2-btn v2-btn-outline v2-btn-sm"
+          style={{ marginTop: 4 }}
         >
           Go to detail
         </button>

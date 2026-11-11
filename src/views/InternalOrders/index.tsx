@@ -2,16 +2,17 @@
 import { formatDate } from '@/utils/date';
 
 import React, { useState, useEffect } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/router'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   Eye,
   Pencil,
   Trash2,
@@ -83,16 +84,19 @@ export default function InternalOrdersView() {
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final' | 'accepted' | 'rejected' | 'partially_delivered' | 'delivered'>('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<'' | 'pending' | 'partial' | 'paid'>('')
+  const [remainingQtyFilter, setRemainingQtyFilter] = useState<'' | 'true' | 'false'>('')
+  const [supplierBranchFilter, setSupplierBranchFilter] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, statusFilter, dateFrom, dateTo])
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, paymentStatusFilter, remainingQtyFilter, supplierBranchFilter])
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -101,8 +105,8 @@ export default function InternalOrdersView() {
 
   // Internal orders are purchase orders sourced from another branch (type
   // 'branch' / supplier_branch_id present).
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['internal-orders', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, myBranchId],
+  const { data, isLoading: isFirstLoad, isFetching, isError } = useQuery({
+    queryKey: ['internal-orders', page, perPage, debouncedSearch, statusFilter, dateFrom, dateTo, paymentStatusFilter, remainingQtyFilter, supplierBranchFilter, myBranchId],
     enabled: !!myBranchId,
     queryFn: () =>
       purchaseOrdersService
@@ -117,9 +121,15 @@ export default function InternalOrdersView() {
           'filter[status]': statusFilter || undefined,
           'filter[date_gte]': dateFrom || undefined,
           'filter[date_lte]': dateTo || undefined,
+          'filter[payment_status]': paymentStatusFilter || undefined,
+          'filter[has_remaining_qty]': remainingQtyFilter || undefined,
+          'filter[supplier_branch_id]': supplierBranchFilter || undefined,
         })
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = isFirstLoad || isFetching
 
   const items: InternalOrder[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -135,7 +145,16 @@ export default function InternalOrdersView() {
     onError: (err: any) => toastMutationApiError(err, 'Failed to delete'),
   })
 
-  const hasFilters = !!(statusFilter || dateFrom || dateTo)
+  // Source-branch options (the PO's supplier_branch_id). branch_id is pinned
+  // to my branch and type to 'branch', so neither is exposed.
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+    enabled: !!myBranchId,
+  })
+  const sourceBranches: any[] = ((branchesData as any)?.data ?? []).filter(
+    (b: any) => b.id !== myBranchId,
+  )
 
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
@@ -153,15 +172,6 @@ export default function InternalOrdersView() {
     padding: '12px 16px',
     borderBottom: '1px solid var(--border)',
     verticalAlign: 'middle',
-  }
-
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
   }
 
   const actionBtnStyle: React.CSSProperties = {
@@ -219,107 +229,72 @@ export default function InternalOrdersView() {
           <Plus size={15} />New Order
         </button>)}
       </div>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
-        }}
-      >
-        {/* Search */}
-        <div style={{ position: 'relative', maxWidth: 280 }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search orders..."
-            style={{
-              ...inputBase,
-              width: 280,
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        {/* Status filter */}
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as '' | 'pending' | 'final')}
-          style={{
-            ...inputBase,
-            padding: '8px 12px',
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          <option value="">All Status</option>
-          <option value="pending">Pending</option>
-          <option value="final">Final</option>
-        </select>
-
-        {/* Date from */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            From
-          </label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            style={{ ...inputBase, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        {/* Date to */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <label style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
-            To
-          </label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            style={{ ...inputBase, padding: '7px 10px', fontSize: 12 }}
-          />
-        </div>
-
-        {/* Clear filters */}
-        {hasFilters && (
-          <button
-            onClick={() => {
-              setStatusFilter('')
-              setDateFrom('')
-              setDateTo('')
-            }}
-            style={{
-              padding: '7px 12px',
-              background: 'none',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 12,
-              color: 'var(--foreground-muted)',
-              cursor: 'pointer',
-            }}
-          >
-            Clear filters
-          </button>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search orders..."
+        activeCount={countActive(
+          statusFilter, paymentStatusFilter, remainingQtyFilter, supplierBranchFilter, dateFrom, dateTo,
         )}
-      </div>
+        onClear={() => {
+          setStatusFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setPaymentStatusFilter('')
+          setRemainingQtyFilter('')
+          setSupplierBranchFilter('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Final</option>
+              <option value="accepted">Accepted</option>
+              <option value="rejected">Rejected</option>
+              <option value="partially_delivered">Partially Delivered</option>
+              <option value="delivered">Delivered</option>
+            </FilterSelect>
+            <FilterSelect value={paymentStatusFilter} onChange={(e) => setPaymentStatusFilter(e.target.value as any)}>
+              <option value="">All Payment Status</option>
+              <option value="pending">Unpaid</option>
+              <option value="partial">Partially Paid</option>
+              <option value="paid">Paid</option>
+            </FilterSelect>
+          </>
+        }
+      >
+        <FilterGroup title="Location">
+          <FilterField label="Source branch">
+            <FilterSelect block value={supplierBranchFilter} onChange={(e) => setSupplierBranchFilter(e.target.value)}>
+              <option value="">All Source Branches</option>
+              {sourceBranches.map((b: any) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+        <FilterGroup title="Dates & delivery">
+          <FilterField label="Order date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => setDateFrom(v)}
+              onToChange={(v) => setDateTo(v)}
+            />
+          </FilterField>
+          <FilterField label="Remaining qty">
+            <FilterSelect block value={remainingQtyFilter} onChange={(e) => setRemainingQtyFilter(e.target.value as any)}>
+              <option value="">Remaining Qty: All</option>
+              <option value="true">Has Remaining Qty</option>
+              <option value="false">Fully Delivered</option>
+            </FilterSelect>
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
       {/* Table */}
       <div
         style={{

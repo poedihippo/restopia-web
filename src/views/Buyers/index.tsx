@@ -8,7 +8,8 @@ import BuyerSheet from './BuyerSheet'
 import { toastMutationApiError } from '@/utils/apiError'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { formatDate } from '@/utils/date'
-import { Plus, Search, Pencil, Trash2, UserRound } from 'lucide-react'
+import { Plus, Pencil, Trash2, UserRound } from 'lucide-react'
+import { FilterBar } from '@/components/ListFilters'
 
 export default function BuyersView() {
   const qc = useQueryClient()
@@ -32,7 +33,7 @@ export default function BuyersView() {
 
   useEffect(() => { setPage(1) }, [debouncedSearch])
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
     queryKey: ['buyers', page, perPage, debouncedSearch],
     queryFn: () =>
       buyersService
@@ -44,6 +45,9 @@ export default function BuyersView() {
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -61,7 +65,6 @@ export default function BuyersView() {
 
   const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
   const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', fontSize: 13, color: 'var(--foreground)' }
-  const inputBase: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', color: 'var(--foreground)', background: 'var(--surface-raised)', outline: 'none', fontFamily: 'var(--font-sans)' }
   const actionBtnStyle: React.CSSProperties = { padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' }
   const COLS = 8
 
@@ -83,12 +86,7 @@ export default function BuyersView() {
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-muted)', pointerEvents: 'none' }} />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search buyers..." style={{ ...inputBase, width: '100%', padding: '8px 12px 8px 32px', fontSize: 13, boxSizing: 'border-box' }} />
-        </div>
-      </div>
+      <FilterBar search={search} onSearchChange={setSearch} searchPlaceholder="Search buyers..." />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>

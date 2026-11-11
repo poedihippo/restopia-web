@@ -2,11 +2,13 @@
 import { formatCurrency } from '@/utils/price';
 import { formatDate } from '@/utils/date';
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
 import { useRouter } from 'next/router'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { deliveriesService } from '@/services/deliveries.service'
+import { branchesService } from '@/services/branches.service'
 import { useAuth } from '@/hooks/useAuth'
 import {
   ArrowRight,
@@ -49,6 +51,41 @@ export default function StockTransferView() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  // Toolbar filters (shared by both tabs). source_type and the tab's own
+  // branch side are pinned per tab and never exposed; the counterpart branch
+  // filter maps to target_branch_id on "Out" and branch_id on "In".
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'pending' | 'final'>('')
+  const [hasReceiptFilter, setHasReceiptFilter] = useState<'' | 'true' | 'false'>('')
+  const [counterpartBranchFilter, setCounterpartBranchFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, statusFilter, hasReceiptFilter, counterpartBranchFilter, dateFrom, dateTo])
+
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches-all', 'basic'],
+    queryFn: () => branchesService.list({ per_page: 100 }).then((r) => r.data),
+  })
+  const counterpartBranches: any[] = ((branchesData as any)?.data ?? []).filter(
+    (b: any) => b.id !== myBranchId,
+  )
+
+  const commonFilters = {
+    'filter[search]': debouncedSearch || undefined,
+    'filter[status]': statusFilter || undefined,
+    'filter[has_receipt]': hasReceiptFilter || undefined,
+    'filter[date_gte]': dateFrom || undefined,
+    'filter[date_lte]': dateTo || undefined,
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deliveriesService.delete(id),
@@ -77,8 +114,8 @@ export default function StockTransferView() {
   })
 
   // ── Outgoing transfers ──────────────────────────────────────────────────
-  const { data: outData, isLoading: outLoading } = useQuery({
-    queryKey: ['deliveries-transfer-out', page, perPage, myBranchId],
+  const { data: outData, isLoading: outLoadingFirstLoad, isFetching: outLoadingFetching } = useQuery({
+    queryKey: ['deliveries-transfer-out', page, perPage, myBranchId, debouncedSearch, statusFilter, hasReceiptFilter, counterpartBranchFilter, dateFrom, dateTo],
     enabled: activeTab === 'out',
     queryFn: () =>
       deliveriesService
@@ -87,17 +124,22 @@ export default function StockTransferView() {
           per_page: perPage,
           include: 'target_branch,delivery_details',
           sort: '-created_at',
+          ...commonFilters,
           'filter[source_type]': 'transfer_to_branch',
           'filter[branch_id]': myBranchId || undefined,
+          'filter[target_branch_id]': counterpartBranchFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const outLoading = outLoadingFirstLoad || outLoadingFetching
   const outItems: any[] = (outData as any)?.data ?? []
   const outMeta = (outData as any)?.meta
 
   // ── Incoming transfers ──────────────────────────────────────────────────
-  const { data: inData, isLoading: inLoading } = useQuery({
-    queryKey: ['deliveries-transfer-in', page, perPage, myBranchId],
+  const { data: inData, isLoading: inLoadingFirstLoad, isFetching: inLoadingFetching } = useQuery({
+    queryKey: ['deliveries-transfer-in', page, perPage, myBranchId, debouncedSearch, statusFilter, hasReceiptFilter, counterpartBranchFilter, dateFrom, dateTo],
     enabled: activeTab === 'in' && !!myBranchId,
     queryFn: () =>
       deliveriesService
@@ -106,11 +148,16 @@ export default function StockTransferView() {
           per_page: perPage,
           include: 'branch,delivery_details',
           sort: '-created_at',
+          ...commonFilters,
           'filter[source_type]': 'transfer_to_branch',
           'filter[target_branch_id]': myBranchId || undefined,
+          'filter[branch_id]': counterpartBranchFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const inLoading = inLoadingFirstLoad || inLoadingFetching
   const inItems: any[] = (inData as any)?.data ?? []
   const inMeta = (inData as any)?.meta
 
@@ -284,6 +331,7 @@ export default function StockTransferView() {
             type="button"
             onClick={() => {
               setActiveTab(tab)
+              setCounterpartBranchFilter('')
               setPage(1)
             }}
             style={tabBtn(tab)}
@@ -292,6 +340,72 @@ export default function StockTransferView() {
           </button>
         ))}
       </div>
+
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search transfers..."
+        activeCount={countActive(statusFilter, hasReceiptFilter, counterpartBranchFilter, dateFrom, dateTo)}
+        onClear={() => {
+          setStatusFilter('')
+          setHasReceiptFilter('')
+          setCounterpartBranchFilter('')
+          setDateFrom('')
+          setDateTo('')
+          setPage(1)
+        }}
+        quick={
+          <>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as '' | 'pending' | 'final')
+                setPage(1)
+              }}
+            >
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="final">Final</option>
+            </FilterSelect>
+            <FilterSelect
+              value={hasReceiptFilter}
+              onChange={(e) => {
+                setHasReceiptFilter(e.target.value as '' | 'true' | 'false')
+                setPage(1)
+              }}
+            >
+              <option value="">Receipt: All</option>
+              <option value="true">Received</option>
+              <option value="false">Not Received</option>
+            </FilterSelect>
+            <FilterSelect
+              value={counterpartBranchFilter}
+              onChange={(e) => {
+                setCounterpartBranchFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">{activeTab === 'out' ? 'All Destinations' : 'All Sources'}</option>
+              {counterpartBranches.map((b: any) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+      >
+        <FilterGroup title="Dates">
+          <FilterField label="Transfer date">
+            <DateRange
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={(v) => { setDateFrom(v); setPage(1) }}
+              onToChange={(v) => { setDateTo(v); setPage(1) }}
+            />
+          </FilterField>
+        </FilterGroup>
+      </FilterBar>
 
       {activeTab === 'out' && (
         <div>

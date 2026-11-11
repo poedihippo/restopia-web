@@ -72,9 +72,9 @@ export default function ReturnOrderModal({ orderId, orderCode, onClose, onReturn
         .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
         .then((r) => r.data),
   })
-  // The Credit tender can never pay a refund.
+  // The Credit tender and methods settled later (card/EDC) can never pay a refund.
   const refundMethods: any[] = ((methodsData as any)?.data ?? []).filter(
-    (pm: any) => !String(pm.name ?? '').toLowerCase().includes('credit'),
+    (pm: any) => !String(pm.name ?? '').toLowerCase().includes('credit') && !pm.requires_settlement,
   )
 
   const returnedAmount = num(order?.returned_amount)

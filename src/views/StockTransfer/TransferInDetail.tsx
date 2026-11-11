@@ -16,7 +16,8 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
-import { ArrowLeft, Package, Check, Loader2 } from 'lucide-react'
+import { Package, Check, Loader2 } from 'lucide-react'
+import BackLink from '@/components/BackLink'
 import { PriceDisplay } from '@/components/PriceDisplay'
 
 const detailSchema = z.object({
@@ -244,19 +245,6 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     letterSpacing: '0.6px',
   }
 
-  const backBtnStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 10px',
-    background: 'none',
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 13,
-    color: 'var(--foreground-muted)',
-    cursor: 'pointer',
-  }
-
   if (isLoading) {
     return (
       <div
@@ -301,10 +289,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 12 }}>
           Delivery not found
         </p>
-        <button onClick={() => router.back()} style={{ ...backBtnStyle, margin: '16px auto 0' }}>
-          <ArrowLeft size={14} />
-          Go back
-        </button>
+        <BackLink href="/transfer/stock-transfer" label="Stock Transfers" style={{ marginTop: 16 }} />
       </div>
     )
   }
@@ -315,13 +300,13 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
     <div
       style={{
         padding: '32px 32px 64px',
-        maxWidth: 1100,
         margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
         gap: 20,
       }}
     >
+      <BackLink href="/transfer/stock-transfer" label="Stock Transfers" />
       {/* Top bar */}
       <div
         style={{
@@ -332,10 +317,6 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
           borderBottom: '1px solid var(--border)',
         }}
       >
-        <button type="button" onClick={() => router.back()} style={backBtnStyle}>
-          <ArrowLeft size={14} />
-          Back
-        </button>
         <div>
           <h1
             style={{
@@ -830,7 +811,7 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push('/transfer/stock-transfer')}
             style={{
               padding: '8px 16px',
               background: 'var(--surface)',

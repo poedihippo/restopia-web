@@ -5,13 +5,13 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { branchesService } from '@/services/branches.service'
+import { companiesService } from '@/services/companies.service'
 import { useAuth } from '@/hooks/useAuth'
 import BranchSheet from './BranchSheet'
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import {
   Plus,
-  Search,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -21,6 +21,7 @@ import {
   Eye,
   X,
 } from 'lucide-react'
+import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 
 interface Branch {
   id: number
@@ -52,6 +53,10 @@ export default function BranchesView() {
   const [editData, setEditData] = useState<Branch | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<Branch | null>(null)
+  const [companyFilter, setCompanyFilter] = useState('')
+  const [formatFilter, setFormatFilter] = useState('')
+  const [parentFilter, setParentFilter] = useState('')
+  const canReadCompanies = hasPermission('company.read')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -60,10 +65,26 @@ export default function BranchesView() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, companyFilter, formatFilter, parentFilter])
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['branches', page, perPage, debouncedSearch],
+  // Filter lookups
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies-all'],
+    queryFn: () => companiesService.list({ per_page: 100 } as any).then((r) => r.data),
+    enabled: canReadCompanies,
+  })
+  const companyOptions: { id: number; name: string }[] = (companiesData as any)?.data ?? []
+
+  const { data: parentBranchesData } = useQuery({
+    queryKey: ['branches-all', 'by-name'],
+    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
+    enabled: canRead,
+  })
+  const parentBranchOptions: { id: number; name: string }[] = (parentBranchesData as any)?.data ?? []
+
+
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['branches', page, perPage, debouncedSearch, companyFilter, formatFilter, parentFilter],
     queryFn: () =>
       branchesService
         .list({
@@ -71,9 +92,15 @@ export default function BranchesView() {
           per_page: perPage,
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
+          'filter[company_id]': companyFilter || undefined,
+          'filter[format]': formatFilter || undefined,
+          'filter[parent_id]': parentFilter || undefined,
         } as any)
         .then((r) => r.data),
   })
+  // Any refetch (after a create/update/delete invalidates the list, or a
+  // filter/page change) shows the loading skeleton, never stale rows.
+  const isLoading = listFirstLoad || listFetching
 
   const items: Branch[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
@@ -107,14 +134,6 @@ export default function BranchesView() {
     verticalAlign: 'middle',
   }
 
-  const inputBase: React.CSSProperties = {
-    border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)',
-    color: 'var(--foreground)',
-    background: 'var(--surface-raised)',
-    outline: 'none',
-    fontFamily: 'var(--font-sans)',
-  }
 
   const actionBtnStyle: React.CSSProperties = {
     padding: 6,
@@ -177,41 +196,63 @@ export default function BranchesView() {
                               </button>)}
       </div>
       {/* Toolbar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexWrap: 'wrap',
-          marginBottom: 16,
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search branches..."
+        activeCount={countActive(companyFilter, formatFilter, parentFilter)}
+        onClear={() => {
+          setCompanyFilter('')
+          setFormatFilter('')
+          setParentFilter('')
+          setPage(1)
         }}
-      >
-        <div style={{ position: 'relative', maxWidth: 300, width: '100%' }}>
-          <Search
-            size={15}
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--foreground-muted)',
-              pointerEvents: 'none',
-            }}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search branches..."
-            style={{
-              ...inputBase,
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              fontSize: 13,
-              boxSizing: 'border-box',
-            }}
-          />
-        </div>
-      </div>
+        quick={
+          <>
+            {canReadCompanies && (
+              <FilterSelect
+                value={companyFilter}
+                onChange={(e) => {
+                  setCompanyFilter(e.target.value)
+                  setPage(1)
+                }}
+              >
+                <option value="">All Companies</option>
+                {companyOptions.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
+                ))}
+              </FilterSelect>
+            )}
+            <FilterSelect
+              value={formatFilter}
+              onChange={(e) => {
+                setFormatFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Formats</option>
+              <option value="premiere">Premiere</option>
+              <option value="pickup_point">Pickup Point</option>
+            </FilterSelect>
+            <FilterSelect
+              value={parentFilter}
+              onChange={(e) => {
+                setParentFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All Parent Branches</option>
+              {parentBranchOptions.map((b) => (
+                <option key={b.id} value={String(b.id)}>
+                  {b.name}
+                </option>
+              ))}
+            </FilterSelect>
+          </>
+        }
+      />
       {/* Table */}
       <div
         style={{
