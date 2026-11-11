@@ -418,9 +418,9 @@ export function usePosLogic() {
 
   // Payment methods query
   const { data: paymentMethodsData, isLoading: paymentMethodsLoading } = useQuery({
-    queryKey: ['payment-methods-all', 'sales_orders'],
+    queryKey: ['payment-methods-all', 'sales_orders', 'active'],
     queryFn: () =>
-      paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any).then((r) => r.data),
+      paymentMethodsService.list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders', 'filter[is_active]': true } as any).then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
 

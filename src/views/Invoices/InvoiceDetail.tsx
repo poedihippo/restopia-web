@@ -189,11 +189,11 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
     invoiceSalesOrders.every((ref) => !!ref.sales_order?.purchase_order?.id)
   const methodType = fromPurchaseOrders ? 'purchase_orders' : 'sales_orders'
   const { data: pmData } = useQuery({
-    queryKey: ['payment-methods-all', methodType],
+    queryKey: ['payment-methods-all', methodType, 'active'],
     enabled: canRead && !!id && !!invoice,
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': methodType } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': methodType, 'filter[is_active]': true } as any)
         .then((r) => r.data),
   })
   const paymentMethods = (pmData as any)?.data ?? []

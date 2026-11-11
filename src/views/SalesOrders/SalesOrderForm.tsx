@@ -324,11 +324,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const hasVoucher = !!voucherId
 
   const { data: paymentMethodsData } = useQuery({
-    queryKey: ['so-payment-methods'],
+    queryKey: ['so-payment-methods', 'active'],
     enabled: !isEdit && status === 'final',
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders' } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders', 'filter[is_active]': true } as any)
         .then((r) => r.data),
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []

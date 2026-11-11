@@ -165,7 +165,7 @@ export default function SettlePayoutView() {
 
   const { data: methodsData, isLoading: methodsLoading } = useQuery({
     queryKey: ['payment-methods-all', 'settle-payout'],
-    queryFn: () => paymentMethodsService.list({ per_page: 200, sort: 'name', 'filter[type]': 'sales_orders' } as any).then((r) => r.data),
+    queryFn: () => paymentMethodsService.list({ per_page: 200, sort: 'name', 'filter[type]': 'sales_orders', 'filter[is_active]': true } as any).then((r) => r.data),
   })
   const payoutMethods: any[] = ((methodsData as any)?.data ?? []).filter(
     (m: any) =>
