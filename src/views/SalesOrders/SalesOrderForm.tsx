@@ -941,7 +941,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               disabled={isOnline || isEdit}
               title={
                 isOnline
-                  ? 'Online orders are settled from Payment Settlements → Online Orders'
+                  ? 'Online orders are settled from Settlements → Online Orders'
                   : isEdit
                     ? 'Settlement status cannot be changed here — use bulk settlement on the Sales Orders list'
                     : undefined

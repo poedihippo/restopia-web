@@ -201,7 +201,7 @@ export default function SaleJournals({
                 }}
               >
                 2. {[p.method, p.number].filter(Boolean).join(' · ') || 'Payment'}: menunggu settlement — masih di Piutang Dagang
-                sampai dana masuk bank (Payment Settlements → Offline Orders).
+                sampai dana masuk bank (Settlements → Offline Orders).
               </div>
             ))}
             {settledRows.map((x: any) => (
