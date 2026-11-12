@@ -88,6 +88,7 @@ export default function CustomersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Phone</th>
               <th style={thStyle}>Created At</th>
@@ -105,8 +106,9 @@ export default function CustomersView() {
             {!isLoading && items.length === 0 && (
               <tr><td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: 48, color: 'var(--foreground-muted)' }}>No customers found</td></tr>
             )}
-            {items.map((item: any) => (
+            {items.map((item: any, idx: number) => (
               <tr key={item.id}>
+                <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>{(page - 1) * perPage + idx + 1}</td>
                 <td style={{ ...tdStyle, fontWeight: 600 }}>{canRead ? item.name : "***"}</td>
                 <td style={tdStyle}>{canRead ? item.phone ?? '—' : "***"}</td>
                 <td style={{ ...tdStyle, color: 'var(--foreground-muted)' }}>{canRead ? formatDate(item.created_at) : "***"}</td>

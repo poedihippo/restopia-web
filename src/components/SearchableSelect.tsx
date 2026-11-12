@@ -27,6 +27,10 @@ export interface SearchableSelectProps {
   id?: string
   /** Extra inline styles for the trigger button (merged over the defaults). */
   triggerStyle?: React.CSSProperties
+  /** Paged sources (see useInfiniteOptions): called when the list is scrolled to the bottom. */
+  onLoadMore?: () => void
+  hasMore?: boolean
+  loadingMore?: boolean
 }
 
 function focusNextElement(fromElement: HTMLElement, reverse = false) {
@@ -69,6 +73,9 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
       tabIndex,
       id,
       triggerStyle,
+      onLoadMore,
+      hasMore,
+      loadingMore,
     },
     ref,
   ) {
@@ -79,6 +86,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
 
     const triggerRef = useRef<HTMLButtonElement>(null)
     const searchInputRef = useRef<HTMLInputElement>(null)
+    const listRef = useRef<HTMLDivElement>(null)
 
     useImperativeHandle(ref, () => triggerRef.current as HTMLButtonElement)
 
@@ -130,7 +138,13 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
         )
       : options
 
+    // Reset the highlight on a new search / new option set, but not when a next page is
+    // appended (the highlighted row is scrolled into view, so resetting would jump to the top).
+    const prevSearchRef = useRef(search)
     useEffect(() => {
+      const searchChanged = prevSearchRef.current !== search
+      prevSearchRef.current = search
+      if (!searchChanged && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) return
       if (filteredOptions.length > 0) {
         const idx = filteredOptions.findIndex((o) => o.value === value)
         setHighlightedIndex(idx >= 0 ? idx : 0)
@@ -138,6 +152,15 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
         setHighlightedIndex(-1)
       }
     }, [search, options.length])
+
+    // Keep the highlighted row visible only when the highlight moves — not on every
+    // re-render, or appending a page would yank the list back to the highlighted row.
+    useEffect(() => {
+      if (!open || highlightedIndex < 0) return
+      listRef.current
+        ?.querySelector<HTMLElement>(`[data-ss-idx="${highlightedIndex}"]`)
+        ?.scrollIntoView({ block: 'nearest' })
+    }, [open, highlightedIndex])
 
     const close = () => {
       setOpen(false)
@@ -173,7 +196,10 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         if (filteredOptions.length > 0) {
-          setHighlightedIndex((prev) => (prev < filteredOptions.length - 1 ? prev + 1 : 0))
+          if (hasMore && highlightedIndex >= filteredOptions.length - 2) onLoadMore?.()
+          setHighlightedIndex((prev) =>
+            prev < filteredOptions.length - 1 ? prev + 1 : hasMore ? prev : 0,
+          )
         }
         return
       }
@@ -329,7 +355,14 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
             />
           </div>
 
-          <div style={{ maxHeight: 220, overflowY: 'auto', overflowX: 'hidden' }}>
+          <div
+            ref={listRef}
+            style={{ maxHeight: 220, overflowY: 'auto', overflowX: 'hidden' }}
+            onScroll={(e) => {
+              const el = e.currentTarget
+              if (hasMore && !loadingMore && el.scrollTop + el.clientHeight >= el.scrollHeight - 24) onLoadMore?.()
+            }}
+          >
             {loading ? (
               <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--foreground-muted)' }}>
                 Loading...
@@ -346,11 +379,7 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                   <button
                     type="button"
                     key={option.value}
-                    ref={(el) => {
-                      if (isHighlighted && el) {
-                        el.scrollIntoView({ block: 'nearest' })
-                      }
-                    }}
+                    data-ss-idx={idx}
                     onMouseEnter={() => setHighlightedIndex(idx)}
                     onMouseDown={(e) => {
                       e.preventDefault()
@@ -411,6 +440,11 @@ const SearchableSelect = forwardRef<HTMLButtonElement, SearchableSelectProps>(
                   </button>
                 )
               })
+            )}
+            {!loading && (loadingMore || hasMore) && (
+              <div style={{ padding: 8, textAlign: 'center', fontSize: 10, color: 'var(--foreground-muted)' }}>
+                {loadingMore ? 'Memuat...' : 'Scroll untuk memuat lebih banyak'}
+              </div>
             )}
           </div>
         </FloatingPanel>

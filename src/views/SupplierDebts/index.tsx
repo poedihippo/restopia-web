@@ -14,6 +14,7 @@ import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { formatDate } from '@/utils/date'
 import { formatCurrency } from '@/utils/price'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { ArrowUpRight, ChevronRight, Wallet } from 'lucide-react'
 import { FilterBar, countActive } from '@/components/ListFilters'
 
@@ -87,16 +88,15 @@ export default function SupplierDebtsView() {
   // Buyer filter searches on the server (filter[search]).
   const [buyerSearch, setBuyerSearch] = useState('')
   const debouncedBuyerSearch = useDebounce(buyerSearch, 400)
-  const { data: buyersData, isFetching: buyersLoading } = useQuery({
+  const buyerOpts = useInfiniteOptions<any>({
     queryKey: ['supplier-debts-buyer-options', debouncedBuyerSearch],
     enabled: canRead,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       buyersService
-        .list({ 'filter[search]': debouncedBuyerSearch || undefined, per_page: 30, sort: 'name' } as any)
+        .list({ page, 'filter[search]': debouncedBuyerSearch || undefined, per_page: 30, sort: 'name' } as any)
         .then((r) => r.data),
   })
-  const buyerRows: any[] = (buyersData as any)?.data ?? []
+  const buyerRows: any[] = buyerOpts.items
   // ?buyer_id= from the URL may not be in the current search page; fetch it
   // so the select still shows its name.
   const { data: selectedBuyerData } = useQuery({
@@ -303,7 +303,8 @@ export default function SupplierDebtsView() {
               options={buyerOptions}
               placeholder="Semua Buyer"
               searchPlaceholder="Cari buyer..."
-              loading={buyersLoading}
+              loading={buyerOpts.loading}
+              {...buyerOpts.selectProps}
               onSearchChange={setBuyerSearch}
             />
           </div>

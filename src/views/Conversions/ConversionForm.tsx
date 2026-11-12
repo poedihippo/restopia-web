@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { ArrowLeft, Loader2, Package, BookOpen, CheckCircle2, AlertTriangle, MapPin } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { productionsService } from '@/services/productions.service'
 import { recipesService } from '@/services/recipes.service'
 import { productUomsService } from '@/services/product-uoms.service'
@@ -116,11 +117,12 @@ export default function ConversionForm() {
   }, [companies, sourceOwnerRef])
 
   // ── Material product-uoms ─────────────────────────────────────────────────
-  const { data: materialPusData, isLoading: materialPusLoading } = useQuery({
+  const materialPusOpts = useInfiniteOptions<any>({
     queryKey: ['conversion-material-pus', materialSearchDebounced, activeProductTypes],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           per_page: 100,
           include: 'product,uom',
           'filter[search]': materialSearchDebounced || undefined,
@@ -129,7 +131,7 @@ export default function ConversionForm() {
         } as any)
         .then((r) => r.data),
   })
-  const materialPus: any[] = ((materialPusData as any)?.data ?? []).filter((pu: any) =>
+  const materialPus: any[] = materialPusOpts.items.filter((pu: any) =>
     isProductTypeAllowed(pu.product, activeProductTypes),
   )
   const materialOptions = materialPus.map((pu: any) => ({
@@ -541,7 +543,8 @@ export default function ConversionForm() {
           options={materialOptions}
           placeholder="Cari bahan / produk..."
           searchPlaceholder="Ketik nama bahan..."
-          loading={materialPusLoading}
+          loading={materialPusOpts.loading}
+          {...materialPusOpts.selectProps}
           onSearchChange={setMaterialSearch}
         />
       </div>

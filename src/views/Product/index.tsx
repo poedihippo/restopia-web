@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, isProductTypeAllowed } from '@/hooks/useProductTypes'
 import ProductSheet from './ProductSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import {
   Plus,
   Pencil,
@@ -236,23 +236,7 @@ export default function ProductView() {
         }}
         quick={
           <>
-            <div role="tablist" aria-label="Product status" className="v2-seg">
-              {([
-                ['true', 'Active'],
-                ['false', 'Inactive'],
-                ['', 'All'],
-              ] as const).map(([value, label]) => (
-                <button
-                  key={label}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeFilter === value}
-                  onClick={() => setActiveFilter(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <ActiveSegment value={activeFilter} onChange={setActiveFilter} label="Product status" />
             <FilterSelect
               value={typeFilter}
               onChange={(e) => {

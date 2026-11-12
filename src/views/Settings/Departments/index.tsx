@@ -19,7 +19,7 @@ import {
   Plus, Pencil, Trash2, ChevronRight, ChevronDown,
   X, Loader2, Building, FolderTree, Eye, CheckCircle2, AlertCircle, CornerDownRight,
 } from 'lucide-react'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 
 const schema = z.object({
   company_id: z.coerce.number().optional().default(1),
@@ -103,7 +103,7 @@ export default function DepartmentsView() {
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [statusFilter, setStatusFilter] = useState<string>('true')
   const [parentFilter, setParentFilter] = useState<string>('')
   const [expandedIds, setExpandedIds] = useState<Record<number, boolean>>({})
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -399,18 +399,14 @@ export default function DepartmentsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search by code or name..."
-        activeCount={countActive(statusFilter, parentFilter)}
+        activeCount={countActive(statusFilter !== 'true', parentFilter)}
         onClear={() => {
-          setStatusFilter('')
+          setStatusFilter('true')
           setParentFilter('')
         }}
         quick={
           <>
-            <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </FilterSelect>
+            <ActiveSegment value={statusFilter} onChange={setStatusFilter} label="Department status" />
             <FilterSelect value={parentFilter} onChange={(e) => setParentFilter(e.target.value)}>
               <option value="">All Parents</option>
               {parentFilterOptions.map((d) => (
@@ -428,6 +424,7 @@ export default function DepartmentsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 280 }}>Department Name</th>
               <th style={{ ...thStyle, width: 140 }}>Code</th>
               <th style={{ ...thStyle, width: 160 }}>Parent</th>
@@ -441,14 +438,14 @@ export default function DepartmentsView() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 6 ? 60 : '80%',
+                          width: j === 7 ? 60 : '80%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -458,7 +455,7 @@ export default function DepartmentsView() {
               ))
             ) : flattenedTree.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, color: 'var(--foreground-muted)' }}>
                     <FolderTree size={32} style={{ opacity: 0.4 }} />
                     <span style={{ fontSize: 14 }}>No departments found</span>
@@ -466,7 +463,7 @@ export default function DepartmentsView() {
                 </td>
               </tr>
             ) : (
-              flattenedTree.map((item) => {
+              flattenedTree.map((item, idx) => {
                 const isExpanded = debouncedSearch ? true : expandedIds[item.id] !== false
                 return (
                   <tr
@@ -475,6 +472,9 @@ export default function DepartmentsView() {
                     onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--background)')}
                     onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {idx + 1}
+                    </td>
                     {/* Name with indentation & expand toggle */}
                     <td style={{ ...tdStyle, paddingLeft: `${item.level * 24 + 16}px` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

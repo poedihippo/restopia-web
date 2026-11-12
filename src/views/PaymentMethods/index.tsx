@@ -3,11 +3,10 @@ import { fetchExpenseAccounts } from "@/utils/expenseAccounts";
 import { formatDateShort, formatDateTime } from "@/utils/date";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Eye, X } from "lucide-react";
-import { FilterBar, FilterSelect, countActive } from "@/components/ListFilters";
+import { ActiveSegment, FilterBar, FilterSelect, countActive } from "@/components/ListFilters";
 import { paymentMethodsService as paymentMethodService } from "@/services/payment-methods.service";
 import { chartOfAccountsService } from "@/services/accounting.service";
 import { companiesService } from "@/services/companies.service";
@@ -17,7 +16,6 @@ import { useAuth } from "@/hooks/useAuth";
 import PaymentMethodBranchAccounts from "./PaymentMethodBranchAccounts";
 
 export default function PaymentMethodsView() {
-  const router = useRouter();
   const qc = useQueryClient();
   const { hasPermission } = useAuth();
   const canRead = hasPermission("payment-method.read");
@@ -62,15 +60,12 @@ export default function PaymentMethodsView() {
   } | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [originFilter, setOriginFilter] = useState<
-    "all" | "manual" | "bank" | "coa"
-  >("all");
-  const [bankAccountFilter, setBankAccountFilter] = useState<number | null>(
-    null,
+  const [originFilter, setOriginFilter] = useState<"all" | "manual" | "coa">(
+    "all",
   );
   const [typeFilter, setTypeFilter] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("true");
 
   const { data: companiesData } = useQuery({
     queryKey: ["companies-all"],
@@ -149,23 +144,12 @@ export default function PaymentMethodsView() {
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => {
-    if (!router.isReady) return;
-    const raw = router.query["filter[bank_account_id]"];
-    const id = raw ? Number(Array.isArray(raw) ? raw[0] : raw) : NaN;
-    if (!isNaN(id) && id > 0) {
-      setOriginFilter("bank");
-      setBankAccountFilter(id);
-    }
-  }, [router.isReady, router.query]);
-
   const { data, isLoading: listFirstLoad, isFetching: listFetching } = useQuery({
     queryKey: [
       "payment-methods",
       debouncedSearch,
       typeFilter,
       companyFilter,
-      bankAccountFilter,
       statusFilter,
     ],
     queryFn: () =>
@@ -173,11 +157,10 @@ export default function PaymentMethodsView() {
         .list({
           per_page: 1000,
           sort: "id",
-          include: "bank_account,chart_of_account",
+          include: "chart_of_account",
           "filter[search]": debouncedSearch || undefined,
           "filter[type]": typeFilter || undefined,
           "filter[company_id]": companyFilter || undefined,
-          "filter[bank_account_id]": bankAccountFilter || undefined,
           "filter[is_active]": statusFilter || undefined,
         } as any)
         .then((r) => r.data),
@@ -187,16 +170,11 @@ export default function PaymentMethodsView() {
   const isLoading = listFirstLoad || listFetching
   const allItems = (data as any)?.data ?? [];
   const items = allItems.filter((item: any) => {
-    if (bankAccountFilter && item.bank_account_id !== bankAccountFilter)
-      return false;
     // Mirror methods once auto-created per bank account are legacy: payments
-    // now pick the bank account itself. Only a deep link still shows one.
-    if (item.bank_account_id && !bankAccountFilter) return false;
-    if (originFilter === "manual")
-      return !item.bank_account_id && !item.chart_of_account_id;
-    if (originFilter === "bank") return !!item.bank_account_id;
-    if (originFilter === "coa")
-      return !!item.chart_of_account_id && !item.bank_account_id;
+    // now pick the bank account itself, so they're never listed.
+    if (item.bank_account_id) return false;
+    if (originFilter === "manual") return !item.chart_of_account_id;
+    if (originFilter === "coa") return !!item.chart_of_account_id;
     return true;
   });
 
@@ -342,15 +320,15 @@ export default function PaymentMethodsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search payment methods..."
-        activeCount={countActive(typeFilter, companyFilter, bankAccountFilter, statusFilter)}
+        activeCount={countActive(typeFilter, companyFilter, statusFilter !== "true")}
         onClear={() => {
           setTypeFilter("");
           setCompanyFilter("");
-          setBankAccountFilter(null);
-          setStatusFilter("");
+          setStatusFilter("true");
         }}
         quick={
           <>
+            <ActiveSegment value={statusFilter} onChange={setStatusFilter} label="Payment method status" />
             <div style={{ display: "flex", gap: 6 }}>
               {(
                 [
@@ -391,14 +369,6 @@ export default function PaymentMethodsView() {
               <option value="purchase_orders">Purchase Orders</option>
             </FilterSelect>
             <FilterSelect
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </FilterSelect>
-            <FilterSelect
               value={companyFilter}
               onChange={(e) => setCompanyFilter(e.target.value)}
             >
@@ -430,11 +400,11 @@ export default function PaymentMethodsView() {
         >
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: "center" }}>No.</th>
               <th style={{ ...thStyle, width: "14%" }}>Name</th>
               <th style={{ ...thStyle, width: "12%" }}>Type</th>
               <th style={{ ...thStyle, width: "9%" }}>Source</th>
               <th style={{ ...thStyle, width: "24%" }}>Chart of Account</th>
-              <th style={{ ...thStyle, width: "15%" }}>Bank Account</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: "11%" }}>Created</th>
               <th style={{ ...thStyle, width: 200 }}>Actions</th>
@@ -474,10 +444,12 @@ export default function PaymentMethodsView() {
                 </td>
               </tr>
             )}
-            {items.map((item: any) => {
-              const isBankLinked = !!item.bank_account_id;
+            {items.map((item: any, idx: number) => {
               return (
                 <tr key={item.id}>
+                  <td style={{ ...tdStyle, textAlign: "center", color: "var(--foreground-muted)", fontSize: 13, width: 50 }}>
+                    {idx + 1}
+                  </td>
                   <td
                     style={{
                       ...tdStyle,
@@ -513,23 +485,7 @@ export default function PaymentMethodsView() {
                   </td>
                   <td style={{ ...tdStyle, verticalAlign: "top" }}>
                     {canRead ? (
-                      item.bank_account_id ? (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            padding: "2px 8px",
-                            borderRadius: 99,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: "var(--info-bg)",
-                            color: "var(--info)",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Bank
-                        </span>
-                      ) : item.chart_of_account_id ? (
+                      item.chart_of_account_id ? (
                         <span
                           style={{
                             display: "inline-flex",
@@ -600,56 +556,6 @@ export default function PaymentMethodsView() {
                             }}
                           >
                             {item.chart_of_account.name}
-                          </span>
-                        </div>
-                      ) : (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: "var(--foreground-muted)",
-                          }}
-                        >
-                          —
-                        </span>
-                      )
-                    ) : (
-                      "***"
-                    )}
-                  </td>
-                  <td style={{ ...tdStyle, verticalAlign: "top" }}>
-                    {canRead ? (
-                      isBankLinked ? (
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                            minWidth: 0,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 500,
-                              color: "var(--foreground)",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {item.bank_account?.bank_name ?? "Bank"}
-                          </span>
-                          <span
-                            style={{
-                              color: "var(--foreground-muted)",
-                              fontFamily: "monospace",
-                              fontSize: 12,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {item.bank_account?.account_number ?? ""}
                           </span>
                         </div>
                       ) : (
@@ -1178,15 +1084,6 @@ export default function PaymentMethodsView() {
                     value: selectedItem.chart_of_account?.name ?? "—",
                     sub: selectedItem.chart_of_account?.code,
                   },
-                  {
-                    label: "Rekening bank",
-                    value: selectedItem.bank_account
-                      ? `${selectedItem.bank_account.bank_name} — ${selectedItem.bank_account.account_number}`
-                      : selectedItem.bank_account_id
-                        ? `Bank account #${selectedItem.bank_account_id}`
-                        : "—",
-                    sub: selectedItem.bank_account?.account_name,
-                  },
                 ].map((f) => (
                   <div key={f.label} style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                     <span style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground-muted)" }}>
@@ -1423,7 +1320,7 @@ function MoneyDestination({
             <span style={sub}>
               The money arrives days later — Visa / Mastercard, BCA EDC, cash
               deposited later. It waits in Piutang Dagang until you record it
-              in Settle Payments.
+              in Payment Settlements → Offline Orders.
             </span>
           </span>
         </label>

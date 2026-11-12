@@ -660,6 +660,12 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
       })
       .filter((g) => g.displayLines.length > 0)
   }, [groupsWithLines, lineCounts, searchQuery, filterMode])
+  // "No." numbering runs continuously across product groups.
+  const groupRowOffsets: number[] = []
+  filteredGroups.reduce((acc, g, i) => {
+    groupRowOffsets[i] = acc
+    return acc + g.displayLines.length
+  }, 0)
 
   const status = item?.status?.toLowerCase() || 'draft'
   const isReadOnly = status === 'completed' || status === 'cancelled'
@@ -1306,7 +1312,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
               : 'Tidak ada barang yang cocok. Coba ubah kata pencarian atau filter.'}
           </div>
         ) : (
-          filteredGroups.map((group) => {
+          filteredGroups.map((group, groupIdx) => {
             const uomLabel =
               group.product_uom?.uom?.name || group.product_uom?.uom?.code || group.product_uom?.product?.base_uom?.name || ''
             const groupCounted = group.displayLines.filter((d) => isCountedState(lineCounts[getLineKey(d)])).length
@@ -1410,6 +1416,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         <th style={{ ...thStyle, width: 28, textAlign: 'center', padding: '3px 4px' }}></th>
+                        <th style={{ ...thStyle, width: 50, textAlign: 'center', padding: '3px 6px' }}>No.</th>
                         <th style={{ ...thStyle, padding: '3px 6px' }}>Kode Batch</th>
                         <th style={{ ...thStyle, textAlign: 'right', padding: '3px 6px' }}>Stok Sistem</th>
                         <th style={{ ...thStyle, minWidth: 220, padding: '3px 6px' }}>Hitungan Anda</th>
@@ -1418,7 +1425,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                       </tr>
                     </thead>
                     <tbody>
-                      {group.displayLines.map((detail) => {
+                      {group.displayLines.map((detail, lineIdx) => {
                         const lineKey = getLineKey(detail)
                         const state = lineCounts[lineKey] || emptyState()
                         const counted = isCountedState(state)
@@ -1475,6 +1482,9 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
                               ) : (
                                 <Circle size={13} style={{ color: 'var(--foreground-muted)' }} aria-label="Belum dihitung" />
                               )}
+                            </td>
+                            <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', padding: '3px 6px' }}>
+                              {(groupRowOffsets[groupIdx] ?? 0) + lineIdx + 1}
                             </td>
                             <td style={{ ...tdStyle, padding: '3px 6px' }}>
                               <div style={{ fontSize: 12, fontFamily: 'monospace', fontWeight: 600, lineHeight: 1.3 }}>

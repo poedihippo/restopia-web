@@ -339,6 +339,7 @@ export default function PaymentsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 160 }}>Allocated Orders</th>
               <th style={{ ...thStyle, width: 140 }}>Method</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
@@ -359,7 +360,7 @@ export default function PaymentsView() {
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 6 ? 40 : '75%',
+                          width: j === 7 ? 40 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -404,6 +405,9 @@ export default function PaymentsView() {
                     (e.currentTarget.style.background = 'transparent')
                   }
                 >
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}>
                     {canRead ? item.allocations && item.allocations.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

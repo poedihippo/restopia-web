@@ -14,6 +14,7 @@ import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import { X, Loader2, Sparkles } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useActiveBranchProductTypes } from '@/hooks/useProductTypes'
 import { describeSuggestionReason, withProductType } from '@/utils/productUomName'
 const formatNumber = (n: number | undefined, canReadPrice: boolean): string => {
@@ -111,12 +112,12 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
     return () => clearTimeout(t)
   }, [productSearch])
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const productsOpts = useInfiniteOptions<any>({
     queryKey: ['products-all', productSearchDebounced, activeProductTypes, debouncedDropdownSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
         .list({
-          page: 1,
+          page,
           per_page: 50,
           sort: 'name',
           'filter[search]': productSearchDebounced || undefined,
@@ -125,7 +126,7 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
         } as any)
         .then((r) => r.data),
   })
-  const products = (productsData as any)?.data ?? []
+  const products = productsOpts.items
 
   const { data: uomsData, isLoading: uomsLoading } = useQuery({
     queryKey: ['uoms-all', debouncedDropdownSearch],
@@ -385,7 +386,8 @@ export default function ProductUomSheet({ open, onClose, editData }: ProductUomS
                   options={productOptions}
                   placeholder="Select product..."
                   searchPlaceholder="Search products..."
-                  loading={productsLoading}
+                  loading={productsOpts.loading}
+                  {...productsOpts.selectProps}
                   onSearchChange={setProductSearch}
                   error={errors.product_id?.message as string | undefined}
                   disabled={isEdit}

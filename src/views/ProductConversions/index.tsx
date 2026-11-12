@@ -9,6 +9,7 @@ import { productConversionsService } from '@/services/product-conversions.servic
 import { productsService } from '@/services/products.service'
 import { uomsService } from '@/services/uoms.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import ProductConversionSheet from './ProductConversionSheet'
@@ -79,17 +80,17 @@ export default function ProductConversionsView() {
     setPage(1)
   }, [debouncedSearch, productFilter, uomFilter, targetUomFilter])
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const productsOpts = useInfiniteOptions<any>({
     queryKey: ['products-all', debouncedProductSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
-        .list({ per_page: 50, sort: 'name', 'filter[search]': debouncedProductSearch || undefined } as any)
+        .list({ page, per_page: 50, sort: 'name', 'filter[search]': debouncedProductSearch || undefined } as any)
         .then((r) => r.data),
     enabled: canReadProducts,
   })
   const productOptions = [
     { value: 0, label: 'All products' },
-    ...(((productsData as any)?.data ?? []) as any[]).map((p) => ({
+    ...(productsOpts.items as any[]).map((p) => ({
       value: p.id as number,
       label: (p.name as string) ?? '',
       sublabel: p.code as string | undefined,
@@ -212,7 +213,8 @@ export default function ProductConversionsView() {
                 options={productOptions}
                 placeholder="All products"
                 searchPlaceholder="Search products..."
-                loading={productsLoading}
+                loading={productsOpts.loading}
+                {...productsOpts.selectProps}
                 onSearchChange={setProductSearch}
               />
             </div>
@@ -272,6 +274,7 @@ export default function ProductConversionsView() {
             >
               {(
                 [
+                  { label: 'No.', width: 50 },
                   { label: 'Product', width: undefined },
                   { label: 'From', width: 140 },
                   { label: '', width: 40 },
@@ -285,7 +288,7 @@ export default function ProductConversionsView() {
                   key={i}
                   style={{
                     padding: '10px 16px',
-                    textAlign: 'left',
+                    textAlign: label === 'No.' ? 'center' : 'left',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--foreground-muted)',
@@ -303,7 +306,7 @@ export default function ProductConversionsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -332,7 +335,7 @@ export default function ProductConversionsView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -347,7 +350,7 @@ export default function ProductConversionsView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div
                     style={{
                       padding: 48,
@@ -378,6 +381,9 @@ export default function ProductConversionsView() {
                       hoveredRow === item.id ? 'var(--background)' : 'transparent',
                   }}
                 >
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   {/* Product */}
                   <td
                     style={{

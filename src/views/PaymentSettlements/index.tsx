@@ -377,13 +377,13 @@ export default function PaymentSettlementsView() {
     </button>
   )
 
-  const colCount = tab === 'pending' ? 4 : 8
+  const colCount = tab === 'pending' ? 5 : 9
 
   return (
     <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)' }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>
-          Settle Payments
+          Offline Order Settlements
         </h1>
         <p style={{ color: 'var(--foreground-muted)', fontSize: 14, marginTop: 4 }}>
           Pembayaran Cash, Visa, BCA, dll. tetap di Piutang Dagang sampai dana masuk. Settlement melunasi piutang satu metode untuk satu periode
@@ -549,6 +549,7 @@ export default function PaymentSettlementsView() {
               <thead>
                 {tab === 'pending' ? (
                   <tr>
+                    <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={thStyle}>No. Pembayaran</th>
                     <th style={thStyle}>Tanggal</th>
                     <th style={thStyle}>Untuk</th>
@@ -556,6 +557,7 @@ export default function PaymentSettlementsView() {
                   </tr>
                 ) : (
                   <tr>
+                    <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={thStyle}>Kode</th>
                     <th style={thStyle}>Tanggal</th>
                     <th style={thStyle}>Periode</th>
@@ -594,8 +596,9 @@ export default function PaymentSettlementsView() {
                     </td>
                   </tr>
                 ) : tab === 'pending' ? (
-                  items.map((p) => (
+                  items.map((p, idx) => (
                     <tr key={p.id}>
+                      <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>{(page - 1) * perPage + idx + 1}</td>
                       <td style={{ ...tdStyle, fontWeight: 500 }}>{p.payment_number ?? `#${p.id}`}</td>
                       <td style={tdStyle}>{formatDateShort(p.date)}</td>
                       <td style={tdStyle}>
@@ -612,8 +615,9 @@ export default function PaymentSettlementsView() {
                     </tr>
                   ))
                 ) : (
-                  items.map((s) => (
+                  items.map((s, idx) => (
                     <tr key={s.id} style={{ opacity: s.is_reversed ? 0.55 : 1 }}>
+                      <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>{(page - 1) * perPage + idx + 1}</td>
                       <td style={{ ...tdStyle, fontWeight: 500, textDecoration: s.is_reversed ? 'line-through' : 'none' }}>{s.code ?? `#${s.id}`}</td>
                       <td style={tdStyle}>{formatDateShort(s.date)}</td>
                       <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>

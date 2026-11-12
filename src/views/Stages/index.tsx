@@ -11,7 +11,7 @@ import { stagesService } from '@/services/stages.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, countActive } from '@/components/ListFilters'
 import {
   Plus,
   Pencil,
@@ -317,7 +317,7 @@ export default function StagesView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [selectedItem, setSelectedItem] = useState<Stage | null>(null)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
-  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('')
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('true')
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400)
@@ -426,20 +426,13 @@ export default function StagesView() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder="Cari stage..."
-            activeCount={countActive(activeFilter)}
+            activeCount={countActive(activeFilter !== 'true')}
             onClear={() => {
-              setActiveFilter('')
+              setActiveFilter('true')
               setPage(1)
             }}
             quick={
-              <FilterSelect
-                value={activeFilter}
-                onChange={(e) => setActiveFilter(e.target.value as 'true' | 'false' | '')}
-              >
-                <option value="">Semua Status</option>
-                <option value="true">Aktif</option>
-                <option value="false">Nonaktif</option>
-              </FilterSelect>
+              <ActiveSegment value={activeFilter} onChange={setActiveFilter} label="Stage status" />
             }
           />
 
@@ -457,6 +450,7 @@ export default function StagesView() {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
                   {[
+                    { label: 'No.', width: 50 },
                     { label: 'Kode', width: 120 },
                     { label: 'Nama', width: undefined },
                     { label: 'Aktif', width: 100 },
@@ -467,7 +461,7 @@ export default function StagesView() {
                       key={i}
                       style={{
                         padding: '10px 16px',
-                        textAlign: 'left',
+                        textAlign: col.label === 'No.' ? 'center' : 'left',
                         fontSize: 11,
                         fontWeight: 600,
                         color: 'var(--foreground-muted)',
@@ -485,7 +479,7 @@ export default function StagesView() {
               <tbody>
                 {isLoading && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '48px 16px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                         {[60, 40, 80, 50, 70].map((w, i) => (
                           <div
@@ -506,7 +500,7 @@ export default function StagesView() {
 
                 {isError && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                       Gagal memuat data stages
                     </td>
                   </tr>
@@ -514,7 +508,7 @@ export default function StagesView() {
 
                 {!isLoading && !isError && items.length === 0 && (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={7}>
                       <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                         <Layers size={32} style={{ color: 'var(--foreground-subtle)' }} />
                         <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Belum ada stage</span>
@@ -534,6 +528,9 @@ export default function StagesView() {
                         background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
                       }}
                     >
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                        {(page - 1) * perPage + idx + 1}
+                      </td>
                       <td style={{ padding: '12px 16px' }}>
                         <span
                           style={{

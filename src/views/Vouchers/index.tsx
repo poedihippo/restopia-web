@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth'
 import VoucherSheet from './VoucherSheet'
 import VoucherDetail from './VoucherDetail'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive, ActiveSegment } from '@/components/ListFilters'
 import {
   Plus,
   ChevronLeft,
@@ -58,7 +58,7 @@ export default function VouchersView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('active')
   const [discountTypeFilter, setDiscountTypeFilter] = useState<'' | 'percent' | 'fixed'>('')
   const [scopeFilter, setScopeFilter] = useState<'' | 'company' | 'branch'>('')
   const [companyFilter, setCompanyFilter] = useState('')
@@ -251,11 +251,11 @@ export default function VouchersView() {
         onSearchChange={setSearch}
         searchPlaceholder="Search vouchers..."
         activeCount={countActive(
-          statusFilter, discountTypeFilter, scopeFilter, companyFilter,
+          statusFilter !== 'active', discountTypeFilter, scopeFilter, companyFilter,
           validFromGte, validFromLte, validUntilGte, validUntilLte, activatedGte, activatedLte,
         )}
         onClear={() => {
-          setStatusFilter('')
+          setStatusFilter('active')
           setDiscountTypeFilter('')
           setScopeFilter('')
           setCompanyFilter('')
@@ -269,17 +269,15 @@ export default function VouchersView() {
         }}
         quick={
           <>
-            <FilterSelect
+            <ActiveSegment
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as '' | 'active' | 'inactive')
+              active="active"
+              inactive="inactive"
+              onChange={(v) => {
+                setStatusFilter(v)
                 setPage(1)
               }}
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </FilterSelect>
+            />
             <FilterSelect
               value={discountTypeFilter}
               onChange={(e) => {
@@ -364,6 +362,7 @@ export default function VouchersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 140 }}>Code</th>
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 90 }}>Type</th>
@@ -386,7 +385,7 @@ export default function VouchersView() {
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 8 ? 80 : j === 7 ? 60 : '75%',
+                          width: j === 9 ? 80 : j === 8 ? 60 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -433,6 +432,9 @@ export default function VouchersView() {
                       (e.currentTarget.style.background = 'transparent')
                     }
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
                     <td style={tdStyle}>
                       <span
                         style={{

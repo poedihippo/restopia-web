@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toast } from 'sonner'
 import { productCategoryAccountSettingsService } from '@/services/product-category-account-settings.service'
 import { productCategoriesService } from '@/services/product-categories.service'
@@ -58,19 +59,19 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
   const [catSearch, setCatSearch] = useState('')
   const [coaSearch, setCoaSearch] = useState('')
 
-  const { data: catData } = useQuery({
+  const catOpts = useInfiniteOptions<any>({
     queryKey: ['product-categories-all', catSearch],
-    queryFn: () => productCategoriesService.list({ per_page: 50, 'filter[search]': catSearch || undefined } as any).then(r => r.data),
+    fetchPage: (page) => productCategoriesService.list({ page, per_page: 50, 'filter[search]': catSearch || undefined } as any).then(r => r.data),
     enabled: open,
   })
-  const { data: coaData } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-all', 'pcas', coaSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 50, 'filter[search]': coaSearch || undefined } as any).then(r => r.data),
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 50, 'filter[search]': coaSearch || undefined } as any).then(r => r.data),
     enabled: open,
   })
 
-  const catOptions: SelectOption[] = ((catData as any)?.data ?? []).map((c: any) => ({ value: c.id, label: c.name }))
-  const coaOptions: SelectOption[] = ((coaData as any)?.data ?? []).filter((c: any) => !c.is_header && c.is_active !== false && c.normal_balance === 'debit').map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name}` }))
+  const catOptions: SelectOption[] = catOpts.items.map((c: any) => ({ value: c.id, label: c.name }))
+  const coaOptions: SelectOption[] = coaOpts.items.filter((c: any) => !c.is_header && c.is_active !== false && c.normal_balance === 'debit').map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name}` }))
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => productCategoryAccountSettingsService.create(data as any),
@@ -129,6 +130,8 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
                 options={catOptions}
                 onChange={(val: any) => setValue('product_category_id', val?.value || 0, { shouldValidate: true })}
                 onInputChange={(val, { action }) => { if (action === 'input-change') setCatSearch(val) }}
+                isLoading={catOpts.loading}
+                {...catOpts.selectProps}
                 placeholder="Search category..."
                 isClearable
               />
@@ -144,6 +147,8 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
                 options={coaOptions}
                 onChange={(val: any) => setValue('chart_of_account_id', val?.value || 0, { shouldValidate: true })}
                 onInputChange={(val, { action }) => { if (action === 'input-change') setCoaSearch(val) }}
+                isLoading={coaOpts.loading}
+                {...coaOpts.selectProps}
                 placeholder="Search account..."
                 isClearable
               />

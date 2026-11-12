@@ -356,7 +356,7 @@ export default function SettlePayoutView() {
       const branchName = branches.find((b: any) => b.id === branchId)?.name
       const rows: ExcelRow[] = [
         ...reportHeader({
-          title: `Unpaid Online Orders — ${tab === 'pending' ? 'Menunggu Payout' : 'Sudah Settle'}`,
+          title: `Online Order Settlements — ${tab === 'pending' ? 'Menunggu Payout' : 'Sudah Settle'}`,
           branch: branchName,
           period: dateGte || dateLte ? `${dateGte || '…'} – ${dateLte || '…'}` : undefined,
           extra: [
@@ -407,7 +407,7 @@ export default function SettlePayoutView() {
             margin: 0,
           }}
         >
-          Unpaid Online Orders
+          Online Order Settlements
         </h1>
         <p style={{ color: 'var(--foreground-muted)', fontSize: 14, marginTop: 4 }}>
           Catat pencairan dana marketplace (GoFood, Grab Food, Shopee Food) untuk order online yang masih pending

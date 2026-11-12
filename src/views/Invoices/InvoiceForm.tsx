@@ -17,6 +17,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 
 // Local calendar day (toISOString would give yesterday before 07:00 WIB).
@@ -365,21 +366,21 @@ export default function InvoiceForm() {
   // Searched on the server; SearchableSelect keeps the picked label cached.
   const [coaSearch, setCoaSearch] = useState('')
   const coaSearchDebounced = useDebounce(coaSearch, 400)
-  const { data: coaData, isFetching: coaLoading } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-options', 'charges', coaSearchDebounced],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       chartOfAccountsService
         .list({
+          page,
           per_page: 50,
           sort: 'code',
           'filter[is_active]': 'true',
           'filter[search]': coaSearchDebounced || undefined,
         } as any)
-        .then(r => (r.data as any)?.data ?? []),
+        .then(r => r.data),
   })
-  const coaChargeOptions = ((coaData as any) ?? []).map((coa: any) => ({
+  const coaChargeOptions = coaOpts.items.map((coa: any) => ({
     value: coa.id as number,
     label: (coa.name as string) ?? `COA #${coa.id}`,
     sublabel: (coa.code as string) ?? undefined,
@@ -1052,6 +1053,7 @@ export default function InvoiceForm() {
                               style={{ cursor: 'pointer' }}
                             />
                           </th>
+                          <th style={{ ...soTh, width: 50, textAlign: 'center' }}>No.</th>
                           <th style={soTh}>Order</th>
                           <th style={soTh}>Outlet</th>
                           <th style={{ ...soTh, width: 120 }}>Order date</th>
@@ -1059,7 +1061,7 @@ export default function InvoiceForm() {
                         </tr>
                       </thead>
                       <tbody>
-                        {visibleSOs.map((so) => {
+                        {visibleSOs.map((so, soIdx) => {
                           const isSelected = selectedSoIds.includes(so.id)
                           const branchMatched = selectedSoIds.length === 0 || selectableSOs.find((s) => s.id === selectedSoIds[0])?.branch_id === so.branch_id
                           const disabled = !isSelected && !branchMatched
@@ -1077,6 +1079,9 @@ export default function InvoiceForm() {
                             >
                               <td style={{ ...soTd, textAlign: 'center' }}>
                                 <input type="checkbox" readOnly checked={isSelected} style={{ pointerEvents: 'none' }} />
+                              </td>
+                              <td style={{ ...soTd, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>
+                                {soIdx + 1}
                               </td>
                               <td style={{ ...soTd, fontWeight: 600 }}>
                                 {/* Opens the SO detail popup without toggling the row */}
@@ -1234,7 +1239,8 @@ export default function InvoiceForm() {
                       options={coaChargeOptions}
                       placeholder="Account *"
                       searchPlaceholder="Search account name or code..."
-                      loading={coaLoading}
+                      loading={coaOpts.loading}
+                      {...coaOpts.selectProps}
                       onSearchChange={setCoaSearch}
                       triggerStyle={{ height: 32, padding: '0 8px', fontSize: 13, borderRadius: 'var(--radius-md)' }}
                     />
@@ -1480,6 +1486,7 @@ export default function InvoiceForm() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
+                        <th style={{ ...th, width: 50, textAlign: 'center' }}>No.</th>
                         <th style={th}>Item</th>
                         <th style={{ ...th, textAlign: 'right' }}>Ordered</th>
                         <th style={{ ...th, textAlign: 'right' }}>Received</th>
@@ -1491,13 +1498,16 @@ export default function InvoiceForm() {
                     <tbody>
                       {lines.length === 0 ? (
                         <tr>
-                          <td colSpan={6} style={{ ...soTd, textAlign: 'center', color: 'var(--foreground-muted)' }}>No lines</td>
+                          <td colSpan={7} style={{ ...soTd, textAlign: 'center', color: 'var(--foreground-muted)' }}>No lines</td>
                         </tr>
                       ) : (
-                        lines.map((line) => {
+                        lines.map((line, lineIdx) => {
                           const billable = billableQtyOf(line)
                           return (
                             <tr key={line.id}>
+                              <td style={{ ...soTd, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>
+                                {lineIdx + 1}
+                              </td>
                               <td style={soTd}>{lineNameOf(line)}</td>
                               <td style={{ ...soTd, textAlign: 'right' }}>{Number(line.qty ?? 0)}</td>
                               <td style={{ ...soTd, textAlign: 'right', color: 'var(--foreground-muted)' }}>{Number(line.received_qty ?? 0)}</td>

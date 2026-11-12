@@ -163,6 +163,7 @@ export default function SuppliersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 120 }}>Code</th>
               <th style={thStyle}>Name</th>
               <th style={{ ...thStyle, width: 160 }}>PIC</th>
@@ -183,7 +184,7 @@ export default function SuppliersView() {
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 6 ? 40 : '80%',
+                          width: j === 7 ? 40 : '80%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -209,7 +210,7 @@ export default function SuppliersView() {
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr
                   key={item.id}
                   style={{ transition: 'background 120ms' }}
@@ -220,6 +221,9 @@ export default function SuppliersView() {
                     (e.currentTarget.style.background = 'transparent')
                   }
                 >
+                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={tdStyle}>
                     <span
                       style={{

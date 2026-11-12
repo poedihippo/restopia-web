@@ -24,6 +24,7 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import BackLink from '@/components/BackLink'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import api from '@/hooks/useApi'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
@@ -161,17 +162,17 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   })
 
   // Chart of accounts for additional charges — required by the API.
-  const { data: coaData, isFetching: coaLoading } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['so-charge-coa-options', debouncedCoaChargeSearch],
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       chartOfAccountsService
-        .list({ per_page: 30, sort: 'code', 'filter[is_active]': 'true', 'filter[search]': debouncedCoaChargeSearch || undefined } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+        .list({ page, per_page: 30, sort: 'code', 'filter[is_active]': 'true', 'filter[search]': debouncedCoaChargeSearch || undefined } as any)
+        .then((r) => r.data),
   })
+  const coaLoading = coaOpts.loading
   // Accounts already on the order's charges stay selectable even when they
   // are not in the current search page.
-  const coaChargeRows: any[] = (coaData as any) ?? []
+  const coaChargeRows: any[] = coaOpts.items
   const editingChargeCoas: any[] = (editingOrder?.additional_charges ?? [])
     .map((c: any) => c.chart_of_account)
     .filter((c: any) => c?.id && !coaChargeRows.some((r: any) => r.id === c.id))
@@ -290,15 +291,15 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   }, [customerSearch])
 
   // ── Queries ───────────────────────────────────────────────────────────────
-  const { data: customerData } = useQuery({
+  const customerOpts = useInfiniteOptions<any>({
     queryKey: ['so-customers', customerSearchDebounced],
     enabled: customerSearchDebounced.length >= 2,
-    queryFn: () =>
+    fetchPage: (page) =>
       customerService
-        .list({ per_page: 10, 'filter[search]': customerSearchDebounced })
+        .list({ page, per_page: 20, 'filter[search]': customerSearchDebounced } as any)
         .then((r) => r.data),
   })
-  const customers = (customerData as any)?.data ?? []
+  const customers = customerOpts.items
 
   const { data: salesChannelsData } = useQuery({
     queryKey: ['so-sales-channels'],
@@ -333,21 +334,22 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   })
   const paymentMethods: any[] = (paymentMethodsData as any)?.data ?? []
 
-  const { data: productData } = useQuery({
+  const productOpts = useInfiniteOptions<any>({
     queryKey: ['so-products', productSearchDebounced],
     enabled: showProductDrop && itemTab === 'products',
-    queryFn: () =>
+    fetchPage: (page) =>
       productInventoriesService
         .list({
+          page,
           per_page: 20,
           'filter[search]': productSearchDebounced || undefined,
           'filter[product_type]': 'final',
           'filter[status]': 'active',
           include: 'branch,product_uom_batch,product_uom_batch.product_uom,product_uom_batch.product_uom.product',
-        })
+        } as any)
         .then((r) => r.data),
   })
-  const products = (productData as any)?.data ?? []
+  const products = productOpts.items
 
   const { data: purchaseOrdersData } = useQuery({
     queryKey: ['so-purchase-orders'],
@@ -363,35 +365,35 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
   const branches = (branchesData as any)?.data ?? []
 
 
-  const { data: creditUsersData } = useQuery({
+  const creditUserOpts = useInfiniteOptions<any>({
     queryKey: ['users-credit', debouncedCreditUserSearch],
     enabled: settlementStatus === 'credit',
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       usersService
-        .list({ per_page: 30, 'filter[type]': 'user', 'filter[search]': debouncedCreditUserSearch || undefined } as any)
+        .list({ page, per_page: 30, 'filter[type]': 'user', 'filter[search]': debouncedCreditUserSearch || undefined } as any)
         .then((r) => r.data),
   })
-  const creditUserRows: any[] = (creditUsersData as any)?.data ?? []
+  const creditUserRows: any[] = creditUserOpts.items
   const creditUsers: any[] =
     editingOrder?.credit_by?.id && !creditUserRows.some((u: any) => u.id === editingOrder.credit_by.id)
       ? [editingOrder.credit_by, ...creditUserRows]
       : creditUserRows
 
-  const { data: bundleData } = useQuery({
+  const bundleOpts = useInfiniteOptions<any>({
     queryKey: ['so-bundles', productSearchDebounced],
     enabled: showProductDrop && itemTab === 'bundles',
-    queryFn: () =>
+    fetchPage: (page) =>
       bundleService
         .list({
+          page,
           per_page: 20,
           'filter[status]': 'active',
           'filter[search]': productSearchDebounced || undefined,
           include: 'bundle_details',
-        })
+        } as any)
         .then((r) => r.data),
   })
-  const bundles = (bundleData as any)?.data ?? []
+  const bundles = bundleOpts.items
 
   const { data: taxesData } = useQuery({
     queryKey: ['taxes-all'],
@@ -939,7 +941,7 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
               disabled={isOnline || isEdit}
               title={
                 isOnline
-                  ? 'Online orders are settled from the Unpaid Online Orders screen'
+                  ? 'Online orders are settled from Payment Settlements → Online Orders'
                   : isEdit
                     ? 'Settlement status cannot be changed here — use bulk settlement on the Sales Orders list'
                     : undefined
@@ -1044,6 +1046,8 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     ]}
                     placeholder="Search user..."
                     searchPlaceholder="Search users..."
+                    loading={creditUserOpts.loading}
+                    {...creditUserOpts.selectProps}
                     onSearchChange={setCreditUserSearch}
                   />
                   <span
@@ -1336,6 +1340,10 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                 maxHeight: 200,
                 overflowY: 'auto',
               }}
+              onScroll={(e) => {
+                const el = e.currentTarget
+                if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) customerOpts.selectProps.onLoadMore()
+              }}
             >
               {customers.map((c: any) => (
                 <div
@@ -1363,6 +1371,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                   )}
                 </div>
               ))}
+              {customerOpts.selectProps.loadingMore && (
+                <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                  Memuat...
+                </div>
+              )}
             </div>
           )}
           {customerId && (
@@ -1587,7 +1600,15 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     style={{ ...fieldStyle, marginBottom: 0 }}
                   />
                 </div>
-                <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                <div
+                  style={{ maxHeight: 240, overflowY: 'auto' }}
+                  onScroll={(e) => {
+                    const el = e.currentTarget
+                    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) {
+                      ;(itemTab === 'products' ? productOpts : bundleOpts).selectProps.onLoadMore()
+                    }
+                  }}
+                >
                   {itemTab === 'products' &&
                     products.map((p: any, pIdx: number) => {
                       const isHighlighted = pIdx === highlightedDropIndex
@@ -1683,6 +1704,11 @@ export default function SalesOrderForm({ editingOrder }: { editingOrder?: any })
                     <p style={{ padding: 16, fontSize: 13, color: 'var(--foreground-muted)' }}>
                       No bundles found
                     </p>
+                  )}
+                  {(itemTab === 'products' ? productOpts : bundleOpts).selectProps.loadingMore && (
+                    <div style={{ padding: '8px 14px', fontSize: 12, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                      Memuat...
+                    </div>
                   )}
                 </div>
               </div>

@@ -47,8 +47,8 @@ function JournalBlock({ title, journal, note }: { title: string; journal: any; n
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
         <thead>
           <tr>
-            {['Account', 'Debit', 'Credit'].map((h) => (
-              <th key={h} style={{ padding: '6px 12px', textAlign: h === 'Account' ? 'left' : 'right', fontSize: 11, fontWeight: 500, color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)' }}>
+            {['No.', 'Account', 'Debit', 'Credit'].map((h) => (
+              <th key={h} style={{ padding: '6px 12px', width: h === 'No.' ? 50 : undefined, textAlign: h === 'No.' ? 'center' : h === 'Account' ? 'left' : 'right', fontSize: 11, fontWeight: 500, color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)' }}>
                 {h}
               </th>
             ))}
@@ -59,6 +59,7 @@ function JournalBlock({ title, journal, note }: { title: string; journal: any; n
             const credit = Number(l.credit ?? 0) > 0
             return (
               <tr key={l.id ?? i}>
+                <td style={{ padding: '6px 12px', textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{i + 1}</td>
                 <td style={{ padding: '6px 12px', paddingLeft: credit ? 28 : 12, color: 'var(--foreground)' }}>
                   {l.chart_of_account ? (
                     <>
@@ -74,6 +75,7 @@ function JournalBlock({ title, journal, note }: { title: string; journal: any; n
             )
           })}
           <tr>
+            <td style={{ padding: '6px 12px', borderTop: '1px solid var(--border)' }} />
             <td style={{ padding: '6px 12px', fontSize: 11.5, color: 'var(--foreground-muted)', borderTop: '1px solid var(--border)' }}>
               {formatDateShort(journal?.date)} {journal?.is_posted ? '· Posted' : '· Draft'}
               {journal?.is_reversed ? ' · Reversed' : ''}
@@ -199,7 +201,7 @@ export default function SaleJournals({
                 }}
               >
                 2. {[p.method, p.number].filter(Boolean).join(' · ') || 'Payment'}: menunggu settlement — masih di Piutang Dagang
-                sampai dana masuk bank (Payments → Settle Payments).
+                sampai dana masuk bank (Payment Settlements → Offline Orders).
               </div>
             ))}
             {settledRows.map((x: any) => (

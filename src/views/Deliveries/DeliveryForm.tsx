@@ -18,6 +18,7 @@ import { companiesService } from '@/services/companies.service'
 import { dimensionTransferRequestsService } from '@/services/dimension-transfer-requests.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import api from '@/hooks/useApi'
 import { Plus, Trash2, Loader2, Save, ArrowRightLeft } from 'lucide-react'
 import BackLink from '@/components/BackLink'
@@ -513,15 +514,15 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   }
 
   const sourceTypeForPickers = watch('source_type')
-  const { data: purchaseOrdersData, isLoading: purchaseOrdersLoading } = useQuery({
+  const purchaseOrderOpts = useInfiniteOptions<any>({
     queryKey: ['purchase-orders-linkable', poSearchDebounced],
     enabled:
       sourceTypeForPickers === 'po_from_supplier' || sourceTypeForPickers === 'po_from_branch',
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       purchaseOrdersService
         .list({
+          page,
           'filter[search]': poSearchDebounced || undefined,
           per_page: 50,
           include: 'supplier,supplier_branch',
@@ -529,7 +530,7 @@ export default function DeliveryForm(props: DeliveryFormProps) {
         } as any)
         .then((r) => r.data),
   })
-  const allPurchaseOrders: any[] = (purchaseOrdersData as any)?.data ?? []
+  const allPurchaseOrders: any[] = purchaseOrderOpts.items
   const purchaseOrders = allPurchaseOrders
     .filter((po: any) => ['accepted', 'final'].includes(po?.status))
     .sort((a: any, b: any) => b.id - a.id)
@@ -627,13 +628,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   // (Earlier this was gated on `linkedProductUomIds.length === 0`, which
   // disabled the search during the Fulfill flow even though users still
   // needed to look up additional items beyond the PO's pre-filled list.)
-  const { data: dropdownProductUomsData } = useQuery({
+  const productUomOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', productSearchDebounced],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': productSearchDebounced || undefined,
           per_page: 100,
           include: 'product,uom',
@@ -656,11 +657,13 @@ export default function DeliveryForm(props: DeliveryFormProps) {
   })
 
   const linkedProductUoms: any[] = useMemo(() => (linkedProductUomsData as any)?.data ?? [], [linkedProductUomsData])
-  const dropdownProductUoms: any[] = useMemo(() => (dropdownProductUomsData as any)?.data ?? [], [dropdownProductUomsData])
+  // Keyed on the query data so the flattened list keeps a stable identity between renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const dropdownProductUoms: any[] = useMemo(() => productUomOpts.items, [productUomOpts.data])
   // Loading = either query is still resolving. Both run in parallel.
   const productUomsLoading =
     (linkedProductUomIds.length > 0 && linkedProductUomsData === undefined) ||
-    dropdownProductUomsData === undefined
+    productUomOpts.data === undefined
 
   // Merge for the puomToProduct lookup + dropdown options
   const lineProductUoms: any[] = useMemo(() => (linePuomsData as any)?.data ?? [], [linePuomsData])
@@ -1440,7 +1443,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       placeholder="No linked PO"
                       triggerStyle={fieldTriggerStyle}
                       searchPlaceholder="Search POs..."
-                      loading={purchaseOrdersLoading}
+                      loading={purchaseOrderOpts.loading}
+                      {...purchaseOrderOpts.selectProps}
                       onSearchChange={setPoSearch}
                     />
                   )}
@@ -1784,7 +1788,8 @@ export default function DeliveryForm(props: DeliveryFormProps) {
                       placeholder="Select product..."
                       triggerStyle={lineTriggerStyle}
                       searchPlaceholder="Search products..."
-                      loading={productUomsLoading}
+                      loading={productUomsLoading || productUomOpts.loading}
+                      {...productUomOpts.selectProps}
                       error={
                         errors.details?.[index]?.product_uom_id?.message as
                         | string

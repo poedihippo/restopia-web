@@ -13,7 +13,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import SearchableSelect from '@/components/SearchableSelect'
 import { Controller } from 'react-hook-form'
 import {
@@ -68,6 +68,7 @@ export default function PeriodsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [fiscalYearFilter, setFiscalYearFilter] = useState('')
+  // Default All: is_active marks the current period/year (1 of N), so Active would hide history.
   const [activeFilter, setActiveFilter] = useState('')
   const [closedFilter, setClosedFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -193,14 +194,10 @@ export default function PeriodsView() {
         onClear={() => { setFiscalYearFilter(''); setActiveFilter(''); setClosedFilter(''); setPage(1) }}
         quick={
           <>
+            <ActiveSegment value={activeFilter} onChange={(v) => { setActiveFilter(v); setPage(1) }} active="1" inactive="0" label="Period status" />
             <FilterSelect value={fiscalYearFilter} onChange={(e) => { setFiscalYearFilter(e.target.value); setPage(1) }} style={{ maxWidth: 220 }}>
               <option value="">All Fiscal Years</option>
               {filterFiscalYears.map((f) => <option key={f.id} value={String(f.id)}>{f.name}</option>)}
-            </FilterSelect>
-            <FilterSelect value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1) }}>
-              <option value="">Active: All</option>
-              <option value="1">Active: Yes</option>
-              <option value="0">Active: No</option>
             </FilterSelect>
             <FilterSelect value={closedFilter} onChange={(e) => { setClosedFilter(e.target.value); setPage(1) }}>
               <option value="">Closed: All</option>

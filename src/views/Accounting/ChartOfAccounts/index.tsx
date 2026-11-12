@@ -1,5 +1,5 @@
 'use client'
-import { FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters'
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -146,11 +146,11 @@ export default function ChartOfAccountsView() {
   const [filterParent, setFilterParent] = useState<string>('')
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [filterNormalBalance, setFilterNormalBalance] = useState<string>('')
-  const [filterActive, setFilterActive] = useState<string>('')
+  const [filterActive, setFilterActive] = useState<string>('1')
   const [filterHeader, setFilterHeader] = useState<string>('')
   const clearFilters = () => {
     setFilterType(''); setFilterParent(''); setFilterCategory('')
-    setFilterNormalBalance(''); setFilterActive(''); setFilterHeader('')
+    setFilterNormalBalance(''); setFilterActive('1'); setFilterHeader('')
   }
 
   useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
@@ -286,6 +286,12 @@ export default function ChartOfAccountsView() {
     return out
   }, [roots, visibleKeys, expanded])
 
+  // Row numbers for visible account rows (category/type group rows stay blank).
+  const rowNos = React.useMemo(() => {
+    let n = 0
+    return rows.map((r) => (r.node.kind === 'account' ? ++n : null))
+  }, [rows])
+
   const toggleExpanded = (key: string) => setExpanded((prev) => {
     const next = new Set(prev)
     if (next.has(key)) next.delete(key)
@@ -316,6 +322,9 @@ export default function ChartOfAccountsView() {
           opacity: item && !item.is_active ? 0.55 : 1, transition: 'background 120ms',
         }}
       >
+        <div style={{ width: 36, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: 'var(--foreground-muted)', fontVariantNumeric: 'tabular-nums' }}>
+          {rowNos[index] ?? ''}
+        </div>
         {/* indent guides */}
         {guides.map((continues, i) => (
           <div key={i} style={{ width: INDENT, flexShrink: 0, position: 'relative' }}>
@@ -461,10 +470,11 @@ export default function ChartOfAccountsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search account code or name..."
-        activeCount={countActive(filterType, filterParent, filterCategory, filterNormalBalance, filterActive, filterHeader)}
+        activeCount={countActive(filterType, filterParent, filterCategory, filterNormalBalance, filterActive !== '1', filterHeader)}
         onClear={clearFilters}
         quick={
           <>
+            <ActiveSegment value={filterActive} onChange={setFilterActive} active="1" inactive="0" label="Account status" />
             <div style={{ minWidth: 200 }}>
               <SearchableSelect
                 value={filterCategory !== '' ? Number(filterCategory) : ''}
@@ -536,13 +546,6 @@ export default function ChartOfAccountsView() {
           </FilterField>
         </FilterGroup>
         <FilterGroup title="Flags">
-          <FilterField label="Active">
-            <FilterSelect block value={filterActive} onChange={(e) => setFilterActive(e.target.value)}>
-              <option value="">All</option>
-              <option value="1">Yes</option>
-              <option value="0">No</option>
-            </FilterSelect>
-          </FilterField>
           <FilterField label="Header account">
             <FilterSelect block value={filterHeader} onChange={(e) => setFilterHeader(e.target.value)}>
               <option value="">All</option>
@@ -555,7 +558,8 @@ export default function ChartOfAccountsView() {
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+          <span style={{ width: 36, flexShrink: 0, textAlign: 'center', fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-muted)' }}>No.</span>
+          <span style={{ flex: 1, fontSize: 12, color: 'var(--foreground-muted)' }}>
             {isLoading ? 'Loading…' : q ? `${matchCount} of ${items.length} accounts match` : `${items.length} accounts`}
           </span>
           <span style={{ fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--foreground-muted)' }}>Balance</span>

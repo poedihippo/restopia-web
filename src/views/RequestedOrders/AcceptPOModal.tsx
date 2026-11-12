@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getCanReadPrice } from '@/utils/price'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toast } from 'sonner'
 import { taxesService } from '@/services/taxes.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
@@ -63,21 +64,22 @@ export default function AcceptPOModal({
   // Searched on the server by name or code.
   const [coaSearch, setCoaSearch] = useState('')
   const coaSearchDebounced = useDebounce(coaSearch, 400)
-  const { data: coaData, isFetching: coaLoading } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-options', 'charges', coaSearchDebounced],
     enabled: isOpen,
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       chartOfAccountsService
         .list({
+          page,
           per_page: 50,
           sort: 'code',
           'filter[is_active]': 'true',
           'filter[search]': coaSearchDebounced || undefined,
         } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+        .then((r) => r.data),
   })
+  const coaItems: any[] = coaOpts.items
   const toCoaOption = (coa: any) => ({
     value: coa.id as number,
     label: (coa.name as string) ?? `COA #${coa.id}`,
@@ -89,7 +91,7 @@ export default function AcceptPOModal({
     new Set(additionalCharges.map((c) => Number(c.chart_of_account_id) || 0).filter((id) => id > 0)),
   )
   const missingCoaIds = selectedCoaIds.filter(
-    (id) => !((coaData as any) ?? []).some((c: any) => c.id === id),
+    (id) => !coaItems.some((c: any) => c.id === id),
   )
   const missingCoaQueries = useQueries({
     queries: missingCoaIds.map((id) => ({
@@ -100,7 +102,7 @@ export default function AcceptPOModal({
   })
   // Already-fetched by-id results come from the query cache (staleTime).
   const coaOptions = [
-    ...((coaData as any) ?? []).map(toCoaOption),
+    ...coaItems.map(toCoaOption),
     ...missingCoaQueries.filter((q) => (q.data as any)?.id).map((q) => toCoaOption(q.data)),
   ]
 
@@ -287,6 +289,7 @@ export default function AcceptPOModal({
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: BG_WARM }}>
+                    <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Item</th>
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>Qty</th>
                     <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Unit Price</th>
@@ -305,6 +308,9 @@ export default function AcceptPOModal({
 
                     return (
                       <tr key={item.id} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                        <td style={{ padding: '12px 10px', verticalAlign: 'top', textAlign: 'center', fontSize: 13, color: TEXT_MUTED, width: 50 }}>
+                          {i + 1}
+                        </td>
                         {/* Item */}
                         <td style={{ padding: '12px 10px', verticalAlign: 'top' }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: TEXT, lineHeight: 1.3 }}>
@@ -422,6 +428,7 @@ export default function AcceptPOModal({
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: BG_WARM }}>
+                        <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, width: 50, textAlign: 'center' }}>No.</th>
                         <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Name</th>
                         <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}` }}>Chart of Account</th>
                         <th style={{ ...thStyle, borderBottom: `1px solid ${BORDER}`, textAlign: 'right' }}>Amount</th>
@@ -432,6 +439,9 @@ export default function AcceptPOModal({
                     <tbody>
                       {additionalCharges.map((charge, i) => (
                         <tr key={i} style={{ borderBottom: i < additionalCharges.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
+                          <td style={{ padding: '8px 10px', textAlign: 'center', fontSize: 13, color: TEXT_MUTED, width: 50 }}>
+                            {i + 1}
+                          </td>
                           <td style={{ padding: '8px 10px' }}>
                             <input type="text" value={charge.name} onChange={(e) => handleChargeChange(i, 'name', e.target.value)} placeholder="e.g. Shipping" className={inputCls} style={inputBase} />
                           </td>
@@ -442,7 +452,8 @@ export default function AcceptPOModal({
                               options={coaOptions}
                               placeholder="Select account... *"
                               searchPlaceholder="Search account name or code..."
-                              loading={coaLoading}
+                              loading={coaOpts.loading}
+                              {...coaOpts.selectProps}
                               onSearchChange={setCoaSearch}
                               triggerStyle={{ padding: '8px 10px', fontSize: 13, borderRadius: 8 }}
                             />

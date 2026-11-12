@@ -299,3 +299,37 @@ export function DateRange({
     </div>
   )
 }
+
+/**
+ * Active / Inactive / All segment for list pages with an is_active (or active|inactive status)
+ * filter — same control as the Products list. '' means All. Pages default their state to the
+ * `active` value and reset back to it on "Clear filters".
+ */
+export function ActiveSegment<V extends string>({
+  value,
+  onChange,
+  active = 'true' as V,
+  inactive = 'false' as V,
+  label = 'Status',
+}: {
+  value: V | ''
+  onChange: (value: V | '') => void
+  active?: V
+  inactive?: V
+  label?: string
+}) {
+  const options: [V | '', string][] = [
+    [active, 'Active'],
+    [inactive, 'Inactive'],
+    ['', 'All'],
+  ]
+  return (
+    <div role="tablist" aria-label={label} className="v2-seg">
+      {options.map(([v, text]) => (
+        <button key={text} type="button" role="tab" aria-selected={value === v} onClick={() => onChange(v)}>
+          {text}
+        </button>
+      ))}
+    </div>
+  )
+}

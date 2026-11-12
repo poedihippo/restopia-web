@@ -165,18 +165,18 @@ export default function ProductCategoriesView() {
                 background: 'var(--background)',
               }}
             >
-              {(['Name', 'Created', ''] as const).map((label, i) => (
+              {(['No.', 'Name', 'Created', ''] as const).map((label, i) => (
                 <th
                   key={i}
                   style={{
                     padding: '10px 16px',
-                    textAlign: 'left',
+                    textAlign: label === 'No.' ? 'center' : 'left',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--foreground-muted)',
                     textTransform: 'uppercase',
                     letterSpacing: 0.6,
-                    width: label === 'Created' ? 140 : label === '' ? 80 : undefined,
+                    width: label === 'No.' ? 50 : label === 'Created' ? 140 : label === '' ? 80 : undefined,
                   }}
                 >
                   {label}
@@ -188,7 +188,7 @@ export default function ProductCategoriesView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div
                     style={{
                       display: 'flex',
@@ -217,7 +217,7 @@ export default function ProductCategoriesView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   style={{
                     textAlign: 'center',
                     padding: 48,
@@ -232,7 +232,7 @@ export default function ProductCategoriesView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={6}>
                   <div
                     style={{
                       padding: 48,
@@ -252,7 +252,7 @@ export default function ProductCategoriesView() {
             )}
 
             {!isLoading &&
-              items.map((item) => (
+              items.map((item, idx) => (
                 <tr
                   key={item.id}
                   onMouseEnter={() => setHoveredRow(item.id)}
@@ -263,6 +263,9 @@ export default function ProductCategoriesView() {
                       hoveredRow === item.id ? 'var(--background)' : 'transparent',
                   }}
                 >
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td
                     style={{
                       padding: '12px 16px',
