@@ -1,4 +1,5 @@
 'use client'
+import { paymentSourceLabel } from '@/utils/paymentSource';
 import { formatDateTime } from '@/utils/date';
 import { formatCurrency } from '@/utils/price';
 import Link from 'next/link';
@@ -107,7 +108,7 @@ export default function PaymentsView() {
         .list({
           page,
           per_page: perPage,
-          include: 'sales_order,payment_method,branch,created_by',
+          include: 'sales_order,payment_method,bank_account,branch,created_by',
           sort: '-created_at',
           'filter[search]': debouncedSearch || undefined,
           'filter[type]': typeFilter || undefined,
@@ -463,7 +464,7 @@ export default function PaymentsView() {
                         <CreditCard size={12} color="var(--accent-light)" />
                       </div>
                       <span style={{ fontSize: 13, color: 'var(--foreground)' }}>
-                        {item.payment_method?.name ?? '—'}
+                        {paymentSourceLabel(item)}
                       </span>
                       {item.type === 'refund' && (
                         <span

@@ -1,4 +1,5 @@
 'use client'
+import { paymentSourceLabel } from '@/utils/paymentSource'
 import { formatDate } from '@/utils/date'
 
 import React, { useMemo } from 'react'
@@ -303,7 +304,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         rows.push([
           i + 1,
           p.date ? formatDate(p.date) : '',
-          p.payment_method?.name ?? bankLabel(p.bank_account),
+          paymentSourceLabel(p, ''),
           p.reference_number ?? '',
           money(allocation?.amount ?? p.amount),
         ])
@@ -808,7 +809,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 return (
                   <tr key={p.id}>
                     <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{formatDate(p.date)}</td>
-                    <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{p.payment_method?.name ?? (bankLabel(p.bank_account) || '—')}</td>
+                    <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{paymentSourceLabel(p)}</td>
                     <td style={{ ...tdStyle, color: 'var(--foreground-muted)', fontFamily: 'monospace', fontSize: 12 }}>
                       {p.reference_number ?? '—'}
                     </td>
@@ -1020,8 +1021,4 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
       `}</style>
     </div>
   )
-}
-
-function bankLabel(b: any): string {
-  return b ? [b.bank_name, b.account_number].filter(Boolean).join(' · ') : ''
 }

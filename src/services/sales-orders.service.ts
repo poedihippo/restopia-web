@@ -8,7 +8,8 @@ export interface BulkSettlementItem {
 
 export interface SettlementPayout {
   sales_order_ids: number[]
-  payment_method_id: number
+  /** The Kas/Bank account the marketplace transfer landed in. */
+  bank_account_id: number
   received_amount: number
   /** YYYY-MM-DD, not earlier than any order's date. */
   date: string

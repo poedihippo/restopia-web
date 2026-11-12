@@ -1,4 +1,5 @@
 'use client';
+import { paymentSourceLabel } from '@/utils/paymentSource'
 import { formatCurrency } from '@/utils/price';
 
 import { useState, useMemo } from 'react'
@@ -287,6 +288,7 @@ export default function SalesOrderDetail() {
         created_at: a.payment?.created_at ?? a.payment?.date,
         date: a.payment?.date,
         payment_method: a.payment?.payment_method,
+        bank_account: a.payment?.bank_account,
         is_reversed: a.payment?.is_reversed,
         // `refund` = money paid back for a partial return (outgoing).
         type: a.payment?.type,
@@ -815,7 +817,7 @@ export default function SalesOrderDetail() {
                           </td>
                           <td style={tdStyle}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              {p.payment_method?.name ?? '—'}
+                              {paymentSourceLabel(p)}
                               {p.type === 'refund' && <Badge label="Refund" color="var(--destructive)" bg="var(--destructive-bg)" />}
                             </span>
                           </td>
@@ -869,7 +871,7 @@ export default function SalesOrderDetail() {
               payments={allocations.map((a: any) => ({
                 id: a.payment?.id ?? a.payment_id,
                 journal_id: a.payment?.journal_id,
-                method: a.payment?.payment_method?.name,
+                method: paymentSourceLabel(a.payment, ''),
                 number: a.payment?.payment_number,
                 settlement_status: a.payment?.settlement_status,
                 settlement_id: a.payment?.payment_settlement_id,
