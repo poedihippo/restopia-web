@@ -1,4 +1,5 @@
 import { salesOrdersService } from '@/services/sales-orders.service'
+import { paymentSourceLabel } from '@/utils/paymentSource'
 import { paymentsService } from '@/services/payments.service'
 
 /**
@@ -67,7 +68,7 @@ export function fetchPeriodPayments(params: {
       .list({
         page,
         per_page: 500,
-        include: 'payment_method,allocations',
+        include: 'payment_method,bank_account,allocations',
         'filter[date_gte]': params.dateFrom,
         'filter[date_lte]': params.dateTo,
         'filter[branch_id]': params.branchId || undefined,
@@ -171,14 +172,16 @@ export interface OrderAllocation {
 export function flattenSalesOrderAllocations(payments: any[]): OrderAllocation[] {
   const rows: OrderAllocation[] = []
   payments.forEach((p: any) => {
-    const methodName = p.payment_method?.name ?? 'Unknown'
+    const methodName = paymentSourceLabel(p, 'Unknown')
+    // No method means it was received straight into a bank account (a payout).
+    const bucket: PaymentBucket = p.payment_method ? classifyPaymentMethod(methodName) : p.bank_account ? 'transfer' : 'other'
     ;(p.allocations ?? []).forEach((a: any) => {
       if (!a.sales_order_id) return
       rows.push({
         salesOrderId: Number(a.sales_order_id),
         amount: Number(a.amount ?? 0),
         methodName,
-        bucket: classifyPaymentMethod(methodName),
+        bucket,
         paymentDate: p.date,
       })
     })

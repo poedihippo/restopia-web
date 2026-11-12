@@ -1,4 +1,5 @@
 'use client'
+import { paymentSourceLabel } from '@/utils/paymentSource'
 import { formatDate } from '@/utils/date'
 
 import React, { useMemo } from 'react'
@@ -19,6 +20,7 @@ import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
+import { bankAccountsService } from '@/services/bank-accounts.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import Link from 'next/link'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
@@ -167,7 +169,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
       paymentsService
         .list({
           per_page: 50,
-          include: 'payment_method,allocations',
+          include: 'payment_method,bank_account,allocations',
           'filter[invoice_id]': id,
           ...scopeParams,
         } as any)
@@ -187,16 +189,30 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const fromPurchaseOrders =
     invoiceSalesOrders.length > 0 &&
     invoiceSalesOrders.every((ref) => !!ref.sales_order?.purchase_order?.id)
-  const methodType = fromPurchaseOrders ? 'purchase_orders' : 'sales_orders'
+  // An inter-branch invoice is paid into one of the company's Kas/Bank
+  // accounts (bank_account_id); any other invoice with a customer payment method.
   const { data: pmData } = useQuery({
-    queryKey: ['payment-methods-all', methodType, 'active'],
-    enabled: canRead && !!id && !!invoice,
+    queryKey: ['payment-methods-all', 'sales_orders', 'active'],
+    enabled: canRead && !!id && !!invoice && !fromPurchaseOrders,
     queryFn: () =>
       paymentMethodsService
-        .list({ per_page: 50, sort: 'id', 'filter[type]': methodType, 'filter[is_active]': true } as any)
+        .list({ per_page: 50, sort: 'id', 'filter[type]': 'sales_orders', 'filter[is_active]': true } as any)
         .then((r) => r.data),
   })
-  const paymentMethods = (pmData as any)?.data ?? []
+  const { data: bankAccountsData } = useQuery({
+    queryKey: ['bank-accounts-all', 'active'],
+    enabled: canRead && !!id && !!invoice && fromPurchaseOrders,
+    queryFn: () =>
+      bankAccountsService
+        .list({ per_page: 200, 'filter[is_active]': true, sort: 'bank_name' } as any)
+        .then((r) => r.data),
+  })
+  const sourceOptions: { id: number; name: string }[] = fromPurchaseOrders
+    ? (((bankAccountsData as any)?.data ?? []) as any[]).map((b) => ({
+        id: b.id,
+        name: [b.bank_name, b.account_number, b.account_name].filter(Boolean).join(' · '),
+      }))
+    : ((pmData as any)?.data ?? [])
 
   const createPaymentMutation = useMutation({
     mutationFn: () =>
@@ -206,7 +222,9 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         type: 'receive',
         date: new Date().toLocaleDateString('en-CA'),
         payments: [{
-          payment_method_id: paymentMethodId,
+          ...(fromPurchaseOrders
+            ? { bank_account_id: paymentMethodId }
+            : { payment_method_id: paymentMethodId }),
           amount: paymentAmount,
           description: paymentDescription || undefined,
           allocations: [{ invoice_id: id, amount: paymentAmount }],
@@ -286,7 +304,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
         rows.push([
           i + 1,
           p.date ? formatDate(p.date) : '',
-          p.payment_method?.name ?? '',
+          paymentSourceLabel(p, ''),
           p.reference_number ?? '',
           money(allocation?.amount ?? p.amount),
         ])
@@ -719,14 +737,14 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           <div style={{ padding: 20, background: 'var(--background)', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 16 }}>
               <div>
-                <label style={fieldLabelStyle}>Payment method</label>
+                <label style={fieldLabelStyle}>{fromPurchaseOrders ? 'Received into (Kas / Bank)' : 'Payment method'}</label>
                 <select
                   value={paymentMethodId}
                   onChange={(e) => setPaymentMethodId(Number(e.target.value))}
                   style={fieldInputStyle}
                 >
-                  <option value={0}>Select method...</option>
-                  {paymentMethods.map((pm: any) => (
+                  <option value={0}>{fromPurchaseOrders ? 'Select account...' : 'Select method...'}</option>
+                  {sourceOptions.map((pm: any) => (
                     <option key={pm.id} value={pm.id}>{pm.name}</option>
                   ))}
                 </select>
@@ -791,7 +809,7 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
                 return (
                   <tr key={p.id}>
                     <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{formatDate(p.date)}</td>
-                    <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{p.payment_method?.name ?? '—'}</td>
+                    <td style={{ ...tdStyle, color: 'var(--foreground)' }}>{paymentSourceLabel(p)}</td>
                     <td style={{ ...tdStyle, color: 'var(--foreground-muted)', fontFamily: 'monospace', fontSize: 12 }}>
                       {p.reference_number ?? '—'}
                     </td>

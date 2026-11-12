@@ -163,7 +163,7 @@ function CountUp({ value, format }: { value: number; format: (n: number) => stri
 
 // Blocks that fade/rise in as they scroll into view; charts and lists mount
 // late, so new matches are picked up by a MutationObserver.
-const REVEAL_SEL = '.dash-head, .dash-top > *, .dash-kpis > *, .dash > div:has(> h2), .dc-cell, .dc-state, .dash-row-3 > section, .dash-row-2 > section'
+const REVEAL_SEL = '.dash-head, .dash-welcome, .dash-top > *, .dash > div:has(> h2), .dc-cell, .dc-state, .dash-row-3 > section, .dash-row-2 > section'
 
 function useReveal(ref: React.RefObject<HTMLElement | null>) {
   useLayoutEffect(() => {
@@ -684,6 +684,54 @@ export default function DashboardView() {
     </div>
   )
 
+  const renderTile = ({ label, icon: Icon, tone, value, full, hint, href, change, loading }: (typeof countTiles)[number]) => {
+    const body = (
+      <>
+        <span className="dash-stat-icon">
+          <Icon size={17} color={toneInk(tone)} />
+        </span>
+        <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--foreground-muted)' }}>{label}</span>
+          {loading ? (
+            <Skeleton w={70} h={22} />
+          ) : (
+            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 6, rowGap: 2, minWidth: 0 }}>
+              <span className="dash-stat-value" title={full ?? (typeof value === 'string' ? value : undefined)} style={{ fontSize: 20, fontWeight: 500, color: 'var(--foreground)', lineHeight: 1.25, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {value}
+              </span>
+              {change != null && (
+                <span className="dash-change" data-down={change < 0 || undefined}>
+                  {change >= 0 ? '▲' : '▼'} {Math.abs(change).toLocaleString('id-ID', { maximumFractionDigits: 1 })}%
+                </span>
+              )}
+            </span>
+          )}
+          <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{hint} in period</span>
+        </span>
+      </>
+    )
+    const style = { '--tile-bg': toneBg(tone), '--tile-ink': toneInk(tone) } as React.CSSProperties
+    return href ? (
+      <button key={label} type="button" onClick={() => openTab(href)} className="dash-stat" style={style}>
+        {body}
+        <ArrowUpRight size={14} className="dash-stat-arrow" />
+      </button>
+    ) : (
+      <div key={label} className="dash-stat" style={style}>
+        {body}
+      </div>
+    )
+  }
+  const renderTileSkeleton = (i: number) => (
+    <div key={i} className="dash-stat" style={{ background: 'var(--surface)', borderColor: 'var(--border)' } as React.CSSProperties}>
+      <div className="v2-skeleton" style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0 }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+        <div className="v2-skeleton" style={{ width: '50%', height: 10 }} />
+        <div className="v2-skeleton" style={{ width: '70%', height: 18 }} />
+      </div>
+    </div>
+  )
+
   return (
     <div ref={rootRef} className="dash" style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
       {/* ── Header ── */}
@@ -748,9 +796,8 @@ export default function DashboardView() {
         </div>
       </div>
 
-      {/* ── Welcome + revenue ── */}
-      <div className="dash-top">
-        <section className="dash-welcome">
+      {/* ── Welcome ── */}
+      <section className="dash-welcome">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: 1 }}>
             <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Welcome back
@@ -770,6 +817,10 @@ export default function DashboardView() {
           </div>
           <WelcomeArt />
         </section>
+
+      {/* ── Overview: revenue + KPI strip, one height ── */}
+      {!metricsForbidden && (
+      <div className="dash-top">
         {/* Hero: revenue with change vs previous period; collected vs outstanding below. */}
         {!metricsForbidden && (kpiLoading ? (
           <section className="dash-hero" style={{ justifyContent: 'space-between' }}>
@@ -807,7 +858,7 @@ export default function DashboardView() {
               </div>
             </div>
             {sparkPts.length > 1 && (
-              <svg viewBox="0 0 100 30" preserveAspectRatio="none" style={{ position: 'relative', width: '100%', height: 34 }} aria-hidden>
+              <svg viewBox="0 0 100 30" preserveAspectRatio="none" style={{ position: 'relative', width: '100%', height: 26 }} aria-hidden>
                 <polyline points={sparkPts.join(' ')} fill="none" stroke="var(--caramel)" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
               </svg>
             )}
@@ -826,66 +877,18 @@ export default function DashboardView() {
             </div>
           </section>
         ))}
+        {!metricsForbidden && (
+          <div className="dash-strip" aria-busy={kpiLoading || undefined}>
+            {kpiLoading ? [0, 1, 2, 3].map(renderTileSkeleton) : countTiles.map(renderTile)}
+          </div>
+        )}
       </div>
+      )}
 
-      {/* ── KPIs ── */}
-      {metricsForbidden ? (
+      {metricsForbidden && (
         <section className="v2-card" style={cardStyle}>
           <Forbidden what="dashboard metrics (dashboard.read)" />
         </section>
-      ) : kpiLoading ? (
-        <div className="dash-kpis" aria-busy="true">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="dash-stat" style={{ background: 'var(--surface)', borderColor: 'var(--border)' } as React.CSSProperties}>
-              <div className="v2-skeleton" style={{ width: 38, height: 38, borderRadius: 11, flexShrink: 0 }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
-                <div className="v2-skeleton" style={{ width: '50%', height: 10 }} />
-                <div className="v2-skeleton" style={{ width: '70%', height: 18 }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="dash-kpis">
-          {countTiles.map(({ label, icon: Icon, tone, value, full, hint, href, change, loading }) => {
-            const body = (
-              <>
-                <span className="dash-stat-icon">
-                  <Icon size={17} color={toneInk(tone)} />
-                </span>
-                <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 1 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--foreground-muted)' }}>{label}</span>
-                  {loading ? (
-                    <Skeleton w={70} h={22} />
-                  ) : (
-                    <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 6, rowGap: 2, minWidth: 0 }}>
-                      <span className="dash-stat-value" title={full ?? (typeof value === 'string' ? value : undefined)} style={{ fontSize: 20, fontWeight: 500, color: 'var(--foreground)', lineHeight: 1.25, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {value}
-                      </span>
-                      {change != null && (
-                        <span className="dash-change" data-down={change < 0 || undefined}>
-                          {change >= 0 ? '▲' : '▼'} {Math.abs(change).toLocaleString('id-ID', { maximumFractionDigits: 1 })}%
-                        </span>
-                      )}
-                    </span>
-                  )}
-                  <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{hint} in period</span>
-                </span>
-              </>
-            )
-            const style = { '--tile-bg': toneBg(tone), '--tile-ink': toneInk(tone) } as React.CSSProperties
-            return href ? (
-              <button key={label} type="button" onClick={() => openTab(href)} className="dash-stat" style={style}>
-                {body}
-                <ArrowUpRight size={14} className="dash-stat-arrow" />
-              </button>
-            ) : (
-              <div key={label} className="dash-stat" style={style}>
-                {body}
-              </div>
-            )
-          })}
-        </div>
       )}
 
       {/* ── Charts ── */}
@@ -1157,13 +1160,11 @@ export default function DashboardView() {
       </div>
 
       <style>{`
+        /* No card: the greeting sits straight on the page background. */
         .dash-welcome {
-          position: relative; overflow: hidden;
+          position: relative;
           display: flex; align-items: center; justify-content: space-between; gap: 16px;
-          padding: 20px 24px; border-radius: var(--radius-xl);
-          border: 1px solid var(--border);
-          background: linear-gradient(120deg, var(--surface) 0%, var(--surface) 45%, var(--accent-light-bg) 100%);
-          box-shadow: var(--shadow-sm);
+          padding: 8px 8px 8px 2px;
         }
         /* ── Motion ── (all of it is off under prefers-reduced-motion: no .dash-anim) */
         .dash-anim [data-reveal] { opacity: 0; transform: translateY(18px) scale(0.985); }
@@ -1197,18 +1198,35 @@ export default function DashboardView() {
         @keyframes dash-flame { from { transform: scaleY(0.85); } to { transform: scaleY(1.12); } }
         @keyframes dash-drift { from { translate: 0 0; } to { translate: -18px 10px; } }
         .dash-welcome { container-type: inline-size; }
-        .dash-welcome-art { flex-shrink: 0; }
+        .dash-welcome-art { flex-shrink: 0; width: 160px; height: auto; margin: -8px 0; }
         @container (max-width: 560px) { .dash-welcome-art { width: 140px; height: auto; } }
         @container (max-width: 420px) { .dash-welcome-art { display: none; } }
         .dash-welcome-quote { animation: dash-quote-in 280ms ease; }
         @keyframes dash-quote-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
         @media (max-width: 640px) {
-          .dash-welcome { padding: 16px; }
+          .dash-welcome { padding: 4px 0; }
           .dash-welcome-art { display: none; }
         }
-        .dash-top { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 12px; align-items: stretch; }
+        .dash-top { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 2.75fr); gap: 12px; align-items: stretch; }
+        .dash-top > .dash-hero { min-height: 0; gap: 10px; padding: 16px 20px; }
+        /* KPI strip: four cells in one card, split by hairlines (no mini-cards). */
+        .dash-strip {
+          display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+          background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); overflow: hidden; min-width: 0;
+        }
+        .dash-strip > .dash-stat {
+          flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 14px;
+          padding: 18px 20px; border: none; border-radius: 0; box-shadow: none; background: transparent;
+          border-left: 1px solid var(--border);
+        }
+        .dash-strip > .dash-stat:first-child { border-left: none; }
+        .dash-strip > .dash-stat::after { display: none; }
+        .dash-strip > button.dash-stat:hover { translate: none; background: var(--background); box-shadow: none; }
+        .dash-strip .dash-stat-icon { width: 32px; height: 32px; border-radius: 10px; }
+        .dash-strip .dash-stat-icon svg { width: 15px; height: 15px; }
+        .dash-strip .dash-stat-value { font-size: 24px !important; }
         .dash-top > :only-child { grid-column: 1 / -1; }
-        .dash-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
         .dash-hero {
           position: relative;
           overflow: hidden;
@@ -1285,7 +1303,9 @@ export default function DashboardView() {
         .dash-row-3 > section { min-height: 300px; }
         @media (max-width: 1100px) {
           .dash-top { grid-template-columns: minmax(0, 1fr); }
-          .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .dash-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .dash-strip > .dash-stat:nth-child(odd) { border-left: none; }
+          .dash-strip > .dash-stat:nth-child(n + 3) { border-top: 1px solid var(--border); }
           .dash-row-2, .dash-row-3 { grid-template-columns: minmax(0, 1fr); }
         }
         /* Phones: owners read the dashboard from a mobile browser. */
@@ -1297,7 +1317,6 @@ export default function DashboardView() {
           .dash-filters input[type="date"] { width: 100%; min-width: 0; }
           .dash-dash, .dash-sep { display: none; }
           .dash-branch, .dash-export { grid-column: 1 / -1; max-width: none !important; width: 100%; justify-content: center; }
-          .dash-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
           .dash-hero { min-height: 0; padding: 16px; }
           .dash-hero-value { font-size: 24px !important; }
           .dash-stat { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }

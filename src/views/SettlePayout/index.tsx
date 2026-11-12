@@ -8,7 +8,7 @@ import { FileSpreadsheet, Inbox, Loader2, Undo2, X, ArrowUpRight } from 'lucide-
 import { salesOrdersService } from '@/services/sales-orders.service'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { branchesService } from '@/services/branches.service'
-import { paymentMethodsService } from '@/services/payment-methods.service'
+import { bankAccountsService } from '@/services/bank-accounts.service'
 import { paymentsService } from '@/services/payments.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { formatCurrency } from '@/utils/price'
@@ -18,9 +18,6 @@ import { CustomPagination } from '@/components/ui/CustomPagination'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useAuth } from '@/hooks/useAuth'
-
-/** The Credit method (id 1) is refused as a payout destination. */
-const CREDIT_PAYMENT_METHOD_ID = 1
 
 const today = () => new Date().toLocaleDateString('en-CA')
 
@@ -122,7 +119,7 @@ export default function SettlePayoutView() {
   // Selected orders keyed by id — kept across pages so the totals stay right.
   const [selected, setSelected] = useState<Map<number, any>>(new Map())
   const [receivedAmount, setReceivedAmount] = useState<number | undefined>(undefined)
-  const [paymentMethodId, setPaymentMethodId] = useState<number>(0)
+  const [bankAccountId, setBankAccountId] = useState<number>(0)
   const [payoutDate, setPayoutDate] = useState(today())
   const [description, setDescription] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -163,16 +160,14 @@ export default function SettlePayoutView() {
   })
   const branches: any[] = (branchesData as any)?.data ?? []
 
-  const { data: methodsData, isLoading: methodsLoading } = useQuery({
-    queryKey: ['payment-methods-all', 'settle-payout'],
-    queryFn: () => paymentMethodsService.list({ per_page: 200, sort: 'name', 'filter[type]': 'sales_orders', 'filter[is_active]': true } as any).then((r) => r.data),
+  // The marketplace transfer lands in one of our Kas/Bank accounts, the same
+  // question Settle Payments asks for card money.
+  const { data: banksData, isLoading: banksLoading } = useQuery({
+    queryKey: ['bank-accounts-all', 'active'],
+    queryFn: () =>
+      bankAccountsService.list({ per_page: 200, sort: 'bank_name', 'filter[is_active]': true } as any).then((r) => r.data),
   })
-  const payoutMethods: any[] = ((methodsData as any)?.data ?? []).filter(
-    (m: any) =>
-      Number(m.id) !== CREDIT_PAYMENT_METHOD_ID &&
-      !String(m.name ?? '').toLowerCase().includes('credit') &&
-      (!m.type || m.type === 'all' || m.type === 'sales_orders'),
-  )
+  const bankAccounts: any[] = ((banksData as any)?.data ?? []).filter((b: any) => b.is_active !== false)
 
   const listFilters = {
     sort: '-date',
@@ -240,7 +235,7 @@ export default function SettlePayoutView() {
   const resetForm = () => {
     setSelected(new Map())
     setReceivedAmount(undefined)
-    setPaymentMethodId(0)
+    setBankAccountId(0)
     setPayoutDate(today())
     setDescription('')
     setFieldErrors({})
@@ -252,7 +247,7 @@ export default function SettlePayoutView() {
         payouts: [
           {
             sales_order_ids: selectedOrders.map((o) => Number(o.id)),
-            payment_method_id: paymentMethodId,
+            bank_account_id: bankAccountId,
             received_amount: received,
             date: payoutDate,
             description: description.trim() || undefined,
@@ -283,7 +278,7 @@ export default function SettlePayoutView() {
 
   const handleSubmit = () => {
     if (selectedOrders.length === 0) return toast.error('Pilih minimal satu order')
-    if (!paymentMethodId) return toast.error('Pilih payment method (bank)')
+    if (!bankAccountId) return toast.error('Pilih akun Kas/Bank tujuan')
     if (!(received > 0)) return toast.error('Isi jumlah yang diterima')
     if (received > totalOutstanding) {
       return toast.error('Jumlah diterima tidak boleh melebihi total outstanding')
@@ -715,15 +710,19 @@ export default function SettlePayoutView() {
             </div>
 
             <div>
-              <label style={labelStyle}>Payment method (bank) *</label>
+              <label style={labelStyle}>Diterima di (Kas / Bank) *</label>
               <SearchableSelect
-                value={paymentMethodId}
-                onChange={(val: any) => setPaymentMethodId(Number(val) || 0)}
-                options={payoutMethods.map((m) => ({ value: Number(m.id), label: m.name }))}
+                value={bankAccountId}
+                onChange={(val: any) => setBankAccountId(Number(val) || 0)}
+                options={bankAccounts.map((b) => ({
+                  value: Number(b.id),
+                  label: `${b.bank_name ?? 'Bank'} ${b.account_number ?? ''}`.trim(),
+                  sublabel: b.account_name || undefined,
+                }))}
                 placeholder="Pilih rekening tujuan"
-                searchPlaceholder="Cari payment method..."
-                loading={methodsLoading}
-                error={fieldErrors.payment_method_id || undefined}
+                searchPlaceholder="Cari bank / no. rekening..."
+                loading={banksLoading}
+                error={fieldErrors.bank_account_id || undefined}
               />
             </div>
 

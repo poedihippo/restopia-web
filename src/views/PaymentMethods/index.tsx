@@ -1,4 +1,5 @@
 "use client";
+import { fetchExpenseAccounts } from "@/utils/expenseAccounts";
 import { formatDateShort, formatDateTime } from "@/utils/date";
 
 import { useState, useEffect } from "react";
@@ -10,6 +11,7 @@ import { FilterBar, FilterSelect, countActive } from "@/components/ListFilters";
 import { paymentMethodsService as paymentMethodService } from "@/services/payment-methods.service";
 import { chartOfAccountsService } from "@/services/accounting.service";
 import { companiesService } from "@/services/companies.service";
+import { bankAccountsService } from "@/services/bank-accounts.service";
 import SearchableSelect from "@/components/SearchableSelect";
 import { useAuth } from "@/hooks/useAuth";
 import PaymentMethodBranchAccounts from "./PaymentMethodBranchAccounts";
@@ -68,6 +70,7 @@ export default function PaymentMethodsView() {
   );
   const [typeFilter, setTypeFilter] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const { data: companiesData } = useQuery({
     queryKey: ["companies-all"],
@@ -92,20 +95,11 @@ export default function PaymentMethodsView() {
       enabled: showForm,
     });
   const chartOfAccounts = chartOfAccountsData ?? [];
-  // Default fee account for settlements: any active, non-header debit
-  // (expense) account, e.g. Biaya Admin Bank / MDR.
+  // Default fee account for settlements: an active, non-header expense
+  // account, e.g. Biaya Admin Bank / MDR.
   const { data: feeAccountsData, isLoading: feeAccountsLoading } = useQuery({
-    queryKey: ["chart-of-accounts-fee"],
-    queryFn: () =>
-      chartOfAccountsService
-        .list({
-          per_page: 1000,
-          sort: "code",
-          "filter[is_header]": "false",
-          "filter[is_active]": "true",
-          "filter[normal_balance]": "debit",
-        } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+    queryKey: ["chart-of-accounts-fee", "expense"],
+    queryFn: fetchExpenseAccounts,
     enabled: showForm && requiresSettlement,
   });
   const feeAccountOptions = [
@@ -117,14 +111,37 @@ export default function PaymentMethodsView() {
     })),
   ];
 
-  // Searchable options for the COA picker (searchable by name and code).
+  // Bank accounts only label the Kas/Bank picker ("BCA · 123…"), so users
+  // recognise the account without reading COA codes.
+  const { data: bankAccountsData } = useQuery({
+    queryKey: ["bank-accounts-all", "pm-labels"],
+    queryFn: () =>
+      bankAccountsService
+        .list({ per_page: 1000 } as any)
+        .then((r) => (r.data as any)?.data ?? []),
+    enabled: showForm,
+  });
+  const bankByCoaId = new Map<number, any>(
+    ((bankAccountsData ?? []) as any[])
+      .filter((b) => b.chart_of_account_id)
+      .map((b) => [Number(b.chart_of_account_id), b]),
+  );
+
+  // Searchable options for the Kas/Bank picker (searchable by name and code).
   const coaSelectOptions = [
-    { value: 0, label: "— None —" },
-    ...chartOfAccounts.map((coa: any) => ({
-      value: coa.id as number,
-      label: (coa.name as string) ?? `COA #${coa.id}`,
-      sublabel: (coa.code as string) ?? undefined,
-    })),
+    { value: 0, label: "— Choose account —" },
+    ...chartOfAccounts.map((coa: any) => {
+      const bank = bankByCoaId.get(Number(coa.id));
+      return {
+        value: coa.id as number,
+        label: (coa.name as string) ?? `COA #${coa.id}`,
+        sublabel: bank
+          ? [bank.bank_name, bank.account_number, coa.code]
+              .filter(Boolean)
+              .join(" · ")
+          : ((coa.code as string) ?? undefined),
+      };
+    }),
   ];
 
   useEffect(() => {
@@ -149,6 +166,7 @@ export default function PaymentMethodsView() {
       typeFilter,
       companyFilter,
       bankAccountFilter,
+      statusFilter,
     ],
     queryFn: () =>
       paymentMethodService
@@ -160,6 +178,7 @@ export default function PaymentMethodsView() {
           "filter[type]": typeFilter || undefined,
           "filter[company_id]": companyFilter || undefined,
           "filter[bank_account_id]": bankAccountFilter || undefined,
+          "filter[is_active]": statusFilter || undefined,
         } as any)
         .then((r) => r.data),
   });
@@ -170,6 +189,9 @@ export default function PaymentMethodsView() {
   const items = allItems.filter((item: any) => {
     if (bankAccountFilter && item.bank_account_id !== bankAccountFilter)
       return false;
+    // Mirror methods once auto-created per bank account are legacy: payments
+    // now pick the bank account itself. Only a deep link still shows one.
+    if (item.bank_account_id && !bankAccountFilter) return false;
     if (originFilter === "manual")
       return !item.bank_account_id && !item.chart_of_account_id;
     if (originFilter === "bank") return !!item.bank_account_id;
@@ -180,6 +202,13 @@ export default function PaymentMethodsView() {
 
   const { mutate: save, isPending: saving } = useMutation({
     mutationFn: () => {
+      // A direct method posts to its Kas/Bank account at once, so it needs one.
+      if (!requiresSettlement && !chartOfAccountId && !editing?.bank_account_id)
+        return Promise.reject({
+          response: {
+            data: { message: "Choose the Kas / Bank account the money goes to" },
+          },
+        });
       const payload: any = {
         name,
         type,
@@ -313,11 +342,12 @@ export default function PaymentMethodsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search payment methods..."
-        activeCount={countActive(typeFilter, companyFilter, bankAccountFilter)}
+        activeCount={countActive(typeFilter, companyFilter, bankAccountFilter, statusFilter)}
         onClear={() => {
           setTypeFilter("");
           setCompanyFilter("");
           setBankAccountFilter(null);
+          setStatusFilter("");
         }}
         quick={
           <>
@@ -326,7 +356,6 @@ export default function PaymentMethodsView() {
                 [
                   { key: "all", label: "All" },
                   { key: "manual", label: "Manual" },
-                  { key: "bank", label: "Bank-linked" },
                   { key: "coa", label: "COA-linked" },
                 ] as const
               ).map((tab) => {
@@ -360,6 +389,14 @@ export default function PaymentMethodsView() {
               <option value="all">All (SO &amp; PO)</option>
               <option value="sales_orders">Sales Orders</option>
               <option value="purchase_orders">Purchase Orders</option>
+            </FilterSelect>
+            <FilterSelect
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
             </FilterSelect>
             <FilterSelect
               value={companyFilter}
@@ -398,6 +435,7 @@ export default function PaymentMethodsView() {
               <th style={{ ...thStyle, width: "9%" }}>Source</th>
               <th style={{ ...thStyle, width: "24%" }}>Chart of Account</th>
               <th style={{ ...thStyle, width: "15%" }}>Bank Account</th>
+              <th style={{ ...thStyle, width: 100 }}>Status</th>
               <th style={{ ...thStyle, width: "11%" }}>Created</th>
               <th style={{ ...thStyle, width: 200 }}>Actions</th>
             </tr>
@@ -406,7 +444,7 @@ export default function PaymentMethodsView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -423,7 +461,7 @@ export default function PaymentMethodsView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     ...tdStyle,
                     textAlign: "center",
@@ -450,23 +488,6 @@ export default function PaymentMethodsView() {
                     }}
                   >
                     {canRead ? item.name : "***"}
-                    {canRead && item.is_active === false && (
-                      <span
-                        title="Hidden from payment pickers"
-                        style={{
-                          marginLeft: 8,
-                          padding: "2px 8px",
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          background: "var(--background)",
-                          border: "1px solid var(--border)",
-                          color: "var(--foreground-muted)",
-                        }}
-                      >
-                        Inactive
-                      </span>
-                    )}
                   </td>
                   <td
                     style={{
@@ -641,6 +662,41 @@ export default function PaymentMethodsView() {
                           —
                         </span>
                       )
+                    ) : (
+                      "***"
+                    )}
+                  </td>
+                  <td style={tdStyle}>
+                    {canRead ? (
+                      <span
+                        title={
+                          item.is_active === false
+                            ? "Hidden from payment pickers"
+                            : undefined
+                        }
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          padding: "2px 8px",
+                          borderRadius: 99,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          background:
+                            item.is_active === false
+                              ? "var(--background)"
+                              : "var(--success-bg)",
+                          color:
+                            item.is_active === false
+                              ? "var(--foreground-muted)"
+                              : "var(--success)",
+                          border:
+                            item.is_active === false
+                              ? "1px solid var(--border)"
+                              : "1px solid transparent",
+                        }}
+                      >
+                        {item.is_active === false ? "Inactive" : "Active"}
+                      </span>
                     ) : (
                       "***"
                     )}
@@ -897,131 +953,19 @@ export default function PaymentMethodsView() {
                 <option value="sales_orders">Sales Orders</option>
                 <option value="purchase_orders">Purchase Orders</option>
               </select>
-              <label
-                style={{
-                  fontSize: 13,
-                  color: "var(--foreground-muted)",
-                  display: "block",
-                  marginBottom: 6,
-                  marginTop: 16,
-                }}
-              >
-                Chart of Account
-              </label>
-              <SearchableSelect
-                value={chartOfAccountId ?? 0}
-                onChange={(val: any) =>
-                  setChartOfAccountId(
-                    val && Number(val) > 0 ? Number(val) : null,
-                  )
-                }
-                options={coaSelectOptions}
-                placeholder="— None —"
-                searchPlaceholder="Search account name or code..."
-                loading={chartOfAccountsLoading}
-                triggerStyle={{
-                  height: 40,
-                  padding: "0 12px",
-                  fontSize: 14,
-                  borderRadius: "var(--radius-sm)",
-                }}
+              <MoneyDestination
+                type={type}
+                requiresSettlement={requiresSettlement}
+                onRequiresSettlementChange={setRequiresSettlement}
+                chartOfAccountId={chartOfAccountId}
+                onChartOfAccountChange={setChartOfAccountId}
+                accountOptions={coaSelectOptions}
+                accountsLoading={chartOfAccountsLoading}
+                feeAccountId={feeAccountId}
+                onFeeAccountChange={setFeeAccountId}
+                feeAccountOptions={feeAccountOptions}
+                feeAccountsLoading={feeAccountsLoading}
               />
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "var(--foreground-muted)",
-                  marginTop: 6,
-                }}
-              >
-                Account used to record payments made with this method.
-              </p>
-              {type !== "purchase_orders" && (
-                <div
-                  style={{
-                    marginTop: 16,
-                    padding: 12,
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-md)",
-                    background: "var(--background)",
-                  }}
-                >
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 10,
-                      cursor: "pointer",
-                      fontSize: 13,
-                      color: "var(--foreground)",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={requiresSettlement}
-                      onChange={(e) => setRequiresSettlement(e.target.checked)}
-                      style={{ marginTop: 2 }}
-                    />
-                    <span>
-                      Requires settlement
-                      <span
-                        style={{
-                          display: "block",
-                          fontSize: 12,
-                          color: "var(--foreground-muted)",
-                          marginTop: 2,
-                        }}
-                      >
-                        Customer payments stay in Piutang Dagang and only move
-                        to Kas/Bank when they are settled in Settle Payments
-                        (e.g. Visa, BCA EDC, cash deposited later).
-                      </span>
-                    </span>
-                  </label>
-                  {requiresSettlement && (
-                    <>
-                      <label
-                        style={{
-                          fontSize: 13,
-                          color: "var(--foreground-muted)",
-                          display: "block",
-                          marginBottom: 6,
-                          marginTop: 12,
-                        }}
-                      >
-                        Default fee account
-                      </label>
-                      <SearchableSelect
-                        value={feeAccountId ?? 0}
-                        onChange={(val: any) =>
-                          setFeeAccountId(
-                            val && Number(val) > 0 ? Number(val) : null,
-                          )
-                        }
-                        options={feeAccountOptions}
-                        placeholder="— None —"
-                        searchPlaceholder="Search account name or code..."
-                        loading={feeAccountsLoading}
-                        triggerStyle={{
-                          height: 40,
-                          padding: "0 12px",
-                          fontSize: 14,
-                          borderRadius: "var(--radius-sm)",
-                        }}
-                      />
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: "var(--foreground-muted)",
-                          marginTop: 6,
-                        }}
-                      >
-                        Pre-filled as the first "biaya lainnya" row when settling
-                        (e.g. Biaya Admin Bank / MDR). It can be changed there.
-                      </p>
-                    </>
-                  )}
-                </div>
-              )}
               {editing?.bank_account_id ? (
                 <p
                   style={{
@@ -1340,6 +1284,172 @@ export default function PaymentMethodsView() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "Where does the money go?" — the one accounting decision a payment method
+// needs, phrased for cashiers rather than as a raw Chart of Account picker.
+function MoneyDestination({
+  type,
+  requiresSettlement,
+  onRequiresSettlementChange,
+  chartOfAccountId,
+  onChartOfAccountChange,
+  accountOptions,
+  accountsLoading,
+  feeAccountId,
+  onFeeAccountChange,
+  feeAccountOptions,
+  feeAccountsLoading,
+}: {
+  type: string;
+  requiresSettlement: boolean;
+  onRequiresSettlementChange: (v: boolean) => void;
+  chartOfAccountId: number | null;
+  onChartOfAccountChange: (v: number | null) => void;
+  accountOptions: { value: number; label: string; sublabel?: string }[];
+  accountsLoading: boolean;
+  feeAccountId: number | null;
+  onFeeAccountChange: (v: number | null) => void;
+  feeAccountOptions: { value: number; label: string; sublabel?: string }[];
+  feeAccountsLoading: boolean;
+}) {
+  const isPurchase = type === "purchase_orders";
+  const settleLater = !isPurchase && requiresSettlement;
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 13,
+    color: "var(--foreground-muted)",
+    display: "block",
+    marginBottom: 6,
+  };
+  const hintStyle: React.CSSProperties = {
+    fontSize: 12,
+    color: "var(--foreground-muted)",
+    marginTop: 6,
+    lineHeight: 1.5,
+  };
+  const triggerStyle: React.CSSProperties = {
+    height: 40,
+    padding: "0 12px",
+    fontSize: 14,
+    borderRadius: "var(--radius-sm)",
+  };
+  const optionStyle = (active: boolean): React.CSSProperties => ({
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+    borderRadius: "var(--radius-md)",
+    background: active ? "var(--accent-light-bg)" : "var(--surface)",
+    cursor: "pointer",
+    fontSize: 13,
+    color: "var(--foreground)",
+  });
+  const sub: React.CSSProperties = {
+    display: "block",
+    fontSize: 12,
+    color: "var(--foreground-muted)",
+    marginTop: 2,
+    fontWeight: 400,
+  };
+
+  const accountPicker = (
+    <div style={{ marginTop: 12 }}>
+      <label style={labelStyle}>
+        {isPurchase ? "Paid from (Kas / Bank) *" : "Kas / Bank account *"}
+      </label>
+      <SearchableSelect
+        value={chartOfAccountId ?? 0}
+        onChange={(val: any) =>
+          onChartOfAccountChange(val && Number(val) > 0 ? Number(val) : null)
+        }
+        options={accountOptions}
+        placeholder="— Choose account —"
+        searchPlaceholder="Search bank, account number or code..."
+        loading={accountsLoading}
+        triggerStyle={triggerStyle}
+      />
+    </div>
+  );
+
+  if (isPurchase) {
+    return (
+      <div style={{ marginTop: 20 }}>
+        {accountPicker}
+        <p style={hintStyle}>
+          Supplier payments with this method are paid out of this account.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <span style={{ ...labelStyle, fontWeight: 600, color: "var(--foreground)" }}>
+        When a customer pays with this method, where does the money go?
+      </span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <label style={optionStyle(!settleLater)}>
+          <input
+            type="radio"
+            name="money-destination"
+            checked={!settleLater}
+            onChange={() => onRequiresSettlementChange(false)}
+            style={{ marginTop: 2 }}
+          />
+          <span style={{ fontWeight: 600 }}>
+            Straight into Kas / Bank
+            <span style={sub}>
+              The money is there right away — cash in the drawer, bank
+              transfer, QRIS.
+            </span>
+          </span>
+        </label>
+        <label style={optionStyle(settleLater)}>
+          <input
+            type="radio"
+            name="money-destination"
+            checked={settleLater}
+            onChange={() => onRequiresSettlementChange(true)}
+            style={{ marginTop: 2 }}
+          />
+          <span style={{ fontWeight: 600 }}>
+            Settle later (Piutang first)
+            <span style={sub}>
+              The money arrives days later — Visa / Mastercard, BCA EDC, cash
+              deposited later. It waits in Piutang Dagang until you record it
+              in Settle Payments.
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {!settleLater && accountPicker}
+
+      {settleLater && (
+        <div style={{ marginTop: 12 }}>
+          <label style={labelStyle}>Default fee account (biaya admin / MDR)</label>
+          <SearchableSelect
+            value={feeAccountId ?? 0}
+            onChange={(val: any) =>
+              onFeeAccountChange(val && Number(val) > 0 ? Number(val) : null)
+            }
+            options={feeAccountOptions}
+            placeholder="— None —"
+            searchPlaceholder="Search account name or code..."
+            loading={feeAccountsLoading}
+            triggerStyle={triggerStyle}
+          />
+          <p style={hintStyle}>
+            You choose which bank the money landed in when you settle. This
+            account is pre-filled for the fee the bank keeps, and can be
+            changed there.
+          </p>
         </div>
       )}
     </div>

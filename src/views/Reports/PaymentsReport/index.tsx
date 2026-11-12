@@ -1,5 +1,6 @@
 'use client'
 
+import { paymentSourceLabel } from '@/utils/paymentSource'
 import React, { useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -78,7 +79,7 @@ export default function PaymentsReportView() {
     queryKey: ['payments-report', filters, page, perPage],
     queryFn: () =>
       paymentsService
-        .list({ ...filters, include: 'payment_method,allocations', page, per_page: perPage })
+        .list({ ...filters, include: 'payment_method,bank_account,allocations', page, per_page: perPage })
         .then((r) => r.data),
   })
   const rows: any[] = (data as any)?.data ?? []
@@ -210,7 +211,7 @@ export default function PaymentsReportView() {
                           {meta.label}
                         </span>
                       </td>
-                      <td style={{ color: 'var(--foreground-muted)' }}>{p.payment_method?.name ?? '—'}</td>
+                      <td style={{ color: 'var(--foreground-muted)' }}>{paymentSourceLabel(p)}</td>
                       <td style={{ fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>{formatDateShort(p.date)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 500, whiteSpace: 'nowrap', color: meta.outgoing ? 'var(--destructive)' : 'var(--foreground)' }}>
                         {meta.outgoing ? '− ' : ''}

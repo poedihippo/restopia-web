@@ -1,14 +1,15 @@
 'use client'
 
+import { fetchExpenseAccounts } from '@/utils/expenseAccounts'
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowUpRight, Inbox, Loader2, Plus, Trash2, Undo2 } from 'lucide-react'
+import { ArrowUpRight, Check, CreditCard, Inbox, Loader2, MousePointerClick, Plus, Trash2, Undo2 } from 'lucide-react'
+import Link from 'next/link'
 import { paymentsService } from '@/services/payments.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { bankAccountsService } from '@/services/bank-accounts.service'
 import { branchesService } from '@/services/branches.service'
-import { chartOfAccountsService } from '@/services/accounting.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { formatCurrency } from '@/utils/price'
 import { formatDateShort } from '@/utils/date'
@@ -70,6 +71,41 @@ const labelStyle: React.CSSProperties = {
 }
 
 const fieldErrorStyle: React.CSSProperties = { fontSize: 12, color: 'var(--destructive)', marginTop: 4 }
+
+const cardStyle: React.CSSProperties = {
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-lg)',
+}
+
+function StepTitle({ step, title, hint }: { step: number; title: string; hint?: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      <span
+        style={{
+          flexShrink: 0,
+          width: 24,
+          height: 24,
+          borderRadius: 99,
+          background: 'var(--accent)',
+          color: 'white',
+          fontSize: 12,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginTop: 1,
+        }}
+      >
+        {step}
+      </span>
+      <div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)' }}>{title}</div>
+        {hint && <div style={{ fontSize: 13, color: 'var(--foreground-muted)', marginTop: 2 }}>{hint}</div>}
+      </div>
+    </div>
+  )
+}
 
 const bankLabel = (b: any) =>
   b ? `${b.bank_name ?? 'Bank'} ${b.account_number ?? ''}${b.account_name ? ` · ${b.account_name}` : ''}`.trim() : '—'
@@ -156,18 +192,9 @@ export default function PaymentSettlementsView() {
   const bankAccounts: any[] = ((banksData as any)?.data ?? []).filter((b: any) => b.is_active !== false)
 
   const { data: feeCoaData, isLoading: feeCoaLoading } = useQuery({
-    queryKey: ['chart-of-accounts-fee'],
+    queryKey: ['chart-of-accounts-fee', 'expense'],
     enabled: tab === 'pending' && canSettle,
-    queryFn: () =>
-      chartOfAccountsService
-        .list({
-          per_page: 1000,
-          sort: 'code',
-          'filter[is_header]': 'false',
-          'filter[is_active]': 'true',
-          'filter[normal_balance]': 'debit',
-        } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+    queryFn: fetchExpenseAccounts,
   })
   const feeCoaOptions = ((feeCoaData ?? []) as any[]).map((c: any) => ({
     value: Number(c.id),
@@ -175,11 +202,24 @@ export default function PaymentSettlementsView() {
     sublabel: c.code ?? undefined,
   }))
 
-  const periodReady = !!activeBranchId && !!methodId && !!dateGte && !!dateLte && dateGte <= dateLte
+  const periodValid = !!dateGte && !!dateLte && dateGte <= dateLte
+  const periodReady = !!activeBranchId && !!methodId && periodValid
+
+  // Each method card shows what is waiting for it, so the user sees where to start.
+  const methodPreviews = useQueries({
+    queries: methods.map((m) => ({
+      queryKey: ['payment-settlements', 'preview', activeBranchId, Number(m.id), dateGte, dateLte],
+      enabled: tab === 'pending' && !!activeBranchId && periodValid,
+      queryFn: () =>
+        paymentsService
+          .previewSettlement({ branch_id: activeBranchId, payment_method_id: Number(m.id), date_gte: dateGte, date_lte: dateLte })
+          .then((r) => (r.data as any)?.data ?? null),
+    })),
+  })
 
   // Accumulated Piutang for the period (what one settlement clears).
   const { data: previewData, isFetching: previewLoading } = useQuery({
-    queryKey: ['payment-settlements', 'preview', activeBranchId, methodId, dateGte, dateLte],
+    queryKey: ['payment-settlements', 'preview', activeBranchId, Number(methodId), dateGte, dateLte],
     enabled: tab === 'pending' && periodReady,
     queryFn: () =>
       paymentsService
@@ -196,7 +236,10 @@ export default function PaymentSettlementsView() {
   const feeTotal = fees.reduce((s, f) => s + Number(f.amount ?? 0), 0)
   const received = total - feeTotal
 
+  // The pending list is one method's payments, so it waits for a method.
+  const listEnabled = tab === 'settled' || !!methodId
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    enabled: listEnabled,
     queryKey: ['payment-settlements', tab, page, perPage, searchDebounced, activeBranchId, methodId, dateGte, dateLte, historyBranchId],
     queryFn: () =>
       tab === 'pending'
@@ -230,7 +273,7 @@ export default function PaymentSettlementsView() {
   })
   // Any refetch (after a create/update/delete invalidates the list, or a
   // filter/page change) shows the loading skeleton, never stale rows.
-  const isLoading = listFirstLoad || listFetching
+  const isLoading = listEnabled && (listFirstLoad || listFetching)
   const items: any[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
 
@@ -334,7 +377,7 @@ export default function PaymentSettlementsView() {
     </button>
   )
 
-  const colCount = tab === 'pending' ? 6 : 8
+  const colCount = tab === 'pending' ? 4 : 8
 
   return (
     <div style={{ padding: '32px 40px', fontFamily: 'var(--font-sans)' }}>
@@ -353,23 +396,16 @@ export default function PaymentSettlementsView() {
         {tabButton('settled', 'Riwayat Settlement')}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
-        <input
-          type="search"
-          data-search
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={tab === 'pending' ? 'Cari no. pembayaran...' : 'Cari kode settlement...'}
-          style={{ ...controlStyle, width: 220 }}
-        />
-        {tab === 'pending' ? (
-          <span
-            title="Settlement hanya untuk cabang aktif"
-            style={{ ...controlStyle, display: 'inline-flex', alignItems: 'center', background: 'var(--background)', color: 'var(--foreground-muted)' }}
-          >
-            Outlet: {activeBranchName || '—'}
-          </span>
-        ) : (
+      {tab === 'settled' ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+          <input
+            type="search"
+            data-search
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari kode settlement..."
+            style={{ ...controlStyle, width: 220 }}
+          />
           <select value={historyBranchId} onChange={(e) => setHistoryBranchId(e.target.value ? Number(e.target.value) : '')} style={{ ...controlStyle, width: 200 }}>
             <option value="">Semua outlet</option>
             {branches.map((b) => (
@@ -378,36 +414,143 @@ export default function PaymentSettlementsView() {
               </option>
             ))}
           </select>
-        )}
-        <select value={methodId} onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : '')} style={{ ...controlStyle, width: 180 }}>
-          <option value="">{tab === 'pending' ? 'Pilih metode…' : 'Semua metode'}</option>
-          {methods.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-        {tab === 'pending' && (
-          <>
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Periode</span>
-            <input type="date" value={dateGte} onChange={(e) => setDateGte(e.target.value)} style={controlStyle} />
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>s/d</span>
-            <input type="date" value={dateLte} onChange={(e) => setDateLte(e.target.value)} style={controlStyle} />
-          </>
-        )}
-      </div>
+          <select value={methodId} onChange={(e) => setMethodId(e.target.value ? Number(e.target.value) : '')} style={{ ...controlStyle, width: 180 }}>
+            <option value="">Semua metode</option>
+            {methods.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <section style={{ ...cardStyle, padding: 20, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+            <StepTitle step={1} title="Pilih metode pembayaran" hint="Settlement dicatat per metode. Pilih metode yang dananya sudah masuk ke bank." />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Periode</span>
+              <input type="date" value={dateGte} max={dateLte || undefined} onChange={(e) => setDateGte(e.target.value)} style={controlStyle} aria-label="Periode dari" />
+              <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>s/d</span>
+              <input type="date" value={dateLte} min={dateGte || undefined} onChange={(e) => setDateLte(e.target.value)} style={controlStyle} aria-label="Periode sampai" />
+            </div>
+          </div>
 
+          {methods.length === 0 ? (
+            <div style={{ marginTop: 16, fontSize: 13, color: 'var(--foreground-muted)', lineHeight: 1.6 }}>
+              Belum ada metode pembayaran dengan opsi <b>Settle later</b>. Atur di{' '}
+              <Link href="/settings/payment-methods" className="v2-link">
+                Payment Methods
+              </Link>{' '}
+              (mis. VISA, BCA EDC).
+            </div>
+          ) : (
+            <div
+              role="radiogroup"
+              aria-label="Metode pembayaran"
+              style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}
+            >
+              {methods.map((m, i) => {
+                const selected = Number(m.id) === Number(methodId)
+                const q = methodPreviews[i]
+                const mp = q?.data as { count?: number; total_amount?: number } | null | undefined
+                const count = Number(mp?.count ?? 0)
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setMethodId(selected ? '' : Number(m.id))}
+                    style={{
+                      position: 'relative',
+                      textAlign: 'left',
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      border: `1.5px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                      background: selected ? 'var(--accent-light-bg)' : 'var(--surface)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      transition: 'border-color 120ms, background 120ms',
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: 'var(--foreground)', paddingRight: 24 }}>
+                      <CreditCard size={15} color={selected ? 'var(--accent)' : 'var(--foreground-muted)'} />
+                      {m.name}
+                    </span>
+                    <span style={{ fontSize: 12.5, color: count > 0 ? 'var(--foreground)' : 'var(--foreground-subtle)' }}>
+                      {q?.isLoading ? 'Menghitung…' : count > 0 ? `${formatCurrency(mp?.total_amount ?? 0)} · ${count} pembayaran` : 'Tidak ada piutang'}
+                    </span>
+                    {selected && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 10,
+                          right: 10,
+                          width: 18,
+                          height: 18,
+                          borderRadius: 99,
+                          background: 'var(--accent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Check size={12} color="white" strokeWidth={3} />
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {!periodValid && <div style={{ ...fieldErrorStyle, marginTop: 10 }}>Tanggal awal periode harus sebelum tanggal akhir.</div>}
+        </section>
+      )}
+
+      {tab === 'pending' && !methodId ? (
+        <div
+          style={{
+            border: '1.5px dashed var(--border-strong)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '48px 24px',
+            textAlign: 'center',
+            background: 'var(--surface)',
+          }}
+        >
+          <MousePointerClick size={28} color="var(--foreground-subtle)" />
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--foreground)', marginTop: 10 }}>Pilih metode pembayaran di atas untuk mulai</div>
+          <div style={{ fontSize: 13, color: 'var(--foreground-muted)', marginTop: 4 }}>
+            Daftar pembayaran yang menunggu settlement dan form dana masuk akan muncul di sini.
+          </div>
+        </div>
+      ) : (
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 560px', minWidth: 0 }}>
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflowX: 'auto' }}>
+          {tab === 'pending' && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>
+                Pembayaran {method?.name ?? ''} menunggu settlement
+                <span style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}> · {activeBranchName || '—'}</span>
+              </div>
+              <input
+                type="search"
+                data-search
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Cari no. pembayaran..."
+                style={{ ...controlStyle, width: 220 }}
+              />
+            </div>
+          )}
+          <div style={{ ...cardStyle, overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 {tab === 'pending' ? (
                   <tr>
                     <th style={thStyle}>No. Pembayaran</th>
                     <th style={thStyle}>Tanggal</th>
-                    <th style={thStyle}>Metode</th>
-                    <th style={thStyle}>Outlet</th>
                     <th style={thStyle}>Untuk</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Jumlah</th>
                   </tr>
@@ -455,8 +598,6 @@ export default function PaymentSettlementsView() {
                     <tr key={p.id}>
                       <td style={{ ...tdStyle, fontWeight: 500 }}>{p.payment_number ?? `#${p.id}`}</td>
                       <td style={tdStyle}>{formatDateShort(p.date)}</td>
-                      <td style={tdStyle}>{p.payment_method?.name ?? '—'}</td>
-                      <td style={tdStyle}>{p.branch?.name ?? '—'}</td>
                       <td style={tdStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {orderLinks(p.allocations).map((l) => (
@@ -531,11 +672,9 @@ export default function PaymentSettlementsView() {
         {tab === 'pending' && canSettle && (
           <div
             style={{
-              flex: '0 1 360px',
-              minWidth: 290,
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-lg)',
+              ...cardStyle,
+              flex: '0 1 380px',
+              minWidth: 300,
               padding: 20,
               display: 'flex',
               flexDirection: 'column',
@@ -544,12 +683,10 @@ export default function PaymentSettlementsView() {
               top: 16,
             }}
           >
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, margin: 0, color: 'var(--foreground)' }}>Settlement</h2>
+            <StepTitle step={2} title="Catat dana masuk" hint="Isi bank tujuan dan biaya yang dipotong bank." />
 
             <div style={{ background: 'var(--background)', borderRadius: 'var(--radius-md)', padding: '12px 14px', fontSize: 13 }}>
-              {!methodId ? (
-                <span style={{ color: 'var(--foreground-muted)' }}>Pilih metode dan periode untuk melihat total piutangnya.</span>
-              ) : previewLoading ? (
+              {previewLoading ? (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--foreground-muted)' }}>
                   <Loader2 size={13} className="animate-spin" /> Menghitung piutang…
                 </span>
@@ -705,11 +842,12 @@ export default function PaymentSettlementsView() {
                 cursor: submitting || !(total > 0) ? 'not-allowed' : 'pointer',
               }}
             >
-              {submitting ? 'Menyimpan...' : 'Settle'}
+              {submitting ? 'Menyimpan...' : `Settle ${formatCurrency(total)}`}
             </button>
           </div>
         )}
       </div>
+      )}
 
       {undoTarget && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
