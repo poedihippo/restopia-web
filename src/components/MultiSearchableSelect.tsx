@@ -19,6 +19,10 @@ export interface MultiSearchableSelectProps {
   loading?: boolean
   onSearchChange?: (search: string) => void
   error?: string
+  /** Paged sources (see useInfiniteOptions): called when the list is scrolled to the bottom. */
+  onLoadMore?: () => void
+  hasMore?: boolean
+  loadingMore?: boolean
 }
 
 export default function MultiSearchableSelect({
@@ -31,6 +35,9 @@ export default function MultiSearchableSelect({
   loading = false,
   onSearchChange,
   error,
+  onLoadMore,
+  hasMore,
+  loadingMore,
 }: MultiSearchableSelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -246,7 +253,13 @@ export default function MultiSearchableSelect({
             />
           </div>
 
-          <div style={{ maxHeight: 200, overflowY: 'auto', overflowX: 'hidden' }}>
+          <div
+            style={{ maxHeight: 200, overflowY: 'auto', overflowX: 'hidden' }}
+            onScroll={(e) => {
+              const el = e.currentTarget
+              if (hasMore && !loadingMore && el.scrollTop + el.clientHeight >= el.scrollHeight - 24) onLoadMore?.()
+            }}
+          >
             {loading ? (
               <div style={{ padding: 10, textAlign: 'center', fontSize: 12, color: 'var(--foreground-muted)' }}>
                 Loading...
@@ -312,6 +325,11 @@ export default function MultiSearchableSelect({
                   </button>
                 )
               })
+            )}
+            {!loading && (loadingMore || hasMore) && (
+              <div style={{ padding: 8, textAlign: 'center', fontSize: 10, color: 'var(--foreground-muted)' }}>
+                {loadingMore ? 'Memuat...' : 'Scroll untuk memuat lebih banyak'}
+              </div>
             )}
           </div>
 

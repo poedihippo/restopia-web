@@ -147,6 +147,7 @@ export default function UomsView() {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
               {[
+                { label: 'No.', width: 50 },
                 { label: 'Code', width: 120 },
                 { label: 'Name', width: undefined },
                 { label: 'Created', width: 140 },
@@ -156,7 +157,7 @@ export default function UomsView() {
                   key={i}
                   style={{
                     padding: '10px 16px',
-                    textAlign: 'left',
+                    textAlign: col.label === 'No.' ? 'center' : 'left',
                     fontSize: 11,
                     fontWeight: 600,
                     color: 'var(--foreground-muted)',
@@ -174,7 +175,7 @@ export default function UomsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     {[60, 40, 80, 50, 70].map((w, i) => (
                       <div
@@ -196,7 +197,7 @@ export default function UomsView() {
             {isError && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}
                 >
                   Failed to load units of measure
@@ -206,7 +207,7 @@ export default function UomsView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={6}>
                   <div
                     style={{
                       padding: 48,
@@ -236,6 +237,9 @@ export default function UomsView() {
                     background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
                   }}
                 >
+                  <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                    {(page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span
                       style={{

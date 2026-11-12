@@ -6,6 +6,7 @@ import { productCategoryAccountSettingsService } from '@/services/product-catego
 import { productCategoriesService } from '@/services/product-categories.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useAuth } from '@/hooks/useAuth'
 import ProductCategoryAccountSettingSheet from './ProductCategoryAccountSettingSheet'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -47,14 +48,13 @@ export default function ProductCategoryAccountSettingsView() {
     const t = setTimeout(() => setDebouncedCategoryFilterSearch(categoryFilterSearch), 400)
     return () => clearTimeout(t)
   }, [categoryFilterSearch])
-  const { data: categoryFilterData, isFetching: categoryFilterLoading } = useQuery({
+  const categoryFilterOpts = useInfiniteOptions<any>({
     queryKey: ['product-categories-all', 'pcas-filter', debouncedCategoryFilterSearch],
-    queryFn: () => productCategoriesService.list({ per_page: 50, 'filter[search]': debouncedCategoryFilterSearch || undefined } as any).then(r => r.data),
-    placeholderData: (prev: any) => prev,
+    fetchPage: (page) => productCategoriesService.list({ page, per_page: 50, 'filter[search]': debouncedCategoryFilterSearch || undefined } as any).then(r => r.data),
   })
   const categoryFilterOptions = [
     { value: 0, label: 'All Product Categories' },
-    ...((categoryFilterData as any)?.data ?? []).map((c: any) => ({ value: c.id, label: c.name })),
+    ...categoryFilterOpts.items.map((c: any) => ({ value: c.id, label: c.name })),
   ]
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function ProductCategoryAccountSettingsView() {
   }, [coaFilterSearch])
   const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
     queryKey: ['chart-of-accounts-all', 'pcas-filter', debouncedCoaFilterSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 50, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
+    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
     placeholderData: (prev: any) => prev,
   })
   const coaFilterOptions = [
@@ -142,7 +142,8 @@ export default function ProductCategoryAccountSettingsView() {
                 placeholder="All Product Categories"
                 searchPlaceholder="Search category..."
                 triggerStyle={{ height: 36, padding: '0 10px', fontSize: 13 }}
-                loading={categoryFilterLoading}
+                loading={categoryFilterOpts.loading}
+                {...categoryFilterOpts.selectProps}
                 onSearchChange={setCategoryFilterSearch}
               />
             </div>

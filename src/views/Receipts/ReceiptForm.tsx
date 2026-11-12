@@ -15,6 +15,7 @@ import { productUomsService } from '@/services/product-uoms.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { usePrice } from '@/hooks/usePrice'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { canUserCreateReceiptForDelivery } from '@/utils/receiptValidation'
 import { Plus, Trash2, Loader2, Save } from 'lucide-react'
 import BackLink from '@/components/BackLink'
@@ -123,13 +124,13 @@ export default function ReceiptForm(props: ReceiptFormProps) {
 
   // Typed text is searched on the server; the old per_page=1000 + local
   // filtering could never find deliveries past the first page.
-  const { data: deliveriesData, isFetching: deliveriesLoading } = useQuery({
+  const deliveryOpts = useInfiniteOptions<any>({
     queryKey: ['deliveries-pending', debouncedDropdownSearch],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       deliveriesService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
           per_page: 50,
           sort: '-id',
@@ -138,7 +139,7 @@ export default function ReceiptForm(props: ReceiptFormProps) {
         } as any)
         .then((r) => r.data),
   })
-  const allDeliveries: any[] = (deliveriesData as any)?.data ?? []
+  const allDeliveries: any[] = deliveryOpts.items
   const deliveries = [...allDeliveries].sort((a: any, b: any) => b.id - a.id)
 
   const watchDeliveryId = watch('delivery_id')
@@ -658,7 +659,8 @@ export default function ReceiptForm(props: ReceiptFormProps) {
                     options={deliveryOptions}
                     placeholder="Select delivery..."
                     searchPlaceholder="Search deliveries..."
-                    loading={deliveriesLoading}
+                    loading={deliveryOpts.loading}
+                    {...deliveryOpts.selectProps}
                     disabled={mode === 'edit'}
                     error={errors.delivery_id?.message as string | undefined}
                     onSearchChange={setDropdownSearch}

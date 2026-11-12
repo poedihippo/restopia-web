@@ -12,11 +12,16 @@ type SearchableSelectProps = Omit<
   "classNames" | "styles"
 > & {
   onSearchChange?: (val: string) => void;
+  /** Paged sources (see useInfiniteOptions): called when the menu is scrolled to the bottom. */
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
 };
 
 export const SearchableSelect = (props: SearchableSelectProps) => {
   const { user } = useAuth();
-  const { value, options, placeholder, onChange } = props;
+  const { onLoadMore, hasMore, loadingMore, ...selectProps } = props;
+  const { value, options, placeholder, onChange } = selectProps;
 
   useEffect(() => {
     const lowerPlaceholder = typeof placeholder === 'string' ? placeholder.toLowerCase() : '';
@@ -36,10 +41,15 @@ export const SearchableSelect = (props: SearchableSelectProps) => {
 
   return (
     <ReactSelect<SelectOption, boolean>
-      {...props}
+      {...selectProps}
+      isLoading={selectProps.isLoading || loadingMore}
+      onMenuScrollToBottom={(e) => {
+        selectProps.onMenuScrollToBottom?.(e);
+        if (hasMore && !loadingMore) onLoadMore?.();
+      }}
       onInputChange={(val, meta) => {
-        if (props.onInputChange) props.onInputChange(val, meta);
-        if (props.onSearchChange && meta.action === 'input-change') props.onSearchChange(val);
+        if (selectProps.onInputChange) selectProps.onInputChange(val, meta);
+        if (selectProps.onSearchChange && meta.action === 'input-change') selectProps.onSearchChange(val);
       }}
       classNames={{
         control: () =>

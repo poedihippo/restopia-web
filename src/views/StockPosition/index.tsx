@@ -7,6 +7,7 @@ import { productsService } from '@/services/products.service'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, useProductTypes } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { withProductType, productTypeLabel } from '@/utils/productUomName'
@@ -140,15 +141,15 @@ export default function StockPositionView() {
     setPage(1)
   }, [debouncedSearch, productId, startDate, endDate, productTypeFilter])
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const productsOpts = useInfiniteOptions<any>({
     queryKey: ['stock-position-product-search', productSearchDebounced],
     enabled: productSearchDebounced.length >= 2,
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
-        .list({ per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced } as any)
+        .list({ page, per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced } as any)
         .then((r) => r.data),
   })
-  const products: any[] = (productsData as any)?.data ?? []
+  const products: any[] = productsOpts.items
   const productOptions = [
     { value: 0, label: 'Semua Produk' },
     ...products.map((p: any) => ({
@@ -425,7 +426,8 @@ export default function StockPositionView() {
                 options={productOptions}
                 placeholder="Semua Produk"
                 searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-                loading={productsLoading}
+                loading={productsOpts.loading}
+                {...productsOpts.selectProps}
                 onSearchChange={setProductSearch}
               />
             </div>

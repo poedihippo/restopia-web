@@ -12,6 +12,7 @@ import { branchesService } from '@/services/branches.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 
 interface Props {
@@ -153,10 +154,10 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
   const coaQuery = (term: string) => ({
     queryKey: ['chart-of-accounts-sc-branch', term],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page: number) =>
       chartOfAccountsService
         .list({
+          page,
           per_page: 50,
           sort: 'code',
           'filter[is_header]': 'false',
@@ -164,11 +165,11 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
           'filter[normal_balance]': 'debit',
           'filter[search]': term || undefined,
         } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+        .then((r) => r.data),
     enabled: canEdit && editingId != null,
   })
-  const { data: receivableCoaData, isFetching: receivableCoaLoading } = useQuery(coaQuery(receivableSearchDebounced))
-  const { data: feeCoaData, isFetching: feeCoaLoading } = useQuery(coaQuery(feeSearchDebounced))
+  const receivableCoaOpts = useInfiniteOptions<any>(coaQuery(receivableSearchDebounced))
+  const feeCoaOpts = useInfiniteOptions<any>(coaQuery(feeSearchDebounced))
 
   // Outlets and pickup points, plus any branch that already has a setting.
   const outletRows: OutletRow[] = useMemo(() => {
@@ -210,7 +211,7 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
   })
 
   const coaOptions = (selectedId: number, kind: 'receivable' | 'fee') => {
-    const coas: any[] = (kind === 'receivable' ? receivableCoaData : feeCoaData) ?? []
+    const coas: any[] = (kind === 'receivable' ? receivableCoaOpts : feeCoaOpts).items
     const opts = coas.map((c) => ({ value: Number(c.id), label: c.name ?? `COA #${c.id}`, sublabel: c.code ?? undefined }))
     if (selectedId > 0 && !opts.some((o) => o.value === selectedId)) {
       const saved: any = savedAccounts.find((a: any) => Number(a[`${kind}_chart_of_account_id`]) === selectedId)
@@ -381,6 +382,7 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: '30%' }}>Outlet</th>
               <th style={thStyle}>Akun Piutang</th>
               <th style={thStyle}>Akun Fee</th>
@@ -391,7 +393,7 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
             {isLoading || branchesLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: canEdit ? 4 : 3 }).map((__, j) => (
+                  {Array.from({ length: canEdit ? 5 : 4 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div style={{ height: 12, borderRadius: 4, background: 'var(--border)', width: j === 0 ? '70%' : '85%' }} />
                     </td>
@@ -400,18 +402,19 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
               ))
             ) : visibleRows.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 4 : 3} style={{ ...tdStyle, borderBottom: 'none', padding: '28px 12px', textAlign: 'center' }}>
+                <td colSpan={canEdit ? 5 : 4} style={{ ...tdStyle, borderBottom: 'none', padding: '28px 12px', textAlign: 'center' }}>
                   <Store size={22} style={{ color: 'var(--foreground-subtle)', marginBottom: 6 }} />
                   <div style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Tidak ada outlet yang cocok.</div>
                 </td>
               </tr>
             ) : (
-              visibleRows.map((row) => {
+              visibleRows.map((row, idx) => {
                 const editing = editingId === row.branch_id
                 const configured = isConfigured(row)
                 const s = row.saved
                 return editing ? (
                   <tr key={row.branch_id} style={{ background: 'var(--accent-light-bg)' }}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{idx + 1}</td>
                     <td colSpan={canEdit ? 4 : 3} style={tdStyle}>
                       <div style={{ fontWeight: 600, marginBottom: 10 }}>
                         {row.name}
@@ -431,7 +434,8 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
                               options={coaOptions(draft.receivable, 'receivable')}
                               placeholder="Pilih akun piutang"
                               searchPlaceholder="Cari nama atau kode akun..."
-                              loading={receivableCoaLoading}
+                              loading={receivableCoaOpts.loading}
+                              {...receivableCoaOpts.selectProps}
                               onSearchChange={setReceivableSearch}
                               error={fieldErrors.receivable_chart_of_account_id}
                               triggerStyle={selectTriggerStyle}
@@ -446,7 +450,8 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
                             options={coaOptions(draft.fee, 'fee')}
                             placeholder="Pilih akun fee"
                             searchPlaceholder="Cari nama atau kode akun..."
-                            loading={feeCoaLoading}
+                            loading={feeCoaOpts.loading}
+                            {...feeCoaOpts.selectProps}
                             onSearchChange={setFeeSearch}
                             error={fieldErrors.fee_chart_of_account_id}
                             triggerStyle={selectTriggerStyle}
@@ -491,6 +496,7 @@ export default function SalesChannelBranchAccounts({ salesChannelId, canEdit }: 
                   </tr>
                 ) : (
                   <tr key={row.branch_id}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{idx + 1}</td>
                     <td style={tdStyle}>
                       <div style={{ fontWeight: 600 }}>{row.name}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>

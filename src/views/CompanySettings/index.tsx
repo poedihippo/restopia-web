@@ -149,6 +149,7 @@ export default function CompanySettingsView() {
         <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: '30%' }}>Setting</th>
               <th style={{ ...thStyle, width: '12%' }}>Value</th>
               <th style={thStyle}>Description</th>
@@ -160,7 +161,7 @@ export default function CompanySettingsView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {Array.from({ length: canEdit || canDelete ? 5 : 4 }).map((__, j) => (
+                  {Array.from({ length: canEdit || canDelete ? 6 : 5 }).map((__, j) => (
                     <td key={j} style={tdStyle}>
                       <div style={{ height: 16, background: 'var(--border)', borderRadius: 4, opacity: 0.5 }} />
                     </td>
@@ -169,14 +170,14 @@ export default function CompanySettingsView() {
               ))}
             {!isLoading && isError && (
               <tr>
-                <td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: 40, color: 'var(--destructive)' }}>
+                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: 40, color: 'var(--destructive)' }}>
                   Failed to load company settings.
                 </td>
               </tr>
             )}
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ ...tdStyle, textAlign: 'center', padding: 48 }}>
+                <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', padding: 48 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                     <SlidersHorizontal size={32} style={{ color: 'var(--border-strong)' }} />
                     <div style={{ fontSize: 14, color: 'var(--foreground-muted)' }}>
@@ -187,10 +188,13 @@ export default function CompanySettingsView() {
               </tr>
             )}
             {!isLoading &&
-              items.map((item) => {
+              items.map((item, idx) => {
                 const label = companySettingLabel(item.key)
                 return (
                   <tr key={item.id}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {(page - 1) * PER_PAGE + idx + 1}
+                    </td>
                     <td style={tdStyle}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                         <span style={{ fontWeight: 600 }}>{label ?? item.key}</span>

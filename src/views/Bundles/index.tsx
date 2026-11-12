@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import BundleSheet from './BundleSheet'
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, countActive } from '@/components/ListFilters'
 import { getProductUomName } from '@/utils/productUomName'
 import {
   Plus,
@@ -89,7 +89,7 @@ export default function BundlesView() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'inactive'>('active')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Bundle | null>(null)
@@ -211,20 +211,19 @@ export default function BundlesView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search bundles..."
-        activeCount={countActive(statusFilter)}
+        activeCount={countActive(statusFilter !== 'active')}
         onClear={() => {
-          setStatusFilter('')
+          setStatusFilter('active')
           setPage(1)
         }}
         quick={
-          <FilterSelect
+          <ActiveSegment
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'inactive')}
-          >
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </FilterSelect>
+            onChange={setStatusFilter}
+            active="active"
+            inactive="inactive"
+            label="Bundle status"
+          />
         }
       />
       {/* Cards */}

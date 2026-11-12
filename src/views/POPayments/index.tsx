@@ -9,6 +9,7 @@ import { paymentsService } from '@/services/payments.service'
 import { suppliersService } from '@/services/suppliers.service'
 import { bankAccountsService } from '@/services/bank-accounts.service'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CreditCard, Loader2, Ban, Wallet } from 'lucide-react'
@@ -114,11 +115,11 @@ export default function POPaymentsView() {
   const [voidReason, setVoidReason] = useState('')
 
   // ── Dropdown sources ──────────────────────────────────────────────────────
-  const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
+  const supplierOpts = useInfiniteOptions<any>({
     queryKey: ['suppliers-all', debouncedDropdownSearch],
-    queryFn: () => suppliersService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
+    fetchPage: (page) => suppliersService.list({ page, 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
-  const suppliers: any[] = (suppliersData as any)?.data ?? []
+  const suppliers: any[] = supplierOpts.items
   const supplierOptions = suppliers.map((s: any) => ({
     value: s.id as number,
     label: (s.name as string) ?? `Supplier #${s.id}`,
@@ -339,7 +340,8 @@ export default function POPaymentsView() {
               options={supplierOptions}
               placeholder="Select supplier..."
               searchPlaceholder="Search suppliers..."
-              loading={suppliersLoading}
+              loading={supplierOpts.loading}
+              {...supplierOpts.selectProps}
               onSearchChange={setDropdownSearch}
 />
           </div>

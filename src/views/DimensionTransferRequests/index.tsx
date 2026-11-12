@@ -13,6 +13,7 @@ import { productUomBatchesService } from '@/services/product-uom-batches.service
 import { toastMutationApiError } from '@/utils/apiError'
 import { getProductUomName } from '@/utils/productUomName'
 import { useAuth } from '@/hooks/useAuth'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { formatDate } from '@/utils/date'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import DimensionTransferRequestSheet from './DimensionTransferRequestSheet'
@@ -147,14 +148,14 @@ export default function DimensionTransferRequestsView() {
   }, [debouncedSearch, statusFilter, companyFilter, branchFilter, requestedByFilter, approvedByFilter, directionTab])
 
   // Lookups: Users (for requested_by / approved_by filters)
-  const { data: usersData, isLoading: usersLoading } = useQuery({
+  const userOpts = useInfiniteOptions<any>({
     queryKey: ['users-all', debouncedUserSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       usersService
-        .list({ 'filter[search]': debouncedUserSearch || undefined, per_page: 100 } as any)
+        .list({ page, 'filter[search]': debouncedUserSearch || undefined, per_page: 100 } as any)
         .then((r) => r.data),
   })
-  const userOptions = ((usersData as any)?.data ?? []).map((u: any) => ({
+  const userOptions = userOpts.items.map((u: any) => ({
     value: u.id as number,
     label: (u.name as string) ?? `User #${u.id}`,
     sublabel: (u.email as string | undefined) ?? undefined,
@@ -673,7 +674,8 @@ export default function DimensionTransferRequestsView() {
               options={[{ value: 0, label: 'Semua Peminta' }, ...userOptions]}
               placeholder="Semua Peminta"
               searchPlaceholder="Cari user..."
-              loading={usersLoading}
+              loading={userOpts.loading}
+              {...userOpts.selectProps}
               onSearchChange={setUserSearch}
             />
           </FilterField>
@@ -684,7 +686,8 @@ export default function DimensionTransferRequestsView() {
               options={[{ value: 0, label: 'Semua Penyetuju' }, ...userOptions]}
               placeholder="Semua Penyetuju"
               searchPlaceholder="Cari user..."
-              loading={usersLoading}
+              loading={userOpts.loading}
+              {...userOpts.selectProps}
               onSearchChange={setUserSearch}
             />
           </FilterField>

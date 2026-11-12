@@ -9,6 +9,7 @@ import type { GeneralLedgerAccount, GeneralLedgerEnvelope } from '@/services/rep
 import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { formatCurrency } from '@/utils/price'
 import { formatDate, formatDateShort, toInputDate } from '@/utils/date'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -145,39 +146,28 @@ export default function GeneralLedgerView() {
   const startCodeSearchDebounced = useDebounce(startCodeSearch, 400)
   const endCodeSearchDebounced = useDebounce(endCodeSearch, 400)
 
-  const coaQuery = (term: string, enabled: boolean) => ({
-    queryKey: ['chart-of-accounts-options', 'gl', term],
-    enabled: canRead && enabled,
-    staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
-      chartOfAccountsService
-        // First 50 codes only; typing searches code + name on the server, so any account is reachable
-        // without loading the whole chart.
-        .list({ per_page: 50, sort: 'code', 'filter[search]': term || undefined } as any)
-        .then((r) => r.data),
-  })
-  const { data: accountCoaData, isFetching: accountCoaLoading } = useQuery(coaQuery(accountSearchDebounced, mode === 'single'))
-  const { data: startCoaData, isFetching: startCoaLoading } = useQuery(coaQuery(startCodeSearchDebounced, mode !== 'single'))
-  const { data: endCoaData, isFetching: endCoaLoading } = useQuery(coaQuery(endCodeSearchDebounced, mode !== 'single'))
+  const useCoaOptions = (term: string, enabled: boolean) =>
+    useInfiniteOptions<CoA>({
+      queryKey: ['chart-of-accounts-options', 'gl', term],
+      enabled: canRead && enabled,
+      staleTime: 60_000,
+      // Next page loads when the list is scrolled to the bottom; typing searches code + name on the server.
+      fetchPage: (page) =>
+        chartOfAccountsService
+          .list({ page, per_page: 50, sort: 'code', 'filter[search]': term || undefined } as any)
+          .then((r) => r.data),
+    })
+  const accountCoa = useCoaOptions(accountSearchDebounced, mode === 'single')
+  const startCoa = useCoaOptions(startCodeSearchDebounced, mode !== 'single')
+  const endCoa = useCoaOptions(endCodeSearchDebounced, mode !== 'single')
 
-  // CoA list arrives either single-nested (data[]) or double-nested (data.data[]) depending on endpoint.
-  const accountsOf = (coaData: unknown): CoA[] => {
-    const rawCoA: unknown = (coaData as { data?: unknown } | undefined)?.data
-    return Array.isArray(rawCoA)
-      ? (rawCoA as CoA[])
-      : Array.isArray((rawCoA as { data?: unknown } | undefined)?.data)
-        ? ((rawCoA as { data: CoA[] }).data)
-        : []
-  }
-
-  const accountOptions = accountsOf(accountCoaData).map((a) => ({
+  const accountOptions = accountCoa.items.map((a) => ({
     value: String(a.id),
     label: a.name,
     sublabel: a.code,
   }))
-  const codeOptionsOf = (coaData: unknown) =>
-    accountsOf(coaData).map((a) => ({
+  const codeOptionsOf = (accounts: CoA[]) =>
+    accounts.map((a) => ({
       value: a.code,
       label: a.code,
       sublabel: a.name,
@@ -228,6 +218,11 @@ export default function GeneralLedgerView() {
 
   const pageTotalDebit = ledgerAccounts.reduce((s, a) => s + Number(a.total_debit ?? 0), 0)
   const pageTotalCredit = ledgerAccounts.reduce((s, a) => s + Number(a.total_credit ?? 0), 0)
+  // Row numbers for ledger entry lines, continuous across account groups on this page.
+  const lineNoOffsets = ledgerAccounts.reduce<number[]>((acc, a, i) => {
+    acc.push(i === 0 ? 0 : acc[i - 1] + (ledgerAccounts[i - 1].lines?.length ?? 0))
+    return acc
+  }, [])
 
   // Backend removed GET /reports/general-ledger/exports — generate the workbook
   // client-side from every page of the JSON endpoint (per_page capped at 1000).
@@ -419,7 +414,8 @@ export default function GeneralLedgerView() {
                     value={chartOfAccountId}
                     onChange={(v: string | number) => setChartOfAccountId(v ? String(v) : '')}
                     options={accountOptions}
-                    loading={accountCoaLoading}
+                    loading={accountCoa.loading}
+                    {...accountCoa.selectProps}
                     onSearchChange={setAccountSearch}
                     placeholder="-- Select Account --"
                     searchPlaceholder="Cari kode / nama akun..."
@@ -432,8 +428,9 @@ export default function GeneralLedgerView() {
                     <SearchableSelect
                       value={startCoaCode}
                       onChange={(v: string | number) => setStartCoaCode(v ? String(v) : '')}
-                      options={codeOptionsOf(startCoaData)}
-                      loading={startCoaLoading}
+                      options={codeOptionsOf(startCoa.items)}
+                      loading={startCoa.loading}
+                      {...startCoa.selectProps}
                       onSearchChange={setStartCodeSearch}
                       placeholder="-- Start Code --"
                       searchPlaceholder="Cari kode / nama akun..."
@@ -444,8 +441,9 @@ export default function GeneralLedgerView() {
                     <SearchableSelect
                       value={endCoaCode}
                       onChange={(v: string | number) => setEndCoaCode(v ? String(v) : '')}
-                      options={codeOptionsOf(endCoaData)}
-                      loading={endCoaLoading}
+                      options={codeOptionsOf(endCoa.items)}
+                      loading={endCoa.loading}
+                      {...endCoa.selectProps}
                       onSearchChange={setEndCodeSearch}
                       placeholder="-- End Code --"
                       searchPlaceholder="Cari kode / nama akun..."
@@ -497,6 +495,7 @@ export default function GeneralLedgerView() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
+                    <th style={{ ...theadCellStyle, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={theadCellStyle}>Date</th>
                     <th style={theadCellStyle}>Journal No</th>
                     <th style={theadCellStyle}>Type</th>
@@ -510,32 +509,33 @@ export default function GeneralLedgerView() {
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={8} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={9} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--foreground-muted)' }}>
                         Loading...
                       </td>
                     </tr>
                   ) : isError ? (
                     <tr>
-                      <td colSpan={8} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--destructive)' }}>
+                      <td colSpan={9} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--destructive)' }}>
                         Failed to load general ledger
                       </td>
                     </tr>
                   ) : validationError ? (
                     <tr>
-                      <td colSpan={8} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={9} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--foreground-muted)' }}>
                         Set the filters above to generate the ledger
                       </td>
                     </tr>
                   ) : ledgerAccounts.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={9} style={{ ...cellStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--foreground-muted)' }}>
                         No accounts match the selected criteria
                       </td>
                     </tr>
                   ) : (
-                    ledgerAccounts.map((acc) => (
+                    ledgerAccounts.map((acc, accIdx) => (
                       <React.Fragment key={acc.chart_of_account_id}>
                         <tr>
+                          <td style={accountHeaderCellStyle} />
                           <td colSpan={8} style={accountHeaderCellStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
@@ -575,6 +575,7 @@ export default function GeneralLedgerView() {
                         </tr>
                         {acc.lines.length === 0 ? (
                           <tr>
+                            <td style={cellStyle} />
                             <td colSpan={8} style={{ ...cellStyle, color: 'var(--foreground-subtle)', fontStyle: 'italic' }}>
                               No transactions in this period
                             </td>
@@ -582,6 +583,7 @@ export default function GeneralLedgerView() {
                         ) : (
                           acc.lines.map((ln, idx) => (
                             <tr key={`${acc.chart_of_account_id}-${ln.journal_id}-${idx}`}>
+                              <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{lineNoOffsets[accIdx] + idx + 1}</td>
                               <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>{formatDateShort(ln.date)}</td>
                               <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>{ln.journal_number}</td>
                               <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>{JOURNAL_TYPE_LABELS[ln.type] ?? ln.type}</td>

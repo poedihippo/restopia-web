@@ -11,6 +11,7 @@ import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { useBuyerNames } from '@/hooks/useBuyerNames'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { suppliersService } from '@/services/suppliers.service'
 import { branchesService } from '@/services/branches.service'
 import { buyersService } from '@/services/buyers.service'
@@ -170,17 +171,17 @@ export default function PurchaseOrdersView() {
   const showSupplierFilter = typeFilter !== 'branch'
   const showSupplierBranchFilter = typeFilter !== 'supplier'
 
-  const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
+  const supplierOpts = useInfiniteOptions<any>({
     queryKey: ['suppliers-all', debouncedSupplierSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       suppliersService
-        .list({ 'filter[search]': debouncedSupplierSearch || undefined, per_page: 100 } as any)
+        .list({ page, 'filter[search]': debouncedSupplierSearch || undefined, per_page: 100 } as any)
         .then((r) => r.data),
     enabled: showSupplierFilter,
   })
   const supplierOptions = [
     { value: 0, label: 'All suppliers' },
-    ...((suppliersData as any)?.data ?? []).map((s: any) => ({
+    ...supplierOpts.items.map((s: any) => ({
       value: s.id as number,
       label: (s.name as string) ?? `Supplier #${s.id}`,
       sublabel: s.code as string | undefined,
@@ -204,16 +205,16 @@ export default function PurchaseOrdersView() {
     })),
   ]
 
-  const { data: buyersData, isLoading: buyersLoading } = useQuery({
+  const buyerOpts = useInfiniteOptions<any>({
     queryKey: ['buyers-all', debouncedBuyerSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       buyersService
-        .list({ 'filter[search]': debouncedBuyerSearch || undefined, per_page: 100, sort: 'name' } as any)
+        .list({ page, 'filter[search]': debouncedBuyerSearch || undefined, per_page: 100, sort: 'name' } as any)
         .then((r) => r.data),
   })
   const buyerOptions = [
     { value: 0, label: 'All buyers' },
-    ...((buyersData as any)?.data ?? []).map((b: any) => ({
+    ...buyerOpts.items.map((b: any) => ({
       value: b.id as number,
       label: (b.name as string) ?? `Buyer #${b.id}`,
       sublabel: b.code as string | undefined,
@@ -376,7 +377,8 @@ export default function PurchaseOrdersView() {
                 options={supplierOptions}
                 placeholder="All suppliers"
                 searchPlaceholder="Search suppliers..."
-                loading={suppliersLoading}
+                loading={supplierOpts.loading}
+                {...supplierOpts.selectProps}
                 onSearchChange={setSupplierSearch}
               />
             </FilterField>
@@ -407,7 +409,8 @@ export default function PurchaseOrdersView() {
               options={buyerOptions}
               placeholder="All buyers"
               searchPlaceholder="Search buyers..."
-              loading={buyersLoading}
+              loading={buyerOpts.loading}
+              {...buyerOpts.selectProps}
               onSearchChange={setBuyerSearch}
             />
           </FilterField>

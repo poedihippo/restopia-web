@@ -12,6 +12,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import {
   TrendingUp,
   Scale,
@@ -47,32 +48,30 @@ export default function ComparativeReportsView() {
   const supplierSearchDebounced = useDebounce(supplierSearch, 400)
 
   // Query Customers for AR Card
-  const { data: customersData, isFetching: customersLoading } = useQuery({
+  const customerOpts = useInfiniteOptions<any>({
     queryKey: ['customers-select-ar', customerSearchDebounced],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       customersService
-        .list({ per_page: 50, 'filter[search]': customerSearchDebounced || undefined } as any)
+        .list({ page, per_page: 50, 'filter[search]': customerSearchDebounced || undefined } as any)
         .then((r) => r.data),
   })
-  const customers: any[] = (customersData as any)?.data ?? []
+  const customers: any[] = customerOpts.items
   const customerOptions = customers.map((c) => ({
     value: c.id,
     label: `${c.name} ${c.phone ? `(${c.phone})` : ''}`,
   }))
 
   // Query Suppliers for AP Card
-  const { data: suppliersData, isFetching: suppliersLoading } = useQuery({
+  const supplierOpts = useInfiniteOptions<any>({
     queryKey: ['suppliers-select-ap', supplierSearchDebounced],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       suppliersService
-        .list({ per_page: 50, 'filter[search]': supplierSearchDebounced || undefined } as any)
+        .list({ page, per_page: 50, 'filter[search]': supplierSearchDebounced || undefined } as any)
         .then((r) => r.data),
   })
-  const suppliers: any[] = (suppliersData as any)?.data ?? []
+  const suppliers: any[] = supplierOpts.items
   const supplierOptions = suppliers.map((s) => ({
     value: s.name ?? String(s.id),
     label: s.name,
@@ -438,7 +437,8 @@ export default function ComparativeReportsView() {
                   value={arCustomerId || ''}
                   onChange={(val) => setArCustomerId(val ? Number(val) : undefined)}
                   options={customerOptions}
-                  loading={customersLoading}
+                  loading={customerOpts.loading}
+                  {...customerOpts.selectProps}
                   onSearchChange={setCustomerSearch}
                   placeholder="Select Customer..."
                 />
@@ -539,7 +539,8 @@ export default function ComparativeReportsView() {
                   value={apSupplier || ''}
                   onChange={(val) => setApSupplier(val ? String(val) : '')}
                   options={supplierOptions}
-                  loading={suppliersLoading}
+                  loading={supplierOpts.loading}
+                  {...supplierOpts.selectProps}
                   onSearchChange={setSupplierSearch}
                   placeholder="Select Supplier..."
                 />

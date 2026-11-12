@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toast } from 'sonner'
 import { accountSettingsService } from '@/services/account-settings.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
@@ -68,13 +69,13 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
     return () => clearTimeout(timer)
   }, [coaSearch])
 
-  const { data: coaData, isLoading: isLoadingCoa } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-all', 'account-settings', debouncedSearch, debouncedDropdownSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 50, 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 50, 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
     enabled: open
   })
   
-  const coaOptions: any[] = (coaData as any)?.data ?? []
+  const coaOptions: any[] = coaOpts.items
   
   const selectOptions: SelectOption[] = coaOptions.map(coa => ({
     value: coa.id,
@@ -141,6 +142,8 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
                 }}
                 placeholder="Search account..."
                 isClearable
+                isLoading={coaOpts.loading}
+                {...coaOpts.selectProps}
                 onSearchChange={setDropdownSearch}
 />
               {errors.chart_of_account_id && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{errors.chart_of_account_id.message as string}</span>}

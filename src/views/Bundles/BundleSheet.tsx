@@ -10,6 +10,7 @@ import { bundlesService } from '@/services/bundles.service'
 import { productUomsService } from '@/services/product-uoms.service'
 import { X, Loader2, Plus, Trash2 } from 'lucide-react'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 
 import { getCanReadPrice } from '@/utils/price'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
@@ -81,7 +82,7 @@ interface ProductUomOption {
 
 // Typing in a slot's product select updates the parent's search, which drives
 // the server-side product-uoms query.
-function SlotField({ nestIndex, control, register, errors, watch, productUomOptions, productUomsLoading, removeSlot, canRemoveSlot, setDropdownSearch }: any) {
+function SlotField({ nestIndex, control, register, errors, watch, productUomOptions, productUomsLoading, productUomsSelectProps, removeSlot, canRemoveSlot, setDropdownSearch }: any) {
 
   const { fields, remove, append } = useFieldArray({
     control,
@@ -138,6 +139,7 @@ function SlotField({ nestIndex, control, register, errors, watch, productUomOpti
                       placeholder="Select allowed product..."
                       searchPlaceholder="Search..."
                       loading={productUomsLoading}
+                      {...productUomsSelectProps}
                       error={itemError?.product_uom_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
 />
@@ -202,14 +204,14 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
 
   const { fields, append, remove } = useFieldArray({ control, name: 'details' })
 
-  const { data: productUomsData, isFetching: productUomsLoading } = useQuery({
+  const productUomsOpts = useInfiniteOptions<ProductUomOption>({
     queryKey: ['bundle-product-uom-options', debouncedDropdownSearch],
     enabled: open,
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           'filter[search]': debouncedDropdownSearch || undefined,
           per_page: 50,
           include: 'product,uom',
@@ -217,7 +219,8 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
         } as any)
         .then((r) => r.data),
   })
-  const productUoms: ProductUomOption[] = (productUomsData as any)?.data ?? []
+  const productUomsLoading = productUomsOpts.loading
+  const productUoms: ProductUomOption[] = productUomsOpts.items
 
   // Selected product UOMs must keep their label when the search result set
   // no longer contains them: remember every row seen, and fetch the rest
@@ -646,6 +649,7 @@ export default function BundleSheet({ open, onClose, editData }: BundleSheetProp
                   watch={watch}
                   productUomOptions={productUomOptions}
                   productUomsLoading={productUomsLoading}
+                  productUomsSelectProps={productUomsOpts.selectProps}
                   removeSlot={remove}
                   canRemoveSlot={fields.length > 1}
                       setDropdownSearch={setDropdownSearch}

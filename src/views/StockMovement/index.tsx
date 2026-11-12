@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth'
 import StockMovementSheet from './StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import {
   formatSignedMovementQty,
   convertUp,
@@ -458,9 +459,9 @@ export default function StockMovementView() {
   const [branchFilter, setBranchFilter] = useState('')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
-  // Tanggal/Dokumen, Produk, Batch, In, Out, Balance
+  // No., Tanggal/Dokumen, Produk, Batch, In, Out, Balance
   // (kolom dimensi Owner/Stage/Lokasi digabung ke dalam kolom Batch)
-  const totalCols = 6
+  const totalCols = 7
 
   useEffect(() => {
     if (!router.isReady) return
@@ -506,12 +507,12 @@ export default function StockMovementView() {
     : (user as any)?.branches ?? []
   const showBranchFilter = !!isSuperadmin || availableBranches.length > 1
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const productsOpts = useInfiniteOptions<any>({
     queryKey: ['stock-movements-product-search', productSearchDebounced],
     enabled: productSearchDebounced.length >= 2,
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
-        .list({ per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced } as any)
+        .list({ page, per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced } as any)
         .then((r) => r.data),
   })
   // Product terpilih lewat URL (tombol "Show Stock Movement" di Product
@@ -522,7 +523,7 @@ export default function StockMovementView() {
     enabled: productId > 0,
     queryFn: () => productsService.findById(productId).then((r) => r.data),
   })
-  const searchProductList = ((productsData as any)?.data ?? []) as any[]
+  const searchProductList = productsOpts.items as any[]
   const selectedProduct = (selectedProductData as any)?.data
   const selectedInList = searchProductList.some((p: any) => Number(p.id) === productId)
   const productOptions = [
@@ -601,6 +602,7 @@ export default function StockMovementView() {
   })
 
   const columns: { label: string; width?: number }[] = [
+    { label: 'No.', width: 50 },
     { label: 'Tanggal / Dokumen', width: 220 },
     { label: 'Produk' },
     { label: 'Batch', width: 230 },
@@ -754,7 +756,8 @@ export default function StockMovementView() {
               options={productOptions}
               placeholder="Semua Produk"
               searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-              loading={productsLoading}
+              loading={productsOpts.loading}
+              {...productsOpts.selectProps}
               onSearchChange={setProductSearch}
             />
           </FilterField>
@@ -844,7 +847,7 @@ export default function StockMovementView() {
                       background: 'var(--background)',
                       borderBottom: '1px solid var(--border)',
                       padding: '10px 16px',
-                      textAlign: 'left',
+                      textAlign: label === 'No.' ? 'center' : 'left',
                       fontSize: 12,
                       fontWeight: 600,
                       color: 'var(--foreground-muted)',
@@ -921,7 +924,7 @@ export default function StockMovementView() {
               )}
 
               {!isLoading &&
-                filteredItems.map((item: any) => {
+                filteredItems.map((item: any, idx: number) => {
                   const uomCode =
                     item.product_inventory?.product_uom_batch?.product_uom?.uom?.code ??
                     item.product_inventory?.product_uom?.uom?.code
@@ -950,6 +953,9 @@ export default function StockMovementView() {
                         verticalAlign: 'top',
                       }}
                     >
+                      <td style={{ ...cellBase, fontSize: 13, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                        {(page - 1) * perPage + idx + 1}
+                      </td>
                       {/* Tanggal + Dokumen digabung */}
                       <td style={cellBase}>
                         {canRead ? <DateTimeDocCell item={item} /> : '***'}

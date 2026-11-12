@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { productCutsService, type ProductCut, type ProductCutUom } from '@/services/product-cuts.service'
 import { productsService } from '@/services/products.service'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { useDebounce } from '@/hooks/useDebounce'
 import { productTypeLabel } from '@/utils/productUomName'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -42,18 +43,18 @@ type ProductOption = { value: number; label: string; sublabel?: string }
  * UOM of the same product (Reg / Ind / PCS ...) used to match nothing.
  */
 function useProductFilterOptions(search: string, selected: ProductOption | null, enabled: boolean) {
-  const { data, isFetching } = useQuery({
+  const productsOpts = useInfiniteOptions<any>({
     queryKey: ['product-cut-filter-products', search],
     enabled,
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
-        .list({ 'filter[search]': search || undefined, per_page: 20 } as any)
-        .then((r) => ((r.data as any)?.data ?? []) as any[]),
+        .list({ page, 'filter[search]': search || undefined, per_page: 20 } as any)
+        .then((r) => r.data),
   })
+  const data = productsOpts.items
   const options = useMemo(() => {
-    const opts: ProductOption[] = (data ?? []).map((p: any) => ({
+    const opts: ProductOption[] = data.map((p: any) => ({
       value: p.id,
       label: p.name || `#${p.id}`,
       sublabel: [p.code, productTypeLabel(p.type)].filter(Boolean).join(' · '),
@@ -61,7 +62,7 @@ function useProductFilterOptions(search: string, selected: ProductOption | null,
     if (selected && !opts.some((o) => o.value === selected.value)) opts.unshift(selected)
     return opts
   }, [data, selected])
-  return { options, isFetching }
+  return { options, loading: productsOpts.loading, selectProps: productsOpts.selectProps }
 }
 
 export default function ProductCutsView() {
@@ -188,7 +189,8 @@ export default function ProductCutsView() {
               options={[{ value: 0, label: 'Semua produk' }, ...productOpts.options]}
               placeholder="Cari produk (induk atau anak)..."
               searchPlaceholder="Ketik nama / kode produk..."
-              loading={productOpts.isFetching}
+              loading={productOpts.loading}
+              {...productOpts.selectProps}
               onSearchChange={setProductSearch}
             />
           </div>
@@ -207,8 +209,8 @@ export default function ProductCutsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--background)' }}>
-              {['Produk Induk', '', 'Produk Anak', 'Hasil Potong', ''].map((h, i) => (
-                <th key={i} style={{ padding: '10px 16px', textAlign: i === 3 ? 'center' : 'left', fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: 0.6, width: i === 1 ? 32 : i === 3 ? 140 : i === 4 ? 110 : undefined }}>
+              {['No.', 'Produk Induk', '', 'Produk Anak', 'Hasil Potong', ''].map((h, i) => (
+                <th key={i} style={{ padding: '10px 16px', textAlign: i === 0 || i === 4 ? 'center' : 'left', fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: 0.6, width: i === 0 ? 50 : i === 2 ? 32 : i === 4 ? 140 : i === 5 ? 110 : undefined }}>
                   {h}
                 </th>
               ))}
@@ -217,7 +219,7 @@ export default function ProductCutsView() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '48px 16px' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '48px 16px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     {[60, 40, 80, 50, 70].map((w, i) => (
                       <div key={i} style={{ height: 16, borderRadius: 4, background: 'var(--border)', width: `${w}%`, animation: 'pulse 1.5s ease-in-out infinite' }} />
@@ -229,7 +231,7 @@ export default function ProductCutsView() {
 
             {isError && (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: 48, fontSize: 13, color: 'var(--destructive)' }}>
                   Failed to load product cuts
                 </td>
               </tr>
@@ -237,7 +239,7 @@ export default function ProductCutsView() {
 
             {!isLoading && !isError && items.length === 0 && (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={6}>
                   <div style={{ padding: 48, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     <Scissors size={32} style={{ color: 'var(--foreground-subtle)' }} />
                     <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
@@ -264,6 +266,9 @@ export default function ProductCutsView() {
                     background: hoveredRow === item.id ? 'var(--background)' : 'transparent',
                   }}
                 >
+                  <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                    {productId ? idx + 1 : (page - 1) * perPage + idx + 1}
+                  </td>
                   <td style={{ padding: '10px 16px' }}>
                     {firstOfGroup ? (canRead ? <ProductCell uom={item.parent_product_uom} /> : '***') : null}
                   </td>

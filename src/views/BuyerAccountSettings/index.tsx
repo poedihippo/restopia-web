@@ -62,7 +62,7 @@ export default function BuyerAccountSettingsView() {
   }, [coaFilterSearch])
   const { data: coaFilterData, isFetching: coaFilterLoading } = useQuery({
     queryKey: ['chart-of-accounts-all', 'buyer-filter', debouncedCoaFilterSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 50, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
+    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaFilterSearch || undefined } as any).then(r => r.data),
     placeholderData: (prev: any) => prev,
   })
   const coaFilterOptions = [

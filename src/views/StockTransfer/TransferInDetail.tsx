@@ -463,6 +463,19 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                   <th
                     style={{
                       padding: '10px 16px',
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--foreground-muted)',
+                      textTransform: 'uppercase',
+                      width: 50,
+                    }}
+                  >
+                    No.
+                  </th>
+                  <th
+                    style={{
+                      padding: '10px 16px',
                       textAlign: 'left',
                       fontSize: 11,
                       fontWeight: 600,
@@ -499,8 +512,11 @@ export default function TransferInDetail({ id }: TransferInDetailProps) {
                 </tr>
               </thead>
               <tbody>
-                {existingReceipts.map((r: any) => (
+                {existingReceipts.map((r: any, idx: number) => (
                   <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td style={{ padding: '10px 16px', fontSize: 13, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+                      {idx + 1}
+                    </td>
                     <td
                       style={{
                         padding: '10px 16px',

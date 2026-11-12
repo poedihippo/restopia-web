@@ -10,6 +10,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import {
   FileSpreadsheet,
   Download,
@@ -30,16 +31,15 @@ export default function PurchasingReportsView() {
   // SearchableSelect keeps each picked label cached.
   const [supplierSearch, setSupplierSearch] = useState('')
   const supplierSearchDebounced = useDebounce(supplierSearch, 400)
-  const { data: suppliersData, isFetching: suppliersLoading } = useQuery({
+  const supplierOpts = useInfiniteOptions<any>({
     queryKey: ['suppliers-select-purchasing', supplierSearchDebounced],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       suppliersService
-        .list({ per_page: 50, 'filter[search]': supplierSearchDebounced || undefined } as any)
+        .list({ page, per_page: 50, 'filter[search]': supplierSearchDebounced || undefined } as any)
         .then((r) => r.data),
   })
-  const suppliers: any[] = (suppliersData as any)?.data ?? []
+  const suppliers: any[] = supplierOpts.items
   const supplierOptions = suppliers.map((s) => ({
     value: s.name ?? String(s.id),
     label: s.name,
@@ -233,7 +233,8 @@ export default function PurchasingReportsView() {
                   value={prodSupplier || ''}
                   onChange={(val) => setProdSupplier(val ? String(val) : '')}
                   options={supplierOptions}
-                  loading={suppliersLoading}
+                  loading={supplierOpts.loading}
+                  {...supplierOpts.selectProps}
                   onSearchChange={setSupplierSearch}
                   placeholder="All Suppliers"
                 />
@@ -363,7 +364,8 @@ export default function PurchasingReportsView() {
                   value={suppSupplier || ''}
                   onChange={(val) => setSuppSupplier(val ? String(val) : '')}
                   options={supplierOptions}
-                  loading={suppliersLoading}
+                  loading={supplierOpts.loading}
+                  {...supplierOpts.selectProps}
                   onSearchChange={setSupplierSearch}
                   placeholder="All Suppliers"
                 />
@@ -461,7 +463,8 @@ export default function PurchasingReportsView() {
                   value={invSupplier || ''}
                   onChange={(val) => setInvSupplier(val ? String(val) : '')}
                   options={supplierOptions}
-                  loading={suppliersLoading}
+                  loading={supplierOpts.loading}
+                  {...supplierOpts.selectProps}
                   onSearchChange={setSupplierSearch}
                   placeholder="All Suppliers"
                 />

@@ -307,6 +307,7 @@ export default function InternalOrdersView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: 160 }}>Code</th>
               <th style={thStyle}>Source Branch</th>
               <th style={{ ...thStyle, width: 160 }}>Branch</th>
@@ -326,7 +327,7 @@ export default function InternalOrdersView() {
                           height: 14,
                           borderRadius: 'var(--radius-sm)',
                           background: 'var(--border)',
-                          width: j === 5 ? 60 : j === 4 ? 70 : '75%',
+                          width: j === 6 ? 60 : j === 5 ? 70 : '75%',
                           animation: 'pulse 1.5s ease-in-out infinite',
                         }}
                       />
@@ -385,6 +386,9 @@ export default function InternalOrdersView() {
                       (e.currentTarget.style.background = 'transparent')
                     }
                   >
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {(page - 1) * perPage + idx + 1}
+                    </td>
                     <td style={tdStyle}>
                       <span
                         style={{

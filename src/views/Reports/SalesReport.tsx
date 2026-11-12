@@ -667,6 +667,7 @@ export default function SalesReport() {
           <table style={tableStyle}>
             <thead>
               <tr>
+                <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                 <th style={{ ...thStyle, textAlign: 'left', width: 110 }}>Item Code</th>
                 <th style={{ ...thStyle, textAlign: 'left' }}>Name</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 60 }}>Qty</th>
@@ -675,10 +676,18 @@ export default function SalesReport() {
               </tr>
             </thead>
             <tbody>
-              {a.categories.map((cat) => (
+              {a.categories.map((cat, catIdx) => {
+                // Continuous numbering across category groups.
+                const offset = a.categories
+                  .slice(0, catIdx)
+                  .reduce((n, c) => n + c.items.length, 0)
+                return (
                 <React.Fragment key={cat.name}>
-                  {cat.items.map((item) => (
+                  {cat.items.map((item, idx) => (
                     <tr key={`${cat.name}-${item.code}-${item.price}`}>
+                      <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>
+                        {offset + idx + 1}
+                      </td>
                       <td style={{ ...tdStyle, fontFamily: 'monospace', fontSize: 11 }}>
                         {item.code}
                       </td>
@@ -693,6 +702,7 @@ export default function SalesReport() {
                     </tr>
                   ))}
                   <tr style={{ background: 'var(--background)', fontWeight: 700 }}>
+                    <td style={tdStyle} />
                     <td colSpan={2} style={tdStyle}>
                       {'TOTAL ' + cat.name.toUpperCase()}
                     </td>
@@ -702,7 +712,8 @@ export default function SalesReport() {
                     </td>
                   </tr>
                 </React.Fragment>
-              ))}
+                )
+              })}
             </tbody>
           </table>
 

@@ -28,6 +28,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import BackLink from '@/components/BackLink'
 import { FloatingPanel } from '@/components/FloatingPanel'
 import { useFormKeyboardNavigation } from '@/hooks/useFormKeyboardNavigation'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 
 const GENERAL_OWNER_OPTION = { value: 'GENERAL', label: 'Umum (GENERAL)' }
@@ -298,14 +299,15 @@ export function MaterialPicker({
     }
   }, [open, step])
 
-  // Products list — no minimum search length, max 50, sorted by name
-  const { data: productsData, isFetching: productsFetching } = useQuery({
+  // Products list — no minimum search length, 50 per page (next page on scroll), sorted by name
+  const productOpts = useInfiniteOptions<any>({
     queryKey: ['material-picker-products', debouncedSearch],
     enabled: open && step === 'products',
-    queryFn: () =>
+    fetchPage: (page) =>
       api
         .get('/products', {
           params: {
+            page,
             per_page: 50,
             'filter[types]': MATERIAL_PRODUCT_TYPES,
             sort: 'name',
@@ -314,7 +316,8 @@ export function MaterialPicker({
         })
         .then((r) => r.data),
   })
-  const products = useMemo(() => unwrapList(productsData), [productsData])
+  const products = productOpts.items
+  const productsFetching = productOpts.loading
 
   // Inventories for the selected product — same filters as the previous
   // shared query, merged with the branch-wide list already loaded.
@@ -359,8 +362,9 @@ export function MaterialPicker({
       )
       setHighlightIndex(idx >= 0 ? idx : 0)
     }
+    // Products: reset on a new search, not when a next page is appended (would jump to the top).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, products, pickerInventories])
+  }, [step, debouncedSearch, pickerInventories])
 
   // Keep the highlighted row in view while navigating with the keyboard
   useEffect(() => {
@@ -532,7 +536,13 @@ export function MaterialPicker({
                   }}
                 />
               </div>
-              <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              <div
+                style={{ maxHeight: 220, overflowY: 'auto' }}
+                onScroll={(e) => {
+                  const el = e.currentTarget
+                  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) productOpts.selectProps.onLoadMore()
+                }}
+              >
                 {products.length === 0 ? (
                   <div style={{ padding: 10, textAlign: 'center', fontSize: 11, color: 'var(--foreground-muted)' }}>
                     {productsFetching ? 'Memuat...' : 'Tidak ditemukan'}
@@ -551,6 +561,9 @@ export function MaterialPicker({
                       <span style={{ color: 'var(--foreground-muted)', fontSize: 10 }}>{p.code}</span>
                     </button>
                   ))
+                )}
+                {productOpts.isFetchingNextPage && (
+                  <div style={{ padding: 8, textAlign: 'center', fontSize: 10, color: 'var(--foreground-muted)' }}>Memuat...</div>
                 )}
               </div>
             </>
