@@ -1320,7 +1320,7 @@ function MoneyDestination({
             <span style={sub}>
               The money arrives days later — Visa / Mastercard, BCA EDC, cash
               deposited later. It waits in Piutang Dagang until you record it
-              in Payment Settlements → Offline Orders.
+              in Settlements → Offline Orders.
             </span>
           </span>
         </label>

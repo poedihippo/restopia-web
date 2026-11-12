@@ -53,10 +53,10 @@ export default function AccountSettingsView() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>
-            Account Settings
+            Company Account Settings
           </h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-            Configure default accounts and financial preferences
+            Default journal accounts for the whole company — branches use these unless they have their own Per-Branch setting; stock opname and year-end closing always use these
           </p>
         </div>
       </div>

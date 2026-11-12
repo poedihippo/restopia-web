@@ -121,7 +121,7 @@ export default function BranchAccountSettingsView() {
             Branch Account Settings
           </h1>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-            Configure per-branch journal account overrides
+            Per-branch journal account overrides — a pickup point uses its outlet's setting, and anything not set here falls back to Per-Company
           </p>
         </div>
         {canCreate && (
