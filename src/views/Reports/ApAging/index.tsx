@@ -340,6 +340,7 @@ export default function ApAgingView() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
+                    <th style={{ ...theadCellStyle, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={theadCellStyle}>Supplier</th>
                     <th style={theadCellStyle}>No. PO</th>
                     <th style={theadCellStyle}>Tanggal</th>
@@ -380,6 +381,7 @@ export default function ApAgingView() {
                         const rowStyle: React.CSSProperties = overdue ? { background: 'rgba(192, 54, 44, 0.06)' } : {}
                         return (
                           <tr key={`${ln.code ?? 'row'}-${idx}`} style={rowStyle}>
+                            <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{idx + 1}</td>
                             <td style={cellStyle}>{ln.supplier_name || '—'}</td>
                             <td style={cellStyle}>{ln.code ?? '—'}</td>
                             <td style={cellStyle}>{ln.date ? formatDate(ln.date) : '—'}</td>
@@ -392,7 +394,7 @@ export default function ApAgingView() {
                         )
                       })}
                       <tr style={totalRowStyle}>
-                        <td colSpan={5} style={totalCellStyle}>
+                        <td colSpan={6} style={totalCellStyle}>
                           Grand Total
                         </td>
                         <td style={totalAmountCellStyle}>{formatCurrency(grandTotal)}</td>

@@ -16,7 +16,7 @@ import { chartOfAccountsService } from '@/services/accounting.service'
 import { useAuth } from '@/hooks/useAuth'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { formatCurrency } from '@/utils/price'
 import { formatDateTime } from '@/utils/date'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -81,7 +81,7 @@ export default function BankAccountsView() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
-  const [activeFilter, setActiveFilter] = useState<string>('')
+  const [activeFilter, setActiveFilter] = useState<string>('1')
   const [coaFilter, setCoaFilter] = useState<string>('')
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
@@ -402,25 +402,21 @@ export default function BankAccountsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search bank, account number..."
-        activeCount={countActive(typeFilter, activeFilter, coaFilter)}
+        activeCount={countActive(typeFilter, activeFilter !== '1', coaFilter)}
         onClear={() => {
           setTypeFilter('')
-          setActiveFilter('')
+          setActiveFilter('1')
           setCoaFilter('')
           setPage(1)
         }}
         quick={
           <>
+            <ActiveSegment value={activeFilter} onChange={setActiveFilter} active="1" inactive="0" label="Bank account status" />
             <FilterSelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="">All Account Types</option>
               <option value="checking">Checking</option>
               <option value="savings">Savings</option>
               <option value="deposit">Deposit</option>
-            </FilterSelect>
-            <FilterSelect value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)}>
-              <option value="">All Status</option>
-              <option value="1">Active</option>
-              <option value="0">Inactive</option>
             </FilterSelect>
             <div style={{ minWidth: 220 }}>
               <SearchableSelect

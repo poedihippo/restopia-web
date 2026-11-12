@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, countActive } from '@/components/ListFilters'
 
 export default function PriceListsView() {
   const { hasPermission } = useAuth()
@@ -22,7 +22,7 @@ export default function PriceListsView() {
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 500)
-  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('')
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('true')
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<{ id: number; name: string; is_active?: boolean } | null>(null)
@@ -93,23 +93,20 @@ export default function PriceListsView() {
           setPage(1)
         }}
         searchPlaceholder="Search price lists..."
-        activeCount={countActive(activeFilter)}
+        activeCount={countActive(activeFilter !== 'true')}
         onClear={() => {
-          setActiveFilter('')
+          setActiveFilter('true')
           setPage(1)
         }}
         quick={
-          <FilterSelect
+          <ActiveSegment
             value={activeFilter}
-            onChange={(e) => {
-              setActiveFilter(e.target.value as 'true' | 'false' | '')
+            onChange={(v) => {
+              setActiveFilter(v)
               setPage(1)
             }}
-          >
-            <option value="">All Status</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </FilterSelect>
+            label="Price list status"
+          />
         }
       />
 

@@ -64,6 +64,7 @@ export default function PriceListItemsView() {
   })
 
   const items = (data as any)?.data?.data ?? []
+  const itemsMeta = (data as any)?.data?.meta
   const canReadFranchisePrice = hasPermission('common.franchise-price.read')
 
   return (
@@ -129,6 +130,7 @@ export default function PriceListItemsView() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+                <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)', width: 50, textAlign: 'center' }}>No.</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)' }}>Product UOM</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)' }}>Offline Price</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--foreground-muted)' }}>Online Price</th>
@@ -141,19 +143,22 @@ export default function PriceListItemsView() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={canReadFranchisePrice ? 5 : 4} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                  <td colSpan={canReadFranchisePrice ? 6 : 5} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                     Loading...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={canReadFranchisePrice ? 5 : 4} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                  <td colSpan={canReadFranchisePrice ? 6 : 5} style={{ padding: 32, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                     No items found
                   </td>
                 </tr>
               ) : (
                 items.map((item: any, idx: number) => (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      {(page - 1) * (itemsMeta?.per_page ?? items.length) + idx + 1}
+                    </td>
                     <td style={{ padding: '12px 16px', color: 'var(--foreground)' }}>
                       {(() => {
                         const pu = item.product_uom

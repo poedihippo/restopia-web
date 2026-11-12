@@ -8,6 +8,7 @@ import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import RecipeSheet from './RecipeSheet'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { FilterBar, FilterGroup, FilterField, countActive } from '@/components/ListFilters'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productsService } from '@/services/products.service'
@@ -106,11 +107,12 @@ export default function RecipesView() {
   }, [productSearch])
 
   // 1. Search products for the filter dropdown via /v1/products (Product Search)
-  const { data: productsData } = useQuery({
+  const productsOpts = useInfiniteOptions<any>({
     queryKey: ['products-for-recipes-filter', debouncedProductSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
         .list({
+          page,
           per_page: 50,
           sort: 'name',
           'filter[search]': debouncedProductSearch || undefined,
@@ -118,11 +120,11 @@ export default function RecipesView() {
         .then((r) => r.data),
   })
 
-  const productOptions = (productsData as any)?.data?.map((p: any) => ({
+  const productOptions = productsOpts.items.map((p: any) => ({
     value: p.id,
     label: withProductType(p.name, p.type),
     sublabel: p.code ? `SKU: ${p.code}` : undefined,
-  })) ?? []
+  }))
 
   React.useEffect(() => {
     const t = setTimeout(() => setDebouncedMaterialSearch(materialSearch), 400)
@@ -130,18 +132,19 @@ export default function RecipesView() {
   }, [materialSearch])
 
   // Ingredient (material product-UOM) options for the "Contains ingredient" filter
-  const { data: materialsData } = useQuery({
+  const materialsOpts = useInfiniteOptions<any>({
     queryKey: ['product-uoms-all', 'recipes-material-filter', debouncedMaterialSearch],
-    queryFn: () =>
+    fetchPage: (page) =>
       productUomsService
         .list({
+          page,
           per_page: 50,
           include: 'product,uom',
           'filter[search]': debouncedMaterialSearch || undefined,
         } as any)
         .then((r) => r.data),
   })
-  const materialOptions = ((materialsData as any)?.data ?? []).map((pu: any) => ({
+  const materialOptions = materialsOpts.items.map((pu: any) => ({
     value: pu.id as number,
     label: withProductType(getProductUomName(pu, pu.product?.name) || pu.code || `#${pu.id}`, pu.product?.type),
     sublabel: pu.code ? `SKU: ${pu.code}` : undefined,
@@ -303,6 +306,8 @@ export default function RecipesView() {
                 onChange={(val) => setSelectedProductId(val)}
                 onSearchChange={(val) => setProductSearch(val)}
                 options={[{ value: '', label: 'All Products' }, ...productOptions]}
+                loading={productsOpts.loading}
+                {...productsOpts.selectProps}
                 placeholder="Filter by Product"
                 searchPlaceholder="Search product by name..."
               />
@@ -352,6 +357,8 @@ export default function RecipesView() {
               onChange={(val) => setMaterialFilter(val === '' ? '' : Number(val))}
               onSearchChange={(val) => setMaterialSearch(val)}
               options={[{ value: '', label: 'All Ingredients' }, ...materialOptions]}
+              loading={materialsOpts.loading}
+              {...materialsOpts.selectProps}
               placeholder="Contains ingredient"
               searchPlaceholder="Search ingredient..."
             />

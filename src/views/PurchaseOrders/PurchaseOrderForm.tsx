@@ -9,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toast } from 'sonner'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -185,20 +186,21 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   // (required by the API), searched on the server by name or code.
   const [coaSearch, setCoaSearch] = useState('')
   const coaSearchDebounced = useDebounce(coaSearch, 400)
-  const { data: coaData, isFetching: coaLoading } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-options', 'charges', coaSearchDebounced],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       chartOfAccountsService
         .list({
+          page,
           per_page: 50,
           sort: 'code',
           'filter[is_active]': 'true',
           'filter[search]': coaSearchDebounced || undefined,
         } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+        .then((r) => r.data),
   })
+  const coaData = coaOpts.items
   const toCoaOption = (coa: any) => ({
     value: coa.id as number,
     label: (coa.name as string) ?? `COA #${coa.id}`,
@@ -210,7 +212,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
     new Set(watchAdditionalCharges.map((c: any) => Number(c?.chart_of_account_id) || 0).filter((id: number) => id > 0)),
   )
   const missingCoaIds = selectedCoaIds.filter(
-    (id) => !((coaData as any) ?? []).some((c: any) => c.id === id),
+    (id) => !coaData.some((c: any) => c.id === id),
   )
   const missingCoaQueries = useQueries({
     queries: missingCoaIds.map((id) => ({
@@ -221,7 +223,7 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
   })
   // Already-fetched by-id results come from the query cache (staleTime).
   const coaChargeOptions = [
-    ...((coaData as any) ?? []).map(toCoaOption),
+    ...coaData.map(toCoaOption),
     ...missingCoaQueries.filter((q) => (q.data as any)?.id).map((q) => toCoaOption(q.data)),
   ]
 
@@ -240,22 +242,22 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
 
 
 
-  const { data: suppliersData, isLoading: suppliersLoading } = useQuery({
+  const supplierOpts = useInfiniteOptions<any>({
     queryKey: ['suppliers-all', debouncedDropdownSearch],
-    queryFn: () => suppliersService.list({ 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 }).then((r) => r.data),
+    fetchPage: (page) => suppliersService.list({ page, 'filter[search]': debouncedDropdownSearch || undefined,  per_page: 100 } as any).then((r) => r.data),
   })
-  const suppliers = (suppliersData as any)?.data ?? []
+  const suppliers = supplierOpts.items
 
   // Buyer punya search sendiri supaya tidak ikut tersaring oleh ketikan
   // di dropdown supplier/branch (yang berbagi dropdownSearch).
   const [buyerSearch, setBuyerSearch] = useState('')
   const [debouncedBuyerSearch, setDebouncedBuyerSearch] = useState('')
   useEffect(() => { const t = setTimeout(() => setDebouncedBuyerSearch(buyerSearch), 400); return () => clearTimeout(t) }, [buyerSearch])
-  const { data: buyersData, isLoading: buyersLoading } = useQuery({
+  const buyerOpts = useInfiniteOptions<any>({
     queryKey: ['buyers-all', debouncedBuyerSearch],
-    queryFn: () => buyersService.list({ 'filter[search]': debouncedBuyerSearch || undefined, per_page: 100, sort: 'name' } as any).then((r) => r.data),
+    fetchPage: (page) => buyersService.list({ page, 'filter[search]': debouncedBuyerSearch || undefined, per_page: 100, sort: 'name' } as any).then((r) => r.data),
   })
-  const buyers = (buyersData as any)?.data ?? []
+  const buyers = buyerOpts.items
 
   const { data: branchesData, isLoading: branchesLoading } = useQuery({
     queryKey: ['branches-all', debouncedDropdownSearch],
@@ -817,7 +819,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       options={supplierOptions}
                       placeholder="Select supplier..."
                       searchPlaceholder="Search suppliers..."
-                      loading={suppliersLoading}
+                      loading={supplierOpts.loading}
+                      {...supplierOpts.selectProps}
                       error={errors.supplier_id?.message as string | undefined}
                       onSearchChange={setDropdownSearch}
                       triggerStyle={triggerStyle}
@@ -841,7 +844,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                       options={buyerOptions}
                       placeholder="Select buyer..."
                       searchPlaceholder="Search buyers..."
-                      loading={buyersLoading}
+                      loading={buyerOpts.loading}
+                      {...buyerOpts.selectProps}
                       error={errors.buyer_id?.message as string | undefined}
                       onSearchChange={setBuyerSearch}
                       triggerStyle={triggerStyle}
@@ -1285,7 +1289,8 @@ export default function PurchaseOrderForm(props: PurchaseOrderFormProps) {
                             options={coaChargeOptions}
                             placeholder="Select account... *"
                             searchPlaceholder="Search account name or code..."
-                            loading={coaLoading}
+                            loading={coaOpts.loading}
+                            {...coaOpts.selectProps}
                             onSearchChange={setCoaSearch}
                             error={errors.additional_charges?.[index]?.chart_of_account_id?.message}
                             triggerStyle={{ ...lineTriggerStyle, borderRadius: 'var(--radius-md)' }}

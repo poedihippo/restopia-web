@@ -13,7 +13,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import {
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, CalendarRange, CheckCircle2, Lock, Download,
@@ -61,6 +61,7 @@ export default function FiscalYearsView() {
   const canDelete = isSuperadmin || hasPermission('fiscal-year.delete')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Default All: is_active marks the current period/year (1 of N), so Active would hide history.
   const [activeFilter, setActiveFilter] = useState('')
   const [closedFilter, setClosedFilter] = useState('')
   const [page, setPage] = useState(1)
@@ -155,11 +156,7 @@ export default function FiscalYearsView() {
         onClear={() => { setActiveFilter(''); setClosedFilter(''); setPage(1) }}
         quick={
           <>
-            <FilterSelect value={activeFilter} onChange={(e) => { setActiveFilter(e.target.value); setPage(1) }}>
-              <option value="">Active: All</option>
-              <option value="1">Active: Yes</option>
-              <option value="0">Active: No</option>
-            </FilterSelect>
+            <ActiveSegment value={activeFilter} onChange={(v) => { setActiveFilter(v); setPage(1) }} active="1" inactive="0" label="Fiscal year status" />
             <FilterSelect value={closedFilter} onChange={(e) => { setClosedFilter(e.target.value); setPage(1) }}>
               <option value="">Closed: All</option>
               <option value="1">Closed: Yes</option>

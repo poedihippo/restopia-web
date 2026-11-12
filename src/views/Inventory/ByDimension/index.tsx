@@ -243,6 +243,7 @@ export default function InventoryByDimensionView() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
+                    <th style={{ ...theadCellStyle, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={theadCellStyle}>{mode === 'owner' ? 'Owner' : 'Stage'}</th>
                     <th style={theadCellStyle}>Kode</th>
                     <th style={theadCellStyle}>Produk</th>
@@ -254,19 +255,19 @@ export default function InventoryByDimensionView() {
                 <tbody>
                   {isLoading ? (
                     <tr>
-                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={8} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Memuat...
                       </td>
                     </tr>
                   ) : isError ? (
                     <tr>
-                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--destructive)' }}>
+                      <td colSpan={8} style={{ ...cellStyle, textAlign: 'center', color: 'var(--destructive)' }}>
                         Gagal memuat data stok
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={8} style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
                         Tidak ada data stok
                       </td>
                     </tr>
@@ -284,6 +285,7 @@ export default function InventoryByDimensionView() {
                         : {}
                       return (
                         <tr key={row.id ?? `${code}-${idx}`} style={rowStyle}>
+                          <td style={{ ...cellStyle, color: 'var(--foreground-muted)', textAlign: 'center' }}>{idx + 1}</td>
                           <td style={cellStyle}>{dimensionLabel}</td>
                           <td style={cellStyle}>{code}</td>
                           <td style={cellStyle}>{name}</td>

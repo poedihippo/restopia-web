@@ -12,6 +12,7 @@ import { branchesService } from '@/services/branches.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 
 interface Props {
@@ -136,23 +137,23 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
   // coaOptions() when it is not in the current result set.
   const [coaSearch, setCoaSearch] = useState('')
   const coaSearchDebounced = useDebounce(coaSearch, 400)
-  const { data: coaData, isFetching: coaLoading } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-pm-branch', coaSearchDebounced],
     staleTime: 60_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       chartOfAccountsService
         .list({
+          page,
           per_page: 50,
           sort: 'code',
           'filter[is_header]': 'false',
           'filter[is_active]': 'true',
           'filter[search]': coaSearchDebounced || undefined,
         } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+        .then((r) => r.data),
     enabled: canEdit && editingId != null,
   })
-  const coas: any[] = coaData ?? []
+  const coas: any[] = coaOpts.items
 
   // Outlets and pickup points, plus any branch that already has an override.
   const outletRows: OutletRow[] = useMemo(() => {
@@ -299,7 +300,7 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
     )
   }
 
-  const colCount = canEdit ? 3 : 2
+  const colCount = canEdit ? 4 : 3
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -364,6 +365,7 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={{ ...thStyle, width: '38%' }}>Outlet</th>
               <th style={thStyle}>Akun yang dipakai</th>
               {canEdit && <th style={{ ...thStyle, width: 96 }} />}
@@ -388,13 +390,14 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
                 </td>
               </tr>
             ) : (
-              visibleRows.map((row) => {
+              visibleRows.map((row, idx) => {
                 const editing = editingId === row.branch_id
                 const eff = effectiveOf(row)
                 const custom = eff.source === 'custom'
                 return editing ? (
                   <tr key={row.branch_id} style={{ background: 'var(--accent-light-bg)' }}>
-                    <td colSpan={colCount} style={tdStyle}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{idx + 1}</td>
+                    <td colSpan={colCount - 1} style={tdStyle}>
                       <div style={{ fontWeight: 600, marginBottom: 10 }}>
                         {row.name}
                         {row.code && <span style={{ fontWeight: 400, color: 'var(--foreground-muted)' }}> · {row.code}</span>}
@@ -408,7 +411,8 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
                         options={coaOptions(draftCoa)}
                         placeholder="Pilih akun (COA)"
                         searchPlaceholder="Cari nama atau kode akun..."
-                        loading={coaLoading}
+                        loading={coaOpts.loading}
+                        {...coaOpts.selectProps}
                         onSearchChange={setCoaSearch}
                         error={fieldError || undefined}
                         triggerStyle={selectTriggerStyle}
@@ -451,6 +455,7 @@ export default function PaymentMethodBranchAccounts({ paymentMethodId, canEdit, 
                   </tr>
                 ) : (
                   <tr key={row.branch_id}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{idx + 1}</td>
                     <td style={tdStyle}>
                       <div style={{ fontWeight: 600 }}>{row.name}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>

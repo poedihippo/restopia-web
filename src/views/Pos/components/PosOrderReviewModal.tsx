@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Loader2, Search, User, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/price'
 import type { PosCartItem, PosCartBundle } from '@/types/api'
@@ -9,6 +8,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { vouchersService } from '@/services/vouchers.service'
 import { customersService } from '@/services/customers.service'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 
 interface PosOrderReviewModalProps {
   open: boolean
@@ -119,16 +119,17 @@ function CustomerField({
   const [highlight, setHighlight] = useState(0)
   const term = (focused === 'phone' ? phone : name).trim()
   const termDebounced = useDebounce(term, 300)
-  const { data, isFetching } = useQuery({
+  const customerOpts = useInfiniteOptions<any>({
     queryKey: ['pos-customer-suggest', termDebounced],
     enabled: open && !selectedName && termDebounced.length >= 2,
     staleTime: 30_000,
-    queryFn: () =>
+    fetchPage: (page) =>
       customersService
-        .list({ per_page: 8, 'filter[search]': termDebounced } as any)
+        .list({ page, per_page: 20, 'filter[search]': termDebounced } as any)
         .then((r) => r.data),
   })
-  const suggestions: any[] = termDebounced.length >= 2 ? (data as any)?.data ?? [] : []
+  const isFetching = customerOpts.loading
+  const suggestions: any[] = termDebounced.length >= 2 ? customerOpts.items : []
   const showList = !!focused && term.length >= 2 && (suggestions.length > 0 || isFetching)
 
   const pick = (c: any) => {
@@ -255,6 +256,10 @@ function CustomerField({
             borderRadius: 'var(--radius-md)',
             boxShadow: 'var(--shadow-md)',
           }}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) customerOpts.selectProps.onLoadMore()
+          }}
         >
           {isFetching && suggestions.length === 0 ? (
             <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--foreground-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -291,6 +296,11 @@ function CustomerField({
                 <span style={{ fontSize: 12, color: 'var(--foreground-muted)', flexShrink: 0 }}>{c.phone || c.code || ''}</span>
               </button>
             ))
+          )}
+          {customerOpts.selectProps.loadingMore && (
+            <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--foreground-muted)', textAlign: 'center' }}>
+              Memuat...
+            </div>
           )}
           <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--foreground-subtle)', background: 'var(--background)' }}>
             Tidak ada di daftar? Lanjut ketik — disimpan sebagai teks bebas.
@@ -349,22 +359,23 @@ export default function PosOrderReviewModal({
   // list even when a later search no longer returns it.
   const [voucherSearch, setVoucherSearch] = useState('')
   const voucherSearchDebounced = useDebounce(voucherSearch, 400)
-  const { data: vouchersData, isFetching: vouchersLoading } = useQuery({
+  const voucherOpts = useInfiniteOptions<any>({
     queryKey: ['pos-vouchers', voucherSearchDebounced],
     enabled: open,
     staleTime: 30_000,
-    placeholderData: (prev: any) => prev,
-    queryFn: () =>
+    fetchPage: (page) =>
       vouchersService
-        .list({ 'filter[search]': voucherSearchDebounced || undefined, 'filter[status]': 'active', per_page: 20 } as any)
+        .list({ page, 'filter[search]': voucherSearchDebounced || undefined, 'filter[status]': 'active', per_page: 20 } as any)
         .then((r) => r.data),
   })
+  const vouchersLoading = voucherOpts.loading
+  const voucherRows = voucherOpts.items
   const [pickedVoucher, setPickedVoucher] = useState<any>(null)
   const vouchers: any[] = useMemo(() => {
-    const results: any[] = (vouchersData as any)?.data ?? []
+    const results: any[] = voucherRows
     const picked = pickedVoucher && pickedVoucher.id === voucherCode ? pickedVoucher : null
     return picked && !results.some((v) => v.id === picked.id) ? [picked, ...results] : results
-  }, [vouchersData, voucherCode, pickedVoucher])
+  }, [voucherRows, voucherCode, pickedVoucher])
   const voucherOptions = useMemo(
     () =>
       // Name first (what the cashier recognises), code underneath.
@@ -608,11 +619,12 @@ export default function PosOrderReviewModal({
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                {['Item', 'Qty', 'Harga', 'Subtotal'].map((h, i) => (
+                {['No.', 'Item', 'Qty', 'Harga', 'Subtotal'].map((h, i) => (
                   <th
                     key={h}
                     style={{
-                      textAlign: i === 0 ? 'left' : 'right',
+                      width: i === 0 ? 50 : undefined,
+                      textAlign: i === 0 ? 'center' : i === 1 ? 'left' : 'right',
                       fontSize: 11,
                       fontWeight: 500,
                       textTransform: 'uppercase',
@@ -630,6 +642,9 @@ export default function PosOrderReviewModal({
             <tbody>
               {cart.map((c, i) => (
                 <tr key={`p-${c.product_inventory_id}-${i}`}>
+                  <td style={{ padding: '8px 0', fontSize: 13, textAlign: 'center', color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)', width: 50 }}>
+                    {i + 1}
+                  </td>
                   <td style={{ padding: '8px 8px 8px 0', fontSize: 13, color: 'var(--foreground)', borderBottom: '1px solid var(--border)' }}>
                     <div>{c.name}</div>
                     {c.code && <div style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>{c.code}</div>}
@@ -647,6 +662,9 @@ export default function PosOrderReviewModal({
               ))}
               {bundleCart.map((b, i) => (
                 <tr key={`b-${b.bundle_id}-${i}`}>
+                  <td style={{ padding: '8px 0', fontSize: 13, textAlign: 'center', color: 'var(--foreground-muted)', borderBottom: '1px solid var(--border)', width: 50 }}>
+                    {cart.length + i + 1}
+                  </td>
                   <td style={{ padding: '8px 8px 8px 0', fontSize: 13, color: 'var(--foreground)', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span
@@ -760,6 +778,7 @@ export default function PosOrderReviewModal({
                     placeholder="Select a voucher"
                     searchPlaceholder="Search voucher..."
                     loading={vouchersLoading}
+                    {...voucherOpts.selectProps}
                     onSearchChange={setVoucherSearch}
                     triggerStyle={{ height: 38, fontSize: 13, borderRadius: 'var(--radius-md)' }}
                   />

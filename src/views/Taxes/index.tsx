@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Eye, X, Download } from 'lucide-react'
-import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, countActive } from '@/components/ListFilters'
 import { taxesService } from '@/services/taxes.service'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
@@ -32,7 +32,7 @@ export default function TaxesView() {
   const [selectedItem, setSelectedItem] = useState<any>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('')
+  const [activeFilter, setActiveFilter] = useState<'true' | 'false' | ''>('true')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -180,18 +180,9 @@ export default function TaxesView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search taxes..."
-        activeCount={countActive(activeFilter)}
-        onClear={() => setActiveFilter('')}
-        quick={
-          <FilterSelect
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value as 'true' | 'false' | '')}
-          >
-            <option value="">All Status</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </FilterSelect>
-        }
+        activeCount={countActive(activeFilter !== 'true')}
+        onClear={() => setActiveFilter('true')}
+        quick={<ActiveSegment value={activeFilter} onChange={setActiveFilter} label="Tax status" />}
       />
       <div
         style={{

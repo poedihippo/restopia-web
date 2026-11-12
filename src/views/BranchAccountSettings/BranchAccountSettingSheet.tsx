@@ -14,6 +14,7 @@ import { SearchableSelect, SelectOption } from '@/components/ui/searchable-selec
 import { X, Loader2, Check, AlertTriangle } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 
 const createSchema = z.object({
   branch_id: z.coerce.number().min(1, 'Branch is required'),
@@ -126,9 +127,10 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
 
   const selectedKeyInfo = accountKeys.find(k => k.id === keyId)
 
-  const { data: coaData, isFetching: coaLoading } = useQuery({
+  const coaOpts = useInfiniteOptions<any>({
     queryKey: ['branch-account-coa-options', debouncedCoaSearch, selectedKeyInfo?.expected_normal_balance ?? ''],
-    queryFn: () => chartOfAccountsService.list({
+    fetchPage: (page) => chartOfAccountsService.list({
+      page,
       per_page: 30,
       'filter[search]': debouncedCoaSearch || undefined,
       'filter[is_header]': 'false',
@@ -136,21 +138,21 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
       'filter[normal_balance]': selectedKeyInfo?.expected_normal_balance || undefined,
     } as any).then(r => r.data),
     enabled: open,
-    placeholderData: (prev: any) => prev,
   })
+  const coaItems = coaOpts.items
 
   const branchLabel = (b: any) => `${b.code} - ${b.name}${b.format === 'pickup_point' ? ' (Pickup Point)' : ''}`
   const branchOptions: SelectOption[] = allBranches.map((b: any) => ({ value: b.id, label: branchLabel(b) }))
   const selectedBranchOption: SelectOption | null = selectedBranch ? { value: selectedBranch.id, label: branchLabel(selectedBranch) } : null
 
   const coaOptions: SelectOption[] = useMemo(() => {
-    const accounts = ((coaData as any)?.data ?? []).filter((c: any) => !c.is_header && c.is_active !== false)
+    const accounts = coaItems.filter((c: any) => !c.is_header && c.is_active !== false)
     for (const c of accounts) seenCoaRef.current.set(c.id, c)
     if (!selectedKeyInfo) return accounts.map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name} (${c.normal_balance})` }))
     return accounts
       .filter((c: any) => c.normal_balance === selectedKeyInfo.expected_normal_balance)
       .map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name}` }))
-  }, [coaData, selectedKeyInfo])
+  }, [coaItems, selectedKeyInfo])
 
   const createMutation = useMutation({
     mutationFn: (data: FormValues) => branchAccountSettingsService.create(data as any),
@@ -258,7 +260,8 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
                 value={coaOptions.find(o => o.value === chartOfAccountId) || (seenCoaRef.current.has(chartOfAccountId) ? { value: chartOfAccountId, label: `${seenCoaRef.current.get(chartOfAccountId).code} - ${seenCoaRef.current.get(chartOfAccountId).name}` } : null)}
                 options={coaOptions}
                 filterOption={null}
-                isLoading={coaLoading}
+                isLoading={coaOpts.loading}
+                {...coaOpts.selectProps}
                 onChange={(val: any) => setValue('chart_of_account_id', val?.value || 0, { shouldValidate: true })}
                 onInputChange={(val, { action }) => { if (action === 'input-change') setCoaSearch(val) }}
                 placeholder="Search account..."

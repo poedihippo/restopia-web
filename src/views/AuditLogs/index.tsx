@@ -206,6 +206,7 @@ export default function AuditLogsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
+              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
               <th style={thStyle}>Date</th>
               <th style={thStyle}>Action</th>
               <th style={thStyle}>Reference</th>
@@ -218,7 +219,7 @@ export default function AuditLogsView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3, 4, 5, 6].map((j) => (
+                  {[1, 2, 3, 4, 5, 6, 7].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{

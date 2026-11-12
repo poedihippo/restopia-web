@@ -20,7 +20,7 @@ import StockMovementSheet from '../StockMovement/StockMovementSheet'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import SearchableSelect from '@/components/SearchableSelect'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
-import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
+import { ActiveSegment, FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, DateRange, countActive } from '@/components/ListFilters'
 import api from '@/hooks/useApi'
 import {
   loadStoredMode,
@@ -551,17 +551,16 @@ export default function ProductInventoriesView({ defaultType }: { defaultType?: 
         }}
         quick={
           <>
-            <FilterSelect
+            <ActiveSegment
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as 'active' | 'inactive' | '')
+              onChange={(v) => {
+                setStatusFilter(v)
                 setPage(1)
               }}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="">All Status</option>
-            </FilterSelect>
+              active="active"
+              inactive="inactive"
+              label="Inventory status"
+            />
             <FilterSelect
               value={categoryFilter}
               onChange={(e) => {

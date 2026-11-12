@@ -604,6 +604,7 @@ export default function SupplierDebtDetailView() {
                       />
                     </th>
                   )}
+                  <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                   <th style={thStyle}>No. Invoice / PO</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
@@ -614,7 +615,7 @@ export default function SupplierDebtDetailView() {
                 </tr>
               </thead>
               <tbody>
-                {poRows.map((row) => {
+                {poRows.map((row, rowIdx) => {
                   const isPartial = row.totalPaid > 0
                   const badge = isPartial
                     ? { label: 'Partial', color: 'var(--warning)', bg: 'var(--warning-bg)' }
@@ -632,6 +633,9 @@ export default function SupplierDebtDetailView() {
                           />
                         </td>
                       )}
+                      <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                        {rowIdx + 1}
+                      </td>
                       <td style={tdStyle}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--foreground)' }}>
                           {row.code}
@@ -712,7 +716,7 @@ export default function SupplierDebtDetailView() {
                   )
                 })}
                 <tr style={{ background: 'var(--accent-light-bg)' }}>
-                  <td colSpan={canPay ? 5 : 4} style={{ ...tdStyle, fontWeight: 700, color: 'var(--foreground)' }}>
+                  <td colSpan={canPay ? 6 : 5} style={{ ...tdStyle, fontWeight: 700, color: 'var(--foreground)' }}>
                     Total Sisa Hutang
                   </td>
                   <td style={{ ...amountTdStyle, fontWeight: 700, color: 'var(--accent)', fontSize: 14 }}>
@@ -767,6 +771,7 @@ export default function SupplierDebtDetailView() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                   <th style={thStyle}>Tanggal</th>
                   <th style={thStyle}>No. Pembayaran</th>
                   <th style={thStyle}>Kas/Bank</th>
@@ -775,8 +780,11 @@ export default function SupplierDebtDetailView() {
                 </tr>
               </thead>
               <tbody>
-                {supplierPayments.map((p) => (
+                {supplierPayments.map((p, pIdx) => (
                   <tr key={p.id}>
+                    <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
+                      {pIdx + 1}
+                    </td>
                     <td style={tdStyle}>{p.date ? formatDate(p.date) : formatDate(p.created_at)}</td>
                     <td style={{ ...tdStyle, fontFamily: 'monospace' }}>
                       {p.payment_number ?? `PMT-${p.id}`}

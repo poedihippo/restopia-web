@@ -37,6 +37,7 @@ import {
   Landmark,
   Scale,
   HandCoins,
+  Banknote,
   UserCog,
   Handshake,
   Repeat,
@@ -200,11 +201,13 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'SALES',
     items: [
       { label: 'Sales Orders', href: '/sales/sales-orders', icon: ReceiptText, permission: 'sales-order.menu' },
+      { label: 'Unpaid Orders', href: '/sales/unpaid-offline-orders', icon: Hourglass, permission: 'sales-order.menu' },
+      { label: 'Payments', href: '/sales/payments', icon: Wallet, permission: 'payment.menu' },
       {
-        label: 'Unpaid Orders',
-        icon: Hourglass,
+        label: 'Payment Settlements',
+        icon: Banknote,
         children: [
-          { label: 'Offline Orders', href: '/sales/unpaid-offline-orders', permission: 'sales-order.menu', channel: 'offline' },
+          { label: 'Offline Orders', href: '/sales/payment-settlements', permission: 'payment.menu', channel: 'offline' },
           { label: 'Online Orders', href: '/sales/settle-payout', permission: 'sales-order.menu', channel: 'online' },
         ],
       },
@@ -215,15 +218,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Sales Channels', href: '/sales/sales-channels', permission: 'sales-channel.menu' },
           { label: 'Customers', href: '/sales/customers', permission: 'customer.menu' },
           { label: 'Vouchers', href: '/sales/vouchers', permission: 'voucher.menu' },
-        ],
-      },
-      {
-        label: 'Payments',
-        icon: Wallet,
-        children: [
           { label: 'Payment Methods', href: '/settings/payment-methods', permission: 'payment-method.menu' },
-          { label: 'Payments', href: '/sales/payments', permission: 'payment.menu' },
-          { label: 'Settle Payments', href: '/sales/payment-settlements', permission: 'payment.menu' },
         ],
       },
     ],
@@ -248,7 +243,6 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Landmark,
         children: [
           { label: 'Journals', href: '/accounting/journals', permission: 'journal.menu' },
-          { label: 'Bank Accounts', href: '/accounting/bank-accounts', permission: 'bank-account.menu' },
           { label: 'Cash Transactions', href: '/accounting/cash-transactions', permission: 'cash-transaction.menu' },
           { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.menu' },
         ],
@@ -287,6 +281,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts', permission: 'chart-of-account.menu' },
           { label: 'Account Categories', href: '/accounting/account-categories', permission: 'account-category.menu' },
           { label: 'Account Types', href: '/accounting/account-types', permission: 'account-type.menu' },
+          { label: 'Bank Accounts', href: '/accounting/bank-accounts', permission: 'bank-account.menu' },
           { label: 'Taxes', href: '/accounting/taxes', permission: 'tax.menu' },
           { label: 'Fiscal Years', href: '/accounting/fiscal-years', permission: 'fiscal-year.menu' },
           { label: 'Periods', href: '/accounting/periods', permission: 'period.menu' },

@@ -7,6 +7,7 @@ import { productsService } from '@/services/products.service'
 import { useAuth } from '@/hooks/useAuth'
 import { useActiveBranchProductTypes, useProductTypes } from '@/hooks/useProductTypes'
 import SearchableSelect from '@/components/SearchableSelect'
+import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import MultiSearchableSelect from '@/components/MultiSearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { withProductType, productTypeLabel } from '@/utils/productUomName'
@@ -108,15 +109,15 @@ export default function OutletStockView() {
     setPage(1)
   }, [debouncedSearch, productId, productTypeFilter])
 
-  const { data: productsData, isLoading: productsLoading } = useQuery({
+  const productsOpts = useInfiniteOptions<ProductRow>({
     queryKey: ['outlet-stock-product-search', productSearchDebounced],
     enabled: productSearchDebounced.length >= 2,
-    queryFn: () =>
+    fetchPage: (page) =>
       productsService
-        .list({ per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced })
+        .list({ page, per_page: 50, sort: 'name', 'filter[search]': productSearchDebounced })
         .then((r) => r.data),
   })
-  const products: ProductRow[] = (productsData?.data?.data as ProductRow[] | undefined) ?? []
+  const products: ProductRow[] = productsOpts.items
   const productOptions = [
     { value: 0, label: 'Semua Produk' },
     ...products.map((p) => ({
@@ -280,7 +281,8 @@ export default function OutletStockView() {
                 options={productOptions}
                 placeholder="Semua Produk"
                 searchPlaceholder="Ketik minimal 2 huruf untuk mencari..."
-                loading={productsLoading}
+                loading={productsOpts.loading}
+                {...productsOpts.selectProps}
                 onSearchChange={setProductSearch}
               />
             </div>
@@ -314,7 +316,7 @@ export default function OutletStockView() {
               <tr>
                 {/* Sudut (sticky top + left) memakai z-index paling tinggi */}
                 <th style={{ ...thStyle, ...stickyTopTh, ...stickyLeft(0, HEAD_BG, Z_CORNER), width: 44, textAlign: 'center' }}>
-                  #
+                  No.
                 </th>
                 <th style={{ ...thStyle, ...stickyTopTh, ...stickyLeft(44, HEAD_BG, Z_CORNER), minWidth: 200 }}>
                   Produk
