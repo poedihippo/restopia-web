@@ -388,7 +388,10 @@ export default function PosOrderReviewModal({
     if (pendingVoucher) onApplyVoucher({ id: pendingVoucher.id, code: pendingVoucher.code })
     setVoucherWarn(false)
   }
+  // An online order belongs to a marketplace: no channel, no order.
+  const missingChannel = orderType === 'online' && !salesChannelId
   const handleProceed = () => {
+    if (missingChannel) return
     if (voucherPending) {
       setVoucherWarn(true)
       return
@@ -536,6 +539,11 @@ export default function PosOrderReviewModal({
                   </option>
                 ))}
               </select>
+              {!salesChannelId && (
+                <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 6 }}>
+                  Pilih sales channel (GoFood, GrabFood, …) untuk membuat order.
+                </div>
+              )}
             </div>
           )}
 
@@ -691,7 +699,7 @@ export default function PosOrderReviewModal({
         </div>
 
         {/* Voucher — its own band, tinted like the order details above */}
-        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', background: 'var(--background)' }}>
+        <div style={{ padding: '16px 24px 18px', borderTop: '1px solid var(--border)', background: 'var(--background)' }}>
           <div>
             <span style={{ ...fieldLabel, fontWeight: 600, color: 'var(--foreground)' }}>Voucher</span>
             {appliedVoucher ? (
@@ -718,7 +726,18 @@ export default function PosOrderReviewModal({
                 </button>
               </div>
             ) : needsChannelForVoucher ? (
-              <div style={{ ...fieldStyle, color: 'var(--foreground-subtle)', background: 'var(--background)' }}>
+              <div
+                style={{
+                  ...fieldStyle,
+                  height: 40,
+                  padding: '0 12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: 'var(--foreground-subtle)',
+                  background: 'var(--surface)',
+                  borderStyle: 'dashed',
+                }}
+              >
                 Pilih sales channel dulu untuk memakai voucher
               </div>
             ) : (
@@ -839,7 +858,7 @@ export default function PosOrderReviewModal({
         </div>
 
         {/* Totals */}
-        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ padding: '18px 24px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {discountAmount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--success)' }}>
               <span>Discount{appliedVoucher?.code ? ` (${appliedVoucher.code})` : ''}</span>
@@ -856,7 +875,7 @@ export default function PosOrderReviewModal({
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'baseline',
+              alignItems: 'center',
               ...(discountAmount > 0 || (taxAmount ?? 0) > 0
                 ? { borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 6 }
                 : {}),
@@ -880,7 +899,7 @@ export default function PosOrderReviewModal({
           .pos-rv-close:hover { background: var(--destructive-bg) !important; color: var(--destructive) !important; }
           .pos-rv-secondary:not(:disabled):hover { background: var(--accent-light-bg) !important; border-color: var(--accent-light) !important; color: var(--accent) !important; }
         `}</style>
-        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+        <div style={{ padding: '16px 24px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 12 }}>
           <button
             type="button"
             onClick={onBack}
@@ -903,6 +922,8 @@ export default function PosOrderReviewModal({
             type="button"
             onClick={handleProceed}
             autoFocus
+            disabled={missingChannel}
+            title={missingChannel ? 'Pilih sales channel dulu' : undefined}
             className="pos-rv-primary"
             style={{
               flex: 2,
@@ -913,7 +934,8 @@ export default function PosOrderReviewModal({
               fontSize: 15,
               fontWeight: 700,
               color: 'white',
-              cursor: 'pointer',
+              cursor: missingChannel ? 'not-allowed' : 'pointer',
+              opacity: missingChannel ? 0.5 : 1,
             }}
           >
             {orderType === 'online' ? 'Create Order' : 'Charge Now'}{' '}
