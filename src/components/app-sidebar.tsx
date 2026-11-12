@@ -204,7 +204,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: 'Unpaid Orders', href: '/sales/unpaid-offline-orders', icon: Hourglass, permission: 'sales-order.menu' },
       { label: 'Payments', href: '/sales/payments', icon: Wallet, permission: 'payment.menu' },
       {
-        label: 'Payment Settlements',
+        label: 'Settlements',
         icon: Banknote,
         children: [
           { label: 'Offline Orders', href: '/sales/payment-settlements', permission: 'payment.menu', channel: 'offline' },
@@ -291,10 +291,10 @@ export const NAV_GROUPS: NavGroup[] = [
         label: 'Account Settings',
         icon: SlidersHorizontal,
         children: [
-          { label: 'Account Settings', href: '/accounting/account-settings', permission: 'account-setting.menu' },
-          { label: 'Branch Account Settings', href: '/accounting/branch-account-settings', permission: 'branch-account-setting.menu' },
-          { label: 'Buyer Account Settings', href: '/accounting/buyer-account-settings', permission: 'buyer-account-setting.menu' },
-          { label: 'Product Category Account Settings', href: '/accounting/product-category-account-settings', permission: 'product-category-account-setting.menu' },
+          { label: 'Per-Company', href: '/accounting/account-settings', permission: 'account-setting.menu' },
+          { label: 'Per-Branch', href: '/accounting/branch-account-settings', permission: 'branch-account-setting.menu' },
+          { label: 'Buyer', href: '/accounting/buyer-account-settings', permission: 'buyer-account-setting.menu' },
+          { label: 'Product Category', href: '/accounting/product-category-account-settings', permission: 'product-category-account-setting.menu' },
         ],
       },
     ],
