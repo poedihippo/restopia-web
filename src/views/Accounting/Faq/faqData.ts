@@ -142,7 +142,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'jurnal',
     question: 'Bagaimana memasukkan saldo awal saat mulai memakai sistem?',
     answer: [
-      'Gunakan menu Opening Balances: unduh templatenya, isi saldo per akun, lalu unggah. Sistem membuat jurnal saldo awal yang seimbang. Pastikan periode untuk tanggal saldo awal sudah dibuat dan masih terbuka.',
+      'Gunakan menu Opening Balances: pilih tanggal saldo awal dan akun penyeimbang (default: Historical Balancing), lalu isi saldo per akun atau impor dari template Excel. Simpan sebagai draft, periksa, lalu posting — sistem membuat satu jurnal saldo awal per cabang yang seimbang. Pastikan periode untuk tanggal tersebut sudah dibuat dan masih terbuka.',
     ],
     links: [{ label: 'Opening Balances', href: '/accounting/opening-balances' }],
   },
@@ -171,9 +171,9 @@ export const FAQ_ITEMS: FaqItem[] = [
   {
     id: 'settlement-edc',
     category: 'kas-bank',
-    question: 'Pembayaran EDC, QRIS, atau kartu sudah diterima tapi kenapa belum masuk ke saldo bank?',
+    question: 'Pembayaran kartu atau EDC sudah diterima tapi kenapa belum masuk ke saldo bank?',
     answer: [
-      'Metode pembayaran yang memakai settlement tidak langsung menjurnal ke bank. Piutangnya tetap terbuka sampai dana benar-benar masuk ke rekening, karena bank biasanya mencairkannya beberapa hari kemudian dan memotong biaya (MDR).',
+      'Metode pembayaran yang memakai settlement (diatur per metode, biasanya kartu / EDC) tidak langsung menjurnal ke bank. Piutangnya tetap terbuka sampai dana benar-benar masuk ke rekening, karena bank biasanya mencairkannya beberapa hari kemudian dan memotong biaya (MDR).',
       'Saat dana masuk, catat di Settlements › Offline Orders: pilih pembayarannya, rekening tujuan, dan biaya yang dipotong. Sistem menjurnal Bank + Beban Admin terhadap piutang.',
     ],
     links: [{ label: 'Settlements (Offline)', href: '/sales/payment-settlements' }],
@@ -251,7 +251,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'laporan',
     question: 'Bagaimana cara melihat laporan untuk satu periode tertentu?',
     answer: [
-      'Setiap laporan akuntansi memiliki pilihan Period. Memilih periode akan mengisi tanggal mulai dan tanggal akhir secara otomatis. Untuk laporan "per tanggal" (Neraca, AP Aging, Kartu Piutang/Hutang), tanggalnya diisi dengan tanggal akhir periode. Jika tanggal diubah manual, pilihan kembali ke "Rentang tanggal sendiri".',
+      'Hampir setiap laporan akuntansi memiliki pilihan Period (Kartu Hutang Supplier tidak). Memilih periode akan mengisi tanggal mulai dan tanggal akhir secara otomatis. Untuk laporan "per tanggal" (Neraca, AP Aging, Customer/Supplier Statements), tanggalnya diisi dengan tanggal akhir periode. Comparative Reports memakai tahun buku. Jika tanggal diubah manual, pilihan kembali ke "Rentang tanggal sendiri".',
     ],
   },
   {
@@ -259,7 +259,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     category: 'laporan',
     question: 'Laporan menampilkan data cabang mana saja?',
     answer: [
-      'Secara default, laporan menampilkan cabang yang sedang aktif beserta pickup point di bawahnya. Pilih "Semua cabang" untuk melihat seluruh perusahaan, atau pilih satu cabang tertentu. Saldo kas dan bank selalu dihitung per perusahaan karena rekening bank tidak terikat ke satu cabang.',
+      'Laporan keuangan (Neraca Saldo, Laba Rugi, Neraca, Arus Kas, Buku Besar, Pajak) secara default menampilkan cabang yang sedang aktif beserta pickup point di bawahnya. Pilih "Semua cabang" untuk melihat seluruh perusahaan, atau pilih satu cabang tertentu. Laporan piutang & hutang mengikuti cabang aktif. Saldo kas dan bank selalu dihitung per perusahaan karena rekening bank tidak terikat ke satu cabang.',
     ],
   },
   {
