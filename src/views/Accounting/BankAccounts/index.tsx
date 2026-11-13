@@ -20,6 +20,8 @@ import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/component
 import { formatCurrency } from '@/utils/price'
 import { formatDateTime } from '@/utils/date'
 import { toastMutationApiError } from '@/utils/apiError'
+import { fetchAllPages } from '@/utils/salesReport'
+import { blockedStyle } from '@/lib/actionGuards'
 import {
   Plus,
   Pencil,
@@ -29,7 +31,9 @@ import {
   Loader2,
   Building2,
   Landmark,
+  Scale,
 } from 'lucide-react'
+import Link from 'next/link'
 
 const schema = z.object({
   company_id: z.coerce.number().optional().default(1),
@@ -77,6 +81,7 @@ export default function BankAccountsView() {
   const canCreate = isSuperadmin || hasPermission('bank_account.create')
   const canUpdate = isSuperadmin || hasPermission('bank_account.update')
   const canDelete = isSuperadmin || hasPermission('bank_account.delete')
+  const canReconcile = hasPermission('bank-reconciliation.create') || hasPermission('bank-reconciliation.read')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -152,6 +157,7 @@ export default function BankAccountsView() {
     handleSubmit,
     reset,
     control,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
@@ -255,6 +261,30 @@ export default function BankAccountsView() {
     },
   })
 
+  // opening_balance is locked once the account has moved: the API derives
+  // current_balance from it, so editing it later rewrites history.
+  const toCents = (n: unknown) => Math.round((Number(n) || 0) * 100)
+  const openingLocked =
+    !!editItem &&
+    (!!(editItem as any).has_transactions ||
+      (editItem.current_balance != null && toCents(editItem.current_balance) !== toCents(editItem.opening_balance)))
+
+  // Every bank account's linked CoA, to warn when one is already taken.
+  const { data: coaLinksData } = useQuery({
+    queryKey: ['bank-accounts-all', 'coa-links'],
+    enabled: sheetOpen,
+    queryFn: () =>
+      fetchAllPages((page) =>
+        bankAccountsService.list({ page, per_page: 200 } as any).then((r) => r.data),
+      ),
+  })
+  const watchedCoaId = Number(watch('chart_of_account_id') || 0)
+  const coaLinkedTo = watchedCoaId
+    ? ((coaLinksData as BankAccount[] | undefined) ?? []).find(
+        (b) => Number(b.chart_of_account_id) === watchedCoaId && b.id !== editItem?.id,
+      )
+    : undefined
+
   const onSubmit = (values: FormValues) => {
     if (editItem) {
       // UpdateBankAccountRequest in OpenAPI does not take company_id
@@ -264,7 +294,8 @@ export default function BankAccountsView() {
         account_number: values.account_number.trim(),
         account_name: values.account_name.trim(),
         account_type: values.account_type,
-        opening_balance: values.opening_balance ?? 0,
+        // Never resend a locked opening balance.
+        ...(openingLocked ? {} : { opening_balance: values.opening_balance ?? 0 }),
         swift_code: values.swift_code?.trim() || undefined,
         branch: values.branch?.trim() || undefined,
         branch_name: values.branch?.trim() || undefined,
@@ -650,6 +681,23 @@ export default function BankAccountsView() {
                       {/* Actions */}
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                          {canReconcile && (
+                            <Link
+                              href={`/accounting/bank-reconciliation?bank_account_id=${item.id}`}
+                              title={item.chart_of_account_id ? 'Reconcile' : 'Link a chart of account first'}
+                              onClick={(e) => {
+                                if (!item.chart_of_account_id) e.preventDefault()
+                              }}
+                              style={{
+                                padding: 6,
+                                display: 'inline-flex',
+                                color: 'var(--foreground-muted)',
+                                ...(item.chart_of_account_id ? {} : blockedStyle),
+                              }}
+                            >
+                              <Scale size={15} />
+                            </Link>
+                          )}
                           <button
                             onClick={() => setViewItem(item)}
                             title="View Detail"
@@ -898,6 +946,12 @@ export default function BankAccountsView() {
                   {errors.chart_of_account_id && (
                     <div style={errorStyle}>{errors.chart_of_account_id.message}</div>
                   )}
+                  {coaLinkedTo && (
+                    <div style={{ fontSize: 12, color: 'var(--warning)', marginTop: 4 }}>
+                      Already linked to {coaLinkedTo.bank_name} - {coaLinkedTo.account_number}. Two bank accounts on one
+                      account mix their balances.
+                    </div>
+                  )}
                 </div>
 
                 {/* Opening Balance */}
@@ -908,10 +962,14 @@ export default function BankAccountsView() {
                     step="any"
                     {...register('opening_balance', { valueAsNumber: true })}
                     placeholder="0"
-                    style={inputStyle}
+                    disabled={openingLocked}
+                    title={openingLocked ? 'Locked once the account has transactions' : undefined}
+                    style={{ ...inputStyle, ...(openingLocked ? blockedStyle : {}) }}
                   />
                   <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginTop: 4, display: 'block' }}>
-                    Initial balance when starting ledger integration
+                    {openingLocked
+                      ? 'Locked once the account has transactions'
+                      : 'Initial balance when starting ledger integration'}
                   </span>
                 </div>
 

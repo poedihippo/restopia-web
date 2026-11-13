@@ -12,6 +12,8 @@ import { invoicesService } from '@/services/invoices.service'
 import { branchesService } from '@/services/branches.service'
 import { paymentMethodsService } from '@/services/payment-methods.service'
 import { useAuth } from '@/hooks/useAuth'
+import { paymentAllocateBlock, paymentVoidBlock, paymentDeleteBlock, blockedStyle } from '@/lib/actionGuards'
+import ReferenceLink from '@/components/ReferenceLink'
 import {
   ChevronLeft,
   ChevronRight,
@@ -411,41 +413,32 @@ export default function PaymentsView() {
                   <td style={tdStyle}>
                     {canRead ? item.allocations && item.allocations.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {item.allocations.map((alloc, idx) => (
-                          <div key={idx}>
-                            {alloc.sales_order_id && (
-                              <Link 
-                                href={`/sales/sales-orders/${alloc.sales_order_id}/detail`}
-                                style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}
-                                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                              >
-                                <span className="v2-link">SO-{alloc.sales_order_id} ({formatCurrency(alloc.amount || 0)})<ArrowUpRight size={12} /></span>
-                              </Link>
-                            )}
-                            {alloc.purchase_order_id && (
-                              <Link 
-                                href={`/purchase/purchase-orders/${alloc.purchase_order_id}/detail`}
-                                style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}
-                                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                              >
-                                <span className="v2-link">PO-{alloc.purchase_order_id} ({formatCurrency(alloc.amount || 0)})<ArrowUpRight size={12} /></span>
-                              </Link>
-                            )}
-                            {alloc.invoice_id && (
-                              <Link 
-                                href={`/transfer/invoices/${alloc.invoice_id}/detail`}
-                                style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}
-                                onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                                onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
-                              >
-                                {/* Kode invoice dari GET /invoices/{id}; fallback INV-{id} */}
-                                <span className="v2-link">{invoiceById?.[alloc.invoice_id]?.code || `INV-${alloc.invoice_id}`} ({formatCurrency(alloc.amount || 0)})<ArrowUpRight size={12} /></span>
-                              </Link>
-                            )}
-                          </div>
-                        ))}
+                        {item.allocations.map((alloc, idx) => {
+                          // Allocations carry only ids: use a real code when the row
+                          // already has it, otherwise name the document type.
+                          const amount = <span style={{ color: 'var(--foreground-muted)', fontWeight: 400 }}> · {formatCurrency(alloc.amount || 0)}</span>
+                          return (
+                            <div key={idx} style={{ fontSize: 13 }}>
+                              {alloc.sales_order_id && (
+                                <ReferenceLink type="sales_orders" id={alloc.sales_order_id}>
+                                  {item.sales_order?.id === alloc.sales_order_id && item.sales_order?.code ? item.sales_order.code : 'Sales order'}
+                                  {amount}
+                                </ReferenceLink>
+                              )}
+                              {alloc.purchase_order_id && (
+                                <ReferenceLink type="purchase_orders" id={alloc.purchase_order_id}>
+                                  Purchase order{amount}
+                                </ReferenceLink>
+                              )}
+                              {alloc.invoice_id && (
+                                <ReferenceLink type="invoices" id={alloc.invoice_id}>
+                                  {invoiceById?.[alloc.invoice_id]?.code || 'Invoice'}
+                                  {amount}
+                                </ReferenceLink>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     ) : (
                       <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>Unallocated</span>
@@ -535,28 +528,42 @@ export default function PaymentsView() {
                       }}
                     >
                       {/* A refund is created by a sales order return and can't be reallocated, voided or deleted. */}
-                      {item.type !== 'refund' && !item.is_reversed && canEdit && (
-                        <button
-                          onClick={() => setAllocatePayment(item)}
-                          style={actionBtnStyle}
-                          title="Allocate">
-                          <SplitSquareHorizontal size={14} />
-                        </button>
-                      )}
-                      {item.type !== 'refund' && !item.is_reversed && canEdit && (
-                        <button
-                          onClick={() => setVoidConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--foreground-muted)' }}
-                          title="Void">
-                          <Ban size={14} />
-                        </button>
-                      )}
-                      {item.type !== 'refund' && canDelete && (<button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                        title="Delete">
-                        <Trash2 size={14} />
-                      </button>)}
+                      {item.type !== 'refund' && (() => {
+                        const allocateBlock = paymentAllocateBlock(item)
+                        const voidBlock = paymentVoidBlock(item)
+                        const deleteBlock = paymentDeleteBlock(item)
+                        return (
+                          <>
+                            {canEdit && (
+                              <button
+                                onClick={() => { if (!allocateBlock) setAllocatePayment(item) }}
+                                disabled={!!allocateBlock}
+                                style={{ ...actionBtnStyle, ...(allocateBlock ? blockedStyle : {}) }}
+                                title={allocateBlock ?? 'Allocate'}>
+                                <SplitSquareHorizontal size={14} />
+                              </button>
+                            )}
+                            {canEdit && (
+                              <button
+                                onClick={() => { if (!voidBlock) setVoidConfirmId(item.id) }}
+                                disabled={!!voidBlock}
+                                style={{ ...actionBtnStyle, color: 'var(--foreground-muted)', ...(voidBlock ? blockedStyle : {}) }}
+                                title={voidBlock ?? 'Void'}>
+                                <Ban size={14} />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => { if (!deleteBlock) setDeleteConfirmId(item.id) }}
+                                disabled={!!deleteBlock}
+                                style={{ ...actionBtnStyle, color: 'var(--destructive)', ...(deleteBlock ? blockedStyle : {}) }}
+                                title={deleteBlock ?? 'Delete'}>
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
                   </td>
                 </tr>

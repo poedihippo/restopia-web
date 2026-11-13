@@ -4,22 +4,27 @@ import React, { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toast } from 'sonner'
 import { productCategoryAccountSettingsService } from '@/services/product-category-account-settings.service'
 import { productCategoriesService } from '@/services/product-categories.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
+import { branchesService } from '@/services/branches.service'
+import { useAuth } from '@/hooks/useAuth'
 import { SearchableSelect, SelectOption } from '@/components/ui/searchable-select'
 import { X, Loader2, Check } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
 
+// The API requires branch_id on create (product-category-account-settings/.../request.go:4).
 const createSchema = z.object({
+  branch_id: z.coerce.number().min(1, 'Branch is required'),
   product_category_id: z.coerce.number().min(1, 'Product category is required'),
   chart_of_account_id: z.coerce.number().min(1, 'Chart of Account is required'),
   description: z.string().optional(),
 })
 const editSchema = z.object({
+  branch_id: z.coerce.number().optional(),
   product_category_id: z.coerce.number().optional(),
   chart_of_account_id: z.coerce.number().optional(),
   description: z.string().optional(),
@@ -38,23 +43,26 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(isEdit ? editSchema : createSchema) as any,
-    defaultValues: { product_category_id: 0, chart_of_account_id: 0, description: '' },
+    defaultValues: { branch_id: 0, product_category_id: 0, chart_of_account_id: 0, description: '' },
   })
 
+  const { user } = useAuth()
+  const branchId = watch('branch_id')
   const productCategoryId = watch('product_category_id')
   const chartOfAccountId = watch('chart_of_account_id')
 
   useEffect(() => {
     if (editData) {
       reset({
+        branch_id: editData.branch_id ?? 0,
         product_category_id: editData.product_category_id ?? 0,
         chart_of_account_id: editData.chart_of_account_id ?? 0,
         description: editData.description ?? '',
       })
     } else {
-      reset({ product_category_id: 0, chart_of_account_id: 0, description: '' })
+      reset({ branch_id: user?.branch?.id ?? 0, product_category_id: 0, chart_of_account_id: 0, description: '' })
     }
-  }, [editData, open, reset])
+  }, [editData, open, reset, user?.branch?.id])
 
   const [catSearch, setCatSearch] = useState('')
   const [coaSearch, setCoaSearch] = useState('')
@@ -66,11 +74,41 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
   })
   const coaOpts = useInfiniteOptions<any>({
     queryKey: ['chart-of-accounts-all', 'pcas', coaSearch],
-    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 50, 'filter[search]': coaSearch || undefined } as any).then(r => r.data),
+    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 50, 'filter[search]': coaSearch || undefined, 'filter[is_header]': 'false', 'filter[is_active]': 'true' } as any).then(r => r.data),
     enabled: open,
   })
 
-  const catOptions: SelectOption[] = catOpts.items.map((c: any) => ({ value: c.id, label: c.name }))
+  const [branchSearch, setBranchSearch] = useState('')
+  const { data: branchesData, isFetching: branchesLoading } = useQuery({
+    queryKey: ['pcas-branch-options', branchSearch],
+    queryFn: () => branchesService.list({ 'filter[search]': branchSearch || undefined, per_page: 30, sort: 'name' } as any).then(r => r.data),
+    enabled: open,
+    placeholderData: (prev: any) => prev,
+  })
+  const branchRows: any[] = (branchesData as any)?.data ?? []
+  const branchOptions: SelectOption[] = branchRows.map((b: any) => ({ value: b.id, label: `${b.code} - ${b.name}` }))
+  const knownBranch = branchRows.find((b: any) => b.id === branchId)
+    ?? (editData?.branch?.id === branchId ? editData.branch : null)
+    ?? (user?.branch?.id === branchId ? user?.branch : null)
+  const selectedBranchOption: SelectOption | null = knownBranch ? { value: knownBranch.id, label: `${knownBranch.code ?? ''}${knownBranch.code ? ' - ' : ''}${knownBranch.name}` } : null
+
+  // One mapping per category per branch — disable categories this branch already maps.
+  const { data: branchMappingsData } = useQuery({
+    queryKey: ['product-category-account-settings', 'by-branch', branchId],
+    queryFn: () => productCategoryAccountSettingsService.list({ 'filter[branch_id]': branchId, per_page: 100 } as any).then(r => r.data),
+    enabled: open && !!branchId,
+  })
+  const mappedCategoryIds = new Set(
+    (((branchMappingsData as any)?.data ?? []) as any[])
+      .filter(r => r.id !== editData?.id)
+      .map(r => Number(r.product_category_id)),
+  )
+
+  const catOptions: SelectOption[] = catOpts.items.map((c: any) => ({
+    value: c.id,
+    label: mappedCategoryIds.has(c.id) ? `${c.name} — already mapped` : c.name,
+    isDisabled: mappedCategoryIds.has(c.id),
+  }))
   const coaOptions: SelectOption[] = coaOpts.items.filter((c: any) => !c.is_header && c.is_active !== false && c.normal_balance === 'debit').map((c: any) => ({ value: c.id, label: `${c.code} - ${c.name}` }))
 
   const createMutation = useMutation({
@@ -121,6 +159,22 @@ export default function ProductCategoryAccountSettingSheet({ open, onClose, edit
 
         <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
+                Branch <span style={{ color: 'var(--destructive)' }}>*</span>
+              </label>
+              <SearchableSelect
+                value={selectedBranchOption}
+                options={branchOptions}
+                onChange={(val: any) => setValue('branch_id', val?.value || 0, { shouldValidate: true })}
+                onInputChange={(val, { action }) => { if (action === 'input-change') setBranchSearch(val) }}
+                isLoading={branchesLoading}
+                placeholder="Search branch..."
+                isClearable
+              />
+              {errors.branch_id && <span style={errorStyle}>{errors.branch_id.message as string}</span>}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 2 }}>
                 Product Category <span style={{ color: 'var(--destructive)' }}>*</span>

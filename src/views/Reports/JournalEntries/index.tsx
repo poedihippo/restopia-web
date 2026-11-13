@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Download } from 'lucide-react'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
+import FinancePeriodSelect from '../FinancePeriodSelect'
 
 export default function JournalEntriesView() {
   const [startDate, setStartDate] = useState('')
@@ -14,9 +15,10 @@ export default function JournalEntriesView() {
 
   const { mutate: exportExcel, isPending } = useMutation({
     mutationFn: () => reportsService.exportJournalEntries({
-      ...(startDate ? { start_date: startDate } : {}),
-      ...(endDate ? { end_date: endDate } : {}),
-      ...(isPosted !== '' ? { is_posted: isPosted === 'true' } : {}),
+      // Same filter[...] keys as GET /v1/journals — bare start_date/end_date/is_posted are ignored.
+      ...(startDate ? { 'filter[date_gte]': startDate } : {}),
+      ...(endDate ? { 'filter[date_lte]': endDate } : {}),
+      ...(isPosted !== '' ? { 'filter[is_posted]': isPosted === 'true' } : {}),
     }),
     onSuccess: (res) => {
       downloadFileFromResponse(res, `journal-entries.xlsx`)
@@ -44,6 +46,15 @@ export default function JournalEntriesView() {
               <option value="true">Posted</option>
               <option value="false">Draft</option>
             </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>Period (Optional)</label>
+            <FinancePeriodSelect
+              start={startDate}
+              end={endDate}
+              onChange={(p) => { setStartDate(p.start_date); setEndDate(p.end_date) }}
+              style={{ padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 'var(--radius-md)', background: '#ffffff', color: '#111827', outline: 'none' }}
+            />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 500 }}>Start Date (Optional)</label>

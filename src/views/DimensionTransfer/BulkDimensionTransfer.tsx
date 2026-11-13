@@ -64,6 +64,8 @@ interface BulkDimensionTransferProps {
 }
 
 export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransferProps) {
+  // POST /stock-movements/dimension-transfer[/bulk] needs stock-movement.create
+  const canTransfer = useAuth().hasPermission('stock-movement.create')
   const [dropdownSearch, setDropdownSearch] = useState('')
   const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
   useEffect(() => {
@@ -543,7 +545,8 @@ export default function BulkDimensionTransfer({ branchId }: BulkDimensionTransfe
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button
             type="submit"
-            disabled={createMutation.isPending || isSameDimension}
+            disabled={createMutation.isPending || isSameDimension || !canTransfer}
+              title={!canTransfer ? 'You do not have permission to transfer stock' : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',

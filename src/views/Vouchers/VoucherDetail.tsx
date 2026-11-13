@@ -24,6 +24,8 @@ export default function VoucherDetail({ id, onClose, onEdit }: VoucherDetailProp
   const qc = useQueryClient()
   const { hasPermission } = useAuth()
   const canEdit = hasPermission('voucher.update')
+  // PATCH /:id/status has its own key (vouchers/.../voucher_route.go)
+  const canToggleStatus = hasPermission('voucher.update-status')
   const canDelete = hasPermission('voucher.delete')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const open = id != null
@@ -370,7 +372,7 @@ export default function VoucherDetail({ id, onClose, onEdit }: VoucherDetailProp
               </button>
             ) : <span />}
             <div style={{ display: 'flex', gap: 8 }}>
-              {canEdit && (
+              {canToggleStatus && (
                 <button
                   type="button"
                   onClick={() => toggleStatusMutation.mutate()}

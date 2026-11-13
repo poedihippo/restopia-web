@@ -12,8 +12,9 @@ import {
   FileSpreadsheet,
   PackageSearch,
   Loader2,
-  Plus, ArrowUpRight, Wallet,
+  Plus, ArrowUpRight, Wallet, Ban,
 } from 'lucide-react'
+import { invoiceVoidBlock, blockedStyle } from '@/lib/actionGuards'
 import { getInvoiceDueInfo } from '@/utils/invoiceDue'
 import BackLink from '@/components/BackLink'
 import { useQueryClient, useMutation } from '@tanstack/react-query'
@@ -136,6 +137,8 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuth()
   const canRead = hasPermission('invoice.read')
+  const canVoid = hasPermission('invoice.delete')
+  const [voidConfirmOpen, setVoidConfirmOpen] = React.useState(false)
   // Warehouse / production also open the company's other branches' invoices.
   const { isCentral, activeBranchId, scopeParams } = useCentralCompanyScope()
 
@@ -165,21 +168,44 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
   const { data: paymentsData } = useQuery({
     queryKey: ['invoice-payments', id, scopeParams.scope],
     enabled: canRead && !!id && !isNaN(id),
-    queryFn: () =>
-      paymentsService
-        .list({
-          per_page: 50,
+    // filter[invoice_id] matches payments.allocations.invoice_id on the API.
+    // Page through every result so no payment is dropped by a per_page cap.
+    queryFn: async () => {
+      const all: any[] = []
+      for (let page = 1; page <= 50; page++) {
+        const res = await paymentsService.list({
+          page,
+          per_page: 200,
           include: 'payment_method,bank_account,allocations',
           'filter[invoice_id]': id,
           ...scopeParams,
         } as any)
-        .then((r) => r.data),
+        const body = (res.data as any) ?? {}
+        all.push(...(body.data ?? []))
+        const lastPage = Number(body.meta?.last_page ?? 1)
+        if (page >= lastPage) break
+      }
+      return all
+    },
   })
 
-  const allPayments = (paymentsData as any)?.data ?? []
-  const payments = allPayments.filter((p: any) =>
-    p.allocations?.some((a: any) => a.invoice_id === Number(id))
+  // Keep only payments with an allocation on this invoice (guards against an
+  // API that ignores the filter).
+  const payments = ((paymentsData as any[]) ?? []).filter((p: any) =>
+    p.allocations?.some((a: any) => Number(a.invoice_id) === Number(id))
   )
+
+  const voidMutation = useMutation({
+    mutationFn: () => invoicesService.void(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-detail', id] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success('Invoice voided')
+      setVoidConfirmOpen(false)
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to void invoice'),
+  })
 
   // An invoice raised from purchase orders (every billed SO came from a PO —
   // the inter-branch flow) is paid with purchase-side methods; any other
@@ -513,6 +539,21 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
+            {canVoid && (() => {
+              const reason = invoiceVoidBlock(invoice)
+              return (
+                <button
+                  type="button"
+                  onClick={() => { if (!reason) setVoidConfirmOpen(true) }}
+                  disabled={!!reason}
+                  title={reason ?? 'Void this invoice'}
+                  style={{ ...secondaryBtnStyle, color: 'var(--destructive)', ...(reason ? blockedStyle : {}) }}
+                >
+                  <Ban size={14} />
+                  Void invoice
+                </button>
+              )
+            })()}
             <button type="button" onClick={exportExcel} style={secondaryBtnStyle}>
               <FileSpreadsheet size={14} />
               Export Excel
@@ -983,6 +1024,30 @@ export default function InvoiceDetail({ id }: InvoiceDetailProps) {
           </div>
         </div>
       </div>
+
+      {voidConfirmOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setVoidConfirmOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 400, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Void {invoice.code}?</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>
+              The invoice is marked void and its journal is reversed. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setVoidConfirmOpen(false)} style={secondaryBtnStyle}>Cancel</button>
+              <button
+                type="button"
+                onClick={() => voidMutation.mutate()}
+                disabled={voidMutation.isPending}
+                style={{ ...primaryBtnStyle, background: 'var(--destructive)', border: '1px solid var(--destructive)', opacity: voidMutation.isPending ? 0.7 : 1 }}
+              >
+                {voidMutation.isPending && <Loader2 size={13} className="animate-spin" />}
+                Void invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .inv-meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }

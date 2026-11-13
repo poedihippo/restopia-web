@@ -9,6 +9,9 @@ export interface IUserMe {
   type?: string;
   branch_id?: number;
   email?: string;
+  phone?: string;
+  birth?: string;
+  gender?: string;
   created_at?: Date;
   created_by_id?: number;
   updated_at?: Date;

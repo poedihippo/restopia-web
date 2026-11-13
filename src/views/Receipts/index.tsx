@@ -355,7 +355,7 @@ export default function ReceiptsView() {
                   fontWeight: 500,
                 }}
               >
-                <span>Delivery #{deliveryIdParam}</span>
+                <span>Delivery {filteredDelivery?.code ?? ''}</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -444,7 +444,7 @@ export default function ReceiptsView() {
             fontWeight: 500,
           }}
         >
-          Pengiriman #{deliveryIdParam} ditujukan ke{' '}
+          Pengiriman {filteredDelivery?.code ?? ''} ditujukan ke{' '}
           <strong>{filteredDelivery.target_branch?.name ?? 'Cabang Tujuan'}</strong>.
           Pembuatan receipt hanya dapat dilakukan oleh cabang penerima.
         </div>

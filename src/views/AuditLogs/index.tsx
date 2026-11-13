@@ -9,6 +9,8 @@ import { branchesService } from '@/services/branches.service'
 import { enumsService } from '@/services/enums.service'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import ReferenceLink from '@/components/ReferenceLink'
+import { referenceLabel } from '@/lib/references'
 
 export default function AuditLogsView() {
   const { hasPermission, isSuperadmin, user } = useAuth()
@@ -210,7 +212,6 @@ export default function AuditLogsView() {
               <th style={thStyle}>Date</th>
               <th style={thStyle}>Action</th>
               <th style={thStyle}>Reference</th>
-              <th style={thStyle}>Ref ID</th>
               <th style={thStyle}>User</th>
               <th style={{ ...thStyle, width: 80 }}>Actions</th>
             </tr>
@@ -219,7 +220,7 @@ export default function AuditLogsView() {
             {isLoading &&
               Array.from({ length: 4 }).map((_, i) => (
                 <tr key={i}>
-                  {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+                  {[1, 2, 3, 4, 5, 6].map((j) => (
                     <td key={j} style={tdStyle}>
                       <div
                         style={{
@@ -236,7 +237,7 @@ export default function AuditLogsView() {
             {!isLoading && items.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={6}
                   style={{
                     ...tdStyle,
                     textAlign: 'center',
@@ -267,8 +268,18 @@ export default function AuditLogsView() {
                     {item.action?.toUpperCase() || '—'}
                   </span>
                 </td>
-                <td style={tdStyle}>{item.reference_type || '—'}</td>
-                <td style={tdStyle}>{item.reference_id || '—'}</td>
+                <td style={tdStyle}>
+                  {!item.reference_type ? (
+                    '—'
+                  ) : item.action === 'delete' ? (
+                    // The record is gone, so there is nothing to open.
+                    referenceLabel(item.reference_type)
+                  ) : (
+                    <ReferenceLink type={item.reference_type} id={item.reference_id}>
+                      {referenceLabel(item.reference_type)}
+                    </ReferenceLink>
+                  )}
+                </td>
                 <td style={tdStyle}>{item.created_by?.name || '—'}</td>
                 <td style={tdStyle}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -374,11 +385,20 @@ export default function AuditLogsView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Date', value: selectedItem.created_at ? formatDateTime(selectedItem.created_at) : '—' },
                 { label: 'Action', value: selectedItem.action },
-                { label: 'Reference Type', value: selectedItem.reference_type },
-                { label: 'Reference ID', value: selectedItem.reference_id },
+                {
+                  label: 'Reference',
+                  value: !selectedItem.reference_type
+                    ? null
+                    : selectedItem.action === 'delete'
+                      ? `${referenceLabel(selectedItem.reference_type)} (deleted)`
+                      : (
+                        <ReferenceLink type={selectedItem.reference_type} id={selectedItem.reference_id}>
+                          Go to {referenceLabel(selectedItem.reference_type).toLowerCase()}
+                        </ReferenceLink>
+                      ),
+                },
                 { label: 'User', value: selectedItem.created_by?.name },
               ].map((f) => (
                 <div

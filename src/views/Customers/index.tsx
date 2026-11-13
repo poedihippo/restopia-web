@@ -215,7 +215,6 @@ export default function CustomersView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Phone', value: selectedItem.phone },
                 {

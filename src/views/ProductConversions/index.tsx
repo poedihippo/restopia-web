@@ -704,7 +704,6 @@ export default function ProductConversionsView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Product', value: selectedItem.product?.name },
                 {
                   label: 'From UOM',

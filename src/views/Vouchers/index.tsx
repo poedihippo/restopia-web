@@ -52,6 +52,8 @@ export default function VouchersView() {
   const canRead = hasPermission("voucher.read");
   const canCreate = hasPermission('voucher.create')
   const canEdit = hasPermission('voucher.update')
+  // PATCH /:id/status has its own key (vouchers/.../voucher_route.go)
+  const canToggleStatus = hasPermission('voucher.update-status')
   const canDelete = hasPermission('voucher.delete')
 
   const [search, setSearch] = useState('')
@@ -507,7 +509,7 @@ export default function VouchersView() {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        {canEdit && (<button
+                        {canToggleStatus && (<button
                           onClick={() =>
                             toggleStatusMutation.mutate({
                               id: item.id,

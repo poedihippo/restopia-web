@@ -630,7 +630,6 @@ export default function BranchesView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Code', value: selectedItem.code },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Address', value: selectedItem.address || '—' },

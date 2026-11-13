@@ -11,6 +11,7 @@ import { branchesService } from '@/services/branches.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { purchaseOrderDeleteBlock, blockedStyle } from '@/lib/actionGuards'
 import {
   Plus,
   Eye,
@@ -459,19 +460,24 @@ export default function InternalOrdersView() {
                           <Eye size={14} />
                         </button>
                         {canEdit && (<button
-                          onClick={() =>
-                            router.push(`/purchase/internal-orders/${item.id}/edit`)
-                          }
-                          style={actionBtnStyle}
-                          title="Edit">
+                          onClick={() => {
+                            if (String(item.status) !== 'delivered') router.push(`/purchase/internal-orders/${item.id}/edit`)
+                          }}
+                          disabled={String(item.status) === 'delivered'}
+                          style={{ ...actionBtnStyle, ...(String(item.status) === 'delivered' ? blockedStyle : {}) }}
+                          title={String(item.status) === 'delivered' ? 'Delivered — cannot edit' : 'Edit'}>
                           <Pencil size={14} />
                         </button>)}
-                        {canDelete && (<button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          style={{ ...actionBtnStyle, color: 'var(--destructive)' }}
-                          title="Delete">
-                          <Trash2 size={14} />
-                        </button>)}
+                        {canDelete && (() => {
+                          const reason = purchaseOrderDeleteBlock(item)
+                          return (<button
+                            onClick={() => { if (!reason) setDeleteConfirmId(item.id) }}
+                            disabled={!!reason}
+                            style={{ ...actionBtnStyle, color: 'var(--destructive)', ...(reason ? blockedStyle : {}) }}
+                            title={reason ?? 'Delete'}>
+                            <Trash2 size={14} />
+                          </button>)
+                        })()}
                       </div>
                     </td>
                   </tr>

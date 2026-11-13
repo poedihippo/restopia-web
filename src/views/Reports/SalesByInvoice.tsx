@@ -23,9 +23,8 @@ import {
 } from '@/utils/salesReport'
 const firstOfMonth = () =>
   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString()
-    .split('T')[0]
-const today = () => new Date().toISOString().split('T')[0]
+    .toLocaleDateString('en-CA')
+const today = () => new Date().toLocaleDateString('en-CA')
 
 const PAYMENT_META: Record<
   string,

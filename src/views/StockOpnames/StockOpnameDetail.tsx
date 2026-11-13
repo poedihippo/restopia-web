@@ -244,7 +244,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   const router = useRouter()
   const resolvedId = idProp ? String(idProp) : router.query.id ? String(router.query.id) : ''
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const userBranchType = ((user as any)?.branch?.type as string) ?? ''
 
   const { data, isLoading } = useQuery({
@@ -668,7 +668,8 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
   }, 0)
 
   const status = item?.status?.toLowerCase() || 'draft'
-  const isReadOnly = status === 'completed' || status === 'cancelled'
+  // Save / complete / cancel all go through stock-opname.update (stock-opnames/.../stock_opname_route.go)
+  const isReadOnly = status === 'completed' || status === 'cancelled' || !hasPermission('stock-opname.update')
   const statusMeta = STATUS_META[status] || STATUS_META.draft
 
   const updateMutation = useMutation({
@@ -1800,6 +1801,7 @@ export default function StockOpnameDetail({ idProp, initialData }: StockOpnameDe
               className="so-btn"
               onClick={handleComplete}
               disabled={!isAllCounted || dirty || isBusy}
+              title={!isAllCounted ? 'Count all items first' : dirty ? 'Save your changes first' : 'Complete'}
               style={{
                 display: 'flex',
                 alignItems: 'center',

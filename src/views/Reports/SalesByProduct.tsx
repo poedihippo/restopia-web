@@ -12,9 +12,8 @@ import { useAuth } from '@/hooks/useAuth'
 import ReportBranchSelect, { useReportBranchName } from './ReportBranchSelect'
 const firstOfMonth = () =>
   new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString()
-    .split('T')[0]
-const today = () => new Date().toISOString().split('T')[0]
+    .toLocaleDateString('en-CA')
+const today = () => new Date().toLocaleDateString('en-CA')
 
 const inputStyle: React.CSSProperties = {
   padding: '7px 10px',

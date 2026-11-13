@@ -8,8 +8,12 @@ import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import AccountSettingSheet from './AccountSettingSheet'
 import { Settings, Pencil, Download } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function AccountSettingsView() {
+  // Company defaults only support PATCH /:id — there is no create or delete route.
+  const { hasPermission } = useAuth()
+  const canUpdate = hasPermission('account-setting.update')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<any | null>(null)
   const [search, setSearch] = useState('')
@@ -141,16 +145,18 @@ export default function AccountSettingsView() {
                       {item.description || '—'}
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      <button
-                        onClick={() => {
-                          setEditData(item)
-                          setSheetOpen(true)
-                        }}
-                        style={{ padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)' }}
-                        title="Edit Setting"
-                      >
-                        <Pencil size={16} />
-                      </button>
+                      {canUpdate && (
+                        <button
+                          onClick={() => {
+                            setEditData(item)
+                            setSheetOpen(true)
+                          }}
+                          style={{ padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)' }}
+                          title="Edit Setting"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

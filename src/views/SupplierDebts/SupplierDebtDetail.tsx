@@ -7,9 +7,11 @@ import BackLink from '@/components/BackLink'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAuth } from '@/hooks/useAuth'
+import ReferenceLink from '@/components/ReferenceLink'
 import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { suppliersService } from '@/services/suppliers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { fetchAllPages } from '@/utils/salesReport'
 import { paymentsService } from '@/services/payments.service'
 import { bankAccountsService } from '@/services/bank-accounts.service'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -88,7 +90,7 @@ const amountTdStyle: React.CSSProperties = {
   fontVariantNumeric: 'tabular-nums',
 }
 
-const todayInputDate = () => new Date().toISOString().split('T')[0]
+const todayInputDate = () => new Date().toLocaleDateString('en-CA')
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -370,38 +372,61 @@ export default function SupplierDebtDetailView() {
   const { data: posData, isLoading: posLoading } = useQuery({
     queryKey: ['supplier-debt-detail-pos', supplierId, buyerId, branchId, scopeParams.scope],
     enabled: canRead && !!supplierId,
-    queryFn: () =>
-      purchaseOrdersService
-        .list({
-          per_page: 1000,
-          sort: '-created_at',
-          'filter[type]': 'supplier',
-          'filter[supplier_id]': supplierId,
-          'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
-          'filter[branch_id]': branchId > 0 ? branchId : undefined,
-          include: 'supplier,purchase_order_details',
-          ...scopeParams,
-        } as any)
-        .then((r) => r.data),
+    // Only unpaid POs, filtered on the server (filter[payment_status] is an exact
+    // match, so one request per status) and paged through meta.last_page instead
+    // of relying on a per_page cap.
+    queryFn: async () => {
+      const lists = await Promise.all(
+        ['pending', 'partial'].map((paymentStatus) =>
+          fetchAllPages((page) =>
+            purchaseOrdersService
+              .list({
+                page,
+                per_page: 200,
+                sort: '-created_at',
+                'filter[type]': 'supplier',
+                'filter[supplier_id]': supplierId,
+                'filter[payment_status]': paymentStatus,
+                'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
+                'filter[branch_id]': branchId > 0 ? branchId : undefined,
+                include: 'supplier,purchase_order_details',
+                ...scopeParams,
+              } as any)
+              .then((r) => r.data),
+          ),
+        ),
+      )
+      return lists.flat()
+    },
   })
 
   const { data: paymentsData, isLoading: paymentsLoading } = useQuery({
     queryKey: ['supplier-debt-detail-payments', supplierId, scopeParams.scope],
     enabled: canRead && !!supplierId,
+    // GET /payments has no supplier filter (payment_query_request.go), so page
+    // through every disburse payment and keep the ones allocated to this
+    // supplier's POs below.
     queryFn: () =>
-      paymentsService
-        .list({
-          per_page: 2000,
-          'filter[type]': 'disburse',
-          include: 'allocations,payment_method,bank_account',
-          ...scopeParams,
-        } as any)
-        .then((r) => r.data),
+      fetchAllPages((page) =>
+        paymentsService
+          .list({
+            page,
+            per_page: 200,
+            sort: '-date',
+            'filter[type]': 'disburse',
+            'filter[is_reversed]': 'false',
+            include: 'allocations,payment_method,bank_account',
+            ...scopeParams,
+          } as any)
+          .then((r) => r.data),
+      ),
   })
 
   const supplier: Supplier | undefined = (supplierData as any)?.data
-  const pos: PurchaseOrder[] = (posData as any)?.data ?? []
-  const payments: DisbursePayment[] = (paymentsData as any)?.data ?? []
+  const pos: PurchaseOrder[] = (posData as any[]) ?? []
+  // Allocations only carry the PO id; show the PO code when it is loaded here.
+  const poCodeById = new Map<number, string>((pos as any[]).filter((po) => po?.code).map((po) => [Number(po.id), String(po.code)]))
+  const payments: DisbursePayment[] = (paymentsData as any[]) ?? []
 
   // Paid / outstanding come straight from the PO (total_payment /
   // remaining_payment) instead of summing a capped payments list.
@@ -802,8 +827,11 @@ export default function SupplierDebtDetailView() {
                         {(p.allocations ?? [])
                           .filter((a) => a.purchase_order_id != null)
                           .map((a, idx) => (
-                            <span key={idx} style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--accent)' }}>
-                              PO-{a.purchase_order_id} ({formatCurrency(a.amount)})
+                            <span key={idx} style={{ fontSize: 12 }}>
+                              <ReferenceLink type="purchase_orders" id={a.purchase_order_id}>
+                                {poCodeById.get(Number(a.purchase_order_id)) ?? 'Purchase order'}
+                                <span style={{ color: 'var(--foreground-muted)', fontWeight: 400 }}> · {formatCurrency(a.amount)}</span>
+                              </ReferenceLink>
                             </span>
                           ))}
                       </div>

@@ -12,6 +12,7 @@ import { downloadFileFromResponse } from '@/utils/file'
 import { formatCurrency } from '@/utils/price'
 import { formatDateShort } from '@/utils/date'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import FinancePeriodSelect from '../FinancePeriodSelect'
 
 type PaymentType = '' | 'receive' | 'disburse' | 'refund'
 
@@ -130,6 +131,13 @@ export default function PaymentsReportView() {
               style={{ width: '100%', paddingLeft: 30, background: 'var(--surface-muted)' }}
             />
           </div>
+          <FinancePeriodSelect
+            start={dateFrom}
+            end={dateTo}
+            onChange={(p) => { setDateFrom(p.start_date); setDateTo(p.end_date) }}
+            className="v2-input"
+            style={{ minWidth: 160 }}
+          />
           <input type="date" className="v2-input" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} aria-label="From" />
           <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>–</span>
           <input type="date" className="v2-input" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} aria-label="To" />

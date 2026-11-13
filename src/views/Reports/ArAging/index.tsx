@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/price'
 import { formatDate } from '@/utils/date'
 import { downloadExcel, money, reportHeader, type ExcelRow } from '@/utils/excelExport'
+import FinancePeriodSelect from '../FinancePeriodSelect'
 
 const sectionStyle: React.CSSProperties = {
   background: 'var(--surface)',
@@ -122,9 +123,10 @@ const totalAmountCellStyle: React.CSSProperties = {
 
 const COLS = 9
 
-const today = () => new Date().toISOString().split('T')[0]
+const today = () => new Date().toLocaleDateString('en-CA')
 
-const BUCKET_CARDS: { key: 'bucket_0_30' | 'bucket_31_60' | 'bucket_61_90' | 'bucket_90_plus'; label: string }[] = [
+const BUCKET_CARDS: { key: 'bucket_current' | 'bucket_0_30' | 'bucket_31_60' | 'bucket_61_90' | 'bucket_90_plus'; label: string }[] = [
+  { key: 'bucket_current', label: 'Current (belum jatuh tempo)' },
   { key: 'bucket_0_30', label: '0–30 hari' },
   { key: 'bucket_31_60', label: '31–60 hari' },
   { key: 'bucket_61_90', label: '61–90 hari' },
@@ -133,6 +135,8 @@ const BUCKET_CARDS: { key: 'bucket_0_30' | 'bucket_31_60' | 'bucket_61_90' | 'bu
 
 function bucketDisplayLabel(bucket: string | undefined): string {
   switch (bucket) {
+    case 'current':
+      return 'Current'
     case '0_30':
       return '0–30'
     case '31_60':
@@ -384,6 +388,15 @@ export default function ArAgingView() {
           {/* Filter tanggal */}
           <div style={sectionStyle}>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={labelStyle}>Periode</label>
+                <FinancePeriodSelect
+                  start={startDate}
+                  end={endDate}
+                  onChange={(p) => { setStartDate(p.start_date); setEndDate(p.end_date) }}
+                  style={inputStyle}
+                />
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={labelStyle}>Start Date (opsional)</label>
                 <input type="date" value={startDate} max={endDate || undefined} onChange={(e) => setStartDate(e.target.value)} style={inputStyle} />

@@ -9,6 +9,7 @@ import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import { salesChannelsService } from '@/services/sales-channels.service'
 import { useAuth } from '@/hooks/useAuth'
 import SalesChannelBranchAccounts from './SalesChannelBranchAccounts'
+import { salesChannelProtectedBlock, blockedStyle } from '@/lib/actionGuards'
 
 export default function SalesChannelsView() {
   const qc = useQueryClient()
@@ -274,7 +275,10 @@ export default function SalesChannelsView() {
                     </button>
                     {canEdit && (<button
                       type="button"
+                      disabled={!!salesChannelProtectedBlock(item)}
+                      title={salesChannelProtectedBlock(item) ?? 'Edit'}
                       onClick={() => {
+                        if (salesChannelProtectedBlock(item)) return
                         setEditing(item)
                         setName(item.name)
                         setSalesOrderType(item.sales_order_type || 'offline')
@@ -287,11 +291,14 @@ export default function SalesChannelsView() {
                         borderRadius: 'var(--radius-sm)',
                         background: 'var(--surface)',
                         cursor: 'pointer',
+                        ...(salesChannelProtectedBlock(item) ? blockedStyle : {}),
                       }}>Edit
                     </button>)}
                     {canDelete && (<button
                       type="button"
-                      onClick={() => setDeleteTarget(item)}
+                      disabled={!!salesChannelProtectedBlock(item)}
+                      title={salesChannelProtectedBlock(item) ?? 'Delete'}
+                      onClick={() => { if (!salesChannelProtectedBlock(item)) setDeleteTarget(item) }}
                       style={{
                         fontSize: 12,
                         padding: '4px 10px',
@@ -300,6 +307,7 @@ export default function SalesChannelsView() {
                         background: 'transparent',
                         cursor: 'pointer',
                         color: 'var(--destructive)',
+                        ...(salesChannelProtectedBlock(item) ? blockedStyle : {}),
                       }}>Delete
                     </button>)}
                   </div>

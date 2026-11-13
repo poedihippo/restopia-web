@@ -9,6 +9,7 @@ import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/price'
 import { formatDate, toInputDate } from '@/utils/date'
+import FinancePeriodSelect from '../FinancePeriodSelect'
 import { FileSpreadsheet, Download, Printer } from 'lucide-react'
 
 interface ApAgingLine {
@@ -21,6 +22,8 @@ interface ApAgingLine {
 }
 
 interface ApAgingBuckets {
+  /** Not yet due. */
+  bucket_current?: number
   bucket_0_30?: number
   bucket_31_60?: number
   bucket_61_90?: number
@@ -146,9 +149,10 @@ const totalAmountCellStyle: React.CSSProperties = {
   fontVariantNumeric: 'tabular-nums',
 }
 
-const today = () => new Date().toISOString().split('T')[0]
+const today = () => new Date().toLocaleDateString('en-CA')
 
 const BUCKET_CARDS: { key: string; label: string }[] = [
+  { key: 'current', label: 'Current (belum jatuh tempo)' },
   { key: '0_30', label: '0–30 hari' },
   { key: '31_60', label: '31–60 hari' },
   { key: '61_90', label: '61–90 hari' },
@@ -162,6 +166,8 @@ function getBucketValue(buckets: ApAgingBuckets | undefined, key: string): numbe
 
 function bucketDisplayLabel(bucket: string | undefined): string {
   switch (bucket) {
+    case 'current':
+      return 'Current'
     case '0_30':
       return '0–30'
     case '31_60':
@@ -274,6 +280,10 @@ export default function ApAgingView() {
           <div className="no-print" style={sectionStyle}>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={labelStyle}>Period end</label>
+                <FinancePeriodSelect asOf={toInputDate(asOfDate)} onChange={(p) => setAsOfDate(p.end_date)} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={labelStyle}>As of Date</label>
                 <input
                   type="date"
@@ -295,7 +305,7 @@ export default function ApAgingView() {
               </div>
             </div>
             <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '10px 0 0' }}>
-              Mencakup semua PO yang belum lunas sampai tanggal ini, termasuk dari periode sebelumnya. Pembayaran
+              Mencakup semua PO yang sudah diterima (sebagian/penuh) dan belum lunas sampai tanggal ini, termasuk dari periode sebelumnya. Pembayaran
               setelah tanggal ini tidak mengurangi saldo. Kolom bucket adalah rincian total berdasarkan umur, bukan filter.
             </p>
           </div>

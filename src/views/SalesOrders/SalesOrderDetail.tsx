@@ -15,6 +15,7 @@ import { paymentMethodsService } from '@/services/payment-methods.service';
 import { toastMutationApiError } from '@/utils/apiError';
 import ReturnOrderModal from './ReturnOrderModal';
 import { useAuth } from '@/hooks/useAuth';
+import { salesOrderEditBlock, salesOrderDeleteBlock, blockedStyle } from '@/lib/actionGuards';
 import SaleJournals from './SaleJournals';
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { formatNumberId } from '@/utils/numberFormat'
@@ -333,6 +334,8 @@ export default function SalesOrderDetail() {
   const { hasPermission } = useAuth()
   const canReturn = hasPermission('sales-order.return') || hasPermission('point-of-sale.return')
   const canSeeJournals = hasPermission('journal.menu')
+  const canUpdate = hasPermission('sales-order.update') || hasPermission('point-of-sale.update')
+  const canDelete = hasPermission('sales-order.delete') || hasPermission('point-of-sale.delete')
   const { reprint, printingId } = useReprintReceipt()
   const [showReturn, setShowReturn] = useState(false)
 
@@ -469,7 +472,7 @@ export default function SalesOrderDetail() {
           label: 'Credit by',
           value: (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span>{order.credit_by?.name ?? `User #${order.credit_by_id}`}</span>
+              <span>{order.credit_by?.name ?? 'Unknown user'}</span>
               <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--foreground-muted)' }}>
                 Limit Rp {Number(order.credit_by?.credit ?? 0).toLocaleString('id-ID')}
               </span>
@@ -530,27 +533,36 @@ export default function SalesOrderDetail() {
               {hasPartialReturns ? 'Return Remaining' : 'Return'}
             </button>
           )}
-          {/* An order with partial returns can no longer be edited or voided. */}
-          {!hasPartialReturns && (
-            <>
+          {canUpdate && (() => {
+            const reason = salesOrderEditBlock(order)
+            return (
               <button
                 type="button"
-                onClick={() => router.push(`/sales/sales-orders/${id}/edit`)}
-                style={secondaryButtonStyle}
+                disabled={!!reason}
+                title={reason ?? 'Edit'}
+                onClick={() => { if (!reason) router.push(`/sales/sales-orders/${id}/edit`) }}
+                style={{ ...secondaryButtonStyle, ...(reason ? blockedStyle : {}) }}
               >
                 <Pencil size={15} />
                 Edit
               </button>
+            )
+          })()}
+          {canDelete && (() => {
+            const reason = salesOrderDeleteBlock(order)
+            return (
               <button
                 type="button"
-                onClick={() => setShowDelete(true)}
-                style={{ ...secondaryButtonStyle, color: 'var(--destructive)' }}
+                disabled={!!reason}
+                title={reason ?? 'Delete'}
+                onClick={() => { if (!reason) setShowDelete(true) }}
+                style={{ ...secondaryButtonStyle, color: 'var(--destructive)', ...(reason ? blockedStyle : {}) }}
               >
                 <Trash2 size={15} />
                 Delete
               </button>
-            </>
-          )}
+            )
+          })()}
         </div>
       </div>
 
