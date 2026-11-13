@@ -6,8 +6,10 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toast } from 'sonner'
-import api from '@/hooks/useApi'
-import { periodsService } from '@/services/accounting.service'
+import Link from 'next/link'
+import { useRouter } from 'next/router'
+import { journalsService, periodsService } from '@/services/accounting.service'
+import { generalLedgerHref } from '../GeneralLedger/glHref'
 import { toInputDate } from '@/utils/date'
 import { useAuth } from '@/hooks/useAuth'
 import { FileSpreadsheet, Scale, AlertCircle, CheckCircle2, Download } from 'lucide-react'
@@ -29,6 +31,10 @@ interface AccountBalance {
   total_debit: number
   total_credit: number
   balance: number
+  /** Before the period starts; debit − credit (signed). */
+  opening_balance?: number
+  /** Opening + this period; debit − credit (signed). */
+  closing_balance?: number
 }
 
 const sectionStyle: React.CSSProperties = {
@@ -59,6 +65,25 @@ const tdStyle: React.CSSProperties = {
 
 const rp = (n: number | string | null | undefined) =>
   `Rp ${Number(n ?? 0).toLocaleString('id-ID')}`
+
+/** Compare money in whole cents so float noise (0.1 + 0.2) doesn't flag "Not Balanced". */
+const cents = (n: number | string | null | undefined) => Math.round(Number(n ?? 0) * 100)
+
+/** Signed debit − credit amount as "Rp x Dr" / "Rp x Cr" (zero → "Rp 0"). */
+function SignedAmount({ value }: { value: number | null | undefined }) {
+  const c = cents(value)
+  if (c === 0) return <span style={{ color: 'var(--foreground-subtle)' }}>{rp(0)}</span>
+  return (
+    <span>
+      {rp(Math.abs(c) / 100)}
+      <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 600, color: c > 0 ? 'var(--success)' : 'var(--info)' }}>
+        {c > 0 ? 'Dr' : 'Cr'}
+      </span>
+    </span>
+  )
+}
+
+const amountTd: React.CSSProperties = { ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
 
 export default function TrialBalanceView() {
   const { hasPermission } = useAuth()
@@ -95,16 +120,30 @@ export default function TrialBalanceView() {
     enabled: canRead && !!periodId,
     // Real contract confirmed read-only: GET /journals/trial-balance/:period_id
     // (NOT /reports/trial-balance with start_date/end_date — that endpoint doesn't exist).
-    queryFn: () => api.get(`/journals/trial-balance/${periodId}`, { params: financeBranchParam(branchScope) }).then((r) => r.data),
+    queryFn: () => journalsService.trialBalance(periodId, financeBranchParam(branchScope)).then((r) => r.data),
   })
 
   const trialBalance = (data as any)?.data
   const rows: AccountBalance[] = trialBalance?.account_balances ?? []
   const totalDebit = Number(trialBalance?.total_debit ?? 0)
   const totalCredit = Number(trialBalance?.total_credit ?? 0)
-  const isBalanced = totalDebit === totalCredit
+  const isBalanced = cents(totalDebit) === cents(totalCredit)
+  const totalOpening = rows.reduce((s, r) => s + cents(r.opening_balance), 0) / 100
+  const totalClosing = rows.reduce((s, r) => s + cents(r.closing_balance), 0) / 100
 
   const selectedPeriod = periods.find((p) => p.id === periodId)
+
+  // Row → General Ledger for that account over the period's dates.
+  const router = useRouter()
+  const glHrefFor = (row: AccountBalance) =>
+    generalLedgerHref({
+      accountId: row.chart_of_account_id,
+      code: row.code,
+      name: row.name,
+      startDate: toInputDate(selectedPeriod?.start_date) ?? '',
+      endDate: toInputDate(selectedPeriod?.end_date) ?? '',
+      branchId: branchScope,
+    })
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
     mutationFn: () => reportsService.exportTrialBalance({ period_id: periodId, ...financeBranchParam(branchScope) }),
@@ -124,7 +163,7 @@ export default function TrialBalanceView() {
   const canExport = rows.length > 0
 
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ padding: '32px 32px 64px', maxWidth: 1280, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
@@ -260,43 +299,62 @@ export default function TrialBalanceView() {
                     <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
                     <th style={thStyle}>Account Code</th>
                     <th style={thStyle}>Account Name</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>Opening</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Debit</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Credit</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>Balance</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>Closing</th>
                   </tr>
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr>
-                      <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
-                        Loading...
-                      </td>
-                    </tr>
+                    Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={`sk-${i}`}>
+                        {Array.from({ length: 7 }).map((__, j) => (
+                          <td key={j} style={tdStyle}>
+                            <div className="v2-skeleton" style={{ height: 12, width: j === 2 ? '70%' : '60%', marginLeft: j > 2 ? 'auto' : undefined }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
                   ) : isError ? (
                     <tr>
-                      <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--destructive)' }}>
+                      <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: 'var(--destructive)' }}>
                         Failed to load trial balance
                       </td>
                     </tr>
                   ) : rows.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>
+                      <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', padding: '40px 16px', color: 'var(--foreground-muted)' }}>
                         No account balances for this period
                       </td>
                     </tr>
                   ) : (
                     rows.map((row, idx) => (
-                      <tr key={row.chart_of_account_id}>
+                      <tr
+                        key={row.chart_of_account_id}
+                        data-click
+                        onClick={() => router.push(glHrefFor(row))}
+                        title="Open in General Ledger"
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)' }}>{idx + 1}</td>
                         <td style={{ ...tdStyle, fontFamily: 'monospace' }}>{row.code}</td>
-                        <td style={tdStyle}>{row.name}</td>
-                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={tdStyle}>
+                          <Link href={glHrefFor(row)} className="v2-link" onClick={(e) => e.stopPropagation()}>
+                            {row.name}
+                          </Link>
+                        </td>
+                        <td style={amountTd}>
+                          <SignedAmount value={row.opening_balance} />
+                        </td>
+                        <td style={amountTd}>
                           {Number(row.total_debit) > 0 ? rp(row.total_debit) : ''}
                         </td>
-                        <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        <td style={amountTd}>
                           {Number(row.total_credit) > 0 ? rp(row.total_credit) : ''}
                         </td>
-                        <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                          {rp(row.balance)}
+                        <td style={{ ...amountTd, fontWeight: 600 }}>
+                          <SignedAmount value={row.closing_balance} />
                         </td>
                       </tr>
                     ))
@@ -305,11 +363,14 @@ export default function TrialBalanceView() {
                 {!isLoading && !isError && rows.length > 0 && (
                   <tfoot>
                     <tr style={{ background: 'var(--background)' }}>
-                      <td colSpan={2} style={{ padding: '10px 16px', fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>
+                      <td colSpan={3} style={{ padding: '10px 16px', fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Scale size={13} />
                           Total
                         </div>
+                      </td>
+                      <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        <SignedAmount value={totalOpening} />
                       </td>
                       <td
                         style={{
@@ -327,7 +388,9 @@ export default function TrialBalanceView() {
                       >
                         {rp(totalCredit)}
                       </td>
-                      <td style={{ padding: '10px 16px' }} />
+                      <td style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        <SignedAmount value={totalClosing} />
+                      </td>
                     </tr>
                   </tfoot>
                 )}

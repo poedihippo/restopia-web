@@ -896,7 +896,6 @@ export default function ProductUomsView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'SKU Code', value: selectedItem.code },
                 { label: 'Name', value: getProductUomName(selectedItem, selectedItem.product?.name) || '—' },
                 { label: 'Product', value: selectedItem.product?.name },

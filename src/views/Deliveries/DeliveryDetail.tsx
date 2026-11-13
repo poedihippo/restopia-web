@@ -410,7 +410,13 @@ export default function DeliveryDetail({ id }: DeliveryDetailProps) {
               )}
 
               {canDelete && (
-                <button type="button" onClick={() => setDeleteConfirm(true)} className="v2-btn v2-btn-danger">
+                <button
+                  type="button"
+                  onClick={() => { if (!hasReceivedLines) setDeleteConfirm(true) }}
+                  disabled={hasReceivedLines}
+                  title={hasReceivedLines ? 'Already received — cannot delete' : 'Delete'}
+                  className="v2-btn v2-btn-danger"
+                >
                   <Trash2 size={15} />
                   Delete
                 </button>

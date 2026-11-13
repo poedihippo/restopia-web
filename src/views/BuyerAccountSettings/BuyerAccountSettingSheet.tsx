@@ -15,6 +15,7 @@ import { X, Loader2, Check } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
+import { BUYER_OVERRIDABLE_KEYS } from '@/lib/actionGuards'
 
 const createSchema = z.object({
   buyer_id: z.coerce.number().min(1, 'Buyer is required'),
@@ -117,6 +118,23 @@ export default function BuyerAccountSettingSheet({ open, onClose, editData }: Pr
   }, [accountSettingsData])
 
   const selectedKeyInfo = accountKeys.find(k => k.id === keyId)
+
+  // Keys this buyer already maps — the API rejects a second row per buyer + key.
+  const { data: buyerMappingsData } = useQuery({
+    queryKey: ['buyer-account-settings', 'by-buyer', buyerId],
+    queryFn: () => buyerAccountSettingsService.list({ 'filter[buyer_id]': buyerId, per_page: 100 } as any).then(r => r.data),
+    enabled: open && !!buyerId,
+  })
+  const mappedKeyIds = useMemo(() => {
+    const rows: any[] = (buyerMappingsData as any)?.data ?? []
+    return new Set(rows.filter(r => r.id !== editData?.id).map(r => Number(r.account_setting_key_id)))
+  }, [buyerMappingsData, editData?.id])
+
+  // Only purchase-side keys may be overridden per buyer (buyer-account-settings/.../mapping_guard.go).
+  const availableKeys = useMemo(
+    () => accountKeys.filter(k => BUYER_OVERRIDABLE_KEYS.includes(k.key) || k.id === editData?.account_setting_key_id),
+    [accountKeys, editData?.account_setting_key_id],
+  )
 
   const coaOpts = useInfiniteOptions<any>({
     queryKey: ['buyer-account-coa-options', debouncedCoaSearch, selectedKeyInfo?.expected_normal_balance ?? ''],
@@ -228,8 +246,10 @@ export default function BuyerAccountSettingSheet({ open, onClose, editData }: Pr
                 style={inputStyle}
               >
                 <option value="">Select key...</option>
-                {accountKeys.map(k => (
-                  <option key={k.id} value={k.id}>{k.label} ({k.key})</option>
+                {availableKeys.map(k => (
+                  <option key={k.id} value={k.id} disabled={mappedKeyIds.has(k.id)}>
+                    {k.label} ({k.key}){mappedKeyIds.has(k.id) ? ' — already mapped' : ''}
+                  </option>
                 ))}
               </select>
               {errors.account_setting_key_id && <span style={errorStyle}>{errors.account_setting_key_id.message as string}</span>}

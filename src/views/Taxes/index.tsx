@@ -420,8 +420,9 @@ export default function TaxesView() {
                   type="number"
                   value={rate}
                   onChange={(e) => setRate(Number(e.target.value))}
-                  placeholder="e.g. 11"
+                  placeholder="e.g. 11 (0 for non-taxable)"
                   min="0"
+                  step="any"
                   style={{
                     width: '100%', height: 40, border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0 12px', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', boxSizing: 'border-box',
                   }}
@@ -496,7 +497,8 @@ export default function TaxesView() {
                     toast.error('Code and Name are required')
                     return
                   }
-                  if (rate < 0) {
+                  // 0% is valid (non-taxable / exempt); only negatives are rejected.
+                  if (!Number.isFinite(rate) || rate < 0) {
                     toast.error('Rate must be greater than or equal to 0')
                     return
                   }
@@ -597,7 +599,6 @@ export default function TaxesView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Code', value: selectedItem.code },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Rate', value: `${selectedItem.rate}%` },

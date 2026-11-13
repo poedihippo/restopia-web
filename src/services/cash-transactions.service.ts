@@ -71,9 +71,9 @@ export interface CashTransactionRequest {
   type: CashTransactionType
   amount: number
   bank_account_id?: number
+  /** cash_in / cash_out only: offsetting account. Omit to book against the outlet's petty cash. */
   chart_of_account_id?: number
   transfer_to_bank_account_id?: number
-  department_id?: number
   description?: string
 }
 
@@ -87,8 +87,9 @@ export const cashTransactionsService = {
   create: (data: CashTransactionRequest) =>
     api.post<ApiResponse<CashTransaction>>('/cash-transactions', data),
 
-  reverse: (id: number, data?: { reason?: string }) =>
-    api.patch<ApiResponse<CashTransaction>>(`/cash-transactions/${id}/reverse`, data),
+  /** No body: the API takes no reversal reason. */
+  reverse: (id: number) =>
+    api.patch<ApiResponse<CashTransaction>>(`/cash-transactions/${id}/reverse`),
 
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/cash-transactions/${id}`),

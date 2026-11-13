@@ -9,6 +9,7 @@ import { authService } from '@/services/auth.service';
 import { branchesService } from '@/services/branches.service';
 import { cn } from '@/lib/utils';
 import MenuSearch from '@/components/menu-search';
+import TourHelpButton from '@/components/tour/TourHelpButton';
 import { NAV_GROUPS } from '@/components/app-sidebar';
 import { getBreadcrumbs, shortenBreadcrumbs } from '@/lib/breadcrumbs';
 import {
@@ -19,7 +20,6 @@ import {
   User,
   Building2,
   Check,
-  X,
   RefreshCw,
 } from 'lucide-react';
 
@@ -35,7 +35,6 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
   const { user, logout, refreshUser, isSuperadmin } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const branchRef = useRef<HTMLDivElement>(null);
@@ -107,7 +106,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
         top: 0,
         // The header is its own stacking context, so its menus can only sit
         // above page content (dropdowns, sheets, popovers) if the header does.
-        zIndex: branchMenuOpen || userMenuOpen || profileOpen ? 1200 : 10,
+        zIndex: branchMenuOpen || userMenuOpen ? 1200 : 10,
       }}
     >
       <button type="button" className="topbar-menu-btn" onClick={onMenuClick} aria-label="Open menu">
@@ -179,12 +178,16 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
         {/* Menu search (Ctrl/⌘+K) */}
         <MenuSearch />
 
+        {/* Help: product tours + FAQ */}
+        <TourHelpButton />
+
         {/* Branch pill */}
         <div style={{ position: 'relative' }} ref={branchRef}>
           <button
             type="button"
             onClick={() => setBranchMenuOpen((v) => !v)}
             className="branch-pill"
+            data-tour="branch"
             data-open={branchMenuOpen}
             title="Active branch — click to switch"
             style={{
@@ -385,139 +388,10 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
           }}
         />
 
-        {/* Profile detail panel */}
-        {profileOpen && (
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 60,
-              display: 'flex',
-              justifyContent: 'flex-end',
-            }}
-          >
-            <div
-              onClick={() => setProfileOpen(false)}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                background: 'rgba(0,0,0,0.18)',
-              }}
-            />
-            <div
-              style={{
-                position: 'relative',
-                zIndex: 70,
-                width: 380,
-                height: '100%',
-                background: 'var(--surface)',
-                borderLeft: '1px solid var(--border)',
-                display: 'flex',
-                flexDirection: 'column',
-                boxShadow: 'var(--shadow-lg)',
-                overflowY: 'auto',
-              }}
-            >
-              <div
-                style={{
-                  padding: '20px 24px',
-                  borderBottom: '1px solid var(--border)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <h2
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: 18,
-                    fontWeight: 500,
-                    margin: 0,
-                    color: 'var(--foreground)',
-                  }}
-                >
-                  My Profile
-                </h2>
-                <button
-                  onClick={() => setProfileOpen(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 4,
-                    display: 'flex',
-                  }}
-                >
-                  <X size={18} color="var(--foreground-muted)" />
-                </button>
-              </div>
-              <div
-                style={{
-                  padding: 24,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 16,
-                }}
-              >
-                {[
-                  { label: 'Name', value: user?.name },
-                  { label: 'Email', value: user?.email },
-                  { label: 'Type', value: user?.type, isType: true },
-                  { label: 'Branch', value: user?.branch?.name },
-                  { label: 'Phone', value: (user as any)?.phone },
-                  { label: 'NIK', value: user?.nik },
-                ].map((f) => (
-                  <div
-                    key={f.label}
-                    style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: 'var(--foreground-muted)',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.6px',
-                      }}
-                    >
-                      {f.label}
-                    </span>
-                    {f.isType && f.value ? (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignSelf: 'flex-start',
-                          padding: '2px 10px',
-                          borderRadius: 99,
-                          fontSize: 11,
-                          fontWeight: 500,
-                          background:
-                            f.value === 'superadmin'
-                              ? 'var(--warning-bg)'
-                              : 'var(--info-bg)',
-                          color:
-                            f.value === 'superadmin'
-                              ? 'var(--warning)'
-                              : 'var(--info)',
-                        }}
-                      >
-                        {f.value}
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: 14, color: 'var(--foreground)' }}>
-                        {f.value ?? '—'}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* User menu */}
         <div style={{ position: 'relative' }} ref={ref}>
           <button
+            data-tour="user-menu"
             onClick={() => setUserMenuOpen((v) => !v)}
             style={{
               display: 'flex',
@@ -618,7 +492,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
               <button
                 onClick={() => {
                   setUserMenuOpen(false);
-                  setProfileOpen(true);
+                  router.push('/profile');
                 }}
                 style={{
                   display: 'flex',

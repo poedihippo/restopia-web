@@ -517,7 +517,6 @@ export default function CompaniesView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Address', value: selectedItem.address || '—' },
                 { label: 'Product Types', value: selectedItem.product_types || 'All' },

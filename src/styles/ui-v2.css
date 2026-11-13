@@ -195,6 +195,11 @@
 :root[data-ui="v2"] .v2-icon-btn[data-tone="danger"]:hover {
   background: var(--destructive-bg);
 }
+:root[data-ui="v2"] .v2-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent;
+}
 
 :root[data-ui="v2"] .v2-input,
 :root[data-ui="v2"] .v2-select {
@@ -232,8 +237,8 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  height: 34px;
-  padding: 0 12px;
+  height: 38px;
+  padding: 0 16px;
   background: var(--surface-muted);
   border-bottom: 1px solid var(--border);
   font-size: 11px;
@@ -244,8 +249,8 @@
   letter-spacing: 0.02em;
 }
 :root[data-ui="v2"] .v2-table tbody td {
-  height: 40px;
-  padding: 0 12px;
+  height: 48px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   font-size: 12.5px;
   color: var(--foreground);

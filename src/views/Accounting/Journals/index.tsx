@@ -15,14 +15,18 @@ import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { referenceLabel, referenceHref } from '@/lib/references'
+import ReferenceLink from '@/components/ReferenceLink'
+import { journalEditBlock, journalDeleteBlock, journalReverseBlock, blockedStyle } from '@/lib/actionGuards'
 import SearchableSelect from '@/components/SearchableSelect'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { useDeepLinkId } from '@/views/Operations/shared'
 import { FilterBar, FilterGroup, FilterField, FilterSelect, FilterInput, countActive } from '@/components/ListFilters'
 import {
   Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   X, Loader2, FileText, CheckCircle2, Send, AlertCircle, Eye, Download,
-  RotateCcw, Copy, ExternalLink,
+  RotateCcw, Copy,
 } from 'lucide-react'
 
 interface JournalDetail {
@@ -109,133 +113,6 @@ const JOURNAL_TYPE_OPTIONS = [
   { value: 'purchase', label: 'Purchase' },
 ]
 
-/**
- * `reference_type` (snake_case, from the API) → frontend route.
- *
- * Types that have a dedicated detail page resolve to `<route>/{id}`;
- * the rest fall back to their list page so the link is still useful.
- * `sellable_settlements` has no matching page, so it is omitted on purpose.
- */
-const REFERENCE_ROUTES: Record<string, (id: number) => string> = {
-  companies: () => '/users/companies',
-  branches: () => '/users/branches',
-  roles: () => '/users/roles',
-  users: () => '/users',
-  media: () => '/media',
-  operation_rules: () => '/settings/operation-rules',
-  operations: () => '/settings/operations',
-  shift_rules: () => '/settings/shift-rules',
-  shifts: () => '/settings/shifts',
-  product_categories: () => '/products/product-categories',
-  products: () => '/products',
-  uoms: () => '/products/uom',
-  product_conversions: () => '/products/product-conversions',
-  product_uoms: () => '/products/product-uoms',
-  product_uom_batches: () => '/products/product-uom-batches',
-  bundles: () => '/sales/bundles',
-  product_inventories: () => '/products/product-inventory',
-  stock_movements: () => '/products/product-inventory/stock-movements',
-  stock_opnames: (id) => `/products/product-inventory/stock-opname/${id}`,
-  recipes: () => '/production/recipes',
-  productions: (id) => `/production/${id}/detail`,
-  portionings: () => '/production/portioning',
-  suppliers: () => '/purchase/suppliers',
-  buyers: () => '/purchase/buyers',
-  taxes: () => '/accounting/taxes',
-  purchase_orders: (id) => `/purchase/purchase-orders/${id}/detail`,
-  deliveries: (id) => `/transfer/deliveries/${id}/detail`,
-  receipts: (id) => `/transfer/receipts/${id}/detail`,
-  invoices: (id) => `/transfer/invoices/${id}`,
-  customers: () => '/sales/customers',
-  vouchers: (id) => `/sales/vouchers/${id}/detail`,
-  sales_orders: (id) => `/sales/sales-orders/${id}/detail`,
-  sales_channels: () => '/sales/sales-channels',
-  payment_methods: () => '/settings/payment-methods',
-  payments: () => '/sales/payments',
-  account_categories: () => '/accounting/account-categories',
-  account_types: () => '/accounting/account-types',
-  chart_of_accounts: () => '/accounting/chart-of-accounts',
-  account_settings: () => '/accounting/account-settings',
-  product_category_account_settings: () => '/accounting/product-category-account-settings',
-  branch_account_settings: () => '/accounting/branch-account-settings',
-  buyer_account_settings: () => '/accounting/buyer-account-settings',
-  fiscal_years: () => '/accounting/fiscal-years',
-  periods: () => '/accounting/periods',
-  journals: () => '/accounting/journals',
-  budgets: () => '/accounting/budgets',
-  price_lists: () => '/products/price-lists',
-  stages: () => '/inventory/stages',
-  departments: () => '/settings/departments',
-  bank_accounts: () => '/accounting/bank-accounts',
-  cash_transactions: () => '/accounting/cash-transactions',
-}
-
-const REFERENCE_TYPE_LABELS: Record<string, string> = {
-  companies: 'Company',
-  branches: 'Branch',
-  roles: 'Role',
-  users: 'User',
-  media: 'Media',
-  operation_rules: 'Operation Rule',
-  operations: 'Operation',
-  shift_rules: 'Shift Rule',
-  shifts: 'Shift',
-  product_categories: 'Product Category',
-  products: 'Product',
-  uoms: 'UOM',
-  product_conversions: 'Product Conversion',
-  product_uoms: 'Product UOM',
-  product_uom_batches: 'Product UOM Batch',
-  bundles: 'Bundle',
-  product_inventories: 'Product Inventory',
-  stock_movements: 'Stock Movement',
-  stock_opnames: 'Stock Opname',
-  recipes: 'Recipe',
-  productions: 'Production',
-  portionings: 'Portioning',
-  suppliers: 'Supplier',
-  buyers: 'Buyer',
-  taxes: 'Tax',
-  purchase_orders: 'Purchase Order',
-  deliveries: 'Delivery',
-  receipts: 'Receipt',
-  invoices: 'Invoice',
-  customers: 'Customer',
-  vouchers: 'Voucher',
-  sales_orders: 'Sales Order',
-  sales_channels: 'Sales Channel',
-  payment_methods: 'Payment Method',
-  payments: 'Payment',
-  account_categories: 'Account Category',
-  account_types: 'Account Type',
-  chart_of_accounts: 'Chart of Account',
-  account_settings: 'Account Setting',
-  product_category_account_settings: 'Product Category Account Setting',
-  branch_account_settings: 'Branch Account Setting',
-  buyer_account_settings: 'Buyer Account Setting',
-  fiscal_years: 'Fiscal Year',
-  periods: 'Period',
-  journals: 'Journal',
-  budgets: 'Budget',
-  price_lists: 'Price List',
-  stages: 'Stage',
-  departments: 'Department',
-  bank_accounts: 'Bank Account',
-  cash_transactions: 'Cash Transaction',
-}
-
-const referenceLabel = (type?: string | null): string => {
-  if (!type) return ''
-  return REFERENCE_TYPE_LABELS[type] ?? type.replace(/_/g, ' ')
-}
-
-/** Route for a reference, or null when the type has no matching page. */
-const referenceHref = (type?: string | null, id?: number | null): string | null => {
-  if (!type || !id) return null
-  const build = REFERENCE_ROUTES[type]
-  return build ? build(id) : null
-}
-
 const getTodayDateString = () => {
   const d = new Date()
   const year = d.getFullYear()
@@ -281,16 +158,14 @@ const fmtCurrency = (n: number) => new Intl.NumberFormat('id-ID').format(n)
 
 export default function JournalsView() {
 
-  const [dropdownSearch, setDropdownSearch] = useState('')
-  const [debouncedDropdownSearch, setDebouncedDropdownSearch] = useState('')
-  useEffect(() => { const t = setTimeout(() => setDebouncedDropdownSearch(dropdownSearch), 400); return () => clearTimeout(t) }, [dropdownSearch])
   const queryClient = useQueryClient()
   const { isSuperadmin, hasPermission } = useAuth()
   const canCreate = isSuperadmin || hasPermission('journal.create')
   const canUpdate = isSuperadmin || hasPermission('journal.update')
   const canDelete = isSuperadmin || hasPermission('journal.delete')
-  const canPost = isSuperadmin || hasPermission('journal.update')
-  const canReverse = isSuperadmin || hasPermission('journal.reverse') || hasPermission('journal.update')
+  // Route keys: POST /:id/post → journal.post, POST /:id/reverse → journal.create (journals/.../journal_route.go)
+  const canPost = isSuperadmin || hasPermission('journal.post')
+  const canReverse = isSuperadmin || hasPermission('journal.create')
   // ?search=<journal number> (links from a sale's Journals card) prefills the search.
   const initialSearch =
     typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('search') ?? '' : ''
@@ -315,6 +190,16 @@ export default function JournalsView() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [reverseConfirmId, setReverseConfirmId] = useState<number | null>(null)
   const [detailItem, setDetailItem] = useState<Journal | null>(null)
+  // `?id=` (from a ReferenceLink, e.g. the General Ledger) opens that journal's
+  // detail; the panel loads the full journal by id.
+  const [deepJournalId, clearDeepJournalId] = useDeepLinkId()
+  useEffect(() => {
+    if (deepJournalId) setDetailItem((cur) => (cur?.id === deepJournalId ? cur : ({ id: deepJournalId } as Journal)))
+  }, [deepJournalId])
+  const closeDetail = () => {
+    setDetailItem(null)
+    clearDeepJournalId()
+  }
   const [coaSearch, setCoaSearch] = useState('')
   const [debouncedCoaSearch, setDebouncedCoaSearch] = useState('')
 
@@ -347,19 +232,22 @@ export default function JournalsView() {
   })
   const filterPeriods: Period[] = (filterPeriodsData as any)?.data ?? []
 
+  // Form dropdown: OPEN periods only (a journal cannot be posted into a closed
+  // period). Fetched unfiltered so the date → period match sees every open period;
+  // the select searches its options locally.
   const { data: periodsData } = useQuery({
-    queryKey: ['periods-all', debouncedDropdownSearch],
-    queryFn: () => periodsService.list({ 'filter[search]': debouncedDropdownSearch || undefined, per_page: 1000, sort: '-id' }).then((r) => r.data),
+    queryKey: ['periods-all', 'open'],
+    queryFn: () => periodsService.list({ 'filter[is_closed]': 'false', per_page: 1000, sort: '-id' } as any).then((r) => r.data),
   })
 
   const { data: coaData } = useQuery({
     queryKey: ['chart-of-accounts-all', 'journals-active', debouncedCoaSearch],
-    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true', 'filter[search]': debouncedCoaSearch || undefined } as any).then((r) => r.data),
+    queryFn: () => chartOfAccountsService.list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true', 'filter[is_header]': 'false', 'filter[search]': debouncedCoaSearch || undefined } as any).then((r) => r.data),
   })
 
   const items: Journal[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
-  const periods: Period[] = (periodsData as any)?.data ?? []
+  const periods: Period[] = ((periodsData as any)?.data ?? []).filter((p: Period) => !p.is_closed)
   const accounts: CoA[] = (coaData as any)?.data ?? []
   const periodOptions = periods.map((p) => ({ value: String(p.id), label: p.name }))
   const accountOptions = accounts.map((a) => ({ value: String(a.id), label: `${a.code} ${a.name}` }))
@@ -407,6 +295,19 @@ export default function JournalsView() {
   const totalDebit = watchedDetails?.reduce((s, d) => s + (Number(d.debit) || 0), 0) ?? 0
   const totalCredit = watchedDetails?.reduce((s, d) => s + (Number(d.credit) || 0), 0) ?? 0
   const isBalanced = toCents(totalDebit) === toCents(totalCredit) && toCents(totalDebit) > 0
+
+  // The journal date must fall inside the chosen (open) period — the API books
+  // by period_id, so a mismatch would land the entry in the wrong period.
+  const selectedPeriod = periods.find((p) => p.id === Number(watchedPeriodId))
+  const dateTarget = watchedDate ? toInputDate(watchedDate) : ''
+  const dateError: string | null = !dateTarget || !periods.length
+    ? null
+    : !findPeriodForDate(dateTarget, periods)
+      ? 'No open period covers this date'
+      : selectedPeriod && selectedPeriod.start_date && selectedPeriod.end_date &&
+        (dateTarget < toInputDate(selectedPeriod.start_date) || dateTarget > toInputDate(selectedPeriod.end_date))
+        ? `Date is outside ${selectedPeriod.name} (${fmtDate(selectedPeriod.start_date)} – ${fmtDate(selectedPeriod.end_date)})`
+        : null
 
   const handleOpenCreate = () => {
     setEditData(null)
@@ -546,6 +447,7 @@ export default function JournalsView() {
   const isPending = createMutation.isPending || updateMutation.isPending
 
   const onSubmit = (values: FormValues) => {
+    if (dateError) { toast.error(dateError); return }
 
     const payload: JournalRequest = {
       period_id: values.period_id,
@@ -596,7 +498,8 @@ export default function JournalsView() {
   const sortedDetailLines = sortJournalLinesDebitFirst(detailLines)
   const detailTotalDebit = detailLines.reduce((s, l) => s + Number(l.debit || 0), 0)
   const detailTotalCredit = detailLines.reduce((s, l) => s + Number(l.credit || 0), 0)
-  const detailIsBalanced = detailTotalDebit === detailTotalCredit
+  const detailIsBalanced = detailLines.reduce((s, l) => s + toCents(Number(l.debit || 0)), 0) ===
+    detailLines.reduce((s, l) => s + toCents(Number(l.credit || 0)), 0)
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
     mutationFn: () => reportsService.exportJournalEntries(),
@@ -721,53 +624,13 @@ export default function JournalsView() {
                     </span>
                   </td>
                   <td style={tdStyle}>
-                    {(() => {
-                      const href = referenceHref(item.reference_type, item.reference_id)
-                      if (!href) {
-                        return (
-                          <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>
-                            {item.reference_type
-                              ? `${referenceLabel(item.reference_type)}${item.reference_id ? ` #${item.reference_id}` : ''}`
-                              : '—'}
-                          </span>
-                        )
-                      }
-                      return (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={`Buka ${referenceLabel(item.reference_type)} #${item.reference_id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            fontSize: 13,
-                            color: 'var(--accent)',
-                            textDecoration: 'none',
-                            fontWeight: 500,
-                          }}
-                        >
-                          <span>{referenceLabel(item.reference_type)}</span>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '1px 6px',
-                              borderRadius: 99,
-                              fontSize: 11,
-                              fontFamily: 'monospace',
-                              background: 'var(--accent-light-bg)',
-                              color: 'var(--accent)',
-                            }}
-                          >
-                            #{item.reference_id}
-                          </span>
-                          <ExternalLink size={11} style={{ color: 'var(--foreground-muted)' }} />
-                        </a>
-                      )
-                    })()}
+                    {item.reference_type ? (
+                      <ReferenceLink type={item.reference_type} id={item.reference_id} newTab style={{ fontSize: 13 }}>
+                        {referenceLabel(item.reference_type)}
+                      </ReferenceLink>
+                    ) : (
+                      <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>—</span>
+                    )}
                   </td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.description || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>{item.period?.name || '—'}</span></td>
@@ -796,20 +659,27 @@ export default function JournalsView() {
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                       <button onClick={() => setDetailItem(item)} title="View Detail"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Eye size={14} /></button>
-                      {!item.is_posted && (
-                        <>
-                          {canPost && <button onClick={() => postMutation.mutate(item.id)} disabled={postMutation.isPending} title="Post Journal"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: '#10b981', display: 'flex' }}><Send size={13} /></button>}
-                          {canUpdate && <button onClick={() => handleEditJournal(item)} title="Edit Journal"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
-                          {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} title="Delete Journal"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
-                        </>
-                      )}
-                      {item.is_posted && !item.is_reversed && canReverse && (
-                        <button onClick={() => setReverseConfirmId(item.id)} disabled={reverseMutation.isPending} title="Reverse Journal"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: '#8b5cf6', display: 'flex' }}><RotateCcw size={14} /></button>
-                      )}
+                      {(() => {
+                        const editBlock = journalEditBlock(item)
+                        const deleteBlock = journalDeleteBlock(item)
+                        const postBlock = (item.period as any)?.is_closed ? 'Period is closed' : null
+                        const reverseBlock = journalReverseBlock(item)
+                        const btn = (color: string, blocked: string | null) => ({ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color, display: 'flex', ...(blocked ? blockedStyle : {}) })
+                        return (
+                          <>
+                            {!item.is_posted && canPost && <button onClick={() => { if (!postBlock) postMutation.mutate(item.id) }} disabled={postMutation.isPending || !!postBlock} title={postBlock ?? 'Post Journal'}
+                              style={btn('#10b981', postBlock)}><Send size={13} /></button>}
+                            {canUpdate && <button onClick={() => { if (!editBlock) handleEditJournal(item) }} disabled={!!editBlock} title={editBlock ?? 'Edit Journal'}
+                              style={btn('var(--foreground-muted)', editBlock)}><Pencil size={14} /></button>}
+                            {canDelete && <button onClick={() => { if (!deleteBlock) setDeleteConfirmId(item.id) }} disabled={!!deleteBlock} title={deleteBlock ?? 'Delete Journal'}
+                              style={btn('var(--destructive)', deleteBlock)}><Trash2 size={14} /></button>}
+                            {item.is_posted && !item.is_reversed && canReverse && (
+                              <button onClick={() => { if (!reverseBlock) setReverseConfirmId(item.id) }} disabled={reverseMutation.isPending || !!reverseBlock} title={reverseBlock ?? 'Reverse Journal'}
+                                style={btn('#8b5cf6', reverseBlock)}><RotateCcw size={14} /></button>
+                            )}
+                          </>
+                        )
+                      })()}
                       {item.is_reversed && canCreate && (
                         <button onClick={() => handleDuplicateForEdit(item)} title="Koreksi / Buat Ulang Jurnal"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--accent)', display: 'flex' }}><Copy size={14} /></button>
@@ -880,7 +750,7 @@ export default function JournalsView() {
                         options={periodOptions}
                         placeholder="-- Pilih Periode --"
                         searchPlaceholder="Cari periode..."
-                        onSearchChange={setDropdownSearch}
+
                       />
                     )}
                   />
@@ -895,13 +765,13 @@ export default function JournalsView() {
                       setValue('date', val, { shouldValidate: true })
                       if (val) {
                         const matched = findPeriodForDate(val, periods)
-                        if (matched) {
-                          setValue('period_id', matched.id, { shouldValidate: true })
-                        }
+                        // No open period covers the date → clear the period so a stale one isn't submitted.
+                        setValue('period_id', matched ? matched.id : 0, { shouldValidate: true })
                       }
                     }}
-                    style={inputStyle}
+                    style={dateError ? { ...inputStyle, border: '1px solid var(--destructive)' } : inputStyle}
                   />
+                  {dateError && <span style={{ fontSize: 12, color: 'var(--destructive)' }}>{dateError}</span>}
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1064,7 +934,7 @@ export default function JournalsView() {
                   {toCents(totalDebit) <= 0 ? 'Enter debit and credit amounts' : 'Total debit must equal total credit'}
                 </span>
               )}
-              <button type="button" disabled={isPending || !isBalanced} onClick={handleSubmit(onSubmit, onInvalid)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: isPending || !isBalanced ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending || !isBalanced ? 0.6 : 1 }}>
+              <button type="button" disabled={isPending || !isBalanced || !!dateError} title={dateError ?? undefined} onClick={handleSubmit(onSubmit, onInvalid)} style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: isPending || !isBalanced || dateError ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: isPending || !isBalanced || dateError ? 0.6 : 1 }}>
                 {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
                 {editData ? 'Save' : 'Create Journal (Draft)'}
               </button>
@@ -1074,7 +944,7 @@ export default function JournalsView() {
       )}
       {detailItem && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div onClick={() => setDetailItem(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div onClick={() => closeDetail()} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
           <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 640, maxWidth: '92vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
               <div>
@@ -1090,26 +960,16 @@ export default function JournalsView() {
                     <span style={{ marginLeft: 6 }}>({formatDateTime(activeDetailJournal.created_at)})</span>
                   )}
                 </p>
-                {(() => {
-                  const href = referenceHref(activeDetailJournal?.reference_type, activeDetailJournal?.reference_id)
-                  if (!href) return null
-                  return (
-                    <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
-                      Reference:{' '}
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: 'var(--accent)', fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                      >
-                        {referenceLabel(activeDetailJournal?.reference_type)} #{activeDetailJournal?.reference_id}
-                        <ExternalLink size={11} />
-                      </a>
-                    </p>
-                  )
-                })()}
+                {activeDetailJournal?.reference_type && referenceHref(activeDetailJournal.reference_type, activeDetailJournal.reference_id) && (
+                  <p style={{ fontSize: 12, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
+                    Reference:{' '}
+                    <ReferenceLink type={activeDetailJournal.reference_type} id={activeDetailJournal.reference_id} newTab>
+                      Go to {referenceLabel(activeDetailJournal.reference_type).toLowerCase()}
+                    </ReferenceLink>
+                  </p>
+                )}
               </div>
-              <button onClick={() => setDetailItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
+              <button onClick={() => closeDetail()} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 20px', flexWrap: 'wrap', gap: 10 }}>
@@ -1135,12 +995,15 @@ export default function JournalsView() {
                 {activeDetailJournal?.is_posted && !activeDetailJournal?.is_reversed && canReverse && (
                   <button
                     type="button"
+                    disabled={!!journalReverseBlock(activeDetailJournal)}
+                    title={journalReverseBlock(activeDetailJournal) ?? 'Reverse Journal'}
                     onClick={() => {
+                      if (journalReverseBlock(activeDetailJournal)) return
                       const id = activeDetailJournal.id
-                      setDetailItem(null)
+                      closeDetail()
                       setReverseConfirmId(id)
                     }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, cursor: 'pointer', ...(journalReverseBlock(activeDetailJournal) ? blockedStyle : {}) }}
                   >
                     <RotateCcw size={12} /> Reverse Journal
                   </button>
@@ -1150,7 +1013,7 @@ export default function JournalsView() {
                     type="button"
                     onClick={() => {
                       const item = activeDetailJournal
-                      setDetailItem(null)
+                      closeDetail()
                       handleDuplicateForEdit(item)
                     }}
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}

@@ -366,7 +366,8 @@ function DateTimeDocCell({ item }: { item: StockMovement }) {
   const refType = item.reference_type
   const refId = item.reference_id
   const code = item.reference_code || item.reference?.code
-  const label = code || (refId != null ? `#${refId}` : '')
+  // No code on the source document: still link it, without printing its id.
+  const label = code || (refId != null ? 'Go to reference' : '')
   const buildHref = refType ? REFERENCE_ROUTES[refType] : undefined
   const docStyle: React.CSSProperties = {
     fontSize: 13,

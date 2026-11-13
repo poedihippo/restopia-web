@@ -14,11 +14,12 @@ import {
 } from '@/services/cash-transactions.service'
 import { bankAccountsService, BankAccount } from '@/services/bank-accounts.service'
 import { chartOfAccountsService } from '@/services/accounting.service'
-import { departmentsService, Department } from '@/services/departments.service'
 import { useAuth } from '@/hooks/useAuth'
+import { cashTransactionDeleteBlock, blockedStyle } from '@/lib/actionGuards'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
-import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive } from '@/components/ListFilters'
+import { FilterBar, FilterGroup, FilterField, FilterSelect, DateRange, countActive, filterControlStyle } from '@/components/ListFilters'
+import FinancePeriodSelect from '@/views/Reports/FinancePeriodSelect'
 import { formatCurrency } from '@/utils/price'
 import { formatDate, formatDateTime } from '@/utils/date'
 import { toastMutationApiError } from '@/utils/apiError'
@@ -43,7 +44,6 @@ const schema = z
     bank_account_id: z.coerce.number().min(1, 'Bank account is required'),
     chart_of_account_id: z.coerce.number().optional().nullable(),
     transfer_to_bank_account_id: z.coerce.number().optional().nullable(),
-    department_id: z.coerce.number().optional().nullable(),
     description: z.string().optional(),
   })
   .superRefine((data, ctx) => {
@@ -61,18 +61,22 @@ const schema = z
           message: 'Destination account must be different from source account',
         })
       }
-    } else {
-      if (!data.chart_of_account_id) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['chart_of_account_id'],
-          message: 'Offsetting Chart of Account is required',
-        })
-      }
     }
+    // cash_in / cash_out: chart_of_account_id is optional — when empty the API
+    // books against the outlet's petty cash account.
   })
 
 type FormValues = z.infer<typeof schema>
+
+// The API returns bank accounts only through `details[]` (include=details):
+// cash_in/cash_out → details[0] is the bank account; transfer → details[0] is
+// the source and details[1] the destination (cash-transactions/.../create_usecase.go).
+type DetailBank = NonNullable<NonNullable<CashTransaction['details']>[number]['bank_account']>
+const sourceBank = (ct: CashTransaction): DetailBank | undefined => ct.details?.[0]?.bank_account
+const destinationBank = (ct: CashTransaction): DetailBank | undefined =>
+  ct.type === 'transfer' ? ct.details?.[1]?.bank_account : undefined
+const bankLabel = (b?: DetailBank) => (b ? `${b.bank_name} (${b.account_number})` : '—')
+const bankLong = (b?: DetailBank) => (b ? `${b.bank_name} - ${b.account_number} (${b.account_name})` : '—')
 
 const TYPE_CONFIG: Record<
   CashTransactionType,
@@ -104,15 +108,15 @@ export default function CashTransactionsView() {
 
   const canRead = isSuperadmin || hasPermission('cash_transaction.read')
   const canCreate = isSuperadmin || hasPermission('cash_transaction.create')
-  const canUpdate = isSuperadmin || hasPermission('cash_transaction.update')
+  // PATCH /:id/reverse is guarded by cash-transaction.reverse (cash-transactions/.../cash_transaction_route.go)
+  const canReverse = isSuperadmin || hasPermission('cash_transaction.reverse')
   const canDelete = isSuperadmin || hasPermission('cash_transaction.delete')
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = new Date().toLocaleDateString('en-CA')
 
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
-  const [bankAccountFilter, setBankAccountFilter] = useState<string>('')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [page, setPage] = useState(1)
@@ -121,14 +125,11 @@ export default function CashTransactionsView() {
   const [debouncedBankDropdownSearch, setDebouncedBankDropdownSearch] = useState('')
   const [coaDropdownSearch, setCoaDropdownSearch] = useState('')
   const [debouncedCoaDropdownSearch, setDebouncedCoaDropdownSearch] = useState('')
-  const [deptDropdownSearch, setDeptDropdownSearch] = useState('')
-  const [debouncedDeptDropdownSearch, setDebouncedDeptDropdownSearch] = useState('')
 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [viewItem, setViewItem] = useState<CashTransaction | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
   const [reverseConfirmItem, setReverseConfirmItem] = useState<CashTransaction | null>(null)
-  const [reverseReason, setReverseReason] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 400)
@@ -146,13 +147,8 @@ export default function CashTransactionsView() {
   }, [coaDropdownSearch])
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedDeptDropdownSearch(deptDropdownSearch), 400)
-    return () => clearTimeout(t)
-  }, [deptDropdownSearch])
-
-  useEffect(() => {
     setPage(1)
-  }, [debouncedSearch, typeFilter, bankAccountFilter, startDate, endDate])
+  }, [debouncedSearch, typeFilter, startDate, endDate])
 
   // Fetch Cash Transactions
   const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
@@ -162,7 +158,6 @@ export default function CashTransactionsView() {
       perPage,
       debouncedSearch,
       typeFilter,
-      bankAccountFilter,
       startDate,
       endDate,
     ],
@@ -171,15 +166,12 @@ export default function CashTransactionsView() {
         .list({
           page,
           per_page: perPage,
-          include:
-            'bankAccount,transferToBankAccount,chartOfAccount,journalEntry,department,created_by,updated_by',
-          sort: '-transaction_date,-id',
-          // Spec filters: date_from, date_to, transaction_number, type.
-          // filter[search] / filter[bank_account_id] are not in the spec (kept; likely ignored).
-          'filter[search]': debouncedSearch || undefined,
-          'filter[transaction_number]': debouncedSearch || undefined,
+          // Allowed includes: created_by, updated_by, details (cash_transaction_query_request.go)
+          include: 'details,created_by',
+          sort: '-date,-id',
+          // Allowed filters: transaction_number (exact match), type, date_from, date_to.
+          'filter[transaction_number]': debouncedSearch.trim() || undefined,
           'filter[type]': typeFilter || undefined,
-          'filter[bank_account_id]': bankAccountFilter || undefined,
           'filter[date_from]': startDate || undefined,
           'filter[date_to]': endDate || undefined,
         } as any)
@@ -211,27 +203,13 @@ export default function CashTransactionsView() {
     queryKey: ['chart-of-accounts-for-cash', debouncedCoaDropdownSearch],
     queryFn: () =>
       chartOfAccountsService
-        .list({ per_page: 1000, sort: 'code', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
+        .list({ per_page: 1000, sort: 'code', 'filter[is_active]': 'true', 'filter[is_header]': 'false', 'filter[search]': debouncedCoaDropdownSearch || undefined } as any)
         .then((res) => res.data),
   })
-  const coaList: any[] = (coaData as any)?.data ?? []
+  const coaList: any[] = ((coaData as any)?.data ?? []).filter((c: any) => !c.is_header && c.is_active !== false)
   const coaOptions = coaList.map((item: any) => ({
     value: item.id,
     label: `${item.account_code ?? item.code} — ${item.account_name ?? item.name}`,
-  }))
-
-  // Fetch Departments for optional assignment
-  const { data: departmentsData } = useQuery({
-    queryKey: ['departments-for-cash', debouncedDeptDropdownSearch],
-    queryFn: () =>
-      departmentsService
-        .list({ per_page: 1000, 'filter[is_active]': 1, 'filter[search]': debouncedDeptDropdownSearch || undefined } as any)
-        .then((res) => res.data),
-  })
-  const departments: Department[] = (departmentsData as any)?.data ?? []
-  const departmentOptions = departments.map((d) => ({
-    value: d.id,
-    label: `[${d.code}] ${d.name}`,
   }))
 
   // Form setup
@@ -252,7 +230,6 @@ export default function CashTransactionsView() {
       bank_account_id: undefined as any,
       chart_of_account_id: null,
       transfer_to_bank_account_id: null,
-      department_id: null,
       description: '',
     },
   })
@@ -268,7 +245,6 @@ export default function CashTransactionsView() {
       bank_account_id: bankAccounts[0]?.id ?? (undefined as any),
       chart_of_account_id: null,
       transfer_to_bank_account_id: null,
-      department_id: null,
       description: '',
     })
     setSheetOpen(true)
@@ -286,14 +262,13 @@ export default function CashTransactionsView() {
   })
 
   const reverseMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-      cashTransactionsService.reverse(id, { reason }),
+    // The API takes no body for reverse (a reason would be discarded).
+    mutationFn: ({ id }: { id: number }) => cashTransactionsService.reverse(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cash-transactions'] })
       queryClient.invalidateQueries({ queryKey: ['bank-accounts'] })
       toast.success('Transaction reversed successfully')
       setReverseConfirmItem(null)
-      setReverseReason('')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to reverse transaction'),
   })
@@ -314,9 +289,9 @@ export default function CashTransactionsView() {
       date: values.transaction_date,
       transaction_date: values.transaction_date,
       type: values.type,
-      amount: Math.round(Number(values.amount)),
+      // Keep cents (round to 2 dp only to drop float noise).
+      amount: Math.round(Number(values.amount) * 100) / 100,
       bank_account_id: values.bank_account_id ? Number(values.bank_account_id) : undefined,
-      department_id: values.department_id ? Number(values.department_id) : undefined,
       description: values.description?.trim() || undefined,
     }
 
@@ -443,10 +418,9 @@ export default function CashTransactionsView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search transaction number..."
-        activeCount={countActive(typeFilter, bankAccountFilter, startDate, endDate)}
+        activeCount={countActive(typeFilter, startDate, endDate)}
         onClear={() => {
           setTypeFilter('')
-          setBankAccountFilter('')
           setStartDate('')
           setEndDate('')
           setPage(1)
@@ -459,18 +433,18 @@ export default function CashTransactionsView() {
               <option value="cash_out">Cash Out</option>
               <option value="transfer">Transfer</option>
             </FilterSelect>
-            <FilterSelect value={bankAccountFilter} onChange={(e) => setBankAccountFilter(e.target.value)}>
-              <option value="">All Bank Accounts</option>
-              {bankAccounts.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.bank_name} - {b.account_number}
-                </option>
-              ))}
-            </FilterSelect>
           </>
         }
       >
         <FilterGroup title="Dates">
+          <FilterField label="Period">
+            <FinancePeriodSelect
+              start={startDate}
+              end={endDate}
+              onChange={(p) => { setStartDate(p.start_date); setEndDate(p.end_date) }}
+              style={{ ...filterControlStyle, width: '100%' }}
+            />
+          </FilterField>
           <FilterField label="Transaction date">
             <DateRange from={startDate} to={endDate} onFromChange={setStartDate} onToChange={setEndDate} />
           </FilterField>
@@ -495,7 +469,6 @@ export default function CashTransactionsView() {
                 <th style={{ ...thStyle, width: 170 }}>Txn Number / Date</th>
                 <th style={{ ...thStyle, width: 110 }}>Type</th>
                 <th style={thStyle}>Accounts Flow</th>
-                <th style={{ ...thStyle, width: 150 }}>Department</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 150 }}>Amount</th>
                 <th style={{ ...thStyle, width: 130 }}>Journal Entry</th>
                 <th style={{ ...thStyle, width: 100, textAlign: 'right' }}>Actions</th>
@@ -505,14 +478,14 @@ export default function CashTransactionsView() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    {Array.from({ length: 8 }).map((__, j) => (
+                    {Array.from({ length: 7 }).map((__, j) => (
                       <td key={j} style={tdStyle}>
                         <div
                           style={{
                             height: 14,
                             borderRadius: 'var(--radius-sm)',
                             background: 'var(--border)',
-                            width: j === 7 ? 60 : '75%',
+                            width: j === 6 ? 60 : '75%',
                             animation: 'pulse 1.5s ease-in-out infinite',
                           }}
                         />
@@ -650,13 +623,13 @@ export default function CashTransactionsView() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ color: 'var(--foreground-muted)', fontSize: 11 }}>From:</span>
                               <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>
-                                {item.bankAccount?.bank_name} ({item.bankAccount?.account_number})
+                                {bankLabel(sourceBank(item))}
                               </span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ color: 'var(--foreground-muted)', fontSize: 11 }}>To:</span>
                               <span style={{ fontWeight: 500, color: 'var(--accent)' }}>
-                                {item.transferToBankAccount?.bank_name} ({item.transferToBankAccount?.account_number})
+                                {bankLabel(destinationBank(item))}
                               </span>
                             </div>
                           </div>
@@ -665,40 +638,13 @@ export default function CashTransactionsView() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               <span style={{ color: 'var(--foreground-muted)', fontSize: 11 }}>Bank:</span>
                               <span style={{ fontWeight: 500, color: 'var(--foreground)' }}>
-                                {item.bankAccount?.bank_name} ({item.bankAccount?.account_number})
+                                {bankLabel(sourceBank(item))}
                               </span>
                             </div>
-                            {item.chartOfAccount && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span style={{ color: 'var(--foreground-muted)', fontSize: 11 }}>Offset:</span>
-                                <span style={{ color: 'var(--foreground-muted)' }}>
-                                  [{item.chartOfAccount.account_code}] {item.chartOfAccount.account_name}
-                                </span>
-                              </div>
-                            )}
                           </div>
                         )}
                       </td>
 
-                      {/* Department */}
-                      <td style={tdStyle}>
-                        {item.department ? (
-                          <span
-                            style={{
-                              padding: '2px 8px',
-                              background: 'var(--surface-raised)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius-sm)',
-                              fontSize: 11,
-                              fontWeight: 500,
-                            }}
-                          >
-                            [{item.department.code}] {item.department.name}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--foreground-muted)', fontSize: 12 }}>—</span>
-                        )}
-                      </td>
 
                       {/* Amount */}
                       <td
@@ -722,7 +668,7 @@ export default function CashTransactionsView() {
 
                       {/* Journal Entry */}
                       <td style={tdStyle}>
-                        {item.journalEntry ? (
+                        {item.journal_id ? (
                           <span
                             style={{
                               fontSize: 12,
@@ -733,7 +679,7 @@ export default function CashTransactionsView() {
                               borderRadius: 'var(--radius-sm)',
                             }}
                           >
-                            {item.journalEntry.journal_number ?? `Journal #${item.journalEntry.id}`}
+                            Journal #{item.journal_id}
                           </span>
                         ) : (
                           <span style={{ color: 'var(--foreground-muted)', fontSize: 12 }}>—</span>
@@ -757,11 +703,11 @@ export default function CashTransactionsView() {
                             <Eye size={15} />
                           </button>
 
-                          {canUpdate && (
+                          {canReverse && (
                             <button
                               onClick={() => {
+                                if (item.is_reversed) return
                                 setReverseConfirmItem(item)
-                                setReverseReason('')
                               }}
                               disabled={item.is_reversed}
                               title={item.is_reversed ? 'Already Reversed' : 'Reverse / Void'}
@@ -778,21 +724,26 @@ export default function CashTransactionsView() {
                             </button>
                           )}
 
-                          {canDelete && (
+                          {canDelete && (() => {
+                            const reason = cashTransactionDeleteBlock(item)
+                            return (
                             <button
-                              onClick={() => setDeleteConfirmId(item.id)}
-                              title="Delete"
+                              onClick={() => { if (!reason) setDeleteConfirmId(item.id) }}
+                              disabled={!!reason}
+                              title={reason ?? 'Delete'}
                               style={{
                                 padding: 6,
                                 background: 'none',
                                 border: 'none',
                                 cursor: 'pointer',
                                 color: 'var(--destructive)',
+                                ...(reason ? blockedStyle : {}),
                               }}
                             >
                               <Trash2 size={15} />
                             </button>
-                          )}
+                            )
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -1037,13 +988,10 @@ export default function CashTransactionsView() {
                 ) : (
                   <div>
                     <label style={labelStyle}>
-                      Offsetting Chart of Account
-                      <span style={{ color: 'var(--destructive)' }}>*</span>
+                      Offsetting Chart of Account (Optional)
                     </label>
                     <span style={{ fontSize: 11, color: 'var(--foreground-muted)', marginBottom: 6, display: 'block' }}>
-                      {selectedType === 'cash_in'
-                        ? 'Select revenue or income account to credit'
-                        : 'Select expense or asset account to debit'}
+                      Leave empty to book against the outlet&apos;s petty cash
                     </span>
                     <Controller
                       control={control}
@@ -1053,7 +1001,7 @@ export default function CashTransactionsView() {
                           value={field.value ?? ''}
                           onChange={(val) => field.onChange(val ? Number(val) : null)}
                           options={coaOptions}
-                          placeholder="Select Offsetting Chart of Account"
+                          placeholder="Petty cash (default)"
                           searchPlaceholder="Search COA..."
                           onSearchChange={setCoaDropdownSearch}
                         />
@@ -1065,24 +1013,6 @@ export default function CashTransactionsView() {
                   </div>
                 )}
 
-                {/* Department (Optional) */}
-                <div>
-                  <label style={labelStyle}>Department (Optional)</label>
-                  <Controller
-                    control={control}
-                    name="department_id"
-                    render={({ field }) => (
-                      <SearchableSelect
-                        value={field.value ?? ''}
-                        onChange={(val) => field.onChange(val ? Number(val) : null)}
-                        options={departmentOptions}
-                        placeholder="Assign to Department (Optional)"
-                        searchPlaceholder="Search department..."
-                        onSearchChange={setDeptDropdownSearch}
-                      />
-                    )}
-                  />
-                </div>
 
                 {/* Description */}
                 <div>
@@ -1212,32 +1142,14 @@ export default function CashTransactionsView() {
                 { label: 'Amount', value: formatCurrency(viewItem.amount) },
                 {
                   label: 'Primary Bank Account',
-                  value: viewItem.bankAccount
-                    ? `${viewItem.bankAccount.bank_name} - ${viewItem.bankAccount.account_number} (${viewItem.bankAccount.account_name})`
-                    : '—',
+                  value: bankLong(sourceBank(viewItem)),
                 },
-                viewItem.type === 'transfer'
-                  ? {
-                      label: 'Destination Bank Account',
-                      value: viewItem.transferToBankAccount
-                        ? `${viewItem.transferToBankAccount.bank_name} - ${viewItem.transferToBankAccount.account_number} (${viewItem.transferToBankAccount.account_name})`
-                        : '—',
-                    }
-                  : {
-                      label: 'Offsetting CoA',
-                      value: viewItem.chartOfAccount
-                        ? `[${viewItem.chartOfAccount.account_code}] ${viewItem.chartOfAccount.account_name}`
-                        : '—',
-                    },
-                {
-                  label: 'Department',
-                  value: viewItem.department
-                    ? `[${viewItem.department.code}] ${viewItem.department.name}`
-                    : '—',
-                },
+                ...(viewItem.type === 'transfer'
+                  ? [{ label: 'Destination Bank Account', value: bankLong(destinationBank(viewItem)) }]
+                  : []),
                 {
                   label: 'Journal Entry',
-                  value: viewItem.journalEntry?.journal_number ?? (viewItem.journalEntry ? `#${viewItem.journalEntry.id}` : '—'),
+                  value: viewItem.journal_id ? `Journal #${viewItem.journal_id}` : '—',
                 },
                 { label: 'Description', value: viewItem.description || '—' },
                 { label: 'Created By', value: viewItem.created_by?.name || '—' },
@@ -1305,7 +1217,7 @@ export default function CashTransactionsView() {
             >
               Reverse Cash Transaction
             </h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 16px' }}>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 20px' }}>
               Reversing transaction{' '}
               <strong style={{ color: 'var(--foreground)' }}>
                 {reverseConfirmItem.transaction_number}
@@ -1313,15 +1225,6 @@ export default function CashTransactionsView() {
               will create offsetting reversal entries for both cash accounts and general ledger journals.
             </p>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={labelStyle}>Reversal Reason (Optional)</label>
-              <input
-                value={reverseReason}
-                onChange={(e) => setReverseReason(e.target.value)}
-                placeholder="e.g. Incorrect account or amount"
-                style={inputStyle}
-              />
-            </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
@@ -1341,10 +1244,7 @@ export default function CashTransactionsView() {
               </button>
               <button
                 onClick={() =>
-                  reverseMutation.mutate({
-                    id: reverseConfirmItem.id,
-                    reason: reverseReason.trim() || undefined,
-                  })
+                  reverseMutation.mutate({ id: reverseConfirmItem.id })
                 }
                 disabled={reverseMutation.isPending}
                 style={{

@@ -77,7 +77,7 @@ export function FilterBar({
   const hasPanel = !!children
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16, ...style }}>
+    <div data-tour="filters" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         {onSearchChange && (
           <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: 320 }}>
@@ -93,6 +93,7 @@ export function FilterBar({
               }}
             />
             <input
+              data-search
               value={search ?? ''}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={searchPlaceholder}

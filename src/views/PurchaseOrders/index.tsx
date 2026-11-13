@@ -17,6 +17,7 @@ import { branchesService } from '@/services/branches.service'
 import { buyersService } from '@/services/buyers.service'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { purchaseOrderDeleteBlock } from '@/lib/actionGuards'
 import {
   Plus,
   ChevronLeft,
@@ -703,13 +704,17 @@ export default function PurchaseOrdersView() {
                         >
                           <Pencil size={14} />
                         </button>)}
-                        {canDelete && (<button
-                          onClick={() => setDeleteConfirmId(item.id)}
-                          className="v2-icon-btn"
-                          data-tone="danger"
-                          title="Delete">
-                          <Trash2 size={14} />
-                        </button>)}
+                        {canDelete && (() => {
+                          const reason = purchaseOrderDeleteBlock(item)
+                          return (<button
+                            onClick={() => { if (!reason) setDeleteConfirmId(item.id) }}
+                            disabled={!!reason}
+                            className="v2-icon-btn"
+                            data-tone="danger"
+                            title={reason ?? 'Delete'}>
+                            <Trash2 size={14} />
+                          </button>)
+                        })()}
                       </div>
                     </td>
                   </tr>

@@ -12,6 +12,7 @@ import { chartOfAccountsService } from "@/services/accounting.service";
 import { companiesService } from "@/services/companies.service";
 import { bankAccountsService } from "@/services/bank-accounts.service";
 import SearchableSelect from "@/components/SearchableSelect";
+import { paymentMethodEditBlock, paymentMethodDeleteBlock, blockedStyle } from "@/lib/actionGuards";
 import { useAuth } from "@/hooks/useAuth";
 import PaymentMethodBranchAccounts from "./PaymentMethodBranchAccounts";
 
@@ -187,9 +188,11 @@ export default function PaymentMethodsView() {
             data: { message: "Choose the Kas / Bank account the money goes to" },
           },
         });
+      // A bank account's own method mirrors the account: the API rejects
+      // name/type/COA on it (payment-methods/.../update_usecase.go:26).
+      const isBankLinked = !!editing?.bank_account_id;
       const payload: any = {
-        name,
-        type,
+        ...(isBankLinked ? {} : { name, type }),
         requires_settlement: requiresSettlement,
         settlement_fee_chart_of_account_id: requiresSettlement
           ? feeAccountId
@@ -197,7 +200,7 @@ export default function PaymentMethodsView() {
       };
       // A bank-linked method follows its bank account's active flag.
       if (!editing?.bank_account_id) payload.is_active = isActive;
-      if (chartOfAccountId !== null)
+      if (chartOfAccountId !== null && !isBankLinked)
         payload.chart_of_account_id = chartOfAccountId;
       return editing
         ? paymentMethodService.update(editing.id, payload)
@@ -648,10 +651,15 @@ export default function PaymentMethodsView() {
                       >
                         <Eye size={14} />
                       </button>
-                      {canEdit && (
+                      {canEdit && (() => {
+                        const reason = paymentMethodEditBlock(item)
+                        return (
                         <button
                           type="button"
+                          disabled={!!reason}
+                          title={reason ?? "Edit"}
                           onClick={() => {
+                            if (reason) return;
                             setEditing(item);
                             setName(item.name);
                             setType(item.type || "all");
@@ -673,15 +681,21 @@ export default function PaymentMethodsView() {
                             background: "var(--surface)",
                             cursor: "pointer",
                             whiteSpace: "nowrap",
+                            ...(reason ? blockedStyle : {}),
                           }}
                         >
                         Edit
                         </button>
-                      )}
-                      {canDelete && (
+                        )
+                      })()}
+                      {canDelete && (() => {
+                        const reason = paymentMethodDeleteBlock(item)
+                        return (
                         <button
                           type="button"
-                          onClick={() => setDeleteTarget(item)}
+                          disabled={!!reason}
+                          title={reason ?? "Delete"}
+                          onClick={() => { if (!reason) setDeleteTarget(item) }}
                           style={{
                             height:32,
                             fontSize: 12,
@@ -692,11 +706,13 @@ export default function PaymentMethodsView() {
                             cursor: "pointer",
                             color: "var(--destructive)",
                             whiteSpace: "nowrap",
+                            ...(reason ? blockedStyle : {}),
                           }}
                         >
                           Delete
                         </button>
-                      )}
+                        )
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -806,6 +822,8 @@ export default function PaymentMethodsView() {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={!!editing?.bank_account_id}
+                title={editing?.bank_account_id ? "Follows its bank account" : undefined}
                 placeholder="e.g. Cash, Transfer BCA, QRIS"
                 style={{
                   width: "100%",
@@ -843,6 +861,8 @@ export default function PaymentMethodsView() {
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value)}
+                disabled={!!editing?.bank_account_id}
+                title={editing?.bank_account_id ? "Follows its bank account" : undefined}
                 style={{
                   width: "100%",
                   height: 40,

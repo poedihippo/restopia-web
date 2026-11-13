@@ -24,10 +24,9 @@ import {
 } from 'lucide-react'
 
 export default function ComparativeReportsView() {
-  const currentYear = new Date().getFullYear()
   const today = new Date()
-  const firstDay = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0]
-  const todayStr = today.toISOString().split('T')[0]
+  const firstDay = new Date(today.getFullYear(), 0, 1).toLocaleDateString('en-CA')
+  const todayStr = today.toLocaleDateString('en-CA')
 
   // Query Fiscal Years
   const { data: fiscalYearsData } = useQuery({
@@ -72,19 +71,20 @@ export default function ComparativeReportsView() {
         .then((r) => r.data),
   })
   const suppliers: any[] = supplierOpts.items
+  // Value is the supplier id (export sends supplier_id); the name is kept as a
+  // fallback for the `supplier` param when no id is known.
   const supplierOptions = suppliers.map((s) => ({
-    value: s.name ?? String(s.id),
+    value: s.id,
     label: s.name,
   }))
 
   // Card 1: Comparative Income Statement
+  // The API only reads fiscal_year_id (a bare `year` is ignored), so a fiscal year is required.
   const [lrFiscalYearId, setLrFiscalYearId] = useState<number | undefined>(undefined)
-  const [lrYear, setLrYear] = useState<number>(currentYear)
   const [lrBranch, setLrBranch] = useState<FinanceBranchScope>('')
 
   // Card 2: Comparative Balance Sheet
   const [bsFiscalYearId, setBsFiscalYearId] = useState<number | undefined>(undefined)
-  const [bsYear, setBsYear] = useState<number>(currentYear)
   const [bsBranch, setBsBranch] = useState<FinanceBranchScope>('')
 
   // Card 3: AR Card
@@ -93,20 +93,35 @@ export default function ComparativeReportsView() {
   const [arEndDate, setArEndDate] = useState(todayStr)
 
   // Card 4: AP Card
-  const [apSupplier, setApSupplier] = useState<string>('')
+  const [apSupplierId, setApSupplierId] = useState<number | undefined>(undefined)
+  const [apSupplierName, setApSupplierName] = useState<string>('')
+  const apSupplier = apSupplierId ? String(apSupplierId) : apSupplierName
   const [apStartDate, setApStartDate] = useState(firstDay)
   const [apEndDate, setApEndDate] = useState(todayStr)
+
+  const fySlug = (id?: number) =>
+    String(fiscalYears.find((fy) => fy.id === id)?.name ?? id ?? '').replace(/\s+/g, '-').toLowerCase()
+
+  // Both card exports return 400 without start_date and end_date.
+  const dateRangeBlock = (start: string, end: string): string | null => {
+    if (!start || !end) return 'Start date and end date are required'
+    if (start > end) return 'Start date must be on or before end date'
+    return null
+  }
+  const arBlock = !arCustomerId ? 'Select a customer first' : dateRangeBlock(arStartDate, arEndDate)
+  const apBlock = !apSupplier ? 'Select a supplier first' : dateRangeBlock(apStartDate, apEndDate)
+  const lrBlock = !lrFiscalYearId ? 'Select a fiscal year first' : null
+  const bsBlock = !bsFiscalYearId ? 'Select a fiscal year first' : null
 
   // Export Mutations
   const exportLrMutation = useMutation({
     mutationFn: () =>
       reportsService.exportComparativeIncomeStatement({
         fiscal_year_id: lrFiscalYearId,
-        year: !lrFiscalYearId ? lrYear : undefined,
         ...financeBranchParam(lrBranch),
       }),
     onSuccess: (res) => {
-      downloadFileFromResponse(res, `comparative-income-statement-${lrYear}.xlsx`)
+      downloadFileFromResponse(res, `comparative-income-statement-${fySlug(lrFiscalYearId)}.xlsx`)
       toast.success('12-month Comparative Income Statement downloaded')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to export comparative income statement'),
@@ -116,11 +131,10 @@ export default function ComparativeReportsView() {
     mutationFn: () =>
       reportsService.exportComparativeBalanceSheet({
         fiscal_year_id: bsFiscalYearId,
-        year: !bsFiscalYearId ? bsYear : undefined,
         ...financeBranchParam(bsBranch),
       }),
     onSuccess: (res) => {
-      downloadFileFromResponse(res, `comparative-balance-sheet-${bsYear}.xlsx`)
+      downloadFileFromResponse(res, `comparative-balance-sheet-${fySlug(bsFiscalYearId)}.xlsx`)
       toast.success('12-month Comparative Balance Sheet downloaded')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to export comparative balance sheet'),
@@ -131,8 +145,8 @@ export default function ComparativeReportsView() {
       if (!arCustomerId) throw new Error('Please select a customer')
       return reportsService.exportArCard({
         customer_id: arCustomerId,
-        start_date: arStartDate || undefined,
-        end_date: arEndDate || undefined,
+        start_date: arStartDate,
+        end_date: arEndDate,
       })
     },
     onSuccess: (res) => {
@@ -146,13 +160,14 @@ export default function ComparativeReportsView() {
     mutationFn: () => {
       if (!apSupplier) throw new Error('Please select or enter a supplier')
       return reportsService.exportApCard({
-        supplier: apSupplier,
-        start_date: apStartDate || undefined,
-        end_date: apEndDate || undefined,
+        ...(apSupplierId ? { supplier_id: apSupplierId } : { supplier: apSupplierName }),
+        start_date: apStartDate,
+        end_date: apEndDate,
       })
     },
     onSuccess: (res) => {
-      downloadFileFromResponse(res, `ap-card-${apSupplier}.xlsx`)
+      const slug = (apSupplierName || String(apSupplierId ?? '')).replace(/\s+/g, '-').toLowerCase()
+      downloadFileFromResponse(res, `ap-card-${slug}.xlsx`)
       toast.success('Supplier AP Card downloaded')
     },
     onError: (err: any) => toastMutationApiError(err, 'Failed to export AP card'),
@@ -245,24 +260,15 @@ export default function ComparativeReportsView() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
               <div>
-                <label style={labelStyle}>Fiscal Year (Optional)</label>
+                <label style={labelStyle}>
+                  Fiscal Year
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <SearchableSelect
                   value={lrFiscalYearId || ''}
                   onChange={(val) => setLrFiscalYearId(val ? Number(val) : undefined)}
                   options={fiscalYearOptions}
-                  placeholder="Select Fiscal Year (or specify Year below)"
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Year</label>
-                <input
-                  type="number"
-                  value={lrYear}
-                  onChange={(e) => setLrYear(Number(e.target.value))}
-                  style={inputStyle}
-                  min={2020}
-                  max={2030}
+                  placeholder="Select Fiscal Year..."
                 />
               </div>
 
@@ -274,8 +280,9 @@ export default function ComparativeReportsView() {
           </div>
 
           <button
-            onClick={() => exportLrMutation.mutate()}
-            disabled={exportLrMutation.isPending}
+            onClick={() => { if (!lrBlock) exportLrMutation.mutate() }}
+            disabled={exportLrMutation.isPending || !!lrBlock}
+            title={lrBlock ?? undefined}
             style={{
               width: '100%',
               padding: '10px 16px',
@@ -285,13 +292,13 @@ export default function ComparativeReportsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: exportLrMutation.isPending ? 'not-allowed' : 'pointer',
+              cursor: exportLrMutation.isPending || lrBlock ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
               boxShadow: 'var(--shadow-sm)',
-              opacity: exportLrMutation.isPending ? 0.75 : 1,
+              opacity: exportLrMutation.isPending || lrBlock ? 0.6 : 1,
             }}
           >
             {exportLrMutation.isPending ? (
@@ -337,24 +344,15 @@ export default function ComparativeReportsView() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
               <div>
-                <label style={labelStyle}>Fiscal Year (Optional)</label>
+                <label style={labelStyle}>
+                  Fiscal Year
+                  <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
+                </label>
                 <SearchableSelect
                   value={bsFiscalYearId || ''}
                   onChange={(val) => setBsFiscalYearId(val ? Number(val) : undefined)}
                   options={fiscalYearOptions}
-                  placeholder="Select Fiscal Year (or specify Year below)"
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>Year</label>
-                <input
-                  type="number"
-                  value={bsYear}
-                  onChange={(e) => setBsYear(Number(e.target.value))}
-                  style={inputStyle}
-                  min={2020}
-                  max={2030}
+                  placeholder="Select Fiscal Year..."
                 />
               </div>
 
@@ -366,8 +364,9 @@ export default function ComparativeReportsView() {
           </div>
 
           <button
-            onClick={() => exportBsMutation.mutate()}
-            disabled={exportBsMutation.isPending}
+            onClick={() => { if (!bsBlock) exportBsMutation.mutate() }}
+            disabled={exportBsMutation.isPending || !!bsBlock}
+            title={bsBlock ?? undefined}
             style={{
               width: '100%',
               padding: '10px 16px',
@@ -377,13 +376,13 @@ export default function ComparativeReportsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: exportBsMutation.isPending ? 'not-allowed' : 'pointer',
+              cursor: exportBsMutation.isPending || bsBlock ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
               boxShadow: 'var(--shadow-sm)',
-              opacity: exportBsMutation.isPending ? 0.75 : 1,
+              opacity: exportBsMutation.isPending || bsBlock ? 0.6 : 1,
             }}
           >
             {exportBsMutation.isPending ? (
@@ -446,7 +445,7 @@ export default function ComparativeReportsView() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={labelStyle}>Start Date</label>
+                  <label style={labelStyle}>Start Date<span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span></label>
                   <input
                     type="date"
                     value={arStartDate}
@@ -455,7 +454,7 @@ export default function ComparativeReportsView() {
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>End Date</label>
+                  <label style={labelStyle}>End Date<span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span></label>
                   <input
                     type="date"
                     value={arEndDate}
@@ -468,8 +467,9 @@ export default function ComparativeReportsView() {
           </div>
 
           <button
-            onClick={() => exportArMutation.mutate()}
-            disabled={exportArMutation.isPending || !arCustomerId}
+            onClick={() => { if (!arBlock) exportArMutation.mutate() }}
+            disabled={exportArMutation.isPending || !!arBlock}
+            title={arBlock ?? undefined}
             style={{
               width: '100%',
               padding: '10px 16px',
@@ -479,13 +479,13 @@ export default function ComparativeReportsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: exportArMutation.isPending || !arCustomerId ? 'not-allowed' : 'pointer',
+              cursor: exportArMutation.isPending || arBlock ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
               boxShadow: 'var(--shadow-sm)',
-              opacity: exportArMutation.isPending || !arCustomerId ? 0.6 : 1,
+              opacity: exportArMutation.isPending || arBlock ? 0.6 : 1,
             }}
           >
             {exportArMutation.isPending ? (
@@ -536,8 +536,12 @@ export default function ComparativeReportsView() {
                   <span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span>
                 </label>
                 <SearchableSelect
-                  value={apSupplier || ''}
-                  onChange={(val) => setApSupplier(val ? String(val) : '')}
+                  value={apSupplierId || ''}
+                  onChange={(val) => {
+                    const id = val ? Number(val) : undefined
+                    setApSupplierId(id)
+                    setApSupplierName(id ? suppliers.find((x) => x.id === id)?.name ?? '' : '')
+                  }}
                   options={supplierOptions}
                   loading={supplierOpts.loading}
                   {...supplierOpts.selectProps}
@@ -548,7 +552,7 @@ export default function ComparativeReportsView() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={labelStyle}>Start Date</label>
+                  <label style={labelStyle}>Start Date<span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span></label>
                   <input
                     type="date"
                     value={apStartDate}
@@ -557,7 +561,7 @@ export default function ComparativeReportsView() {
                   />
                 </div>
                 <div>
-                  <label style={labelStyle}>End Date</label>
+                  <label style={labelStyle}>End Date<span style={{ color: 'var(--destructive)', marginLeft: 2 }}>*</span></label>
                   <input
                     type="date"
                     value={apEndDate}
@@ -570,8 +574,9 @@ export default function ComparativeReportsView() {
           </div>
 
           <button
-            onClick={() => exportApMutation.mutate()}
-            disabled={exportApMutation.isPending || !apSupplier}
+            onClick={() => { if (!apBlock) exportApMutation.mutate() }}
+            disabled={exportApMutation.isPending || !!apBlock}
+            title={apBlock ?? undefined}
             style={{
               width: '100%',
               padding: '10px 16px',
@@ -581,13 +586,13 @@ export default function ComparativeReportsView() {
               borderRadius: 'var(--radius-md)',
               fontSize: 13,
               fontWeight: 500,
-              cursor: exportApMutation.isPending || !apSupplier ? 'not-allowed' : 'pointer',
+              cursor: exportApMutation.isPending || apBlock ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
               boxShadow: 'var(--shadow-sm)',
-              opacity: exportApMutation.isPending || !apSupplier ? 0.6 : 1,
+              opacity: exportApMutation.isPending || apBlock ? 0.6 : 1,
             }}
           >
             {exportApMutation.isPending ? (

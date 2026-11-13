@@ -740,7 +740,6 @@ export default function StagesView() {
                 </div>
                 <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {[
-                    { label: 'ID', value: selectedItem.id },
                     { label: 'Kode', value: selectedItem.code },
                     { label: 'Nama', value: selectedItem.name },
                     { label: 'Status', value: selectedItem.is_active === false ? 'Nonaktif' : 'Aktif' },

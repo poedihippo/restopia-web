@@ -9,6 +9,7 @@ import SearchableSelect from '@/components/SearchableSelect'
 import { suppliersService } from '@/services/suppliers.service'
 import { buyersService } from '@/services/buyers.service'
 import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { fetchAllPages } from '@/utils/salesReport'
 import { branchesService } from '@/services/branches.service'
 import { useCentralCompanyScope } from '@/hooks/useCentralCompanyScope'
 import { formatDate } from '@/utils/date'
@@ -131,22 +132,35 @@ export default function SupplierDebtsView() {
   const { data: posData, isLoading: posLoading } = useQuery({
     queryKey: ['supplier-debts-pos', buyerId, branchId, scopeParams.scope],
     enabled: canRead,
-    queryFn: () =>
-      purchaseOrdersService
-        .list({
-          per_page: 1000,
-          sort: '-created_at',
-          'filter[type]': 'supplier',
-          'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
-          'filter[branch_id]': branchId > 0 ? branchId : undefined,
-          include: 'supplier,purchase_order_details',
-          ...scopeParams,
-        } as any)
-        .then((r) => r.data),
+    // Only unpaid POs, filtered on the server (filter[payment_status] is an exact
+    // match, so one request per status) and paged through meta.last_page instead
+    // of relying on a per_page cap.
+    queryFn: async () => {
+      const lists = await Promise.all(
+        ['pending', 'partial'].map((paymentStatus) =>
+          fetchAllPages((page) =>
+            purchaseOrdersService
+              .list({
+                page,
+                per_page: 200,
+                sort: '-created_at',
+                'filter[type]': 'supplier',
+                'filter[payment_status]': paymentStatus,
+                'filter[buyer_id]': buyerId > 0 ? buyerId : undefined,
+                'filter[branch_id]': branchId > 0 ? branchId : undefined,
+                include: 'supplier,purchase_order_details',
+                ...scopeParams,
+              } as any)
+              .then((r) => r.data),
+          ),
+        ),
+      )
+      return lists.flat()
+    },
   })
 
   const suppliers: Supplier[] = (suppliersData as any)?.data ?? []
-  const pos: PurchaseOrder[] = (posData as any)?.data ?? []
+  const pos: PurchaseOrder[] = (posData as any[]) ?? []
 
   const supplierDebts: SupplierDebt[] = useMemo(() => {
     const supplierMap = new Map<number, SupplierDebt>()

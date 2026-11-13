@@ -486,7 +486,6 @@ export default function SuppliersView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Code', value: selectedItem.code },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'PIC', value: selectedItem.pic },

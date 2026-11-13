@@ -355,7 +355,6 @@ export default function ProductCutsView() {
             </div>
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Parent Product', value: uomLabel(selectedItem.parent_product_uom) || '—' },
                 { label: 'Parent SKU', value: selectedItem.parent_product_uom?.code },
                 { label: 'Child Product', value: uomLabel(selectedItem.child_product_uom) || '—' },

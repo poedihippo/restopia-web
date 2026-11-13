@@ -1,6 +1,7 @@
 'use client'
 
 import FinanceBranchSelect, { financeBranchParam, useFinanceBranchLabel, type FinanceBranchScope } from '../FinanceBranchSelect'
+import FinancePeriodSelect from '../FinancePeriodSelect'
 import React, { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
@@ -10,6 +11,9 @@ import api from '@/hooks/useApi'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/price'
 import { formatDate, toInputDate } from '@/utils/date'
+import Link from 'next/link'
+import { useRouter } from 'next/router'
+import { yearStartOf, generalLedgerHref } from '../GeneralLedger/glHref'
 import { FileSpreadsheet, Download, Printer, CheckCircle2, AlertCircle } from 'lucide-react'
 
 interface AccountBalance {
@@ -147,7 +151,7 @@ const totalAmountCellStyle: React.CSSProperties = {
   fontVariantNumeric: 'tabular-nums',
 }
 
-const today = () => new Date().toISOString().split('T')[0]
+const today = () => new Date().toLocaleDateString('en-CA')
 
 const SECTION_LABELS: Record<string, string> = {
   assets: 'ASET',
@@ -161,6 +165,17 @@ export default function BalanceSheetView() {
 
   const [asOfDate, setAsOfDate] = useState<string>(today())
   const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
+
+  // Account row → General Ledger for that account (by code; the statement has no account ids).
+  const router = useRouter()
+  const glHrefFor = (acc: { code: string; name: string }) =>
+    generalLedgerHref({
+      code: acc.code,
+      name: acc.name,
+      startDate: toInputDate(yearStartOf(asOfDate)),
+      endDate: toInputDate(asOfDate),
+      branchId: branchScope,
+    })
   const branchLabel = useFinanceBranchLabel(branchScope)
 
   const { data, isLoading, isError } = useQuery({
@@ -204,12 +219,20 @@ export default function BalanceSheetView() {
           </tr>
         ) : (
           accounts.map((acc) => (
-            <tr key={acc.code}>
+            <tr
+              key={acc.code}
+              data-click
+              onClick={() => router.push(glHrefFor(acc))}
+              title="Open in General Ledger"
+              style={{ cursor: 'pointer' }}
+            >
               <td style={accountRowCellStyle}>
                 <span style={{ fontFamily: 'monospace', fontSize: 11, marginRight: 8, color: 'var(--foreground-muted)' }}>
                   {acc.code}
                 </span>
-                {acc.name}
+                <Link href={glHrefFor(acc)} className="v2-link" onClick={(e) => e.stopPropagation()}>
+                  {acc.name}
+                </Link>
               </td>
               <td style={amountCellStyle}>{formatCurrency(acc.balance)}</td>
             </tr>
@@ -320,6 +343,10 @@ export default function BalanceSheetView() {
           {/* Date filter */}
           <div className="no-print" style={sectionStyle}>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={labelStyle}>Period end</label>
+                <FinancePeriodSelect asOf={toInputDate(asOfDate)} onChange={(p) => setAsOfDate(p.end_date)} style={inputStyle} />
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={labelStyle}>As of Date</label>
                 <input

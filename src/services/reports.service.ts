@@ -9,6 +9,8 @@ export interface GeneralLedgerParams {
   end_coa_code?: string
   start_date: string
   end_date: string
+  /** Branch scope: single id or 'all' (omitted = active branch + pickup points). */
+  branch_id?: string
   page?: number
   per_page?: number
 }
@@ -21,6 +23,8 @@ export interface GeneralLedgerLine {
   description: string
   /** Empty string when the source reference is null. */
   reference_type: string
+  /** Source document id (with reference_type); absent when the journal has no source. */
+  reference_id?: number | null
   normal_balance: 'debit' | 'credit' | string
   debit: number
   credit: number
@@ -38,6 +42,8 @@ export interface GeneralLedgerAccount {
   total_debit: number
   total_credit: number
   ending_balance: number
+  /** Balance before start_date (normal-balance direction); the first line's running balance builds on it. */
+  opening_balance?: number
 }
 
 export interface GeneralLedgerResponse {
@@ -71,7 +77,7 @@ export interface ArAgingParams {
   'filter[search]'?: string
 }
 
-export type AgingBucket = '0_30' | '31_60' | '61_90' | '90_plus'
+export type AgingBucket = 'current' | '0_30' | '31_60' | '61_90' | '90_plus'
 
 export interface ArAgingLine {
   source_type: 'invoice' | 'sales_order' | string
@@ -93,6 +99,8 @@ export interface ArAgingResponse {
   end_date: string
   lines: ArAgingLine[]
   buckets: {
+    /** Not yet due. */
+    bucket_current?: number
     bucket_0_30: number
     bucket_31_60: number
     bucket_61_90: number
@@ -100,6 +108,67 @@ export interface ArAgingResponse {
   }
   grand_total_outstanding: number
 }
+
+// GET /v1/reports/cash-flow
+export interface CashFlowLine {
+  activity: string
+  debit?: number
+  credit?: number
+  net: number
+}
+export interface CashFlowSection {
+  lines: CashFlowLine[]
+  subtotal: number
+}
+export interface CashFlowResponse {
+  start_date: string
+  end_date: string
+  operating: CashFlowSection
+  investing: CashFlowSection
+  financing: CashFlowSection
+  net_increase: number
+  begin_balance: number
+  end_balance: number
+}
+
+// GET /v1/reports/tax-report
+export interface TaxReportLine {
+  type: 'output' | 'input' | string
+  /** Journal number. */
+  reference: string
+  date: string
+  taxable_base: number
+  tax_rate: number
+  tax_amount: number
+}
+export interface TaxReportResponse {
+  start_date: string
+  end_date: string
+  lines: TaxReportLine[]
+  total_output: number
+  total_input: number
+  total_payable: number
+}
+
+// GET /v1/reports/budget-vs-actual — variance is signed: positive = favourable.
+export interface BudgetVsActualLine {
+  code: string
+  name: string
+  budget: number
+  actual: number
+  variance: number
+  variance_pct: number
+}
+export interface BudgetVsActualResponse {
+  period_id: number
+  period_name: string
+  lines: BudgetVsActualLine[]
+  total_budget: number
+  total_actual: number
+  total_variance: number
+}
+
+type Envelope<T> = { success: boolean; message: string; data: T }
 
 export const reportsService = {
   // Core Financial Statements
@@ -116,6 +185,15 @@ export const reportsService = {
   getGeneralLedger: (params: GeneralLedgerParams): Promise<AxiosResponse<GeneralLedgerEnvelope>> =>
     api.get('/reports/general-ledger', { params }),
 
+  getCashFlow: (params: { start_date: string; end_date: string; branch_id?: string }): Promise<AxiosResponse<Envelope<CashFlowResponse>>> =>
+    api.get('/reports/cash-flow', { params }),
+
+  getTaxReport: (params: { start_date: string; end_date: string; branch_id?: string }): Promise<AxiosResponse<Envelope<TaxReportResponse>>> =>
+    api.get('/reports/tax-report', { params }),
+
+  getBudgetVsActual: (params: { period_id: number; branch_id?: string }): Promise<AxiosResponse<Envelope<BudgetVsActualResponse>>> =>
+    api.get('/reports/budget-vs-actual', { params }),
+
   exportCashFlow: (params: { start_date: string; end_date: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/cash-flow/exports', { params, responseType: 'blob' }),
 
@@ -126,10 +204,10 @@ export const reportsService = {
   exportComparativeBalanceSheet: (params?: { fiscal_year_id?: number; year?: number; as_of_date?: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/comparative-balance-sheet/exports', { params, responseType: 'blob' }),
 
-  exportArCard: (params: { customer_id: number; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
+  exportArCard: (params: { customer_id?: number; start_date: string; end_date: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/ar-cards/exports', { params, responseType: 'blob' }),
 
-  exportApCard: (params: { supplier: string; start_date?: string; end_date?: string }): Promise<AxiosResponse<Blob>> =>
+  exportApCard: (params: { supplier_id?: number; supplier?: string; start_date: string; end_date: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/ap-cards/exports', { params, responseType: 'blob' }),
 
   // Purchasing Reports
@@ -173,10 +251,10 @@ export const reportsService = {
     api.get('/reports/supplier-statements/exports', { params, responseType: 'blob' }),
 
   // Tax & Budget
-  exportTaxReport: (params: { start_date: string; end_date: string }): Promise<AxiosResponse<Blob>> =>
+  exportTaxReport: (params: { start_date: string; end_date: string; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/tax-report/exports', { params, responseType: 'blob' }),
 
-  exportBudgetVsActual: (params: { period_id: number }): Promise<AxiosResponse<Blob>> =>
+  exportBudgetVsActual: (params: { period_id: number; branch_id?: string }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/budget-vs-actual/exports', { params, responseType: 'blob' }),
 
   // Data Dumps
@@ -185,7 +263,8 @@ export const reportsService = {
   exportPayments: (params?: Record<string, string | number | undefined>): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/payments/exports', { params, responseType: 'blob' }),
 
-  exportJournalEntries: (params?: { start_date?: string; end_date?: string; is_posted?: boolean }): Promise<AxiosResponse<Blob>> =>
+  // Reads the same filter[...] keys as GET /v1/journals (bare start_date/is_posted are ignored).
+  exportJournalEntries: (params?: { 'filter[date_gte]'?: string; 'filter[date_lte]'?: string; 'filter[is_posted]'?: boolean; 'filter[branch_id]'?: number }): Promise<AxiosResponse<Blob>> =>
     api.get('/reports/journal-entries/exports', { params, responseType: 'blob' }),
 
   exportBudgets: (params?: { period_id?: number }): Promise<AxiosResponse<Blob>> =>

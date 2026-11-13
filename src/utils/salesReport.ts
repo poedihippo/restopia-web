@@ -17,7 +17,7 @@ const parseJson = (v: any) => {
   }
 }
 
-/** Follow `meta.last_page` until every row is loaded (lists cap per_page). */
+/** Follow `meta.total_pages` until every row is loaded (lists cap per_page). */
 export async function fetchAllPages(
   fetchPage: (page: number) => Promise<any>,
   maxPages = 50,
@@ -26,7 +26,8 @@ export async function fetchAllPages(
   for (let page = 1; page <= maxPages; page++) {
     const body = await fetchPage(page)
     rows.push(...((body as any)?.data ?? []))
-    const lastPage = Number((body as any)?.meta?.last_page ?? 1)
+    // The API's meta carries total_pages (older code read last_page).
+    const lastPage = Number((body as any)?.meta?.total_pages ?? (body as any)?.meta?.last_page ?? 1)
     if (page >= lastPage) break
   }
   return rows

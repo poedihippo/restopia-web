@@ -106,6 +106,8 @@ export default function RequestedOrdersView() {
   const { user, hasPermission } = useAuth()
   const myBranchId = user?.branch?.id
   const canSeeFranchisePrice = hasPermission('common.franchise-price.read')
+  const canTransition = hasPermission('purchase-order.update') || hasPermission('internal-purchase-order.update')
+  const canDeliver = hasPermission('delivery.create')
   const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
@@ -525,7 +527,7 @@ export default function RequestedOrdersView() {
                     onClick={(e) => e.stopPropagation()}
                     style={{ display: 'flex', gap: 6 }}
                   >
-                    {(item.status === 'final' || item.status === 'rejected') && (
+                    {canTransition && (item.status === 'final' || item.status === 'rejected') && (
                       <button
                         type="button"
                         disabled={actionMutation.isPending}
@@ -549,7 +551,7 @@ export default function RequestedOrdersView() {
                         Accept
                       </button>
                     )}
-                    {(item.status === 'final' || item.status === 'accepted') && (
+                    {canTransition && (item.status === 'final' || item.status === 'accepted') && (
                       <button
                         type="button"
                         disabled={actionMutation.isPending}
@@ -573,7 +575,7 @@ export default function RequestedOrdersView() {
                         Reject
                       </button>
                     )}
-                    {(item.status === 'accepted' || item.status === 'partially_delivered') && (
+                    {canDeliver && (item.status === 'accepted' || item.status === 'partially_delivered') && (
                       <button
                         type="button"
                         onClick={() =>

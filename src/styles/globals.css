@@ -6,6 +6,15 @@
     box-sizing: border-box;
   }
 
+  /* Preflight makes every svg display:block, so in a text-centred empty state
+     (td/div with inline text-align:center) the icon sat at the left edge while
+     the text was centred. Centre such icons; flex/grid parents are left alone. */
+  /* Both spellings: server-rendered markup has no space after the colon. */
+  :is([style*="text-align: center"], [style*="text-align:center"]):not([style*="display: flex"], [style*="display:flex"], [style*="display: inline-flex"], [style*="display:inline-flex"], [style*="display: grid"], [style*="display:grid"]) > svg {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
   :root {
     /* Fonts */
     --font-sans: 'Inter', sans-serif;
@@ -278,4 +287,86 @@ input[type="radio"]:disabled {
   outline: 2px solid var(--accent-light);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+
+/* ── Toasts (sonner): app card look instead of the stock colour blocks ──
+   White surface, soft shadow, a coloured rail + tinted icon chip per type. */
+[data-sonner-toaster] [data-sonner-toast].dc-toast {
+  --dc-tone: var(--foreground-muted);
+  --dc-tone-bg: var(--surface-muted, var(--background));
+  font-family: var(--font-sans);
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 28px -10px rgba(42, 26, 19, 0.28), 0 2px 6px rgba(42, 26, 19, 0.06);
+  padding: 12px 14px 12px 18px;
+  gap: 12px;
+  overflow: hidden;
+  align-items: flex-start;
+}
+[data-sonner-toaster] [data-sonner-toast].dc-toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--dc-tone);
+}
+[data-sonner-toaster] [data-sonner-toast].dc-toast[data-type="success"] { --dc-tone: var(--success); --dc-tone-bg: var(--success-bg); }
+[data-sonner-toaster] [data-sonner-toast].dc-toast[data-type="error"] { --dc-tone: var(--destructive); --dc-tone-bg: var(--destructive-bg); }
+[data-sonner-toaster] [data-sonner-toast].dc-toast[data-type="warning"] { --dc-tone: var(--warning); --dc-tone-bg: var(--warning-bg); }
+[data-sonner-toaster] [data-sonner-toast].dc-toast[data-type="info"] { --dc-tone: var(--info); --dc-tone-bg: var(--info-bg); }
+[data-sonner-toaster] [data-sonner-toast].dc-toast[data-type="loading"] { --dc-tone: var(--caramel, #C68B4E); --dc-tone-bg: var(--accent-light-bg); }
+
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-icon] {
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dc-tone-bg);
+  color: var(--dc-tone);
+}
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-icon] > * { width: 16px; height: 16px; }
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-content] { gap: 2px; padding-top: 4px; }
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-title] { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--foreground); }
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-description] { font-size: 12px; line-height: 1.45; color: var(--foreground-muted); }
+
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-close-button] {
+  left: auto;
+  right: 8px;
+  top: 8px;
+  transform: none;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--foreground-subtle);
+  transition: background 150ms ease, color 150ms ease;
+}
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-close-button]:hover {
+  background: var(--surface-muted, var(--background));
+  color: var(--foreground);
+}
+[data-sonner-toaster] [data-sonner-toast].dc-toast:has([data-close-button]) { padding-right: 36px; }
+
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-button] {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--accent);
+  color: #fff;
+}
+[data-sonner-toaster] [data-sonner-toast].dc-toast [data-cancel] {
+  background: var(--surface-muted, var(--background));
+  color: var(--foreground);
 }

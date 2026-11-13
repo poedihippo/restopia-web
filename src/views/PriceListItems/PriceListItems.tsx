@@ -20,9 +20,9 @@ export default function PriceListItemsView() {
   const priceListId = Number(id)
 
   const { hasPermission } = useAuth()
-  const canCreate = hasPermission('common.price-list.create')
-  const canUpdate = hasPermission('common.price-list.update')
-  const canDelete = hasPermission('common.price-list.delete')
+  const canCreate = hasPermission('price_list.create')
+  const canUpdate = hasPermission('price_list.update')
+  const canDelete = hasPermission('price_list.delete')
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -75,30 +75,30 @@ export default function PriceListItemsView() {
           {priceListData?.data?.data?.name ? `${priceListData.data.data.name} - Items` : 'Price List Items'}
         </h1>
         <div style={{ flex: 1 }} />
-        <button
-          onClick={() => {
-            setEditData(null)
-            setSheetOpen(true)
-          }}
-          disabled={!canCreate}
-          style={{
-            padding: '8px 16px',
-            background: 'var(--accent)',
-            color: 'white',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: canCreate ? 'pointer' : 'not-allowed',
-            opacity: canCreate ? 1 : 0.5,
-          }}
-        >
-          <Plus size={16} />
-          Add Item
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              setEditData(null)
+              setSheetOpen(true)
+            }}
+            style={{
+              padding: '8px 16px',
+              background: 'var(--accent)',
+              color: 'white',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={16} />
+            Add Item
+          </button>
+        )}
       </div>
 
       <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
@@ -180,29 +180,31 @@ export default function PriceListItemsView() {
                       </td>
                     )}
                     <td style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={() => {
-                          setEditData({ 
-                            id: item.id, 
-                            product_uom_id: item.product_uom_id, 
-                            base_price: item.base_price, 
-                            online_price: item.online_price, 
-                            franchise_price: item.franchise_price 
-                          })
-                          setSheetOpen(true)
-                        }}
-                        disabled={!canUpdate}
-                        style={{ background: 'none', border: 'none', cursor: canUpdate ? 'pointer' : 'not-allowed', padding: 4, color: 'var(--foreground-muted)' }}
-                      >
-                        <FileText size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        disabled={!canDelete}
-                        style={{ background: 'none', border: 'none', cursor: canDelete ? 'pointer' : 'not-allowed', padding: 4, color: 'var(--destructive)' }}
-                      >
-                        <Trash size={16} />
-                      </button>
+                      {canUpdate && (
+                        <button
+                          onClick={() => {
+                            setEditData({ 
+                              id: item.id, 
+                              product_uom_id: item.product_uom_id, 
+                              base_price: item.base_price, 
+                              online_price: item.online_price, 
+                              franchise_price: item.franchise_price 
+                            })
+                            setSheetOpen(true)
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--foreground-muted)' }}
+                        >
+                          <FileText size={16} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--destructive)' }}
+                        >
+                          <Trash size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

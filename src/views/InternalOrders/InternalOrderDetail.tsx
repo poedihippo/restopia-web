@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/useAuth'
 import BackLink from '@/components/BackLink'
 import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
 import { getProductUomName } from '@/utils/productUomName'
+import { purchaseOrderDeleteBlock, blockedStyle } from '@/lib/actionGuards'
 
 interface InternalOrderDetailProps {
   id: number
@@ -97,6 +98,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
   const { user, hasPermission } = useAuth()
   const canUpdate = hasPermission('internal-purchase-order.update')
   const canDelete = hasPermission('internal-purchase-order.delete')
+  const canTransition = hasPermission('purchase-order.update') || hasPermission('internal-purchase-order.update')
   const myBranchId = user?.branch?.id
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [acceptModalOpen, setAcceptModalOpen] = useState(false)
@@ -328,7 +330,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
           </button>
           )}
           
-          {order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
+          {canTransition && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
             <button
               type="button"
               disabled={actionMutation.isPending}
@@ -352,7 +354,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
               Accept
             </button>
           )}
-          {order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'accepted') && (
+          {canTransition && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'accepted') && (
             <button
               type="button"
               disabled={actionMutation.isPending}
@@ -379,7 +381,9 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
           {canDelete && (
           <button
             type="button"
-            onClick={() => setDeleteConfirm(true)}
+            onClick={() => { if (!purchaseOrderDeleteBlock(order)) setDeleteConfirm(true) }}
+            disabled={!!purchaseOrderDeleteBlock(order)}
+            title={purchaseOrderDeleteBlock(order) ?? 'Delete'}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -392,6 +396,7 @@ export default function InternalOrderDetail({ id }: InternalOrderDetailProps) {
               fontWeight: 500,
               color: 'var(--destructive)',
               cursor: 'pointer',
+              ...(purchaseOrderDeleteBlock(order) ? blockedStyle : {}),
             }}
           >
             <Trash2 size={13} />

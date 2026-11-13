@@ -1,7 +1,7 @@
 'use client'
 import { formatCurrency } from '@/utils/price';
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { dashboardService } from '@/services/dashboard.service'
 import { branchesService } from '@/services/branches.service'
@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import type { DashboardChartInterval } from '@/types/api'
 import DashboardCharts, { useDashboardCharts } from './DashboardCharts'
 import { exportDashboardExcel } from './dashboardExport'
+import { CountUp, useReveal } from './motion'
 import { money } from '@/utils/excelExport'
 import { productInventoriesService } from '@/services/product-inventories.service'
 import { getProductUomName } from '@/utils/productUomName'
@@ -136,86 +137,9 @@ function WelcomeArt() {
 const greetingFor = (hour: number) =>
   hour < 11 ? 'Good morning' : hour < 15 ? 'Good afternoon' : hour < 19 ? 'Good evening' : 'Good night'
 
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-// Eases from the previous value to the new one (0 on first render).
-function CountUp({ value, format }: { value: number; format: (n: number) => string }) {
-  const [shown, setShown] = useState(0)
-  const fromRef = useRef(0)
-  useEffect(() => {
-    const from = fromRef.current
-    const dur = prefersReducedMotion() ? 0 : 1000
-    const t0 = performance.now()
-    let raf = 0
-    const tick = (t: number) => {
-      const p = dur ? Math.min(1, (t - t0) / dur) : 1
-      const v = p === 1 ? value : from + (value - from) * (1 - (1 - p) ** 3)
-      fromRef.current = v
-      setShown(v)
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [value])
-  return <>{format(shown)}</>
-}
-
 // Blocks that fade/rise in as they scroll into view; charts and lists mount
 // late, so new matches are picked up by a MutationObserver.
 const REVEAL_SEL = '.dash-head, .dash-welcome, .dash-top > *, .dash > div:has(> h2), .dc-cell, .dc-state, .dash-row-3 > section, .dash-row-2 > section'
-
-function useReveal(ref: React.RefObject<HTMLElement | null>) {
-  useLayoutEffect(() => {
-    const root = ref.current
-    if (!root || typeof IntersectionObserver === 'undefined' || prefersReducedMotion()) return
-    root.classList.add('dash-anim')
-    const io = new IntersectionObserver(
-      (entries) => {
-        const pos = (el: Element) => el.getBoundingClientRect()
-        // Already scrolled past (fast scroll, late mount): show without animating.
-        entries
-          .filter((e) => !e.isIntersecting && e.boundingClientRect.bottom < 0)
-          .forEach((e) => {
-            e.target.classList.add('is-in')
-            io.unobserve(e.target)
-          })
-        entries
-          .filter((e) => e.isIntersecting)
-          .map((e) => e.target as HTMLElement)
-          .sort((a, b) => pos(a).top - pos(b).top || pos(a).left - pos(b).left)
-          .forEach((el, i) => {
-            el.style.setProperty('--reveal-delay', `${Math.min(i, 8) * 70}ms`)
-            el.classList.add('is-in')
-            io.unobserve(el)
-          })
-      },
-      { rootMargin: '0px 0px -6% 0px', threshold: 0.06 },
-    )
-    // Per-run set (not a DOM flag): StrictMode re-runs this effect on the same nodes.
-    const seen = new WeakSet<Element>()
-    let queued = 0
-    const scan = () => {
-      queued = 0
-      root.querySelectorAll<HTMLElement>(REVEAL_SEL).forEach((el) => {
-        if (seen.has(el) || el.classList.contains('is-in')) return
-        seen.add(el)
-        el.dataset.reveal = ''
-        io.observe(el)
-      })
-    }
-    scan()
-    const mo = new MutationObserver(() => {
-      if (!queued) queued = requestAnimationFrame(scan)
-    })
-    mo.observe(root, { childList: true, subtree: true })
-    return () => {
-      io.disconnect()
-      mo.disconnect()
-      cancelAnimationFrame(queued)
-    }
-  }, [ref])
-}
 
 function Skeleton({ w = '100%', h = 12 }: { w?: number | string; h?: number }) {
   return <div className="v2-skeleton" style={{ width: w, height: h }} />
@@ -490,7 +414,7 @@ export default function DashboardView() {
   const greeting = greetingFor(new Date().getHours())
   const [motivation, setMotivation] = useState(() => pickMotivation())
   const rootRef = useRef<HTMLDivElement>(null)
-  useReveal(rootRef)
+  useReveal(rootRef, REVEAL_SEL)
   const [chartInterval, setChartInterval] = useState<DashboardChartInterval>('day')
   const [chartBranchId, setChartBranchId] = useState<number | ''>('')
   const { data: ownerBranchesData } = useQuery({

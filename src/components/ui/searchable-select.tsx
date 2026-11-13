@@ -5,6 +5,8 @@ import { useEffect } from "react";
 export interface SelectOption {
   value: number;
   label: string;
+  /** react-select greys out and skips options with this set. */
+  isDisabled?: boolean;
 }
 
 type SearchableSelectProps = Omit<

@@ -242,6 +242,7 @@ export default function MenuSearch() {
       <button
         type="button"
         className="menu-search-trigger"
+        data-tour="menu-search"
         onClick={() => setOpen(true)}
         aria-label="Search menu"
         title={`Search menu (${modKey}+K)`}
