@@ -7,7 +7,8 @@ import { SlidersHorizontal } from 'lucide-react'
 import { FilterBar } from '@/components/ListFilters'
 import { useAuth } from '@/hooks/useAuth'
 import { formatDateTime } from '@/utils/date'
-import { companySettingsService, type CompanySetting } from '@/services/company-settings.service'
+import { companySettingsService, COMPANY_SETTING_KEYS, type CompanySetting } from '@/services/company-settings.service'
+import { blockedStyle } from '@/lib/actionGuards'
 import CompanySettingSheet, { companySettingLabel } from './CompanySettingSheet'
 
 const PER_PAGE = 20
@@ -56,6 +57,8 @@ export default function CompanySettingsView() {
   const meta = d?.meta ?? d?.data?.meta
   const lastPage: number = meta?.last_page ?? meta?.total_pages ?? 1
   const existingKeys = items.map((i) => i.key)
+  // The API refuses a second row per key, and only the keys below exist.
+  const createBlock = COMPANY_SETTING_KEYS.every((k) => existingKeys.includes(k)) ? 'All settings are already configured' : null
 
   const { mutate: doDelete, isPending: deleting } = useMutation({
     mutationFn: (id: number) => companySettingsService.delete(id),
@@ -125,7 +128,9 @@ export default function CompanySettingsView() {
         {canCreate && (
           <button
             type="button"
-            onClick={openCreate}
+            onClick={() => { if (!createBlock) openCreate() }}
+            disabled={!!createBlock}
+            title={createBlock ?? undefined}
             style={{
               height: 40,
               padding: '0 20px',
@@ -136,6 +141,7 @@ export default function CompanySettingsView() {
               fontWeight: 600,
               fontSize: 14,
               cursor: 'pointer',
+              ...(createBlock ? blockedStyle : {}),
             }}
           >
             + Add Setting

@@ -15,9 +15,9 @@ import { ActiveSegment, FilterBar, countActive } from '@/components/ListFilters'
 
 export default function PriceListsView() {
   const { hasPermission } = useAuth()
-  const canCreate = hasPermission('common.price-list.create')
-  const canUpdate = hasPermission('common.price-list.update')
-  const canDelete = hasPermission('common.price-list.delete')
+  const canCreate = hasPermission('price_list.create')
+  const canUpdate = hasPermission('price_list.update')
+  const canDelete = hasPermission('price_list.delete')
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
@@ -60,30 +60,30 @@ export default function PriceListsView() {
     <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="text-xl sm:text-2xl font-bold">Price Lists</h1>
-        <button
-          onClick={() => {
-            setEditData(null)
-            setSheetOpen(true)
-          }}
-          disabled={!canCreate}
-          style={{
-            padding: '8px 16px',
-            background: 'var(--accent)',
-            color: 'white',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: canCreate ? 'pointer' : 'not-allowed',
-            opacity: canCreate ? 1 : 0.5,
-          }}
-        >
-          <Plus size={16} />
-          Create Price List
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => {
+              setEditData(null)
+              setSheetOpen(true)
+            }}
+            style={{
+              padding: '8px 16px',
+              background: 'var(--accent)',
+              color: 'white',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Plus size={16} />
+            Create Price List
+          </button>
+        )}
       </div>
 
       <FilterBar
@@ -164,23 +164,25 @@ export default function PriceListsView() {
                           <LayoutList size={16} />
                         </button>
                       </Link>
-                      <button
-                        onClick={() => {
-                          setEditData({ id: item.id, name: item.name, is_active: item.is_active })
-                          setSheetOpen(true)
-                        }}
-                        disabled={!canUpdate}
-                        style={{ background: 'none', border: 'none', cursor: canUpdate ? 'pointer' : 'not-allowed', padding: 4, color: 'var(--foreground-muted)' }}
-                      >
-                        <FileText size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmId(item.id)}
-                        disabled={!canDelete}
-                        style={{ background: 'none', border: 'none', cursor: canDelete ? 'pointer' : 'not-allowed', padding: 4, color: 'var(--destructive)' }}
-                      >
-                        <Trash size={16} />
-                      </button>
+                      {canUpdate && (
+                        <button
+                          onClick={() => {
+                            setEditData({ id: item.id, name: item.name, is_active: item.is_active })
+                            setSheetOpen(true)
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--foreground-muted)' }}
+                        >
+                          <FileText size={16} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteConfirmId(item.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--destructive)' }}
+                        >
+                          <Trash size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

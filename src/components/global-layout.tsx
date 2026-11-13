@@ -11,6 +11,8 @@ import PageLoader from '@/components/PageLoader';
 import { auditNavPermissions } from '@/lib/permissions';
 import { isUiV2Route } from '@/lib/uiPreview';
 import DatePopover from '@/components/DatePopover';
+import { recordRecentPage } from '@/lib/recentPages';
+import ProductTour from '@/components/tour/ProductTour';
 
 type Props = {
   children: React.ReactNode;
@@ -46,6 +48,11 @@ export default function GlobalLayout({ children }: Props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // "Terakhir dibuka" on the dashboards: remember each sidebar menu this viewer opens.
+  useEffect(() => {
+    if (router.isReady) recordRecentPage(router.asPath);
+  }, [router.isReady, router.asPath]);
 
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -266,6 +273,7 @@ export default function GlobalLayout({ children }: Props) {
         }
       `}</style>
       {uiV2 && <DatePopover />}
+      <ProductTour ready={!isCheckingAuth && !isNavigating && Boolean(user) && !isDenied} />
       {isNavigating && (
         <div
           style={{

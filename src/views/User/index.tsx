@@ -704,7 +704,6 @@ export default function UsersView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Email', value: selectedItem.email },
                 { label: 'NIK', value: selectedItem.nik },

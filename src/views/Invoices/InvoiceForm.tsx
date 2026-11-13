@@ -49,6 +49,9 @@ interface InvoiceSoLine {
   id: number
   qty?: number
   price?: number
+  dpp?: number
+  is_taxable?: boolean
+  tax_rate?: number
   received_qty?: number
   invoiced_qty?: number
   billable_qty?: number
@@ -69,6 +72,7 @@ interface InvoiceSoRow {
   total_price?: number
   subtotal_price?: number
   discount_price?: number
+  tax_amount?: number
   branch?: { id?: number; name?: string; type?: string } | null
   buyer_branch?: { id?: number; name?: string } | null
   sales_channel?: { id?: number; name?: string } | null
@@ -80,6 +84,27 @@ interface InvoiceSoRow {
     billed_amount?: number
     description?: string
   }>
+}
+
+/**
+ * Round to 2 dp, half away from zero — matches shopspring decimal.Round(2) used
+ * by the API. toPrecision(15) strips binary noise (1.005*100 = 100.49999…).
+ */
+function round2(n: number): number {
+  if (!Number.isFinite(n) || n === 0) return 0
+  return (Math.sign(n) * Math.round(Number((Math.abs(n) * 100).toPrecision(15)))) / 100
+}
+
+/** helper_general.ComputePartialAmount: total × qty / totalQty, rounded. */
+function partialAmount(total: number, totalQty: number, qty: number): number {
+  if (!(totalQty > 0)) return 0
+  return round2((total * qty) / totalQty)
+}
+
+/** helper_general.ComputeTaxAmount: dpp × rate / 100, rounded; 0 when rate ≤ 0. */
+function taxAmountOf(dpp: number, rate: number): number {
+  if (!(rate > 0)) return 0
+  return round2((dpp * rate) / 100)
 }
 
 /**
@@ -469,24 +494,69 @@ export default function InvoiceForm() {
     })
   }
 
-  // Calculations
-  const subtotalPrice = useMemo(() => {
-    return Object.values(details).reduce((sum, d) => sum + (d.qty * d.price), 0)
-  }, [details])
+  // ── Totals preview ──────────────────────────────────────────────────────────
+  // Mirrors dapur-cokelat-api invoices/application/usecase/create_usecase.go so
+  // the previewed total equals what the server freezes on create:
+  //  · line DPP  = round2(so_line.dpp × qty / so_line.qty)   (ComputePartialAmount)
+  //  · line tax  = round2(line DPP × so_line.tax_rate / 100) (ComputeTaxAmount)
+  //  · discount  = Σ per SO round2(so.discount_price × invoiced DPP / so.subtotal_price)
+  //  · header tax (SO with no taxable lines) = Σ round2(so.tax_amount × share / subtotal)
+  //  · handling fee = round2((subtotal − discount) × pct / 100), only when base > 0
+  //  · total = subtotal − discount + tax + additional charges + handling fee
+  const lineIndex = useMemo(() => {
+    const map = new Map<number, { line: InvoiceSoLine; so: InvoiceSoRow }>()
+    selectableSOs.forEach((so) => {
+      if (!selectedSoIds.includes(so.id)) return
+      ;(so.sales_order_details ?? []).forEach((line) => map.set(line.id, { line, so }))
+    })
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSoIds, soData, soOutletData])
 
+  const { subtotalPrice, discountPrice, taxAmount } = useMemo(() => {
+    let subtotal = 0
+    let tax = 0
+    const soShare = new Map<number, number>()
+    Object.values(details).forEach((d) => {
+      const qty = Number(d.qty)
+      if (!(qty > 0)) return // not sent in the payload
+      const hit = lineIndex.get(d.sales_order_detail_id)
+      const lineQty = Number(hit?.line.qty ?? 0)
+      const lineDpp = hit && hit.line.dpp != null
+        ? partialAmount(Number(hit.line.dpp), lineQty, qty)
+        : round2(qty * Number(d.price ?? 0))
+      subtotal += lineDpp
+      tax += taxAmountOf(lineDpp, Number(hit?.line.tax_rate ?? 0))
+      if (hit) soShare.set(hit.so.id, (soShare.get(hit.so.id) ?? 0) + lineDpp)
+    })
+    let discount = 0
+    selectedSoIds.forEach((soId) => {
+      const so = selectableSOs.find((s) => s.id === soId)
+      if (!so) return
+      const share = soShare.get(soId) ?? 0
+      const soSubtotal = Number(so.subtotal_price ?? 0)
+      discount += partialAmount(Number(so.discount_price ?? 0), soSubtotal, share)
+      const hasTaxableLines = (so.sales_order_details ?? []).some((l) => l.is_taxable)
+      if (!hasTaxableLines && Number(so.tax_amount ?? 0) > 0) {
+        tax += partialAmount(Number(so.tax_amount), soSubtotal, share)
+      }
+    })
+    return { subtotalPrice: round2(subtotal), discountPrice: round2(discount), taxAmount: round2(tax) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [details, lineIndex, selectedSoIds, soData, soOutletData])
+
+  // Same rows the payload sends: included SO charges + named free charges.
   const additionalChargePrice = useMemo(() => {
     let sum = 0
     Object.values(soCharges).forEach(c => {
-      if (c.included) sum += Number(c.amount)
+      if (c.included) sum += Number(c.amount) || 0
     })
     freeCharges.forEach(c => {
-      sum += Number(c.amount)
+      if (c.name.trim()) sum += Number(c.amount) || 0
     })
-    return sum
+    return round2(sum)
   }, [soCharges, freeCharges])
 
-  // TODO: taxes (assume fetched from SOs or just simple addition for now)
-  // For now, total = subtotal + additional charges. Taxes should ideally be computed by server.
   // Cross-company handling fee preview: the backend derives the billed branch
   // from the selected sales orders, exactly as it does on create.
   const feeSoIds = [...selectedSoIds].sort((a, b) => a - b)
@@ -503,34 +573,14 @@ export default function InvoiceForm() {
     ? Number(handlingFeePreview.handling_fee_percent ?? 0)
     : 0
 
-  // Fee base = subtotal − discount (backend: net sales before tax and
-  // additional charges, never < 0). This form doesn't show a discount, so the
-  // discount is derived the backend way: each SO's discount_price prorated by
-  // (this invoice's share of that SO / so.subtotal_price). Preview only — the
-  // server computes and freezes the real amount at create.
-  const handlingFeeBase = useMemo(() => {
-    let discount = 0
-    selectedSoIds.forEach((soId) => {
-      const so = selectableSOs.find((s) => s.id === soId)
-      if (!so) return
-      const soSubtotal = Number(so.subtotal_price ?? 0)
-      const soDiscount = Number(so.discount_price ?? 0)
-      if (soSubtotal <= 0 || soDiscount <= 0) return
-      const share = (so.sales_order_details ?? []).reduce((sum, line) => {
-        const d = details[line.id]
-        return d ? sum + Number(d.qty) * Number(d.price) : sum
-      }, 0)
-      discount += soDiscount * (share / soSubtotal)
-    })
-    return Math.max(0, subtotalPrice - discount)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSoIds, details, subtotalPrice, soData, soOutletData])
+  // invoice_handling_fee.go ComputeHandlingFee: base = subtotal − discount.
+  const handlingFeeBase = subtotalPrice - discountPrice
   const handlingFeeAmount =
-    handlingFeePercent > 0
-      ? Math.round(handlingFeeBase * handlingFeePercent) / 100
+    handlingFeePercent > 0 && handlingFeeBase > 0
+      ? round2((handlingFeeBase * handlingFeePercent) / 100)
       : 0
 
-  const totalPrice = subtotalPrice + additionalChargePrice + handlingFeeAmount
+  const totalPrice = round2(subtotalPrice - discountPrice + taxAmount + additionalChargePrice + handlingFeeAmount)
 
   const { mutate: create, isPending } = useMutation({
     mutationFn: () => {
@@ -1311,6 +1361,8 @@ export default function InvoiceForm() {
                 amount: subtotalPrice,
                 show: true,
               },
+              { label: 'Discount', tag: null, amount: -discountPrice, show: discountPrice !== 0 },
+              { label: 'Tax (PPN)', tag: null, amount: taxAmount, show: taxAmount !== 0 },
               { label: 'Additional charges', tag: null, amount: additionalChargePrice, show: true },
               {
                 label: 'Handling fee',

@@ -11,6 +11,7 @@ import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } fr
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters';
 import { toastMutationApiError } from '@/utils/apiError';
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import { useDeepLinkId } from '@/views/Operations/shared'
 
 export default function ShiftRulesView() {
   const qc = useQueryClient();
@@ -28,6 +29,21 @@ export default function ShiftRulesView() {
   const [editData, setEditData] = useState<any | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [deepId, clearDeepId] = useDeepLinkId();
+  // Arriving from a "Go to shift rule" link opens that rule's detail.
+  const { data: deepData } = useQuery({
+    queryKey: ['shiftrules', 'detail', deepId],
+    queryFn: () => shiftRulesService.findById(deepId!, { include: 'created_by,updated_by' }).then((r) => r.data),
+    enabled: !!deepId,
+  });
+  useEffect(() => {
+    const rule = (deepData as any)?.data;
+    if (rule) setSelectedItem(rule);
+  }, [deepData]);
+  const closeDetail = () => {
+    setSelectedItem(null);
+    clearDeepId();
+  };
   const [branchFilter, setBranchFilter] = useState('');
 
   useEffect(() => {
@@ -55,6 +71,7 @@ export default function ShiftRulesView() {
         page,
         per_page: perPage,
         sort: '-id',
+        include: 'created_by,updated_by',
         'filter[search]': debouncedSearch || undefined,
         'filter[branch_id]': branchFilter || undefined,
       } as any).then((r) => r.data),
@@ -117,7 +134,6 @@ export default function ShiftRulesView() {
           <thead>
             <tr>
               <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={thStyle}>ID</th>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Start Time</th>
               <th style={thStyle}>End Time</th>
@@ -137,7 +153,6 @@ export default function ShiftRulesView() {
                   <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>
                     {(page - 1) * perPage + idx + 1}
                   </td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>#{item.id}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.name || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.start_time || '—'}</span></td>
                   <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.end_time || '—'}</span></td>
@@ -173,18 +188,19 @@ export default function ShiftRulesView() {
 
       {selectedItem && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end' }}>
-          <div onClick={() => setSelectedItem(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
+          <div onClick={closeDetail} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
           <div style={{ position: 'relative', zIndex: 50, width: 420, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)', overflowY: 'auto' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>ShiftRule Detail</h2>
-              <button onClick={() => setSelectedItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
+              <button onClick={closeDetail} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
             </div>
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
                 { label: 'Start Time', value: selectedItem.start_time },
                 { label: 'End Time', value: selectedItem.end_time },
+                { label: 'Created', value: selectedItem.created_at ? `${formatDateTime(selectedItem.created_at)} · ${selectedItem.created_by?.name ?? '—'}` : null },
+                { label: 'Last Updated', value: selectedItem.updated_at ? `${formatDateTime(selectedItem.updated_at)} · ${selectedItem.updated_by?.name ?? '—'}` : null },
               ].map((f) => (
                 <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{f.label}</span>

@@ -1,236 +1,366 @@
 'use client'
-import { formatDateTime } from '@/utils/date';
-import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { operationRulesService } from '@/services/operation-rules.service';
-import { branchesService } from '@/services/branches.service';
-import { useAuth } from '@/hooks/useAuth';
-import OperationRuleSheet from './OperationRuleSheet';
-import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Eye, X, Settings2 } from 'lucide-react';
-import { FilterBar, FilterGroup, FilterField, FilterSelect, countActive } from '@/components/ListFilters';
-import { toastMutationApiError } from '@/utils/apiError';
-import { CustomPagination } from '@/components/ui/CustomPagination'
+import React, { useEffect, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import Link from 'next/link'
+import { AlertTriangle, CalendarClock, Loader2, Plus, Store } from 'lucide-react'
+import { operationRulesService } from '@/services/operation-rules.service'
+import { shiftRulesService } from '@/services/shift-rules.service'
+import { useAuth } from '@/hooks/useAuth'
+import CronPicker from '@/components/CronPicker'
+import { toastMutationApiError } from '@/utils/apiError'
+import { formatDateTime } from '@/utils/date'
+
+// A branch has at most ONE operation rule, always written for the ACTIVE
+// branch (operation-rules/.../create_usecase.go), so this page is a single
+// settings card instead of a list: empty state → create, otherwise edit in place.
+// There is no delete: the API has no DELETE route for operation rules.
+
+const MODES = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'auto', label: 'Automatic' },
+] as const
+
+const schema = z
+  .object({
+    open_mode: z.enum(['auto', 'manual']),
+    close_mode: z.enum(['auto', 'manual']),
+    shift_mode: z.enum(['auto', 'manual']),
+    auto_open_cron: z.string().optional(),
+    auto_close_cron: z.string().optional(),
+  })
+  .superRefine((v, ctx) => {
+    // The scheduler opens/closes on these crons, so an automatic mode needs one.
+    if (v.open_mode === 'auto' && !v.auto_open_cron?.trim())
+      ctx.addIssue({ code: 'custom', path: ['auto_open_cron'], message: 'Set when the branch opens' })
+    if (v.close_mode === 'auto' && !v.auto_close_cron?.trim())
+      ctx.addIssue({ code: 'custom', path: ['auto_close_cron'], message: 'Set when the branch closes' })
+  })
+type FormValues = z.infer<typeof schema>
+
+const EMPTY: FormValues = {
+  open_mode: 'manual',
+  close_mode: 'manual',
+  shift_mode: 'manual',
+  auto_open_cron: '',
+  auto_close_cron: '',
+}
+
+const toForm = (rule: any): FormValues => ({
+  open_mode: rule?.open_mode === 'auto' ? 'auto' : 'manual',
+  close_mode: rule?.close_mode === 'auto' ? 'auto' : 'manual',
+  shift_mode: rule?.shift_mode === 'auto' ? 'auto' : 'manual',
+  auto_open_cron: rule?.auto_open_cron ?? '',
+  auto_close_cron: rule?.auto_close_cron ?? '',
+})
 
 export default function OperationRulesView() {
-  const qc = useQueryClient();
-  const { hasPermission, isSuperadmin, user } = useAuth();
-  const canRead = hasPermission('operation-rule.read');
-  const canCreate = hasPermission('operation-rule.create');
-  const canEdit = hasPermission('operation-rule.update');
-  const canDelete = hasPermission('operation-rule.delete');
+  const qc = useQueryClient()
+  const { hasPermission, user } = useAuth()
+  const canCreate = hasPermission('operation-rule.create')
+  const canEdit = hasPermission('operation-rule.update')
 
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [editData, setEditData] = useState<any | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-  const [selectedItem, setSelectedItem] = useState<any | null>(null);
-  const [branchFilter, setBranchFilter] = useState('');
-  const [openModeFilter, setOpenModeFilter] = useState('');
-  const [closeModeFilter, setCloseModeFilter] = useState('');
-  const [shiftModeFilter, setShiftModeFilter] = useState('');
+  const branch = user?.branch
+  const branchId = branch?.id
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch, branchFilter, openModeFilter, closeModeFilter, shiftModeFilter]);
-
-  // Filter lookup: branches (superadmin sees all, others their assigned branches — same as the sheet)
-  const { data: branchesData } = useQuery({
-    queryKey: ['branches-all', 'by-name'],
-    queryFn: () => branchesService.list({ per_page: 200, sort: 'name' } as any).then((r) => r.data),
-    enabled: isSuperadmin,
-  });
-  const branchOptions: any[] = isSuperadmin ? (branchesData as any)?.data ?? [] : user?.branches ?? [];
-
-
-  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['operationrules', page, perPage, debouncedSearch, branchFilter, openModeFilter, closeModeFilter, shiftModeFilter],
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['operationrules', 'active-branch', branchId],
     queryFn: () =>
-      operationRulesService.list({
-        page,
-        per_page: perPage,
-        sort: '-id',
-        'filter[search]': debouncedSearch || undefined,
-        'filter[branch_id]': branchFilter || undefined,
-        'filter[open_mode]': openModeFilter || undefined,
-        'filter[close_mode]': closeModeFilter || undefined,
-        'filter[shift_mode]': shiftModeFilter || undefined,
-      } as any).then((r) => r.data),
-  });
-  // Any refetch (after a create/update/delete invalidates the list, or a
-  // filter/page change) shows the loading skeleton, never stale rows.
-  const isLoading = listFirstLoad || listFetching
+      operationRulesService.list({ page: 1, per_page: 1, 'filter[branch_id]': branchId } as any).then((r) => r.data),
+    enabled: !!branchId,
+  })
+  const rule = ((data as any)?.data ?? [])[0] ?? null
 
-  const items: any[] = (data as any)?.data ?? [];
-  const meta = (data as any)?.meta;
+  // Starting a shift needs a shift rule covering the current time, whatever the
+  // shift mode (shifts/.../start_usecase.go: "no active shift rule found").
+  const { data: shiftRulesData, isLoading: shiftRulesLoading } = useQuery({
+    queryKey: ['shift-rules', 'active-branch-count', branchId],
+    queryFn: () =>
+      shiftRulesService.list({ page: 1, per_page: 1, 'filter[branch_id]': branchId } as any).then((r) => r.data),
+    enabled: !!branchId,
+  })
+  const shiftRuleCount = Number((shiftRulesData as any)?.meta?.total ?? ((shiftRulesData as any)?.data ?? []).length)
+  const missingShiftRules = !!branchId && !shiftRulesLoading && !!shiftRulesData && shiftRuleCount === 0
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => operationRulesService.delete(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['operationrules'] });
-      toast.success('OperationRule deleted');
-      setDeleteConfirmId(null);
+  // With no rule yet the form stays hidden behind the empty state until asked for.
+  const [creating, setCreating] = useState(false)
+  const showForm = !!rule || creating
+  const readOnly = rule ? !canEdit : !canCreate
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors, isDirty },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema) as any,
+    defaultValues: EMPTY,
+  })
+
+  useEffect(() => {
+    reset(rule ? toForm(rule) : EMPTY)
+  }, [rule, reset])
+
+  const openMode = watch('open_mode')
+  const closeMode = watch('close_mode')
+
+  const onSaved = (msg: string) => {
+    qc.invalidateQueries({ queryKey: ['operationrules'] })
+    toast.success(msg)
+    setCreating(false)
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: (v: FormValues) => {
+      // A manual mode ignores its cron; send '' so a stale schedule is cleared.
+      const payload = {
+        open_mode: v.open_mode,
+        close_mode: v.close_mode,
+        shift_mode: v.shift_mode,
+        auto_open_cron: v.open_mode === 'auto' ? v.auto_open_cron : '',
+        auto_close_cron: v.close_mode === 'auto' ? v.auto_close_cron : '',
+      }
+      return rule ? operationRulesService.update(rule.id, payload as any) : operationRulesService.create(payload as any)
     },
-    onError: (err: any) => toastMutationApiError(err, 'Failed to delete OperationRule'),
-  });
+    onSuccess: () => onSaved(rule ? 'Operation rule updated' : 'Operation rule created'),
+    onError: (err: any) => toastMutationApiError(err, 'Failed to save operation rule'),
+  })
 
-  const lastPage = meta?.last_page ?? meta?.total_pages ?? 1;
-
-  const thStyle: React.CSSProperties = { padding: '10px 16px', textAlign: 'left', fontSize: 12, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' };
-  const tdStyle: React.CSSProperties = { padding: '12px 16px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' };
-  const actionBtnStyle: React.CSSProperties = { padding: 6, background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--foreground-muted)', display: 'flex' };
+  const isPending = saveMutation.isPending
 
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 1280, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
-        <div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Operation Rules</h1>
-          <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Manage operation rules for branches</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 720 }}>
+      <div>
+        <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
+          Operation Rule
+        </h1>
+        <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0 0' }}>
+          How the active branch opens, closes and runs its shifts
+        </p>
+      </div>
+
+      {missingShiftRules && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 16px', background: 'var(--warning-bg)', border: '1px solid var(--warning)', borderRadius: 'var(--radius-lg)' }}>
+          <AlertTriangle size={16} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: 1 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>This branch has no shift rules yet</div>
+            <div style={{ fontSize: 12.5, color: 'var(--foreground-muted)', marginTop: 2 }}>
+              Shifts can’t start without at least one shift rule — in both manual and automatic shift mode.
+            </div>
+          </div>
+          <Link href="/settings/shift-rules" className="v2-btn v2-btn-ghost" style={{ flexShrink: 0 }}>
+            Add shift rule
+          </Link>
         </div>
-        {canCreate && (
-          <button onClick={() => { setEditData(null); setSheetOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-            <Plus size={15} /> New OperationRule
-          </button>
+      )}
+
+      <div className="v2-card" style={{ overflow: 'hidden' }}>
+        {/* Branch strip */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ width: 32, height: 32, borderRadius: 10, background: 'var(--accent-light-bg)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Store size={15} style={{ color: 'var(--accent)' }} />
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--foreground)' }}>
+              {branch?.name ?? 'No active branch'}
+              {branch?.code && <span style={{ color: 'var(--foreground-subtle)', fontWeight: 400 }}> · {branch.code}</span>}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
+              Each branch has one rule. Switch the active branch to manage another.
+            </div>
+          </div>
+          {rule && (
+            <span style={{ fontSize: 11.5, color: 'var(--foreground-subtle)', whiteSpace: 'nowrap' }}>
+              Updated {formatDateTime(rule.updated_at ?? rule.created_at)}
+            </span>
+          )}
+        </div>
+
+        {!branchId ? (
+          <EmptyState title="No active branch" text="Pick a branch from the top bar to see its operation rule." />
+        ) : isLoading ? (
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                <div className="v2-skeleton" style={{ height: 12, width: '35%' }} />
+                <div className="v2-skeleton" style={{ height: 24, width: 150 }} />
+              </div>
+            ))}
+          </div>
+        ) : isError ? (
+          <EmptyState title="Couldn’t load the operation rule" text="Refresh the page to try again." tone="error" />
+        ) : !showForm ? (
+          <EmptyState
+            title="No operation rule yet"
+            text="Without a rule this branch can’t open an operation or start shifts."
+            action={
+              canCreate && (
+                <button type="button" className="v2-btn v2-btn-primary" onClick={() => { reset(EMPTY); setCreating(true) }}>
+                  <Plus size={14} /> Create rule
+                </button>
+              )
+            }
+          />
+        ) : (
+          <form onSubmit={handleSubmit((v) => saveMutation.mutate(v))}>
+            <ModeRow
+              title="Opening"
+              hint="Manual: staff open the day. Automatic: opens on a schedule."
+              name="open_mode"
+              control={control}
+              disabled={readOnly || isPending}
+            />
+            {openMode === 'auto' && (
+              <CronRow name="auto_open_cron" label="Opens at" control={control} disabled={readOnly || isPending} error={errors.auto_open_cron?.message} />
+            )}
+            <ModeRow
+              title="Closing"
+              hint="Manual: staff close the day. Automatic: closes on a schedule."
+              name="close_mode"
+              control={control}
+              disabled={readOnly || isPending}
+            />
+            {closeMode === 'auto' && (
+              <CronRow name="auto_close_cron" label="Closes at" control={control} disabled={readOnly || isPending} error={errors.auto_close_cron?.message} />
+            )}
+            <ModeRow
+              title="Shifts"
+              hint="Manual: staff start and close shifts. Automatic: shifts follow the shift rules."
+              name="shift_mode"
+              control={control}
+              disabled={readOnly || isPending}
+              last
+            />
+
+            {!readOnly && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderTop: '1px solid var(--border)', background: 'var(--background)' }}>
+                <div style={{ flex: 1 }} />
+                {rule ? (
+                  <button type="button" className="v2-btn v2-btn-ghost" disabled={!isDirty || isPending} onClick={() => reset(toForm(rule))}>
+                    Discard
+                  </button>
+                ) : (
+                  <button type="button" className="v2-btn v2-btn-ghost" disabled={isPending} onClick={() => setCreating(false)}>
+                    Cancel
+                  </button>
+                )}
+                <button type="submit" className="v2-btn v2-btn-primary" disabled={isPending || (!!rule && !isDirty)}>
+                  {isPending && <Loader2 size={13} className="animate-spin" />}
+                  {rule ? 'Save changes' : 'Create rule'}
+                </button>
+              </div>
+            )}
+          </form>
         )}
       </div>
 
-      <FilterBar
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search..."
-        activeCount={countActive(branchFilter, openModeFilter, closeModeFilter, shiftModeFilter)}
-        onClear={() => { setBranchFilter(''); setOpenModeFilter(''); setCloseModeFilter(''); setShiftModeFilter(''); setPage(1); }}
-        quick={
-          <FilterSelect value={branchFilter} onChange={(ev) => { setBranchFilter(ev.target.value); setPage(1); }}>
-            <option value="">All Branches</option>
-            {branchOptions.map((o: any) => (
-              <option key={o.id} value={String(o.id)}>{o.name}</option>
-            ))}
-          </FilterSelect>
-        }
-      >
-        <FilterGroup title="Modes">
-          <FilterField label="Open mode">
-            <FilterSelect block value={openModeFilter} onChange={(ev) => { setOpenModeFilter(ev.target.value); setPage(1); }}>
-              <option value="">All Open Modes</option>
-              <option value="auto">auto</option>
-              <option value="manual">manual</option>
-            </FilterSelect>
-          </FilterField>
-          <FilterField label="Close mode">
-            <FilterSelect block value={closeModeFilter} onChange={(ev) => { setCloseModeFilter(ev.target.value); setPage(1); }}>
-              <option value="">All Close Modes</option>
-              <option value="auto">auto</option>
-              <option value="manual">manual</option>
-            </FilterSelect>
-          </FilterField>
-          <FilterField label="Shift mode">
-            <FilterSelect block value={shiftModeFilter} onChange={(ev) => { setShiftModeFilter(ev.target.value); setPage(1); }}>
-              <option value="">All Shift Modes</option>
-              <option value="auto">auto</option>
-              <option value="manual">manual</option>
-            </FilterSelect>
-          </FilterField>
-        </FilterGroup>
-      </FilterBar>
-
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr>
-              <th style={{ ...thStyle, width: 50, textAlign: 'center' }}>No.</th>
-              <th style={thStyle}>ID</th>
-              <th style={thStyle}>Open Mode</th>
-              <th style={thStyle}>Close Mode</th>
-              <th style={thStyle}>Shift Mode</th>
-              <th style={thStyle}>Auto Open</th>
-              <th style={thStyle}>Auto Close</th>
-              <th style={{ ...thStyle, width: 80 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px' }}>Loading...</td></tr>
-            ) : isError ? (
-              <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--destructive)' }}>Failed to load.</td></tr>
-            ) : items.length === 0 ? (
-              <tr><td colSpan={8} style={{ ...tdStyle, textAlign: 'center', padding: '48px 16px', color: 'var(--foreground-muted)' }}>No data found.</td></tr>
-            ) : (
-              items.map((item, idx) => (
-                <tr key={item.id} style={{ transition: 'background 120ms' }} onMouseEnter={(ev) => (ev.currentTarget.style.background = 'var(--background)')} onMouseLeave={(ev) => (ev.currentTarget.style.background = 'transparent')}>
-                  <td style={{ ...tdStyle, textAlign: 'center', color: 'var(--foreground-muted)', fontSize: 13, width: 50 }}>{(page - 1) * perPage + idx + 1}</td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>#{item.id}</span></td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.open_mode || '—'}</span></td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.close_mode || '—'}</span></td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.shift_mode || '—'}</span></td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.auto_open_cron || '—'}</span></td>
-                  <td style={tdStyle}><span style={{ fontSize: 13, color: 'var(--foreground)' }}>{item.auto_close_cron || '—'}</span></td>
-                  <td style={tdStyle}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                      <button onClick={() => setSelectedItem(item)} style={actionBtnStyle} title="View"><Eye size={14} /></button>
-                      {canEdit && <button onClick={() => { setEditData(item); setSheetOpen(true); }} style={actionBtnStyle} title="Edit"><Pencil size={14} /></button>}
-                      {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ ...actionBtnStyle, color: 'var(--destructive)' }} title="Delete"><Trash2 size={14} /></button>}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
-
-      {deleteConfirmId !== null && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div onClick={() => setDeleteConfirmId(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
-          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 380, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Delete OperationRule</h3>
-            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 24px' }}>This action cannot be undone.</p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => deleteMutation.mutate(deleteConfirmId)} disabled={deleteMutation.isPending} style={{ padding: '7px 16px', background: 'var(--destructive)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: deleteMutation.isPending ? 0.7 : 1 }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedItem && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex', justifyContent: 'flex-end' }}>
-          <div onClick={() => setSelectedItem(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.18)' }} />
-          <div style={{ position: 'relative', zIndex: 50, width: 420, height: '100%', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)', overflowY: 'auto' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>OperationRule Detail</h2>
-              <button onClick={() => setSelectedItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}><X size={18} color="var(--foreground-muted)" /></button>
-            </div>
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {[
-                { label: 'ID', value: selectedItem.id },
-                { label: 'Open Mode', value: selectedItem.open_mode },
-                { label: 'Close Mode', value: selectedItem.close_mode },
-                { label: 'Shift Mode', value: selectedItem.shift_mode },
-                { label: 'Auto Open', value: selectedItem.auto_open_cron },
-                { label: 'Auto Close', value: selectedItem.auto_close_cron },
-              ].map((f) => (
-                <div key={f.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground-muted)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>{f.label}</span>
-                  <span style={{ fontSize: 14, color: 'var(--foreground)' }}>{f.value ?? '—'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <OperationRuleSheet open={sheetOpen} onClose={() => { setSheetOpen(false); setEditData(null); }} editData={editData} />
     </div>
-  );
+  )
+}
+
+function ModeRow({
+  title,
+  hint,
+  name,
+  control,
+  disabled,
+  last,
+}: {
+  title: string
+  hint: string
+  name: 'open_mode' | 'close_mode' | 'shift_mode'
+  control: any
+  disabled: boolean
+  last?: boolean
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', borderBottom: last ? 'none' : '1px solid var(--border)', flexWrap: 'wrap' }}>
+      <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--foreground)' }}>{title}</div>
+        <div style={{ fontSize: 12, color: 'var(--foreground-muted)', marginTop: 2 }}>{hint}</div>
+      </div>
+      <Controller
+        name={name}
+        control={control}
+        render={({ field }) => (
+          <div className="v2-seg" role="tablist" aria-label={title} style={disabled ? { opacity: 0.6 } : undefined}>
+            {MODES.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                role="tab"
+                aria-selected={field.value === m.value}
+                disabled={disabled}
+                onClick={() => field.onChange(m.value)}
+                style={disabled ? { cursor: 'not-allowed' } : undefined}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
+      />
+    </div>
+  )
+}
+
+function CronRow({
+  name,
+  label,
+  control,
+  disabled,
+  error,
+}: {
+  name: 'auto_open_cron' | 'auto_close_cron'
+  label: string
+  control: any
+  disabled: boolean
+  error?: string
+}) {
+  return (
+    <div style={{ padding: '0 20px 18px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <CalendarClock size={14} style={{ color: 'var(--foreground-muted)' }} />
+          <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--foreground)' }}>{label}</span>
+        </div>
+        <div style={{ maxWidth: 440 }}>
+          <Controller
+            name={name}
+            control={control}
+            render={({ field }) => (
+              <CronPicker value={field.value ?? ''} onChange={field.onChange} disabled={disabled} error={error} />
+            )}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({
+  title,
+  text,
+  action,
+  tone,
+}: {
+  title: string
+  text: string
+  action?: React.ReactNode
+  tone?: 'error'
+}) {
+  return (
+    <div style={{ padding: '44px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6 }}>
+      <span style={{ width: 40, height: 40, borderRadius: 12, background: tone === 'error' ? 'var(--destructive-bg)' : 'var(--surface-muted)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+        <CalendarClock size={18} style={{ color: tone === 'error' ? 'var(--destructive)' : 'var(--foreground-muted)' }} />
+      </span>
+      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--foreground)' }}>{title}</div>
+      <div style={{ fontSize: 12.5, color: 'var(--foreground-muted)', maxWidth: 360 }}>{text}</div>
+      {action && <div style={{ marginTop: 10 }}>{action}</div>}
+    </div>
+  )
 }

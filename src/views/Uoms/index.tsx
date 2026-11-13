@@ -474,7 +474,6 @@ export default function UomsView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Code', value: selectedItem.code },
                 { label: 'Name', value: selectedItem.name },
                 {

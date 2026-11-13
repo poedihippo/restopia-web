@@ -24,6 +24,7 @@ import {
 import { useBuyerNames } from '@/hooks/useBuyerNames'
 import BackLink from '@/components/BackLink'
 import AcceptPOModal, { AcceptPODetailPayload } from '../RequestedOrders/AcceptPOModal'
+import { purchaseOrderDeleteBlock } from '@/lib/actionGuards'
 
 interface PurchaseOrderDetailProps {
   id: number
@@ -116,6 +117,8 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
   const canRead = hasPermission('purchase-order.read')
   const canUpdate = hasPermission('purchase-order.update')
   const canDelete = hasPermission('purchase-order.delete')
+  // Accept/Reject use the .update key on either PO route (purchase-orders/.../purchase_order_route.go)
+  const canTransition = hasPermission('purchase-order.update') || hasPermission('internal-purchase-order.update')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [acceptModalOpen, setAcceptModalOpen] = useState(false)
 
@@ -394,7 +397,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
+          {canTransition && order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'rejected') && (
             <button
               type="button"
               disabled={actionMutation.isPending}
@@ -405,7 +408,7 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               Accept
             </button>
           )}
-          {order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'accepted') && (
+          {canTransition && order.type === 'branch' && order.supplier_branch?.id === myBranchId && (order.status === 'final' || order.status === 'accepted') && (
             <button
               type="button"
               disabled={actionMutation.isPending}
@@ -446,12 +449,21 @@ export default function PurchaseOrderDetail({ id }: PurchaseOrderDetailProps) {
               Edit
             </button>
           )}
-          {canDelete && (
-            <button type="button" onClick={() => setDeleteConfirm(true)} className="v2-btn v2-btn-danger">
-              <Trash2 size={15} />
-              Delete
-            </button>
-          )}
+          {canDelete && (() => {
+            const reason = purchaseOrderDeleteBlock(order)
+            return (
+              <button
+                type="button"
+                onClick={() => { if (!reason) setDeleteConfirm(true) }}
+                disabled={!!reason}
+                title={reason ?? 'Delete'}
+                className="v2-btn v2-btn-danger"
+              >
+                <Trash2 size={15} />
+                Delete
+              </button>
+            )
+          })()}
           <button
             type="button"
             onClick={() => router.push(`/sales/sales-orders/create?po_id=${id}`)}

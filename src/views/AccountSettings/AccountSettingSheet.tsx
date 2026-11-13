@@ -69,9 +69,19 @@ export default function AccountSettingSheet({ open, onClose, editData }: Account
     return () => clearTimeout(timer)
   }, [coaSearch])
 
+  // Same COA rules the API enforces on the branch/buyer overrides: active,
+  // non-header, and the key's expected normal balance.
+  const expectedNormalBalance: string | undefined = editData?.account_setting_key_entity?.expected_normal_balance
   const coaOpts = useInfiniteOptions<any>({
-    queryKey: ['chart-of-accounts-all', 'account-settings', debouncedSearch, debouncedDropdownSearch],
-    fetchPage: (page) => chartOfAccountsService.list({ page, per_page: 50, 'filter[search]': debouncedSearch || undefined } as any).then(r => r.data),
+    queryKey: ['chart-of-accounts-all', 'account-settings', debouncedSearch, debouncedDropdownSearch, expectedNormalBalance ?? ''],
+    fetchPage: (page) => chartOfAccountsService.list({
+      page,
+      per_page: 50,
+      'filter[search]': debouncedSearch || undefined,
+      'filter[is_header]': 'false',
+      'filter[is_active]': 'true',
+      'filter[normal_balance]': expectedNormalBalance || undefined,
+    } as any).then(r => r.data),
     enabled: open
   })
   

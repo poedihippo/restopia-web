@@ -19,7 +19,7 @@ import {
   PAYMENT_BUCKET_LABEL,
   type PaymentBucket,
 } from '@/utils/salesReport'
-const today = () => new Date().toISOString().split('T')[0]
+const today = () => new Date().toLocaleDateString('en-CA')
 
 // Non-cash buckets deducted from the sub total to arrive at the cash deposit.
 const NON_CASH_BUCKETS: PaymentBucket[] = ['voucher', 'transfer', 'debit', 'card', 'other']

@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { receiptsService } from '@/services/receipts.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import BackLink from '@/components/BackLink'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Pencil,
   Trash2,
@@ -82,6 +83,9 @@ const STATUS_META = {
 }
 
 export default function ReceiptDetail({ id }: ReceiptDetailProps) {
+  const { hasPermission } = useAuth()
+  const canUpdate = hasPermission('receipt.update')
+  const canDelete = hasPermission('receipt.delete')
   const router = useRouter()
   const queryClient = useQueryClient()
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -293,7 +297,7 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          {receipt.status !== 'final' && (
+          {canUpdate && receipt.status !== 'final' && (
             <button
               type="button"
               onClick={() => router.push(`/transfer/receipts/${id}/edit`)}
@@ -303,14 +307,16 @@ export default function ReceiptDetail({ id }: ReceiptDetailProps) {
               Edit
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setDeleteConfirm(true)}
-            className="v2-btn v2-btn-danger"
-          >
-            <Trash2 size={15} />
-            Delete
-          </button>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm(true)}
+              className="v2-btn v2-btn-danger"
+            >
+              <Trash2 size={15} />
+              Delete
+            </button>
+          )}
         </div>
       </div>
 

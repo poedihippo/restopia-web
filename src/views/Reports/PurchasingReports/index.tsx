@@ -23,8 +23,8 @@ import {
 
 export default function PurchasingReportsView() {
   const today = new Date()
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
-  const todayStr = today.toISOString().split('T')[0]
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toLocaleDateString('en-CA')
+  const todayStr = today.toLocaleDateString('en-CA')
 
   // Query suppliers — searched on the server (filter[search]). The three
   // supplier pickers share one term; only one dropdown is open at a time and

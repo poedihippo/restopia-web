@@ -12,6 +12,7 @@ import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { fiscalYearEditBlock, blockedStyle } from '@/lib/actionGuards'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import {
@@ -34,7 +35,6 @@ const schema = z.object({
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
   is_active: z.boolean().default(true),
-  is_closed: z.boolean().default(false),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -97,12 +97,12 @@ export default function FiscalYearsView() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { name: '', start_date: '', end_date: '', is_active: true, is_closed: false },
+    defaultValues: { name: '', start_date: '', end_date: '', is_active: true },
   })
 
   useEffect(() => {
-    if (editData) reset({ name: editData.name, start_date: toInputDate(editData.start_date), end_date: toInputDate(editData.end_date), is_active: editData.is_active ?? true, is_closed: editData.is_closed ?? false })
-    else reset({ name: '', start_date: '', end_date: '', is_active: true, is_closed: false })
+    if (editData) reset({ name: editData.name, start_date: toInputDate(editData.start_date), end_date: toInputDate(editData.end_date), is_active: editData.is_active ?? true })
+    else reset({ name: '', start_date: '', end_date: '', is_active: true })
   }, [editData, reset])
 
   const createMutation = useMutation({
@@ -112,16 +112,31 @@ export default function FiscalYearsView() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: FiscalYearRequest) => fiscalYearsService.update(editData!.id, data),
+    mutationFn: (data: Partial<FiscalYearRequest>) => fiscalYearsService.update(editData!.id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['fiscal-years'] }); toast.success('Fiscal year updated'); setSheetOpen(false) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
+  // is_closed is never edited here: create always opens the year, and closing
+  // goes through the Close action (POST /fiscal-years/:id/close).
   const onSubmit = (values: FormValues) => {
     if (editData) updateMutation.mutate(values)
-    else createMutation.mutate(values)
+    else createMutation.mutate({ ...values, is_closed: false })
   }
+
+  const [closeConfirm, setCloseConfirm] = useState<FiscalYear | null>(null)
+  const closeMutation = useMutation({
+    mutationFn: (id: number) => fiscalYearsService.close(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fiscal-years'] })
+      queryClient.invalidateQueries({ queryKey: ['periods'] })
+      queryClient.invalidateQueries({ queryKey: ['journals'] })
+      toast.success('Fiscal year closed')
+      setCloseConfirm(null)
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to close fiscal year'),
+  })
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
     mutationFn: () => reportsService.exportFiscalYears(),
@@ -175,7 +190,7 @@ export default function FiscalYearsView() {
               <th style={{ ...thStyle, width: 160 }}>Start Date</th>
               <th style={{ ...thStyle, width: 160 }}>End Date</th>
               <th style={{ ...thStyle, width: 100 }}>Status</th>
-              <th style={{ ...thStyle, width: 80 }} />
+              <th style={{ ...thStyle, width: 110 }} />
             </tr>
           </thead>
           <tbody>
@@ -213,12 +228,16 @@ export default function FiscalYearsView() {
                   </td>
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                      {!item.is_closed && (
-                        <>
-                          {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
-                          {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
-                        </>
-                      )}
+                      {(() => {
+                        const reason = fiscalYearEditBlock(item)
+                        return (
+                          <>
+                            {canUpdate && <button onClick={() => { if (!item.is_closed) setCloseConfirm(item) }} disabled={item.is_closed} title={item.is_closed ? 'Fiscal year already closed' : 'Close fiscal year'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex', ...(item.is_closed ? blockedStyle : {}) }}><Lock size={14} /></button>}
+                            {canUpdate && <button onClick={() => { if (!reason) { setEditData(item); setSheetOpen(true) } }} disabled={!!reason} title={reason ?? 'Edit'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex', ...(reason ? blockedStyle : {}) }}><Pencil size={14} /></button>}
+                            {canDelete && <button onClick={() => { if (!reason) setDeleteConfirmId(item.id) }} disabled={!!reason} title={reason ?? 'Delete'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex', ...(reason ? blockedStyle : {}) }}><Trash2 size={14} /></button>}
+                          </>
+                        )
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -229,6 +248,26 @@ export default function FiscalYearsView() {
       </div>
 
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
+
+      {closeConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setCloseConfirm(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 400, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Close {closeConfirm.name}?</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 8px' }}>
+              Closing posts closing journal entries that move this year&apos;s income and expense balances into retained earnings. All periods of the year must already be closed.
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--destructive)', margin: '0 0 24px', fontWeight: 500 }}>This cannot be undone.</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setCloseConfirm(null)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => closeMutation.mutate(closeConfirm.id)} disabled={closeMutation.isPending} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: 'pointer', opacity: closeMutation.isPending ? 0.7 : 1 }}>
+                {closeMutation.isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                Close fiscal year
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteConfirmId !== null && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -274,10 +313,6 @@ export default function FiscalYearsView() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
                   <input type="checkbox" {...register('is_active')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
                   Active
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
-                  <input type="checkbox" {...register('is_closed')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
-                  Close Period
                 </label>
               </div>
             </form>

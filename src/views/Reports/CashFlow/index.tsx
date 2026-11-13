@@ -1,59 +1,198 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Download } from 'lucide-react'
-import { reportsService } from '@/services/reports.service'
+import { Download, Wallet, AlertCircle } from 'lucide-react'
+import { reportsService, type CashFlowResponse, type CashFlowSection } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
-import FinanceBranchSelect, { financeBranchParam, type FinanceBranchScope } from '../FinanceBranchSelect'
+import { useAuth } from '@/hooks/useAuth'
+import { formatCurrency } from '@/utils/price'
+import { formatDate } from '@/utils/date'
+import FinanceBranchSelect, { financeBranchParam, useFinanceBranchLabel, type FinanceBranchScope } from '../FinanceBranchSelect'
+import FinancePeriodSelect from '../FinancePeriodSelect'
+import {
+  FilterField,
+  MessageRow,
+  SkeletonRows,
+  filterInputStyle,
+  humanize,
+  numTd,
+  pageStyle,
+  sectionRowStyle,
+  subtitleStyle,
+  titleStyle,
+  totalRowStyle,
+} from '../reportUi'
+
+const firstOfMonth = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+const today = () => new Date().toLocaleDateString('en-CA')
+
+const SECTIONS: { key: 'operating' | 'investing' | 'financing'; label: string }[] = [
+  { key: 'operating', label: 'Operating activities' },
+  { key: 'investing', label: 'Investing activities' },
+  { key: 'financing', label: 'Financing activities' },
+]
 
 export default function CashFlowView() {
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const { hasPermission, isSuperadmin } = useAuth()
+  const canRead = isSuperadmin || hasPermission('report.read')
+
+  const [startDate, setStartDate] = useState(firstOfMonth())
+  const [endDate, setEndDate] = useState(today())
   const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
+  const branchLabel = useFinanceBranchLabel(branchScope)
+
+  const rangeError =
+    !startDate || !endDate
+      ? 'Start date and end date are required'
+      : startDate > endDate
+        ? 'Start date must be on or before end date'
+        : null
+
+  const params = { start_date: startDate, end_date: endDate, ...financeBranchParam(branchScope) }
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['cash-flow', startDate, endDate, branchScope],
+    enabled: canRead && !rangeError,
+    queryFn: () => reportsService.getCashFlow(params).then((r) => r.data),
+  })
+  const report: CashFlowResponse | undefined = data?.data
 
   const { mutate: exportExcel, isPending } = useMutation({
-    mutationFn: () => reportsService.exportCashFlow({ start_date: startDate, end_date: endDate, ...financeBranchParam(branchScope) }),
-    onSuccess: (res) => {
-      downloadFileFromResponse(res, `cash-flow.xlsx`)
-    },
-    onError: () => toast.error('Gagal mengekspor data.')
+    mutationFn: () => reportsService.exportCashFlow(params),
+    onSuccess: (res) => downloadFileFromResponse(res, `cash-flow-${startDate}_${endDate}.xlsx`),
+    onError: () => toast.error('Gagal mengekspor data.'),
   })
 
+  const COLS = 2
+  const renderSection = (label: string, section: CashFlowSection | undefined) => {
+    const lines = section?.lines ?? []
+    return (
+      <React.Fragment key={label}>
+        <tr>
+          <td colSpan={COLS} style={sectionRowStyle}>{label}</td>
+        </tr>
+        {lines.length === 0 ? (
+          <tr>
+            <td style={{ paddingLeft: 28, color: 'var(--foreground-subtle)', fontStyle: 'italic' }}>No cash movement</td>
+            <td style={numTd}>{formatCurrency(0)}</td>
+          </tr>
+        ) : (
+          lines.map((ln) => (
+            <tr key={`${label}-${ln.activity}`} data-row>
+              <td style={{ paddingLeft: 28 }}>{humanize(ln.activity)}</td>
+              <td style={{ ...numTd, color: ln.net < 0 ? 'var(--destructive)' : undefined }}>{formatCurrency(ln.net)}</td>
+            </tr>
+          ))
+        )}
+        <tr>
+          <td style={{ fontWeight: 600 }}>Net cash from {label.toLowerCase()}</td>
+          <td style={{ ...numTd, fontWeight: 600 }}>{formatCurrency(section?.subtotal ?? 0)}</td>
+        </tr>
+      </React.Fragment>
+    )
+  }
+
   return (
-    <div style={{ padding: '32px 32px 64px', maxWidth: 600, margin: '0 auto' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, color: 'var(--foreground)', margin: 0 }}>Cash Flow</h1>
-        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>Export Cash Flow report to Excel</p>
+    <div style={pageStyle}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <h1 style={titleStyle}>Cash Flow</h1>
+          <p style={subtitleStyle}>
+            {report
+              ? `Periode: ${formatDate(report.start_date)} – ${formatDate(report.end_date)} · ${branchLabel}`
+              : 'Cash in and out of the cash accounts, by activity'}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="v2-btn v2-btn-outline"
+          onClick={() => exportExcel()}
+          disabled={!canRead || !!rangeError || isPending}
+          title={rangeError ?? undefined}
+        >
+          <Download size={14} /> {isPending ? 'Exporting...' : 'Export Excel'}
+        </button>
       </div>
 
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500 }}>Start Date *</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 'var(--radius-md)', background: '#ffffff', color: '#111827', outline: 'none' }} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500 }}>End Date *</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 'var(--radius-md)', background: '#ffffff', color: '#111827', outline: 'none' }} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500 }}>Branch</label>
-            <FinanceBranchSelect value={branchScope} onChange={setBranchScope} style={{ padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface-raised)', color: 'var(--foreground)', outline: 'none' }} />
-          </div>
-          <button 
-            onClick={() => {
-              if (!startDate || !endDate) return toast.error('Start date and end date are required')
-              exportExcel()
-            }} 
-            disabled={isPending} 
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 500, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1, marginTop: 8 }}
-          >
-            <Download size={16} /> {isPending ? 'Exporting...' : 'Export Excel'}
-          </button>
+      {!canRead ? (
+        <div className="v2-card" style={{ padding: 20, color: 'var(--warning)', background: 'var(--warning-bg)', fontSize: 13 }}>
+          You do not have permission to view this report.
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="v2-card" style={{ padding: 20 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <FilterField label="Period">
+                <FinancePeriodSelect
+                  start={startDate}
+                  end={endDate}
+                  onChange={(p) => { setStartDate(p.start_date); setEndDate(p.end_date) }}
+                  style={filterInputStyle}
+                />
+              </FilterField>
+              <FilterField label="Start Date *">
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={filterInputStyle} />
+              </FilterField>
+              <FilterField label="End Date *">
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={filterInputStyle} />
+              </FilterField>
+              <FilterField label="Branch">
+                <FinanceBranchSelect value={branchScope} onChange={setBranchScope} style={filterInputStyle} />
+              </FilterField>
+            </div>
+            {rangeError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 12, color: 'var(--warning)' }}>
+                <AlertCircle size={13} /> {rangeError}
+              </div>
+            )}
+          </div>
+
+          <div className="v2-card" style={{ overflow: 'hidden' }}>
+            <table className="v2-table">
+              <thead>
+                <tr>
+                  <th>Activity</th>
+                  <th style={{ textAlign: 'right' }}>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rangeError ? (
+                  <MessageRow cols={COLS} icon={<Wallet size={22} />}>Set the date range above to generate the report</MessageRow>
+                ) : isLoading ? (
+                  <SkeletonRows cols={COLS} />
+                ) : isError ? (
+                  <MessageRow cols={COLS} tone="error">
+                    {(error as any)?.response?.data?.message ?? 'Failed to load cash flow'}
+                  </MessageRow>
+                ) : !report ? (
+                  <MessageRow cols={COLS} icon={<Wallet size={22} />}>No data</MessageRow>
+                ) : (
+                  <>
+                    {SECTIONS.map((s) => renderSection(s.label, report[s.key]))}
+                    <tr style={totalRowStyle}>
+                      <td>Net increase (decrease) in cash</td>
+                      <td style={numTd}>{formatCurrency(report.net_increase)}</td>
+                    </tr>
+                    <tr>
+                      <td>Cash at beginning of period</td>
+                      <td style={numTd}>{formatCurrency(report.begin_balance)}</td>
+                    </tr>
+                    <tr style={totalRowStyle}>
+                      <td>Cash at end of period</td>
+                      <td style={numTd}>{formatCurrency(report.end_balance)}</td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   )
 }

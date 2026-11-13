@@ -24,9 +24,8 @@ import {
   X,
   Loader2,
   Truck,
+  Unlock,
 } from 'lucide-react'
-
-const todayInputDate = () => new Date().toISOString().split('T')[0]
 
 interface Invoice {
   id: number
@@ -77,11 +76,16 @@ function paymentStatusOf(item: Pick<Invoice, 'payment_status' | 'total_payment' 
 export default function InvoicesView() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const { hasPermission } = useAuth()
+  const { hasPermission, isSuperadmin } = useAuth()
   // Warehouse / production: every invoice of the company (Branch filter narrows).
   const { scopeParams } = useCentralCompanyScope()
   const canRead = hasPermission('invoice.read')
   const canCreate = hasPermission('invoice.create')
+  // POST /invoices/unlock-overdue: RBAC invoice.unlock-overdue + superadmin only
+  // (invoices/application/usecase/unlock_overdue_usecase.go).
+  const canUnlockOverdue = isSuperadmin
+  const [unlockOpen, setUnlockOpen] = useState(false)
+  const [unlockBranchId, setUnlockBranchId] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -137,6 +141,17 @@ export default function InvoicesView() {
 
   const items: Invoice[] = (data as any)?.data ?? []
   const meta = (data as any)?.meta
+
+  const unlockMutation = useMutation({
+    mutationFn: (branchId: number) => invoicesService.unlockOverdue(branchId),
+    onSuccess: () => {
+      const name = branchOptions.find((b) => String(b.id) === unlockBranchId)?.name
+      toast.success(`Overdue block lifted${name ? ` for ${name}` : ''}`)
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      setUnlockOpen(false)
+    },
+    onError: (err: any) => toastMutationApiError(err, 'Failed to unlock overdue invoices'),
+  })
 
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
@@ -214,6 +229,28 @@ export default function InvoicesView() {
             Invoices billed to a branch, created from a delivery
           </p>
         </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+        {canUnlockOverdue && (
+          <button
+            onClick={() => { setUnlockBranchId(billedBranchFilter); setUnlockOpen(true) }}
+            title="Let a branch with overdue unpaid invoices transact again"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              background: 'var(--surface)',
+              color: 'var(--foreground)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            <Unlock size={15} />Unlock overdue
+          </button>
+        )}
         {canCreate && (
           <button
             onClick={() => router.push('/transfer/invoices/create')}
@@ -234,6 +271,7 @@ export default function InvoicesView() {
             <Plus size={15} />Create Invoice
           </button>
         )}
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -537,7 +575,41 @@ export default function InvoicesView() {
       {/* Pagination */}
       <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
 
-      
+      {unlockOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={() => setUnlockOpen(false)} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.22)' }} />
+          <div style={{ position: 'relative', zIndex: 70, background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px 28px 24px', width: 420, boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 600, margin: '0 0 8px', color: 'var(--foreground)' }}>Unlock overdue invoices</h3>
+            <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '0 0 16px' }}>
+              The billed branch is blocked while it has overdue unpaid invoices. Unlocking lets it transact again; the invoices stay unpaid and overdue.
+            </p>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', marginBottom: 6 }}>Billed branch</label>
+            <select
+              value={unlockBranchId}
+              onChange={(e) => setUnlockBranchId(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 14, color: 'var(--foreground)', background: 'var(--surface-raised)', marginBottom: 24 }}
+            >
+              <option value="">Select a branch</option>
+              {branchOptions.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setUnlockOpen(false)} style={{ padding: '7px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'var(--foreground)', cursor: 'pointer' }}>Cancel</button>
+              <button
+                onClick={() => unlockMutation.mutate(Number(unlockBranchId))}
+                disabled={!unlockBranchId || unlockMutation.isPending}
+                title={!unlockBranchId ? 'Select a branch first' : undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 500, color: 'white', cursor: !unlockBranchId ? 'not-allowed' : 'pointer', opacity: !unlockBranchId || unlockMutation.isPending ? 0.6 : 1 }}
+              >
+                {unlockMutation.isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+                Unlock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <style>{`
         @keyframes pulse {

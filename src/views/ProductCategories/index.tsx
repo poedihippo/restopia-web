@@ -515,7 +515,6 @@ export default function ProductCategoriesView() {
               }}
             >
               {[
-                { label: 'ID', value: selectedItem.id },
                 { label: 'Name', value: selectedItem.name },
 
                 {

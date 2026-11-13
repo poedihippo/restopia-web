@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/router'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
@@ -14,6 +15,10 @@ import { formatCurrency } from '@/utils/price'
 import { formatDate, formatDateShort, toInputDate } from '@/utils/date'
 import SearchableSelect from '@/components/SearchableSelect'
 import { CustomPagination } from '@/components/ui/CustomPagination'
+import ReferenceLink from '@/components/ReferenceLink'
+import { referenceLabel } from '@/lib/references'
+import FinanceBranchSelect, { financeBranchParam, useFinanceBranchLabel, type FinanceBranchScope } from '../FinanceBranchSelect'
+import FinancePeriodSelect from '../FinancePeriodSelect'
 import { FileSpreadsheet, Download, Printer, AlertCircle } from 'lucide-react'
 
 interface CoA {
@@ -110,7 +115,7 @@ const JOURNAL_TYPE_LABELS: Record<string, string> = {
 }
 
 const firstOfYear = () => `${new Date().getFullYear()}-01-01`
-const today = () => new Date().toISOString().split('T')[0]
+const today = () => new Date().toLocaleDateString('en-CA')
 
 const modeBtnStyle = (active: boolean): React.CSSProperties => ({
   padding: '8px 14px',
@@ -136,6 +141,38 @@ export default function GeneralLedgerView() {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [isExporting, setIsExporting] = useState(false)
+  const [branchScope, setBranchScope] = useState<FinanceBranchScope>('')
+  const branchLabel = useFinanceBranchLabel(branchScope)
+
+  // Drill-down from Trial Balance / Balance Sheet / Income Statement
+  // (see ./glHref.ts): pre-fill the filters from the query string once.
+  const router = useRouter()
+  const appliedQuery = useRef(false)
+  // Label for an account picked via the URL, until the option list contains it.
+  const [presetOption, setPresetOption] = useState<{ value: string; label: string; sublabel?: string } | null>(null)
+  useEffect(() => {
+    if (!router.isReady || appliedQuery.current) return
+    appliedQuery.current = true
+    const q = router.query
+    const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? ''
+    const accountId = str(q.account_id)
+    const code = str(q.coa_code)
+    const name = str(q.coa_name)
+    const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
+    if (isDate(str(q.start_date))) setStartDate(str(q.start_date))
+    if (isDate(str(q.end_date))) setEndDate(str(q.end_date))
+    if (q.branch_id !== undefined) setBranchScope(str(q.branch_id))
+    if (accountId) {
+      setMode('single')
+      setChartOfAccountId(accountId)
+      setPresetOption({ value: accountId, label: name || code || `#${accountId}`, sublabel: code || undefined })
+    } else if (code) {
+      setMode('range')
+      setStartCoaCode(code)
+      setEndCoaCode(code)
+      setPresetOption({ value: code, label: code, sublabel: name || undefined })
+    }
+  }, [router.isReady, router.query])
 
   // Each picker searches CoA on the server with its own term; SearchableSelect
   // keeps the picked label cached when it drops out of the results.
@@ -161,17 +198,23 @@ export default function GeneralLedgerView() {
   const startCoa = useCoaOptions(startCodeSearchDebounced, mode !== 'single')
   const endCoa = useCoaOptions(endCodeSearchDebounced, mode !== 'single')
 
-  const accountOptions = accountCoa.items.map((a) => ({
-    value: String(a.id),
-    label: a.name,
-    sublabel: a.code,
-  }))
+  const withPreset = <T extends { value: string }>(opts: T[]): T[] =>
+    presetOption && !opts.some((o) => o.value === presetOption.value) ? [presetOption as unknown as T, ...opts] : opts
+  const accountOptions = withPreset(
+    accountCoa.items.map((a) => ({
+      value: String(a.id),
+      label: a.name,
+      sublabel: a.code,
+    })),
+  )
   const codeOptionsOf = (accounts: CoA[]) =>
-    accounts.map((a) => ({
-      value: a.code,
-      label: a.code,
-      sublabel: a.name,
-    }))
+    withPreset(
+      accounts.map((a) => ({
+        value: a.code,
+        label: a.code,
+        sublabel: a.name,
+      })),
+    )
 
   // Client-side validation mirroring the backend 400 rules.
   const validationError: string | null = (() => {
@@ -188,11 +231,12 @@ export default function GeneralLedgerView() {
 
   useEffect(() => {
     setPage(1)
-  }, [mode, chartOfAccountId, startCoaCode, endCoaCode, startDate, endDate])
+  }, [mode, chartOfAccountId, startCoaCode, endCoaCode, startDate, endDate, branchScope])
 
   const queryParams = {
     start_date: startDate,
     end_date: endDate,
+    ...financeBranchParam(branchScope),
     ...(mode === 'single'
       ? chartOfAccountId
         ? { chart_of_account_id: Number(chartOfAccountId) }
@@ -203,7 +247,7 @@ export default function GeneralLedgerView() {
   }
 
   const { data, isLoading, isError } = useQuery<GeneralLedgerEnvelope>({
-    queryKey: ['general-ledger', mode, chartOfAccountId, startCoaCode, endCoaCode, startDate, endDate, page, perPage],
+    queryKey: ['general-ledger', mode, chartOfAccountId, startCoaCode, endCoaCode, startDate, endDate, branchScope, page, perPage],
     enabled: canRead && !validationError,
     queryFn: () =>
       reportsService
@@ -259,6 +303,18 @@ export default function GeneralLedgerView() {
       ]
       const rows: (string | number)[][] = [header]
       for (const acc of allAccounts) {
+        rows.push([
+          acc.chart_of_account_code,
+          acc.chart_of_account_name,
+          startDate,
+          '',
+          '',
+          'Opening balance',
+          '',
+          '',
+          '',
+          Number(acc.opening_balance ?? 0),
+        ])
         if (acc.lines.length === 0) {
           rows.push([
             acc.chart_of_account_code,
@@ -270,7 +326,7 @@ export default function GeneralLedgerView() {
             '',
             0,
             0,
-            0,
+            Number(acc.opening_balance ?? 0),
           ])
         } else {
           for (const ln of acc.lines) {
@@ -281,7 +337,7 @@ export default function GeneralLedgerView() {
               ln.journal_number,
               JOURNAL_TYPE_LABELS[ln.type] ?? ln.type,
               ln.description ?? '',
-              ln.reference_type ?? '',
+              ln.reference_type ? `${referenceLabel(ln.reference_type)}${ln.reference_id ? ` #${ln.reference_id}` : ''}` : '',
               Number(ln.debit ?? 0),
               Number(ln.credit ?? 0),
               Number(ln.balance ?? 0),
@@ -361,7 +417,7 @@ export default function GeneralLedgerView() {
           </h1>
           <p style={{ fontSize: 13, color: 'var(--foreground-muted)', margin: '4px 0 0' }}>
             {hasData
-              ? `Periode: ${formatDate(gl.start_date ?? startDate)} – ${formatDate(gl.end_date ?? endDate)}`
+              ? `Periode: ${formatDate(gl.start_date ?? startDate)} – ${formatDate(gl.end_date ?? endDate)} · ${branchLabel}`
               : 'Journal lines per account for a date range (posted, non-reversed journals only)'}
           </p>
         </div>
@@ -453,12 +509,25 @@ export default function GeneralLedgerView() {
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={labelStyle}>Period</label>
+                <FinancePeriodSelect
+                  start={toInputDate(startDate)}
+                  end={toInputDate(endDate)}
+                  onChange={(p) => { setStartDate(p.start_date); setEndDate(p.end_date) }}
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={labelStyle}>Start Date *</label>
                 <input type="date" value={toInputDate(startDate)} onChange={(e) => setStartDate(e.target.value)} style={inputStyle} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label style={labelStyle}>End Date *</label>
                 <input type="date" value={toInputDate(endDate)} onChange={(e) => setEndDate(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={labelStyle}>Branch</label>
+                <FinanceBranchSelect value={branchScope} onChange={setBranchScope} style={inputStyle} />
               </div>
             </div>
 
@@ -573,6 +642,15 @@ export default function GeneralLedgerView() {
                             </div>
                           </td>
                         </tr>
+                        <tr>
+                          <td style={cellStyle} />
+                          <td style={{ ...cellStyle, whiteSpace: 'nowrap', color: 'var(--foreground-muted)' }}>{formatDateShort(gl?.start_date ?? startDate)}</td>
+                          <td colSpan={5} style={{ ...cellStyle, fontWeight: 600, color: 'var(--foreground-muted)' }}>
+                            Opening balance
+                          </td>
+                          <td style={amountCellStyle} />
+                          <td style={{ ...amountCellStyle, fontWeight: 600 }}>{formatCurrency(Number(acc.opening_balance ?? 0))}</td>
+                        </tr>
                         {acc.lines.length === 0 ? (
                           <tr>
                             <td style={cellStyle} />
@@ -585,10 +663,22 @@ export default function GeneralLedgerView() {
                             <tr key={`${acc.chart_of_account_id}-${ln.journal_id}-${idx}`}>
                               <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--foreground-muted)', width: 50 }}>{lineNoOffsets[accIdx] + idx + 1}</td>
                               <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>{formatDateShort(ln.date)}</td>
-                              <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>{ln.journal_number}</td>
+                              <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap' }}>
+                                <ReferenceLink type="journals" id={ln.journal_id} newTab>
+                                  {ln.journal_number}
+                                </ReferenceLink>
+                              </td>
                               <td style={{ ...cellStyle, whiteSpace: 'nowrap' }}>{JOURNAL_TYPE_LABELS[ln.type] ?? ln.type}</td>
                               <td style={cellStyle}>{ln.description || '—'}</td>
-                              <td style={{ ...cellStyle, fontSize: 12, color: 'var(--foreground-muted)' }}>{ln.reference_type || '—'}</td>
+                              <td style={{ ...cellStyle, fontSize: 12, color: 'var(--foreground-muted)', whiteSpace: 'nowrap' }}>
+                                {ln.reference_type && ln.reference_type !== 'journals' ? (
+                                  <ReferenceLink type={ln.reference_type} id={ln.reference_id} newTab>
+                                    {referenceLabel(ln.reference_type)}
+                                  </ReferenceLink>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
                               <td style={amountCellStyle}>{Number(ln.debit) > 0 ? formatCurrency(ln.debit) : ''}</td>
                               <td style={amountCellStyle}>{Number(ln.credit) > 0 ? formatCurrency(ln.credit) : ''}</td>
                               <td style={{ ...amountCellStyle, fontWeight: 600 }}>{formatCurrency(ln.balance)}</td>

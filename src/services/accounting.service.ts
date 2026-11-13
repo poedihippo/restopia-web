@@ -91,6 +91,9 @@ export const fiscalYearsService = {
     api.patch<ApiResponse<unknown>>(`/fiscal-years/${id}`, data),
   delete: (id: number) =>
     api.delete<ApiResponse<unknown>>(`/fiscal-years/${id}`),
+  /** Close a fiscal year: all periods must be closed; posts closing entries to retained earnings. Irreversible. */
+  close: (id: number) =>
+    api.post<ApiResponse<unknown>>(`/fiscal-years/${id}/close`),
 }
 
 // ─── Periods ──────────────────────────────────────────────────────────────
@@ -158,6 +161,9 @@ export const journalsService = {
     api.post<ApiResponse<unknown>>(`/journals/${id}/post`),
   reverse: (id: number) =>
     api.post<ApiResponse<unknown>>(`/journals/${id}/reverse`),
+  /** account_balances[] rows carry opening_balance / closing_balance (debit − credit, signed). */
+  trialBalance: (periodId: number, params?: { branch_id?: string }) =>
+    api.get<ApiResponse<unknown>>(`/journals/trial-balance/${periodId}`, { params }),
 }
 
 // ─── Budgets ──────────────────────────────────────────────────────────────

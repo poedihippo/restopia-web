@@ -7,22 +7,27 @@ import { recipesService } from '@/services/recipes.service'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
 import RecipeSheet from './RecipeSheet'
+import { exportRecipesExcel } from './recipeExport'
+import { printRecipe } from './recipePrint'
 import SearchableSelect from '@/components/SearchableSelect'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { FilterBar, FilterGroup, FilterField, countActive } from '@/components/ListFilters'
 import { productUomsService } from '@/services/product-uoms.service'
 import { productsService } from '@/services/products.service'
-import { CustomPagination } from '@/components/ui/CustomPagination'
 import { getProductUomName, withProductType } from '@/utils/productUomName'
 import { DEDUCTION_TYPE_OPTIONS, deductionTypeHint, deductionTypeLabel, deductionTypeTone } from '@/utils/deductionType'
 import {
   Plus,
   Pencil,
   Trash2,
+  BookOpen,
+  FileSpreadsheet,
+  Printer,
+  Loader2,
   ChevronLeft,
   ChevronRight,
-  BookOpen,
   Check,
+  ChevronDown,
 } from 'lucide-react'
 
 interface Recipe {
@@ -51,30 +56,11 @@ interface Recipe {
   }>
 }
 
-/** Small pill telling when an ingredient's stock is deducted. */
-function DeductionBadge({ value }: { value?: string }) {
-  const tone = deductionTypeTone(value)
-  return (
-    <span
-      title={deductionTypeHint(value)}
-      style={{
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: 0.4,
-        textTransform: 'uppercase',
-        padding: '2px 8px',
-        borderRadius: 99,
-        whiteSpace: 'nowrap',
-        border: `1px solid var(--${tone})`,
-        background: `var(--${tone}-bg)`,
-        color: `var(--${tone})`,
-        flexShrink: 0,
-      }}
-    >
-      {deductionTypeLabel(value)}
-    </span>
-  )
-}
+/** Ingredients listed on a collapsed recipe card. */
+const PREVIEW_COUNT = 4
+
+/** Two rows of five cards on a desktop screen — a full page without scrolling. */
+const PAGE_SIZE = 10
 
 export default function RecipesView() {
   const queryClient = useQueryClient()
@@ -85,7 +71,7 @@ export default function RecipesView() {
   const canDelete = hasPermission('recipe.delete')
 
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(20)
+  const perPage = PAGE_SIZE
   const [selectedProductId, setSelectedProductId] = useState<number | ''>('')
   const [productSearch, setProductSearch] = useState('')
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('')
@@ -98,6 +84,7 @@ export default function RecipesView() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editData, setEditData] = useState<Recipe | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   React.useEffect(() => {
     const t = setTimeout(() => {
@@ -178,48 +165,48 @@ export default function RecipesView() {
 
   const effectiveTypeFilter = isSuperadmin ? typeFilter : (typeFilter || branchType)
 
-  const { data: allRecipes = [], isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
-    queryKey: ['all-recipes-list', effectiveTypeFilter, defaultFilter, materialFilter],
+  // Server-side pagination: one page of PAGE_SIZE recipes per request.
+  const { data, isLoading: listFirstLoad, isFetching: listFetching, isError } = useQuery({
+    queryKey: ['all-recipes-list', page, effectiveTypeFilter, defaultFilter, materialFilter, selectedProductId],
     queryFn: () =>
       recipesService
         .list({
-          per_page: 1000,
+          page,
+          per_page: perPage,
           include: 'product_uom,recipe_materials',
           sort: '-id',
           ...(effectiveTypeFilter ? { 'filter[type]': effectiveTypeFilter } : {}),
           'filter[is_default]': defaultFilter || undefined,
           'filter[material_product_uom_id]': materialFilter === '' ? undefined : String(materialFilter),
+          'filter[product_id]': selectedProductId === '' ? undefined : String(selectedProductId),
         } as any)
-        .then((r) => (r.data as any)?.data ?? []),
+        .then((r) => r.data),
     staleTime: 60 * 1000,
   })
   // Any refetch (after a create/update/delete invalidates the list, or a
   // filter/page change) shows the loading skeleton, never stale rows.
   const isLoading = listFirstLoad || listFetching
 
-  // Instant filtering across all recipes by selected product
-  const filteredRecipes = React.useMemo(() => {
-    if (!selectedProductId) return allRecipes
-    return allRecipes.filter(
-      (r: any) =>
-        r.product_uom?.product_id === selectedProductId ||
-        r.product_uom?.product?.id === selectedProductId
-    )
-  }, [allRecipes, selectedProductId])
+  const items: Recipe[] = (data as any)?.data ?? []
+  const meta = (data as any)?.meta
+  const totalItems: number = meta?.total ?? items.length
+  const totalPages: number = meta?.total_pages ?? meta?.last_page ?? 1
 
-  const totalItems = filteredRecipes.length
-  const totalPages = Math.ceil(totalItems / perPage) || 1
-
-  const items: Recipe[] = React.useMemo(() => {
-    const start = (page - 1) * perPage
-    return filteredRecipes.slice(start, start + perPage)
-  }, [filteredRecipes, page, perPage])
-
-  const meta = {
-    current_page: page,
-    last_page: totalPages,
-    per_page: perPage,
-    total: totalItems,
+  const onExport = async () => {
+    setExporting(true)
+    try {
+      const count = await exportRecipesExcel({
+        'filter[type]': effectiveTypeFilter || undefined,
+        'filter[is_default]': defaultFilter || undefined,
+        'filter[material_product_uom_id]': materialFilter === '' ? undefined : String(materialFilter),
+        'filter[product_id]': selectedProductId === '' ? undefined : String(selectedProductId),
+      })
+      toast.success(`Exported ${count} ${count === 1 ? 'recipe' : 'recipes'}`)
+    } catch (err: any) {
+      toastMutationApiError(err, 'Failed to export recipes')
+    } finally {
+      setExporting(false)
+    }
   }
 
   const deleteMutation = useMutation({
@@ -261,6 +248,18 @@ export default function RecipesView() {
             Define bill of materials for finished products
           </p>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          type="button"
+          onClick={onExport}
+          disabled={exporting}
+          title="Download all recipes matching the filters, with ingredients and IDs"
+          className="v2-btn v2-btn-ghost"
+          style={{ height: 34, padding: '0 14px', fontSize: 13 }}
+        >
+          {exporting ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <FileSpreadsheet size={15} style={{ color: 'var(--success)' }} />}
+          {exporting ? 'Exporting…' : 'Export Excel'}
+        </button>
         {canCreate && (<button
           onClick={() => {
             setEditData(null)
@@ -281,6 +280,7 @@ export default function RecipesView() {
           }}>
           <Plus size={15} />New Recipe
                               </button>)}
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -366,316 +366,382 @@ export default function RecipesView() {
         </FilterGroup>
       </FilterBar>
 
-      {/* Recipe cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Pagination (top, so the whole page fits on screen) */}
+      {!isError && totalItems > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: -8 }}>
+          <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)' }}>
+            {isLoading ? 'Loading recipes…' : (
+              <>
+                <strong style={{ color: 'var(--foreground)', fontWeight: 600 }}>
+                  {(page - 1) * perPage + 1}–{Math.min(page * perPage, totalItems)}
+                </strong>{' '}
+                of {totalItems} {totalItems === 1 ? 'recipe' : 'recipes'}
+              </>
+            )}
+          </span>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <button
+                type="button"
+                aria-label="Previous page"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="v2-icon-btn recipe-pager-btn" style={{ opacity: page <= 1 ? 0.4 : 1 }}
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <span style={{ fontSize: 12.5, color: 'var(--foreground-muted)', minWidth: 64, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                Page <strong style={{ color: 'var(--foreground)' }}>{page}</strong> / {totalPages}
+              </span>
+              <button
+                type="button"
+                aria-label="Next page"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="v2-icon-btn recipe-pager-btn" style={{ opacity: page >= totalPages ? 0.4 : 1 }}
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Loading */}
-        {isLoading && (
-          <>
-            {[1, 2, 3].map((i) => (
+      {/* Recipe book */}
+      {isError ? (
+        <div
+          style={{
+            padding: 48,
+            textAlign: 'center',
+            fontSize: 13,
+            color: 'var(--destructive)',
+          }}
+        >
+          Failed to load recipes
+        </div>
+      ) : !isLoading && items.length === 0 ? (
+        <div
+          style={{
+            padding: '56px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 10,
+            border: '1px dashed var(--border-strong)',
+            borderRadius: 'var(--radius-xl)',
+          }}
+        >
+          <BookOpen size={32} style={{ color: 'var(--accent-light)' }} />
+          <span style={{ fontFamily: 'var(--font-display)', fontSize: 17, color: 'var(--foreground)' }}>
+            The recipe book is empty
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
+            No recipes match these filters.
+          </span>
+        </div>
+      ) : (
+        <div className="recipe-book">
+          {/* Loading */}
+          {isLoading &&
+            Array.from({ length: PAGE_SIZE }, (_, i) => i).map((i) => (
               <div
                 key={i}
-                style={{
-                  height: 80,
-                  borderRadius: 'var(--radius-lg)',
-                  background: 'var(--border)',
-                  animation: 'pulse 1.5s ease-in-out infinite',
-                }}
-              />
-            ))}
-          </>
-        )}
-
-        {/* Error */}
-        {isError && (
-          <div
-            style={{
-              padding: 48,
-              textAlign: 'center',
-              fontSize: 13,
-              color: 'var(--destructive)',
-            }}
-          >
-            Failed to load recipes
-          </div>
-        )}
-
-        {/* Empty */}
-        {!isLoading && !isError && items.length === 0 && (
-          <div
-            style={{
-              padding: 48,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <BookOpen size={32} style={{ color: 'var(--foreground-subtle)' }} />
-            <span style={{ fontSize: 13, color: 'var(--foreground-muted)' }}>
-              No recipes found
-            </span>
-          </div>
-        )}
-
-        {/* Cards */}
-        {!isLoading &&
-          items.map((item) => (
-            <div
-              key={item.id}
-              style={{
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
-                overflow: 'hidden',
-                boxShadow: 'var(--shadow-sm)',
-              }}
-            >
-              {/* Card header */}
-              <div
-                onClick={() =>
-                  setExpandedId(expandedId === item.id ? null : item.id)
-                }
-                style={{
-                  padding: '14px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  cursor: 'pointer',
-                }}
+                className="recipe-card"
+                style={{ height: 300, animation: 'pulse 1.5s ease-in-out infinite' }}
               >
-                {/* Product info */}
-                <div style={{ flex: 1 }}>
+                <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ width: 80, height: 9, borderRadius: 99, background: 'var(--border)' }} />
+                  <div style={{ width: '70%', height: 18, borderRadius: 6, background: 'var(--border)' }} />
+                  <div style={{ width: '45%', height: 11, borderRadius: 6, background: 'var(--border)' }} />
+                </div>
+              </div>
+            ))}
+
+          {/* Cards */}
+          {!isLoading &&
+            items.map((item) => {
+              const isOpen = expandedId === item.id
+              const materials = item.recipe_materials ?? []
+              const shown = isOpen ? materials : materials.slice(0, PREVIEW_COUNT)
+              const hidden = materials.length - shown.length
+              const recipeType = (item as any).type as string | undefined
+              const yieldUom = (item.product_uom?.uom?.code ?? '').toLowerCase()
+              const recipeName = item.product_uom ? (getProductUomName(item.product_uom, item.product_uom.product?.name) || '—') : '—'
+              return (
+                <article
+                  key={item.id}
+                  className="recipe-card"
+                  data-open={isOpen}
+                  onClick={() => setExpandedId(isOpen ? null : item.id)}
+                >
+                  <div style={{ padding: '16px 18px 2px' }}>
+                    {/* SKU + tags */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, minHeight: 18 }}>
+                      {item.product_uom?.code && (<span
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          letterSpacing: '1.4px',
+                          textTransform: 'uppercase',
+                          color: 'var(--accent-light)',
+                        }}
+                      >
+                        SKU {item.product_uom.code}
+                      </span>)}
+                      <span style={{ flex: 1 }} />
+                      {recipeType && (
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            color: 'var(--foreground-muted)',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {recipeType}
+                        </span>
+                      )}
+                      {item.is_default && (
+                        <span
+                          title="Default recipe for this product"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3,
+                            padding: '1px 8px',
+                            background: 'var(--accent-light-bg)',
+                            color: 'var(--accent)',
+                            borderRadius: 99,
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                          }}
+                        >
+                          <Check size={10} />
+                          Default
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Title */}
+                    <h3
+                      title={recipeName}
+                      style={{
+                        margin: 0,
+                        fontFamily: 'var(--font-display)',
+                        fontSize: 17,
+                        fontWeight: 500,
+                        lineHeight: 1.3,
+                        color: 'var(--foreground)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {recipeName}
+                    </h3>
+                    <p
+                      style={{
+                        margin: '4px 0 0',
+                        fontFamily: 'var(--font-display)',
+                        fontStyle: 'italic',
+                        fontSize: 13,
+                        color: 'var(--foreground-muted)',
+                      }}
+                    >
+                      Makes {(item.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })} {yieldUom || item.product_uom?.uom?.name || ''}
+                      {' · '}
+                      {materials.length} {materials.length === 1 ? 'ingredient' : 'ingredients'}
+                    </p>
+                  </div>
+
+                  {/* Ingredients */}
+                  <div style={{ padding: '10px 18px 12px', flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        letterSpacing: '1.2px',
+                        textTransform: 'uppercase',
+                        color: 'var(--foreground-subtle)',
+                        paddingBottom: 8,
+                        marginBottom: 6,
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                    >
+                      Ingredients
+                    </div>
+                    {materials.length === 0 ? (
+                      <span style={{ display: 'block', minHeight: PREVIEW_COUNT * 24, fontSize: 13, fontStyle: 'italic', color: 'var(--foreground-subtle)' }}>
+                        No ingredients yet
+                      </span>
+                    ) : (
+                      <ul style={{ listStyle: 'none', margin: 0, padding: 0, minHeight: isOpen ? undefined : PREVIEW_COUNT * 24 }}>
+                        {shown.map((mat) => (
+                          <li
+                            key={mat.id}
+                            title={deductionTypeHint(mat.deduction_type)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'baseline',
+                              gap: 6,
+                              padding: '3px 0',
+                              fontSize: 12.5,
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: 'var(--foreground)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                              }}
+                            >
+                              {mat.product_uom ? (getProductUomName(mat.product_uom, mat.product_uom.product?.name) || '—') : '—'}
+                            </span>
+                            <span className="recipe-leader" />
+                            <span
+                              style={{
+                                fontVariantNumeric: 'tabular-nums',
+                                fontWeight: 600,
+                                color: 'var(--foreground)',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {(mat.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                              <span style={{ fontWeight: 400, color: 'var(--foreground-muted)', marginLeft: 4 }}>
+                                {(mat.product_uom?.uom?.code ?? '').toLowerCase()}
+                              </span>
+                            </span>
+                            {isOpen && (
+                              <span
+                                style={{
+                                  width: 62,
+                                  flexShrink: 0,
+                                  alignSelf: 'center',
+                                  textAlign: 'center',
+                                  padding: '1px 0',
+                                  borderRadius: 99,
+                                  fontSize: 10.5,
+                                  fontWeight: 600,
+                                  background: `var(--${deductionTypeTone(mat.deduction_type)}-bg)`,
+                                  color: `var(--${deductionTypeTone(mat.deduction_type)})`,
+                                }}
+                              >
+                                {deductionTypeLabel(mat.deduction_type)}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {!isOpen && (
+                      <span style={{ display: 'block', height: 18, marginTop: 4, fontSize: 12, fontStyle: 'italic', color: 'var(--foreground-muted)' }}>
+                        {hidden > 0 ? `+ ${hidden} more ${hidden === 1 ? 'ingredient' : 'ingredients'}` : ''}
+                      </span>
+                    )}
+                    {isOpen && materials.length > 0 && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: '4px 14px',
+                          marginTop: 10,
+                          paddingTop: 8,
+                          borderTop: '1px dashed var(--border)',
+                          fontSize: 11,
+                          color: 'var(--foreground-muted)',
+                        }}
+                      >
+                        {DEDUCTION_TYPE_OPTIONS.map((o) => (
+                          <span key={o.value} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                            <span
+                              style={{
+                                padding: '0 8px',
+                                borderRadius: 99,
+                                fontWeight: 600,
+                                background: `var(--${deductionTypeTone(o.value)}-bg)`,
+                                color: `var(--${deductionTypeTone(o.value)})`,
+                              }}
+                            >
+                              {o.label}
+                            </span>
+                            {o.hint.toLowerCase()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
                   <div
-                    style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '6px 10px 6px 18px',
+                      borderTop: '1px solid var(--border)',
+                    }}
                   >
                     <span
                       style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        color: 'var(--foreground)',
-                        fontFamily: 'var(--font-display)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--accent)',
+                        flex: 1,
                       }}
                     >
-                      {item.product_uom ? (getProductUomName(item.product_uom, item.product_uom.product?.name) || '—') : '—'}
+                      {isOpen ? 'Show less' : materials.length > PREVIEW_COUNT ? 'Full recipe' : 'Details'}
+                      <ChevronDown
+                        size={13}
+                        style={{ transform: isOpen ? 'rotate(180deg)' : undefined, transition: 'transform 150ms ease' }}
+                      />
                     </span>
-                    {item.is_default && (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3,
-                          padding: '1px 8px',
-                          background: 'var(--accent-light-bg)',
-                          color: 'var(--accent)',
-                          borderRadius: 'var(--radius-sm)',
-                          fontSize: 10,
-                          fontWeight: 700,
-                        }}
+                    <div style={{ display: 'flex', gap: 2 }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="v2-icon-btn"
+                        title="Print recipe for the kitchen"
+                        aria-label="Print recipe"
+                        onClick={() => printRecipe(item)}
                       >
-                        <Check size={10} />
-                        DEFAULT
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      UOM:{' '}
-                      <span style={{ fontWeight: 500 }}>
-                        {item.product_uom?.uom?.name ?? '—'}
-                      </span>
-                    </span>
-                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      Yields:{' '}
-                      <span
-                        style={{ fontWeight: 500, color: 'var(--foreground)' }}
-                      >
-                        {(item.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}{' '}
-                        {item.product_uom?.uom?.code ?? ''}
-                      </span>
-                    </span>
-                    <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>
-                      {item.recipe_materials?.length ?? 0} ingredient(s)
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div
-                  style={{ display: 'flex', gap: 4 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {canEdit && (<button
-                    onClick={() => {
-                      setEditData(item)
-                      setSheetOpen(true)
-                    }}
-                    style={{
-                      padding: 6,
-                      background: 'none',
-                      border: 'none',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer',
-                      color: 'var(--foreground-muted)',
-                      display: 'flex',
-                    }}>
-                    <Pencil size={14} />
-                  </button>)}
-                  {canDelete && (<button
-                    onClick={() => setDeleteConfirmId(item.id)}
-                    style={{
-                      padding: 6,
-                      background: 'none',
-                      border: 'none',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer',
-                      color: 'var(--destructive)',
-                      display: 'flex',
-                    }}>
-                    <Trash2 size={14} />
-                  </button>)}
-                </div>
-              </div>
-
-              {/* Expanded materials */}
-              {expandedId === item.id && (
-                <div
-                  style={{
-                    borderTop: '1px solid var(--border)',
-                    padding: '12px 20px',
-                    background: 'var(--background)',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: 'var(--foreground-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.6px',
-                      display: 'block',
-                      marginBottom: 8,
-                    }}
-                  >
-                    Ingredients
-                  </span>
-
-                  {/* Legend: what the deduction types mean */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '4px 14px',
-                      fontSize: 11,
-                      color: 'var(--foreground-muted)',
-                      marginBottom: 8,
-                    }}
-                  >
-                    {DEDUCTION_TYPE_OPTIONS.map((o) => (
-                      <span key={o.value} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <span
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 99,
-                            background: `var(--${deductionTypeTone(o.value)})`,
-                            flexShrink: 0,
+                        <Printer size={14} />
+                      </button>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="v2-icon-btn"
+                          title="Edit recipe"
+                          aria-label="Edit recipe"
+                          onClick={() => {
+                            setEditData(item)
+                            setSheetOpen(true)
                           }}
-                        />
-                        <strong style={{ color: 'var(--foreground)' }}>{o.label}</strong>
-                        {` — ${o.hint.toLowerCase()}`}
-                      </span>
-                    ))}
-                  </div>
-
-                  {item.recipe_materials && item.recipe_materials.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {item.recipe_materials.map((mat, idx) => (
-                        <div
-                          key={mat.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 10,
-                            padding: '6px 10px',
-                            background: 'var(--surface)',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--border)',
-                          }}
+                          >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="v2-icon-btn"
+                          title="Delete recipe"
+                          aria-label="Delete recipe"
+                          data-tone="danger"
+                          onClick={() => setDeleteConfirmId(item.id)}
                         >
-                          <span
-                            style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: 99,
-                              background: 'var(--accent-light-bg)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 10,
-                              fontWeight: 700,
-                              color: 'var(--accent)',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {idx + 1}
-                          </span>
-                          <span
-                            style={{
-                              flex: 1,
-                              fontSize: 13,
-                              fontWeight: 500,
-                              color: 'var(--foreground)',
-                            }}
-                          >
-                            {mat.product_uom ? (getProductUomName(mat.product_uom, mat.product_uom.product?.name) || '—') : '—'}
-                            {mat.product_uom?.uom?.name
-                              ? ` — ${mat.product_uom.uom.name}`
-                              : ''}
-                            {mat.product_uom?.uom?.code
-                              ? ` (${mat.product_uom.uom.code})`
-                              : ''}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              fontFamily: 'monospace',
-                              color: 'var(--foreground-muted)',
-                              padding: '1px 6px',
-                              background: 'var(--background)',
-                              borderRadius: 'var(--radius-sm)',
-                              border: '1px solid var(--border)',
-                            }}
-                          >
-                            {mat.product_uom?.uom?.code ?? ''}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: 'var(--foreground)',
-                              minWidth: 60,
-                              textAlign: 'right',
-                            }}
-                          >
-                            {(mat.qty ?? 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                          </span>
-                          <DeductionBadge value={mat.deduction_type} />
-                        </div>
-                      ))}
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <span style={{ fontSize: 13, color: 'var(--foreground-subtle)' }}>
-                      No ingredients defined
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-      </div>
-      {/* Pagination */}
-      <CustomPagination page={page} setPage={setPage} perPage={perPage} setPerPage={setPerPage} meta={meta} />
+                  </div>
+                </article>
+              )
+            })}
+        </div>
+      )}
       {/* Delete confirm dialog */}
       {deleteConfirmId !== null && (
         <div
@@ -775,6 +841,40 @@ export default function RecipesView() {
         editData={editData}
       />
       <style>{`
+        .recipe-book {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 14px;
+          align-items: start;
+        }
+        .recipe-card {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-top: 3px solid var(--accent);
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-sm);
+          cursor: pointer;
+          transition: box-shadow 150ms ease, border-color 150ms ease, transform 150ms ease;
+        }
+        .recipe-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+        .recipe-card[data-open="true"] { border-color: var(--accent-light); border-top-color: var(--accent); box-shadow: var(--shadow-md); }
+        .recipe-pager-btn { border: 1px solid var(--border) !important; background: var(--surface); }
+        .recipe-pager-btn:hover:not(:disabled) { border-color: var(--border-strong) !important; }
+        .recipe-leader {
+          flex: 1;
+          min-width: 16px;
+          border-bottom: 1px dotted var(--border-strong);
+          transform: translateY(-3px);
+        }
+        @media (min-width: 1440px) {
+          .recipe-book { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        }
+        @media (max-width: 480px) {
+          .recipe-book { grid-template-columns: minmax(0, 1fr); }
+        }
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }

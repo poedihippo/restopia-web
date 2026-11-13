@@ -12,6 +12,7 @@ import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
+import { periodEditBlock, blockedStyle } from '@/lib/actionGuards'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { ActiveSegment, FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -41,7 +42,6 @@ const schema = z.object({
   start_date: z.string().min(1, 'Start date is required'),
   end_date: z.string().min(1, 'End date is required'),
   is_active: z.boolean().default(true),
-  is_closed: z.boolean().default(false),
 })
 type FormValues = z.infer<typeof schema>
 
@@ -122,12 +122,12 @@ export default function PeriodsView() {
 
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema) as any,
-    defaultValues: { fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true, is_closed: false },
+    defaultValues: { fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true },
   })
 
   useEffect(() => {
-    if (editData) reset({ fiscal_year_id: editData.fiscal_year_id, name: editData.name, start_date: toInputDate(editData.start_date), end_date: toInputDate(editData.end_date), is_active: editData.is_active ?? true, is_closed: editData.is_closed ?? false })
-    else reset({ fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true, is_closed: false })
+    if (editData) reset({ fiscal_year_id: editData.fiscal_year_id, name: editData.name, start_date: toInputDate(editData.start_date), end_date: toInputDate(editData.end_date), is_active: editData.is_active ?? true })
+    else reset({ fiscal_year_id: 0, name: '', start_date: '', end_date: '', is_active: true })
   }, [editData, reset])
 
   const lockMutation = useMutation({
@@ -150,15 +150,17 @@ export default function PeriodsView() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (data: PeriodRequest) => periodsService.update(editData!.id, data),
+    mutationFn: (data: Partial<PeriodRequest>) => periodsService.update(editData!.id, data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['periods'] }); toast.success('Period updated'); setSheetOpen(false) },
     onError: (err: any) => toastMutationApiError(err, 'Failed to update'),
   })
 
   const isPending = createMutation.isPending || updateMutation.isPending
   const onSubmit = (values: FormValues) => {
-    if (editData) updateMutation.mutate(values as PeriodRequest)
-    else createMutation.mutate(values as PeriodRequest)
+    // is_closed is never sent on update; create always opens the period.
+    // Closing / reopening goes through the lock actions.
+    if (editData) updateMutation.mutate(values as Partial<PeriodRequest>)
+    else createMutation.mutate({ ...values, is_closed: false } as PeriodRequest)
   }
 
   const { mutate: exportExcel, isPending: isExporting } = useMutation({
@@ -262,12 +264,15 @@ export default function PeriodsView() {
                           ? <button title="Reopen period" onClick={() => setLockTarget({ period: item, action: 'reopen' })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><LockOpen size={14} /></button>
                           : <button title="Close period" onClick={() => setLockTarget({ period: item, action: 'close' })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Lock size={14} /></button>
                       )}
-                      {!item.is_closed && (
-                        <>
-                          {canUpdate && <button onClick={() => { setEditData(item); setSheetOpen(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Pencil size={14} /></button>}
-                          {canDelete && <button onClick={() => setDeleteConfirmId(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex' }}><Trash2 size={14} /></button>}
-                        </>
-                      )}
+                      {(() => {
+                        const reason = periodEditBlock(item)
+                        return (
+                          <>
+                            {canUpdate && <button onClick={() => { if (!reason) { setEditData(item); setSheetOpen(true) } }} disabled={!!reason} title={reason ?? 'Edit'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex', ...(reason ? blockedStyle : {}) }}><Pencil size={14} /></button>}
+                            {canDelete && <button onClick={() => { if (!reason) setDeleteConfirmId(item.id) }} disabled={!!reason} title={reason ?? 'Delete'} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--destructive)', display: 'flex', ...(reason ? blockedStyle : {}) }}><Trash2 size={14} /></button>}
+                          </>
+                        )
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -364,10 +369,6 @@ export default function PeriodsView() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
                   <input type="checkbox" {...register('is_active')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
                   Active
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', color: 'var(--foreground)' }}>
-                  <input type="checkbox" {...register('is_closed')} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
-                  Close Period
                 </label>
               </div>
             </form>

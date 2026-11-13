@@ -39,6 +39,14 @@ export const invoicesService = {
   create: (data: CreateInvoiceRequest) =>
     api.post<ApiResponse<unknown>>('/invoices', data),
 
+  /** Void an invoice (reverses its journal). Blocked when voided or paid. */
+  void: (id: number) =>
+    api.delete<ApiResponse<unknown>>(`/invoices/${id}`),
+
+  /** Superadmin only: lift the overdue-invoice block for a billed branch. */
+  unlockOverdue: (branchId: number) =>
+    api.post<ApiResponse<unknown>>('/invoices/unlock-overdue', { branch_id: branchId }),
+
   /** Preview of the cross-company handling fee for the create form. */
   handlingFee: (salesOrderIds: number[]) =>
     api.get<ApiResponse<InvoiceHandlingFeePreview>>('/invoices/handling-fee', {

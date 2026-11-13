@@ -14,6 +14,4 @@ export const operationRulesService = {
   update: (id: number, data: any) =>
     api.patch<ApiResponse<any>>(`/operation-rules/${id}`, data),
 
-  delete: (id: number) =>
-    api.delete<ApiResponse<any>>(`/operation-rules/${id}`),
 }

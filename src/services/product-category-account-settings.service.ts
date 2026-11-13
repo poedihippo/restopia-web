@@ -2,12 +2,14 @@ import api from '@/hooks/useApi'
 import type { ApiResponse, PaginatedData, ListParams } from '@/types/api'
 
 export interface ProductCategoryAccountSettingRequest {
+  branch_id: number
   product_category_id: number
   chart_of_account_id: number
   description?: string
 }
 
 export interface ProductCategoryAccountSettingUpdateRequest {
+  branch_id?: number
   product_category_id?: number
   chart_of_account_id?: number
   description?: string

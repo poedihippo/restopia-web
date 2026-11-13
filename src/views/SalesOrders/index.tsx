@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { PriceDisplay } from '@/components/PriceDisplay'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { formatDateShort, formatDateTime } from '@/utils/date'
+import { salesOrderDeleteBlock, blockedStyle } from '@/lib/actionGuards'
 
 const SETTLEMENT_META = {
   pending: { label: 'Pending', color: 'var(--foreground-muted)', bg: 'var(--background)' },
@@ -1095,11 +1096,14 @@ export default function SalesOrdersView() {
                       >
                         View
                       </button>
-                      {/* An order with partial returns can't be voided — return its remaining lines instead. */}
-                      {canDelete && !(Number(item.returned_amount ?? 0) > 0) && (
+                      {canDelete && (() => {
+                        const reason = salesOrderDeleteBlock(item)
+                        return (
                         <button
                           type="button"
-                          onClick={() => setDeleteTarget(item)}
+                          disabled={!!reason}
+                          title={reason ?? 'Delete'}
+                          onClick={() => { if (!reason) setDeleteTarget(item) }}
                           style={{
                             fontSize: 12,
                             padding: '4px 10px',
@@ -1108,11 +1112,13 @@ export default function SalesOrdersView() {
                             background: 'transparent',
                             cursor: 'pointer',
                             color: 'var(--destructive)',
+                            ...(reason ? blockedStyle : {}),
                           }}
                         >
                           Delete
                         </button>
-                      )}
+                        )
+                      })()}
                     </div>
                   </td>
                 </tr>

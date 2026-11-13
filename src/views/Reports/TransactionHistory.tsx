@@ -38,9 +38,9 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 
 const firstOfMonth = () => {
   const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
+  return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA')
 }
-const today = () => new Date().toISOString().split('T')[0]
+const today = () => new Date().toLocaleDateString('en-CA')
 
 const inputStyle: React.CSSProperties = {
   padding: '7px 10px',

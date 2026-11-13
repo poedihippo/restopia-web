@@ -1,0 +1,131 @@
+/**
+ * `reference_type` (snake_case table name, as the API returns it on journals,
+ * audit logs, …) → frontend route and label.
+ *
+ * Types with a dedicated detail page resolve to `<route>/{id}`; Operations,
+ * Shifts and Shift Rules open their detail drawer from `?id=`. The rest fall
+ * back to their list page so the link is still useful.
+ * `sellable_settlements` has no matching page, so it is omitted on purpose.
+ */
+const REFERENCE_ROUTES: Record<string, (id: number) => string> = {
+  companies: () => '/users/companies',
+  branches: () => '/users/branches',
+  roles: () => '/users/roles',
+  users: () => '/users',
+  media: () => '/media',
+  operation_rules: () => '/settings/operation-rules',
+  operations: (id) => `/settings/operations?id=${id}`,
+  shift_rules: (id) => `/settings/shift-rules?id=${id}`,
+  shifts: (id) => `/settings/shifts?id=${id}`,
+  product_categories: () => '/products/product-categories',
+  products: () => '/products',
+  uoms: () => '/products/uom',
+  product_conversions: () => '/products/product-conversions',
+  product_uoms: () => '/products/product-uoms',
+  product_uom_batches: () => '/products/product-uom-batches',
+  bundles: () => '/sales/bundles',
+  product_inventories: () => '/products/product-inventory',
+  stock_movements: () => '/products/product-inventory/stock-movements',
+  stock_opnames: (id) => `/products/product-inventory/stock-opname/${id}`,
+  recipes: () => '/production/recipes',
+  productions: (id) => `/production/${id}/detail`,
+  portionings: () => '/production/portioning',
+  suppliers: () => '/purchase/suppliers',
+  buyers: () => '/purchase/buyers',
+  taxes: () => '/accounting/taxes',
+  purchase_orders: (id) => `/purchase/purchase-orders/${id}/detail`,
+  deliveries: (id) => `/transfer/deliveries/${id}/detail`,
+  receipts: (id) => `/transfer/receipts/${id}/detail`,
+  invoices: (id) => `/transfer/invoices/${id}`,
+  customers: () => '/sales/customers',
+  vouchers: (id) => `/sales/vouchers/${id}/detail`,
+  sales_orders: (id) => `/sales/sales-orders/${id}/detail`,
+  sales_channels: () => '/sales/sales-channels',
+  payment_methods: () => '/settings/payment-methods',
+  payments: () => '/sales/payments',
+  account_categories: () => '/accounting/account-categories',
+  account_types: () => '/accounting/account-types',
+  chart_of_accounts: () => '/accounting/chart-of-accounts',
+  account_settings: () => '/accounting/account-settings',
+  product_category_account_settings: () => '/accounting/product-category-account-settings',
+  branch_account_settings: () => '/accounting/branch-account-settings',
+  buyer_account_settings: () => '/accounting/buyer-account-settings',
+  fiscal_years: () => '/accounting/fiscal-years',
+  periods: () => '/accounting/periods',
+  journals: (id) => `/accounting/journals?id=${id}`,
+  budgets: () => '/accounting/budgets',
+  price_lists: (id) => `/products/price-lists/${id}`,
+  stages: () => '/inventory/stages',
+  departments: () => '/settings/departments',
+  bank_accounts: () => '/accounting/bank-accounts',
+  cash_transactions: () => '/accounting/cash-transactions',
+  bank_reconciliations: (id) => `/accounting/bank-reconciliation?id=${id}`,
+}
+
+const REFERENCE_TYPE_LABELS: Record<string, string> = {
+  companies: 'Company',
+  branches: 'Branch',
+  roles: 'Role',
+  users: 'User',
+  media: 'Media',
+  operation_rules: 'Operation Rule',
+  operations: 'Operation',
+  shift_rules: 'Shift Rule',
+  shifts: 'Shift',
+  product_categories: 'Product Category',
+  products: 'Product',
+  uoms: 'UOM',
+  product_conversions: 'Product Conversion',
+  product_uoms: 'Product UOM',
+  product_uom_batches: 'Product UOM Batch',
+  bundles: 'Bundle',
+  product_inventories: 'Product Inventory',
+  stock_movements: 'Stock Movement',
+  stock_opnames: 'Stock Opname',
+  recipes: 'Recipe',
+  productions: 'Production',
+  portionings: 'Portioning',
+  suppliers: 'Supplier',
+  buyers: 'Buyer',
+  taxes: 'Tax',
+  purchase_orders: 'Purchase Order',
+  deliveries: 'Delivery',
+  receipts: 'Receipt',
+  invoices: 'Invoice',
+  customers: 'Customer',
+  vouchers: 'Voucher',
+  sales_orders: 'Sales Order',
+  sales_channels: 'Sales Channel',
+  payment_methods: 'Payment Method',
+  payments: 'Payment',
+  account_categories: 'Account Category',
+  account_types: 'Account Type',
+  chart_of_accounts: 'Chart of Account',
+  account_settings: 'Account Setting',
+  product_category_account_settings: 'Product Category Account Setting',
+  branch_account_settings: 'Branch Account Setting',
+  buyer_account_settings: 'Buyer Account Setting',
+  fiscal_years: 'Fiscal Year',
+  periods: 'Period',
+  journals: 'Journal',
+  budgets: 'Budget',
+  price_lists: 'Price List',
+  stages: 'Stage',
+  departments: 'Department',
+  bank_accounts: 'Bank Account',
+  cash_transactions: 'Cash Transaction',
+  bank_reconciliations: 'Bank Reconciliation',
+}
+
+/** Human label for a reference type ("sales_orders" → "Sales Order"). */
+export const referenceLabel = (type?: string | null): string => {
+  if (!type) return ''
+  return REFERENCE_TYPE_LABELS[type] ?? type.replace(/_/g, ' ')
+}
+
+/** Route for a reference, or null when the type has no matching page. */
+export const referenceHref = (type?: string | null, id?: number | null): string | null => {
+  if (!type || !id) return null
+  const build = REFERENCE_ROUTES[type]
+  return build ? build(Number(id)) : null
+}

@@ -8,6 +8,8 @@ import { useActiveBranchProductTypes } from '@/hooks/useProductTypes';
 import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
+  ListTodo,
+  CircleHelp,
   ShoppingCart,
   Factory,
   Warehouse,
@@ -238,12 +240,16 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: 'ACCOUNTING',
     items: [
+      // What an accountant should do next (open tasks across the accounting flow).
+      { label: 'Dashboard', href: '/accounting/dashboard', icon: ListTodo, permission: ['accounting-dashboard.menu', 'journal.menu'] },
       {
         label: 'Transactions',
         icon: Landmark,
         children: [
           { label: 'Journals', href: '/accounting/journals', permission: 'journal.menu' },
+          { label: 'Opening Balances', href: '/accounting/opening-balances', permission: 'journal.menu' },
           { label: 'Cash Transactions', href: '/accounting/cash-transactions', permission: 'cash-transaction.menu' },
+          { label: 'Bank Reconciliation', href: '/accounting/bank-reconciliation', permission: 'bank-reconciliation.menu' },
           { label: 'Budgets', href: '/accounting/budgets', permission: 'budget.menu' },
         ],
       },
@@ -297,6 +303,8 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: 'Product Category', href: '/accounting/product-category-account-settings', permission: 'product-category-account-setting.menu' },
         ],
       },
+      // Answers to common accounting questions (static content, no backend).
+      { label: 'FAQ', href: '/accounting/faq', icon: CircleHelp, permission: ['accounting-dashboard.menu', 'journal.menu'] },
     ],
   },
   {
@@ -544,6 +552,7 @@ export default function AppSidebar({ mobileOpen = false }: AppSidebarProps = {})
     <aside
       ref={asideRef}
       className="app-sidebar"
+      data-tour="sidebar"
       data-mobile-open={mobileOpen}
       style={{
         width: collapsed ? 'var(--sidebar-width-collapsed)' : 'var(--sidebar-width)',
@@ -690,7 +699,7 @@ export default function AppSidebar({ mobileOpen = false }: AppSidebarProps = {})
                     >
                       <Icon size={16} />
                       {!collapsed && (
-                        <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{item.label}</span>
                       )}
                     </Link>
                   );

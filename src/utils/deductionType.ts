@@ -22,11 +22,11 @@ export const DEDUCTION_TYPE_OPTIONS = [
     value: 'deduct_on_sold',
     label: 'Terjual',
     hint: 'Terpotong saat produk terjual',
-    tone: 'accent',
+    tone: 'warning',
   },
 ] as const
 
-/** Colour token name (info / accent) for a deduction type. */
+/** Colour token name (info / warning) for a deduction type. */
 export const deductionTypeTone = (value?: string | null): string =>
   DEDUCTION_TYPE_OPTIONS.find((o) => o.value === value)?.tone ??
   DEDUCTION_TYPE_OPTIONS[0].tone

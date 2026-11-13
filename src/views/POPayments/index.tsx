@@ -9,15 +9,19 @@ import { paymentsService } from '@/services/payments.service'
 import { suppliersService } from '@/services/suppliers.service'
 import { bankAccountsService } from '@/services/bank-accounts.service'
 import { useAuth } from '@/hooks/useAuth'
+import ReferenceLink from '@/components/ReferenceLink'
+import { paymentVoidBlock, blockedStyle } from '@/lib/actionGuards'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
 import { toastMutationApiError } from '@/utils/apiError'
 import SearchableSelect from '@/components/SearchableSelect'
+import LocalizedNumberInput from '@/components/LocalizedNumberInput'
+import { fetchAllPages } from '@/utils/salesReport'
 import { CreditCard, Loader2, Ban, Wallet } from 'lucide-react'
 
 const rp = (n: number | string | null | undefined) =>
   `Rp ${Number(n ?? 0).toLocaleString('id-ID')}`
 
-const todayInputDate = () => new Date().toISOString().split('T')[0]
+const todayInputDate = () => new Date().toLocaleDateString('en-CA')
 
 interface SupplierPO {
   id: number
@@ -140,18 +144,33 @@ export default function POPaymentsView() {
   const { data: posData, isLoading: posLoading } = useQuery({
     queryKey: ['po-payments-pos', supplierId],
     enabled: supplierId > 0,
-    queryFn: () =>
-      purchaseOrdersService
-        .list({
-          per_page: 100,
-          sort: '-created_at',
-          'filter[type]': 'supplier',
-          'filter[supplier_id]': supplierId,
-          include: 'supplier,purchase_order_details',
-        } as any)
-        .then((r) => r.data),
+    // Only unpaid POs, filtered on the server (filter[payment_status] is an exact
+    // match, so one request per status) and paged through meta.last_page instead
+    // of relying on a per_page cap.
+    queryFn: async () => {
+      const lists = await Promise.all(
+        ['pending', 'partial'].map((paymentStatus) =>
+          fetchAllPages((page) =>
+            purchaseOrdersService
+              .list({
+                page,
+                per_page: 200,
+                sort: '-created_at',
+                'filter[type]': 'supplier',
+                'filter[supplier_id]': supplierId,
+                'filter[payment_status]': paymentStatus,
+                include: 'supplier,purchase_order_details',
+              } as any)
+              .then((r) => r.data),
+          ),
+        ),
+      )
+      return lists.flat()
+    },
   })
-  const supplierPOs: SupplierPO[] = (posData as any)?.data ?? []
+  const supplierPOs: SupplierPO[] = (posData as any[]) ?? []
+  // Allocations only carry the PO id; show the PO code when it is loaded here.
+  const poCodeById = new Map<number, string>((supplierPOs as any[]).filter((po) => po?.code).map((po) => [Number(po.id), String(po.code)]))
 
   // Paid / outstanding come straight from the PO (total_payment /
   // remaining_payment) — summing a capped payments list undercounted once
@@ -187,12 +206,13 @@ export default function POPaymentsView() {
     })
   }
 
-  const setAllocationAmount = (poId: number, outstanding: number, raw: string) => {
-    const digits = raw.replace(/[^\d]/g, '')
-    let value = digits === '' ? 0 : parseInt(digits, 10)
+  // Amount comes parsed from LocalizedNumberInput (id-ID: "." thousands, ","
+  // decimals) so cents are kept.
+  const setAllocationAmount = (poId: number, outstanding: number, raw: number) => {
+    let value = Math.round((Number(raw) || 0) * 100) / 100
     if (value > outstanding) {
+      if (allocations[poId] !== outstanding) toast.warning('Amount capped at outstanding balance')
       value = outstanding
-      toast.warning('Amount capped at outstanding balance')
     }
     if (value < 0) value = 0
     setAllocations((prev) => ({ ...prev, [poId]: value }))
@@ -433,13 +453,11 @@ export default function POPaymentsView() {
                               </span>
                             </td>
                             <td style={tdStyle}>
-                              <input
-                                type="text"
-                                inputMode="numeric"
+                              <LocalizedNumberInput
                                 disabled={!checked}
-                                value={checked ? (allocations[po.id] ?? 0).toLocaleString('id-ID') : ''}
+                                value={checked ? (allocations[po.id] ?? 0) : null}
                                 placeholder="0"
-                                onChange={(e) => setAllocationAmount(po.id, outstanding, e.target.value)}
+                                onChange={(n) => setAllocationAmount(po.id, outstanding, n)}
                                 style={{
                                   ...inputBase,
                                   padding: '6px 10px',
@@ -625,8 +643,11 @@ export default function POPaymentsView() {
                             {(p.allocations ?? [])
                               .filter((a) => a.purchase_order_id != null)
                               .map((a, idx) => (
-                                <span key={idx} style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--accent)' }}>
-                                  PO-{a.purchase_order_id} ({rp(a.amount)})
+                                <span key={idx} style={{ fontSize: 12 }}>
+                                  <ReferenceLink type="purchase_orders" id={a.purchase_order_id}>
+                                    {poCodeById.get(Number(a.purchase_order_id)) ?? 'Purchase order'}
+                                    <span style={{ color: 'var(--foreground-muted)', fontWeight: 400 }}> · {rp(a.amount)}</span>
+                                  </ReferenceLink>
                                 </span>
                               ))}
                           </div>
@@ -635,11 +656,14 @@ export default function POPaymentsView() {
                         )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right' }}>
-                        {canPay && !p.is_reversed && (
+                        {canPay && (() => {
+                          const reason = paymentVoidBlock(p)
+                          return (
                           <button
                             type="button"
-                            onClick={() => setVoidConfirmId(p.id)}
-                            title="Void"
+                            onClick={() => { if (!reason) setVoidConfirmId(p.id) }}
+                            disabled={!!reason}
+                            title={reason ?? 'Void'}
                             style={{
                               padding: 6,
                               background: 'none',
@@ -648,11 +672,13 @@ export default function POPaymentsView() {
                               cursor: 'pointer',
                               color: 'var(--foreground-muted)',
                               display: 'inline-flex',
+                              ...(reason ? blockedStyle : {}),
                             }}
                           >
                             {isVoiding ? <Loader2 size={14} className="animate-spin" /> : <Ban size={14} />}
                           </button>
-                        )}
+                          )
+                        })()}
                       </td>
                     </tr>
                   )

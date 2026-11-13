@@ -15,6 +15,7 @@ import { X, Loader2, Check, AlertTriangle } from 'lucide-react'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useInfiniteOptions } from '@/hooks/useInfiniteOptions'
+import { BRANCH_OVERRIDABLE_KEYS, PREMIERE_ONLY_KEYS } from '@/lib/actionGuards'
 
 const createSchema = z.object({
   branch_id: z.coerce.number().min(1, 'Branch is required'),
@@ -44,7 +45,6 @@ interface Props {
   editData?: any | null
 }
 
-const PICKUP_POINT_DISABLED_KEYS = ['ar_trade', 'ar_trade_customer', 'ap_trade']
 
 export default function BranchAccountSettingSheet({ open, onClose, editData }: Props) {
   const qc = useQueryClient()
@@ -121,9 +121,24 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
     return Array.from(keyMap.values()).sort((a, b) => a.key.localeCompare(b.key))
   }, [accountSettingsData])
 
+  // Keys this branch already maps — the API rejects a second row per branch + key.
+  const { data: branchMappingsData } = useQuery({
+    queryKey: ['branch-account-settings', 'by-branch', branchId],
+    queryFn: () => branchAccountSettingsService.list({ 'filter[branch_id]': branchId, per_page: 100 } as any).then(r => r.data),
+    enabled: open && !!branchId,
+  })
+  const mappedKeyIds = useMemo(() => {
+    const rows: any[] = (branchMappingsData as any)?.data ?? []
+    return new Set(rows.filter(r => r.id !== editData?.id).map(r => Number(r.account_setting_key_id)))
+  }, [branchMappingsData, editData?.id])
+
+  // Only branch-overridable keys may be mapped per branch; premiere-only keys
+  // are refused on a pickup point (branch-account-settings/.../mapping_guard.go).
   const availableKeys = useMemo(() => {
-    return accountKeys.filter(k => !isPickupPoint || !PICKUP_POINT_DISABLED_KEYS.includes(k.key))
-  }, [accountKeys, isPickupPoint])
+    return accountKeys
+      .filter(k => BRANCH_OVERRIDABLE_KEYS.includes(k.key) || k.id === editData?.account_setting_key_id)
+      .filter(k => !isPickupPoint || !PREMIERE_ONLY_KEYS.includes(k.key))
+  }, [accountKeys, isPickupPoint, editData?.account_setting_key_id])
 
   const selectedKeyInfo = accountKeys.find(k => k.id === keyId)
 
@@ -241,7 +256,9 @@ export default function BranchAccountSettingSheet({ open, onClose, editData }: P
               >
                 <option value="">Select key...</option>
                 {availableKeys.map(k => (
-                  <option key={k.id} value={k.id}>{k.label} ({k.key})</option>
+                  <option key={k.id} value={k.id} disabled={mappedKeyIds.has(k.id)}>
+                    {k.label} ({k.key}){mappedKeyIds.has(k.id) ? ' — already mapped' : ''}
+                  </option>
                 ))}
               </select>
               {errors.account_setting_key_id && <span style={errorStyle}>{errors.account_setting_key_id.message as string}</span>}

@@ -7,6 +7,7 @@ import { Download } from 'lucide-react'
 import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import api from '@/hooks/useApi'
+import FinancePeriodSelect from '../FinancePeriodSelect'
 
 export default function CustomerStatementsView() {
   const [customerId, setCustomerId] = useState('')
@@ -50,6 +51,10 @@ export default function CustomerStatementsView() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>Period end (Optional)</label>
+            <FinancePeriodSelect asOf={asOfDate} onChange={(p) => setAsOfDate(p.end_date)} style={{ padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: 'var(--radius-md)', background: '#ffffff', color: '#111827', outline: 'none' }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 13, fontWeight: 500 }}>As Of Date (Optional)</label>
