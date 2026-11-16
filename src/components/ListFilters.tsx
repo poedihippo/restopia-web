@@ -280,23 +280,69 @@ export function FilterInput({ style, ...props }: React.InputHTMLAttributes<HTMLI
 }
 
 /** From – To date pair on one line. */
+// Local dates (en-CA = YYYY-MM-DD), same presets as the dashboards.
+const isoDay = (offsetDays = 0) => {
+  const d = new Date()
+  d.setDate(d.getDate() - offsetDays)
+  return d.toLocaleDateString('en-CA')
+}
+const monthStart = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+const DATE_PRESETS: { key: string; label: string; from: () => string; to: () => string }[] = [
+  { key: 'today', label: 'Hari ini', from: () => isoDay(0), to: () => isoDay(0) },
+  { key: '7d', label: '7 hari', from: () => isoDay(6), to: () => isoDay(0) },
+  { key: 'month', label: 'Bulan ini', from: monthStart, to: () => isoDay(0) },
+  { key: '30d', label: '30 hari', from: () => isoDay(29), to: () => isoDay(0) },
+]
+
+/**
+ * From–to date filter with quick presets (Hari ini / 7 hari / Bulan ini /
+ * 30 hari) above the two date inputs. A preset just fills both inputs, so
+ * every page keeps its own from/to state and API params unchanged.
+ */
 export function DateRange({
   from,
   to,
   onFromChange,
   onToChange,
+  presets = true,
 }: {
   from: string
   to: string
   onFromChange: (value: string) => void
   onToChange: (value: string) => void
+  /** Hide the preset chips (e.g. where only one end of the range makes sense). */
+  presets?: boolean
 }) {
   const dateStyle: React.CSSProperties = { ...filterControlStyle, flex: 1, minWidth: 0, padding: '0 8px', fontSize: 12 }
+  const activePreset = DATE_PRESETS.find((p) => p.from() === from && p.to() === to)?.key
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <input type="date" aria-label="From" value={from} max={to || undefined} onChange={(e) => onFromChange(e.target.value)} style={dateStyle} />
-      <span style={{ color: 'var(--foreground-subtle)', fontSize: 12 }}>–</span>
-      <input type="date" aria-label="To" value={to} min={from || undefined} onChange={(e) => onToChange(e.target.value)} style={dateStyle} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {presets && (
+        <div className="v2-seg" role="group" aria-label="Periode" style={{ display: 'flex', width: '100%', boxSizing: 'border-box' }}>
+          {DATE_PRESETS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              aria-selected={activePreset === p.key}
+              onClick={() => {
+                onFromChange(p.from())
+                onToChange(p.to())
+              }}
+              style={{ flex: 1, whiteSpace: 'nowrap' }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input type="date" aria-label="From" value={from} max={to || undefined} onChange={(e) => onFromChange(e.target.value)} style={dateStyle} />
+        <span style={{ color: 'var(--foreground-subtle)', fontSize: 12 }}>–</span>
+        <input type="date" aria-label="To" value={to} min={from || undefined} onChange={(e) => onToChange(e.target.value)} style={dateStyle} />
+      </div>
     </div>
   )
 }
