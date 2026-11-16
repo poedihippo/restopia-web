@@ -61,16 +61,16 @@ const daysAgo = (n: number) => {
 }
 
 const PRESETS: { key: string; label: string; from: () => string; to: () => string }[] = [
-  { key: 'today', label: 'Today', from: todayStr, to: todayStr },
-  { key: '7d', label: '7 days', from: () => daysAgo(6), to: todayStr },
-  { key: 'month', label: 'This month', from: firstOfMonth, to: todayStr },
-  { key: '30d', label: '30 days', from: () => daysAgo(29), to: todayStr },
+  { key: 'today', label: 'Hari ini', from: todayStr, to: todayStr },
+  { key: '7d', label: '7 hari', from: () => daysAgo(6), to: todayStr },
+  { key: 'month', label: 'Bulan ini', from: firstOfMonth, to: todayStr },
+  { key: '30d', label: '30 hari', from: () => daysAgo(29), to: todayStr },
 ]
 
 const PAYMENT_META: Record<string, { label: string; color: string; bg: string }> = {
-  paid: { label: 'Paid', color: 'var(--success)', bg: 'var(--success-bg)' },
-  partial: { label: 'Partial', color: 'var(--warning)', bg: 'var(--warning-bg)' },
-  pending: { label: 'Unpaid', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
+  paid: { label: 'Lunas', color: 'var(--success)', bg: 'var(--success-bg)' },
+  partial: { label: 'Sebagian', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  pending: { label: 'Belum bayar', color: 'var(--destructive)', bg: 'var(--destructive-bg)' },
 }
 
 type Tone = 'lavender' | 'mint' | 'blue' | 'coral' | 'gold'
@@ -86,18 +86,18 @@ const cardStyle: React.CSSProperties = {
 }
 
 const MOTIVATIONS = [
-  'Every great batch starts with a single step. Let’s make today sweet.',
-  'Small progress is still progress — keep it rolling.',
-  'Quality is never an accident; it’s always the result of effort.',
-  'Good things take time, just like the best chocolate.',
-  'Do it with passion or not at all.',
-  'Today’s effort is tomorrow’s success.',
-  'Customers remember how you made them feel. Make it a good one.',
-  'Consistency beats intensity. Show up and do the work.',
-  'Great teams bake great results together.',
-  'Focus on the next right thing, then the next one.',
-  'Your hard work is the secret ingredient.',
-  'Make today so good that yesterday gets jealous.',
+  'Setiap adonan hebat dimulai dari satu langkah. Yuk, bikin hari ini manis.',
+  'Kemajuan kecil tetap kemajuan — terus jalan.',
+  'Kualitas bukan kebetulan; selalu hasil dari usaha.',
+  'Hal baik butuh waktu, seperti cokelat terbaik.',
+  'Kerjakan dengan sepenuh hati, atau tidak sama sekali.',
+  'Usaha hari ini adalah keberhasilan esok hari.',
+  'Pelanggan ingat bagaimana kita membuat mereka merasa. Buat yang terbaik.',
+  'Konsisten mengalahkan sesekali ngebut. Datang dan kerjakan.',
+  'Tim yang hebat memanggang hasil yang hebat bersama.',
+  'Fokus pada langkah benar berikutnya, lalu yang berikutnya lagi.',
+  'Kerja kerasmu adalah bahan rahasianya.',
+  'Jadikan hari ini begitu baik sampai kemarin iri.',
 ]
 
 const pickMotivation = (current?: string) => {
@@ -135,7 +135,7 @@ function WelcomeArt() {
 }
 
 const greetingFor = (hour: number) =>
-  hour < 11 ? 'Good morning' : hour < 15 ? 'Good afternoon' : hour < 19 ? 'Good evening' : 'Good night'
+  hour < 11 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 19 ? 'Selamat sore' : 'Selamat malam'
 
 // Blocks that fade/rise in as they scroll into view; charts and lists mount
 // late, so new matches are picked up by a MutationObserver.
@@ -268,9 +268,9 @@ function Forbidden({ what }: { what: string }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', textAlign: 'center' }}>
       <ShieldOff size={22} color="var(--border-strong)" />
-      <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 500, color: 'var(--foreground-muted)' }}>Access restricted</div>
+      <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 500, color: 'var(--foreground-muted)' }}>Akses dibatasi</div>
       <div style={{ marginTop: 2, fontSize: 12, color: 'var(--foreground-subtle)' }}>
-        You don&apos;t have permission to view {what}.
+        Anda tidak punya izin untuk melihat {what}.
       </div>
     </div>
   )
@@ -465,57 +465,57 @@ export default function DashboardView() {
     loading?: boolean
   }> = [
     {
-      label: 'Sales Orders',
+      label: 'Sales Order',
       icon: ShoppingBag,
       tone: 'lavender',
       value: formatNum(salesOrders?.total ?? metricsData?.count_final_sales_orders ?? 0),
-      hint: 'final orders',
+      hint: 'pesanan final',
       change: salesOrders?.change_pct,
       href: '/sales/sales-orders',
       loading: salesOrders ? isChartsLoading : isMetricsLoading,
     },
     avgOrder != null
-      ? { label: 'Avg. Order Value', icon: Trophy, tone: 'gold', value: formatRpShort(avgOrder), full: formatRp(avgOrder), hint: 'revenue per order' }
+      ? { label: 'Rata-rata per Pesanan', icon: Trophy, tone: 'gold', value: formatRpShort(avgOrder), full: formatRp(avgOrder), hint: 'pendapatan per pesanan' }
       : {
-          label: 'Production',
+          label: 'Produksi',
           icon: Factory,
           tone: 'mint',
           value: formatNum(productions?.total ?? metricsData?.count_final_production_details ?? 0),
-          hint: productions ? 'final productions' : 'items produced',
+          hint: productions ? 'produksi final' : 'item diproduksi',
           change: productions?.change_pct,
           href: '/production',
           loading: productions ? isChartsLoading : isMetricsLoading,
         },
     spending
-      ? { label: 'Purchase Spend', icon: PackageSearch, tone: 'blue', value: formatRpShort(spending.total), full: formatRp(spending.total), hint: 'purchasing', change: spending.change_pct, href: '/purchase/purchase-orders', loading: isChartsLoading }
+      ? { label: 'Belanja Pembelian', icon: PackageSearch, tone: 'blue', value: formatRpShort(spending.total), full: formatRp(spending.total), hint: 'pembelian', change: spending.change_pct, href: '/purchase/purchase-orders', loading: isChartsLoading }
       : {
-          label: 'Purchase Orders',
+          label: 'Purchase Order',
           icon: PackageSearch,
           tone: 'blue',
           value: formatNum(metricsData?.count_final_purchase_orders ?? 0),
-          hint: 'final orders',
+          hint: 'PO final',
           href: '/purchase/purchase-orders',
           loading: isMetricsLoading,
         },
     avgOrder != null
       ? {
-          label: 'Production',
+          label: 'Produksi',
           icon: Factory,
           tone: 'mint',
           value: formatNum(productions?.total ?? metricsData?.count_final_production_details ?? 0),
-          hint: productions ? 'final productions' : 'items produced',
+          hint: productions ? 'produksi final' : 'item diproduksi',
           change: productions?.change_pct,
           href: '/production',
           loading: productions ? isChartsLoading : isMetricsLoading,
         }
-      : { label: 'Pending Payments', icon: Clock, tone: 'coral', value: formatRp(pendingPay), hint: 'awaiting payment', loading: isMetricsLoading },
+      : { label: 'Pembayaran Tertunda', icon: Clock, tone: 'coral', value: formatRp(pendingPay), hint: 'menunggu pembayaran', loading: isMetricsLoading },
   ]
 
   const exportBranchName =
     isOwner && chartBranchId !== ''
-      ? ownerBranches.find((b: any) => Number(b.id) === chartBranchId)?.name ?? `Branch #${chartBranchId}`
+      ? ownerBranches.find((b: any) => Number(b.id) === chartBranchId)?.name ?? `Cabang #${chartBranchId}`
       : chartsData?.scope?.mode === 'company'
-        ? 'All branches'
+        ? 'Semua cabang'
         : user?.branch?.name ?? '—'
   const fmtDay = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -523,27 +523,27 @@ export default function DashboardView() {
     const kpis: [string, any][] = [
       ...(revenue
         ? ([
-            ['Revenue', money(revenue.total)],
-            ['Revenue change vs previous period (%)', revenue.change_pct ?? ''],
+            ['Pendapatan', money(revenue.total)],
+            ['Perubahan pendapatan vs periode sebelumnya (%)', revenue.change_pct ?? ''],
           ] as [string, any][])
         : []),
-      ['Sales orders', salesOrders?.total ?? Number(metricsData?.count_final_sales_orders ?? 0)],
-      ...(salesOrders?.change_pct != null ? ([['Sales orders change (%)', salesOrders.change_pct]] as [string, any][]) : []),
-      ...(avgOrder != null ? ([['Average order value', money(avgOrder)]] as [string, any][]) : []),
-      ['Payments collected', money(collected)],
-      ['Outstanding payments', money(pendingPay)],
-      ['Collected share (%)', Math.round(collectedPct * 10) / 10],
+      ['Sales order', salesOrders?.total ?? Number(metricsData?.count_final_sales_orders ?? 0)],
+      ...(salesOrders?.change_pct != null ? ([['Perubahan sales order (%)', salesOrders.change_pct]] as [string, any][]) : []),
+      ...(avgOrder != null ? ([['Rata-rata per pesanan', money(avgOrder)]] as [string, any][]) : []),
+      ['Pembayaran diterima', money(collected)],
+      ['Pembayaran belum diterima', money(pendingPay)],
+      ['Porsi diterima (%)', Math.round(collectedPct * 10) / 10],
       ...(spending
         ? ([
-            ['Purchase spend', money(spending.total)],
-            ['Purchase spend change (%)', spending.change_pct ?? ''],
+            ['Belanja pembelian', money(spending.total)],
+            ['Perubahan belanja pembelian (%)', spending.change_pct ?? ''],
           ] as [string, any][])
         : []),
-      ['Purchase orders (final)', Number(metricsData?.count_final_purchase_orders ?? 0)],
-      ['Production (final)', productions?.total ?? Number(metricsData?.count_final_production_details ?? 0)],
+      ['Purchase order (final)', Number(metricsData?.count_final_purchase_orders ?? 0)],
+      ['Produksi (final)', productions?.total ?? Number(metricsData?.count_final_production_details ?? 0)],
     ]
     const daysLabel = (d: number | null, past: string, future: string) =>
-      d == null ? '' : d < 0 ? `${-d}d ${past}` : d === 0 ? 'Today' : `${d}d ${future}`
+      d == null ? '' : d < 0 ? `${-d} hari ${past}` : d === 0 ? 'Hari ini' : `${d} hari ${future}`
     exportDashboardExcel({
       branch: exportBranchName,
       period: `${fmtDay(dateFrom)} – ${fmtDay(dateTo)} (${chartInterval})`,
@@ -551,44 +551,44 @@ export default function DashboardView() {
       charts: chartsData,
       lists: [
         {
-          name: 'Pending Fulfillment',
-          head: ['Order', 'Customer', 'Fulfillment date', 'Status'],
+          name: 'Menunggu Dipenuhi',
+          head: ['Pesanan', 'Pelanggan', 'Tanggal pemenuhan', 'Status'],
           rows: pendingFulfillment.map((o: any) => [
             o.code,
-            o.customer_name || o.customer?.name || 'Walk-in',
+            o.customer_name || o.customer?.name || 'Pelanggan umum',
             formatDateShort(o.fulfillment_date),
-            daysLabel(daysUntil(o.fulfillment_date), 'late', 'left'),
+            daysLabel(daysUntil(o.fulfillment_date), 'terlambat', 'lagi'),
           ]),
         },
         {
-          name: 'Low Stock',
-          head: ['Name', 'Batch', 'Stock'],
+          name: 'Stok Menipis',
+          head: ['Nama', 'Batch', 'Stok'],
           rows: lowStock.map((o: any) => [inventoryName(o), batchCodeOf(o), Number(o.stock ?? 0)]),
         },
         {
-          name: 'Expiring Soon',
-          head: ['Name', 'Batch', 'Expiry', 'Stock', 'Status'],
-          rows: expiring.map((o: any) => [inventoryName(o), batchCodeOf(o), expiryOf(o) ? formatDateShort(expiryOf(o)) : '', Number(o.stock ?? 0), daysLabel(daysUntil(expiryOf(o)), 'ago', 'left')]),
+          name: 'Segera Kedaluwarsa',
+          head: ['Nama', 'Batch', 'Kedaluwarsa', 'Stok', 'Status'],
+          rows: expiring.map((o: any) => [inventoryName(o), batchCodeOf(o), expiryOf(o) ? formatDateShort(expiryOf(o)) : '', Number(o.stock ?? 0), daysLabel(daysUntil(expiryOf(o)), 'lalu', 'lagi')]),
         },
         {
-          name: 'Expired',
-          head: ['Name', 'Batch', 'Expiry', 'Stock', 'Status'],
-          rows: expired.map((o: any) => [inventoryName(o), batchCodeOf(o), expiryOf(o) ? formatDateShort(expiryOf(o)) : '', Number(o.stock ?? 0), daysLabel(daysUntil(expiryOf(o)), 'ago', 'left')]),
+          name: 'Kedaluwarsa',
+          head: ['Nama', 'Batch', 'Kedaluwarsa', 'Stok', 'Status'],
+          rows: expired.map((o: any) => [inventoryName(o), batchCodeOf(o), expiryOf(o) ? formatDateShort(expiryOf(o)) : '', Number(o.stock ?? 0), daysLabel(daysUntil(expiryOf(o)), 'lalu', 'lagi')]),
         },
         {
-          name: 'Recent Sales Orders',
-          head: ['Order', 'Customer', 'Date', 'Payment', 'Total'],
+          name: 'Sales Order Terbaru',
+          head: ['Pesanan', 'Pelanggan', 'Tanggal', 'Pembayaran', 'Total'],
           rows: recentOrders.map((o: any) => [
             o.code,
-            o.customer_name || o.customer?.name || 'Walk-in',
+            o.customer_name || o.customer?.name || 'Pelanggan umum',
             formatDateShort(o.date),
             PAYMENT_META[o.payment_status as string]?.label ?? o.payment_status ?? '',
             money(o.total_price),
           ]),
         },
         {
-          name: 'Top Selling',
-          head: ['#', 'Name', 'Sold'],
+          name: 'Terlaris',
+          head: ['#', 'Nama', 'Terjual'],
           rows: topSold.map((o: any, i: number) => [i + 1, inventoryName(o), Number(o.total_sold ?? 0)]),
         },
       ],
@@ -630,7 +630,7 @@ export default function DashboardView() {
               )}
             </span>
           )}
-          <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{hint} in period</span>
+          <span style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>{hint} dalam periode</span>
         </span>
       </>
     )
@@ -662,7 +662,7 @@ export default function DashboardView() {
       <div className="dash-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 500, margin: 0, color: 'var(--foreground)', letterSpacing: '-0.02em' }}>
-            Dashboard
+            Outlet Dashboard
           </h1>
           <p style={{ fontSize: 12.5, color: 'var(--foreground-muted)', margin: '2px 0 0' }}>
             {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
@@ -670,7 +670,7 @@ export default function DashboardView() {
         </div>
 
         <div className="dash-filters" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <div className="v2-seg dash-presets" role="tablist" aria-label="Period">
+          <div className="v2-seg dash-presets" role="tablist" aria-label="Periode">
             {PRESETS.map((p) => (
               <button
                 key={p.key}
@@ -686,20 +686,20 @@ export default function DashboardView() {
               </button>
             ))}
           </div>
-          <input type="date" className="v2-input" value={dateFrom} max={dateTo} onChange={(e) => setDateFrom(e.target.value)} aria-label="From" />
+          <input type="date" className="v2-input" value={dateFrom} max={dateTo} onChange={(e) => setDateFrom(e.target.value)} aria-label="Dari" />
           <span className="dash-dash" style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>–</span>
-          <input type="date" className="v2-input" value={dateTo} min={dateFrom} onChange={(e) => setDateTo(e.target.value)} aria-label="To" />
+          <input type="date" className="v2-input" value={dateTo} min={dateFrom} onChange={(e) => setDateTo(e.target.value)} aria-label="Sampai" />
           {/* Owner branch filter (KPIs + charts) */}
           <span className="dash-sep" style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px' }} />
           {isOwner && (
             <select
               value={chartBranchId}
               onChange={(e) => setChartBranchId(e.target.value === '' ? '' : Number(e.target.value))}
-              aria-label="Branch"
+              aria-label="Cabang"
               className="v2-select dash-branch"
               style={{ maxWidth: 220 }}
             >
-              <option value="">All branches</option>
+              <option value="">Semua cabang</option>
               {ownerBranches.map((b: any) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -712,7 +712,7 @@ export default function DashboardView() {
             className="v2-btn v2-btn-ghost dash-export"
             onClick={handleExport}
             disabled={kpiLoading || isInsightsLoading}
-            title="Download this dashboard as an Excel file"
+            title="Unduh dashboard ini sebagai file Excel"
           >
             <FileSpreadsheet size={14} />
             Export Excel
@@ -724,7 +724,7 @@ export default function DashboardView() {
       <section className="dash-welcome">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, flex: 1 }}>
             <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--accent-light)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Welcome back
+              Selamat datang kembali
             </span>
             <h2 suppressHydrationWarning style={{ fontFamily: 'var(--font-display)', fontSize: 24, fontWeight: 600, margin: 0, color: 'var(--foreground)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>
               {greeting}{user?.name ? `, ${user.name}` : ''} 👋
@@ -735,7 +735,7 @@ export default function DashboardView() {
             <div style={{ marginTop: 8 }}>
               <button type="button" className="v2-btn v2-btn-primary" onClick={() => setMotivation((m) => pickMotivation(m))}>
                 <Sparkles size={14} />
-                Motivate Me!
+                Semangati Saya!
               </button>
             </div>
           </div>
@@ -761,7 +761,7 @@ export default function DashboardView() {
                 <Wallet size={15} color="var(--caramel)" />
               </span>
               <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.85)' }}>
-                {revenue ? 'Revenue' : 'Payments received'}
+                {revenue ? 'Pendapatan' : 'Pembayaran diterima'}
               </span>
               {revenue?.change_pct != null && (
                 <span className="dash-hero-change" data-down={revenue.change_pct < 0 || undefined}>
@@ -778,7 +778,7 @@ export default function DashboardView() {
                 </div>
               )}
               <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
-                {revenue ? 'vs previous period of the same length' : `${collectedPct.toFixed(0)}% of billed amount collected in period`}
+                {revenue ? 'vs periode sebelumnya dengan panjang sama' : `${collectedPct.toFixed(0)}% dari tagihan sudah diterima dalam periode`}
               </div>
             </div>
             {sparkPts.length > 1 && (
@@ -792,10 +792,10 @@ export default function DashboardView() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
                 <span>
-                  Collected <strong style={{ color: '#fff', fontWeight: 500 }}>{formatRp(collected)}</strong>
+                  Diterima <strong style={{ color: '#fff', fontWeight: 500 }}>{formatRp(collected)}</strong>
                 </span>
                 <span>
-                  Outstanding <strong style={{ color: '#fff', fontWeight: 500 }}>{formatRp(pendingPay)}</strong>
+                  Belum diterima <strong style={{ color: '#fff', fontWeight: 500 }}>{formatRp(pendingPay)}</strong>
                 </span>
               </div>
             </div>
@@ -811,21 +811,21 @@ export default function DashboardView() {
 
       {metricsForbidden && (
         <section className="v2-card" style={cardStyle}>
-          <Forbidden what="dashboard metrics (dashboard.read)" />
+          <Forbidden what="metrik dashboard (dashboard.read)" />
         </section>
       )}
 
       {/* ── Charts ── */}
       <div className="dash-section-head" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 15, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>Performance</h2>
-        <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Trends and breakdowns for the selected period</span>
+        <h2 style={{ fontSize: 15, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>Performa</h2>
+        <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Tren dan rincian untuk periode yang dipilih</span>
         {/* Grouping only re-buckets the over-time charts; totals don't change. */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Group by</span>
-          <div className="v2-seg dash-interval" role="tablist" aria-label="Group trend charts by">
+          <span style={{ fontSize: 12, color: 'var(--foreground-muted)' }}>Kelompokkan per</span>
+          <div className="v2-seg dash-interval" role="tablist" aria-label="Kelompokkan grafik tren per">
             {(['day', 'week', 'month'] as const).map((iv) => (
               <button key={iv} type="button" role="tab" aria-selected={chartInterval === iv} onClick={() => setChartInterval(iv)}>
-                {iv === 'day' ? 'Day' : iv === 'week' ? 'Week' : 'Month'}
+                {iv === 'day' ? 'Hari' : iv === 'week' ? 'Minggu' : 'Bulan'}
               </button>
             ))}
           </div>
@@ -841,32 +841,32 @@ export default function DashboardView() {
 
       {/* ── Watchlist ── */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 15, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>Needs Attention</h2>
-        <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Live status, not limited to the period</span>
+        <h2 style={{ fontSize: 15, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>Perlu Perhatian</h2>
+        <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Status terkini, tidak terbatas periode</span>
       </div>
       <div className="dash-row-3">
         <Panel
-          title="Pending Fulfillment"
+          title="Menunggu Dipenuhi"
           icon={CalendarClock}
           tone="blue"
           count={insightsForbidden ? undefined : pendingFulfillment.length}
-          action={{ label: 'Orders', onClick: () => openTab('/sales/sales-orders') }}
+          action={{ label: 'Pesanan', onClick: () => openTab('/sales/sales-orders') }}
         >
           {insightsForbidden ? (
             <Forbidden what="insights" />
           ) : isInsightsLoading ? (
             listSkeleton
           ) : pendingFulfillment.length === 0 ? (
-            <EmptyRow text="Nothing waiting to be fulfilled" />
+            <EmptyRow text="Tidak ada pesanan yang menunggu dipenuhi" />
           ) : (
             pendingFulfillment.slice(0, 6).map((o: any) => {
               const left = daysUntil(o.fulfillment_date)
               const tone =
                 left == null ? null
-                  : left < 0 ? { label: `${-left}d late`, color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
-                  : left === 0 ? { label: 'Today', color: 'var(--warning)', bg: 'var(--warning-bg)' }
-                  : { label: `in ${left}d`, color: 'var(--info)', bg: 'var(--info-bg)' }
-              const customer = o.customer_name || o.customer?.name || 'Walk-in'
+                  : left < 0 ? { label: `telat ${-left} hari`, color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
+                  : left === 0 ? { label: 'Hari ini', color: 'var(--warning)', bg: 'var(--warning-bg)' }
+                  : { label: `${left} hari lagi`, color: 'var(--info)', bg: 'var(--info-bg)' }
+              const customer = o.customer_name || o.customer?.name || 'Pelanggan umum'
               return (
                 <div key={o.id} className="dash-row" data-click onClick={() => openTab(`/sales/sales-orders/${o.id}/detail`)}>
                   <Avatar name={customer} seed={Number(o.customer_id ?? o.id ?? 0)} />
@@ -887,18 +887,18 @@ export default function DashboardView() {
         </Panel>
 
         <Panel
-          title="Low Stock"
+          title="Stok Menipis"
           icon={AlertTriangle}
           tone="coral"
           count={insightsForbidden ? undefined : lowStock.length}
-          action={{ label: 'Stock', onClick: () => openTab('/products/product-inventory') }}
+          action={{ label: 'Stok', onClick: () => openTab('/products/product-inventory') }}
         >
           {insightsForbidden ? (
             <Forbidden what="insights" />
           ) : isInsightsLoading ? (
             listSkeleton
           ) : lowStock.length === 0 ? (
-            <EmptyRow text="All stock levels look fine" />
+            <EmptyRow text="Semua stok aman" />
           ) : (
             lowStock.slice(0, 6).map((o: any, i: number) => {
               const stock = Number(o.stock ?? 0)
@@ -919,7 +919,7 @@ export default function DashboardView() {
         </Panel>
 
         <Panel
-          title="Expiry"
+          title="Kedaluwarsa"
           icon={Clock}
           tone="mint"
           count={insightsForbidden ? undefined : expiring.length + expired.length}
@@ -929,10 +929,10 @@ export default function DashboardView() {
           ) : (
             <>
               <div style={{ padding: '10px 16px 4px' }}>
-                <div className="v2-seg" role="tablist" aria-label="Expiry">
+                <div className="v2-seg" role="tablist" aria-label="Kedaluwarsa">
                   {([
-                    ['expiring', `Expiring soon (${expiring.length})`],
-                    ['expired', `Expired (${expired.length})`],
+                    ['expiring', `Segera kedaluwarsa (${expiring.length})`],
+                    ['expired', `Kedaluwarsa (${expired.length})`],
                   ] as const).map(([k, label]) => (
                     <button key={k} type="button" role="tab" aria-selected={expiryTab === k} onClick={() => setExpiryTab(k)}>
                       {label}
@@ -943,7 +943,7 @@ export default function DashboardView() {
               {isInsightsLoading ? (
                 listSkeleton
               ) : expiryRows.length === 0 ? (
-                <EmptyRow text={expiryTab === 'expiring' ? 'Nothing expiring soon' : 'No expired stock'} />
+                <EmptyRow text={expiryTab === 'expiring' ? 'Tidak ada yang segera kedaluwarsa' : 'Tidak ada stok kedaluwarsa'} />
               ) : (
                 expiryRows.slice(0, 6).map((o: any, i: number) => {
                   const exp = expiryOf(o)
@@ -953,14 +953,14 @@ export default function DashboardView() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {inventoryLabel(o)}
                         <div style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>
-                          Exp {exp ? formatDateShort(exp) : '—'} · Stock {formatNum(o.stock)}
+                          Exp {exp ? formatDateShort(exp) : '—'} · Stok {formatNum(o.stock)}
                         </div>
                       </div>
                       {left != null && (
                         <Badge
                           {...(left < 0
-                            ? { label: `${-left}d ago`, color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
-                            : { label: left === 0 ? 'Today' : `${left}d left`, color: 'var(--warning)', bg: 'var(--warning-bg)' })}
+                            ? { label: `${-left} hari lalu`, color: 'var(--destructive)', bg: 'var(--destructive-bg)' }
+                            : { label: left === 0 ? 'Hari ini' : `${left} hari lagi`, color: 'var(--warning)', bg: 'var(--warning-bg)' })}
                         />
                       )}
                     </div>
@@ -974,29 +974,29 @@ export default function DashboardView() {
 
       {/* ── Recent activity ── */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 15, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>Recent Activity</h2>
-        <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Latest orders and best sellers</span>
+        <h2 style={{ fontSize: 15, fontWeight: 500, margin: 0, color: 'var(--foreground)' }}>Aktivitas Terbaru</h2>
+        <span style={{ fontSize: 12, color: 'var(--foreground-subtle)' }}>Pesanan terbaru dan produk terlaris</span>
       </div>
       <div className="dash-row-2">
         <Panel
-          title="Recent Sales Orders"
+          title="Sales Order Terbaru"
           icon={ShoppingBag}
           tone="lavender"
-          action={{ label: 'View all', onClick: () => openTab('/sales/sales-orders') }}
+          action={{ label: 'Lihat semua', onClick: () => openTab('/sales/sales-orders') }}
         >
           {insightsForbidden ? (
             <Forbidden what="insights" />
           ) : isInsightsLoading ? (
             listSkeleton
           ) : recentOrders.length === 0 ? (
-            <EmptyRow text="No recent orders" />
+            <EmptyRow text="Belum ada pesanan terbaru" />
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table className="v2-table">
                 <thead>
                   <tr>
-                    {['Order', 'Customer', 'Date', 'Payment', 'Total'].map((h) => (
-                      <th key={h} style={{ textAlign: h === 'Total' ? 'right' : 'left', paddingLeft: h === 'Order' ? 16 : undefined, paddingRight: h === 'Total' ? 16 : undefined }}>
+                    {['Pesanan', 'Pelanggan', 'Tanggal', 'Pembayaran', 'Total'].map((h) => (
+                      <th key={h} style={{ textAlign: h === 'Total' ? 'right' : 'left', paddingLeft: h === 'Pesanan' ? 16 : undefined, paddingRight: h === 'Total' ? 16 : undefined }}>
                         {h}
                       </th>
                     ))}
@@ -1005,7 +1005,7 @@ export default function DashboardView() {
                 <tbody>
                   {recentOrders.slice(0, 8).map((o: any) => {
                     const pm = PAYMENT_META[o.payment_status as string]
-                    const customer = o.customer_name || o.customer?.name || 'Walk-in'
+                    const customer = o.customer_name || o.customer?.name || 'Pelanggan umum'
                     return (
                       <tr key={o.id} data-row onClick={() => openTab(`/sales/sales-orders/${o.id}/detail`)} style={{ cursor: 'pointer' }}>
                         <td style={{ paddingLeft: 16, whiteSpace: 'nowrap' }}>
@@ -1032,13 +1032,13 @@ export default function DashboardView() {
           )}
         </Panel>
 
-        <Panel title="Top Selling" icon={Trophy} tone="gold" count={topSold.length || undefined}>
+        <Panel title="Terlaris" icon={Trophy} tone="gold" count={topSold.length || undefined}>
           {insightsForbidden ? (
             <Forbidden what="insights" />
           ) : isInsightsLoading ? (
             listSkeleton
           ) : topSold.length === 0 ? (
-            <EmptyRow text="No sales yet" />
+            <EmptyRow text="Belum ada penjualan" />
           ) : (
             <div style={{ padding: '6px 0' }}>
               {topSold.slice(0, 8).map((o: any, i: number) => {
@@ -1248,6 +1248,14 @@ export default function DashboardView() {
           .dash-stat-icon svg { width: 15px; height: 15px; }
           .dash-stat-value { font-size: 16px !important; }
           .dash-change { height: 16px; padding: 0 5px; font-size: 10px; }
+          /* Stretch the text column so long money values ellipsis instead of spilling out. */
+          .dash-stat > span:not(.dash-stat-icon) { align-self: stretch; }
+          .dash-strip > .dash-stat { gap: 10px; padding: 14px; }
+          .dash-strip .dash-stat-value { font-size: 18px !important; }
+        }
+        @media (max-width: 430px) {
+          .dash-strip .dash-stat-value { font-size: 16px !important; }
+          .dash-strip > .dash-stat { padding: 12px; }
         }
       `}</style>
     </div>

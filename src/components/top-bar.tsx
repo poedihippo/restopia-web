@@ -173,7 +173,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
       </nav>
 
       {/* RIGHT — Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
 
         {/* Menu search (Ctrl/⌘+K) */}
         <MenuSearch />
@@ -182,7 +182,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
         <TourHelpButton />
 
         {/* Branch pill */}
-        <div style={{ position: 'relative' }} ref={branchRef}>
+        <div className="topbar-branch" style={{ position: 'relative', minWidth: 0 }} ref={branchRef}>
           <button
             type="button"
             onClick={() => setBranchMenuOpen((v) => !v)}
@@ -381,6 +381,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
 
         {/* Divider */}
         <div
+          className="topbar-divider"
           style={{
             width: 1,
             height: 20,
@@ -426,6 +427,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
 
             {/* Name */}
             <span
+              className="topbar-user-name"
               style={{
                 fontSize: 13,
                 fontWeight: 500,
@@ -439,7 +441,7 @@ export default function TopBar({ onMenuClick }: TopBarProps = {}) {
               {user?.name ?? '—'}
             </span>
 
-            <ChevronsUpDown size={13} style={{ color: 'var(--foreground-muted)', flexShrink: 0 }} />
+            <ChevronsUpDown size={13} className="topbar-user-chev" style={{ color: 'var(--foreground-muted)', flexShrink: 0 }} />
           </button>
 
           {/* Dropdown */}

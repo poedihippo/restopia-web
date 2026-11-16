@@ -28,18 +28,18 @@ const GRID = '#eef0f4'
 type Unit = 'money' | 'qty' | 'count'
 
 const CHART_META: Record<DashboardChartKey, { title: string; unit: Unit }> = {
-  sales_trend: { title: 'Sales Trend', unit: 'money' },
-  sales_by_channel: { title: 'Sales by Channel', unit: 'money' },
-  payment_methods: { title: 'Payment Methods', unit: 'money' },
-  top_products: { title: 'Top Products', unit: 'qty' },
-  sales_by_hour: { title: 'Sales by Hour', unit: 'money' },
-  production_trend: { title: 'Production Trend', unit: 'count' },
-  top_produced_products: { title: 'Top Produced Products', unit: 'qty' },
-  purchase_trend: { title: 'Purchase Trend', unit: 'money' },
-  top_suppliers: { title: 'Top Suppliers', unit: 'money' },
-  stock_flow: { title: 'Stock Flow', unit: 'count' },
-  stock_health: { title: 'Stock Health', unit: 'count' },
-  branch_comparison: { title: 'Branch Comparison', unit: 'money' },
+  sales_trend: { title: 'Tren Penjualan', unit: 'money' },
+  sales_by_channel: { title: 'Penjualan per Channel', unit: 'money' },
+  payment_methods: { title: 'Metode Pembayaran', unit: 'money' },
+  top_products: { title: 'Produk Terlaris', unit: 'qty' },
+  sales_by_hour: { title: 'Penjualan per Jam', unit: 'money' },
+  production_trend: { title: 'Tren Produksi', unit: 'count' },
+  top_produced_products: { title: 'Produk Paling Banyak Diproduksi', unit: 'qty' },
+  purchase_trend: { title: 'Tren Pembelian', unit: 'money' },
+  top_suppliers: { title: 'Supplier Teratas', unit: 'money' },
+  stock_flow: { title: 'Arus Stok', unit: 'count' },
+  stock_health: { title: 'Kesehatan Stok', unit: 'count' },
+  branch_comparison: { title: 'Perbandingan Cabang', unit: 'money' },
 }
 
 // Series that are money even inside a mixed chart (orders are counts).
@@ -55,7 +55,34 @@ const fmtCompact = (n: number) => {
 }
 const fmtValue = (n: number, money: boolean) => (money ? formatCurrency(n) : fmtNum(n))
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// Series / status labels arrive from the API in English; show them in Indonesian
+// (unknown labels pass through unchanged).
+const API_LABELS: Record<string, string> = {
+  revenue: 'Pendapatan',
+  orders: 'Pesanan',
+  'sales orders': 'Sales order',
+  spending: 'Belanja',
+  'purchase orders': 'Purchase order',
+  productions: 'Produksi',
+  production: 'Produksi',
+  'items produced': 'Item diproduksi',
+  quantity: 'Kuantitas',
+  qty: 'Qty',
+  in: 'Masuk',
+  out: 'Keluar',
+  'stock in': 'Stok masuk',
+  'stock out': 'Stok keluar',
+  healthy: 'Aman',
+  'low stock': 'Stok menipis',
+  expiring: 'Segera kedaluwarsa',
+  expired: 'Kedaluwarsa',
+  'out of stock': 'Habis',
+  other: 'Lainnya',
+  'walk-in': 'Pelanggan umum',
+}
+export const apiLabel = (label: string) => API_LABELS[label?.trim().toLowerCase()] ?? label
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 // Labels arrive as DD-MM-YYYY (never parse sales_by_hour labels this way).
 const fmtLabel = (label: string, interval: DashboardChartInterval, hourly: boolean, long = false) => {
   if (hourly) return long ? `${label}:00 – ${label}:59` : label
@@ -64,7 +91,7 @@ const fmtLabel = (label: string, interval: DashboardChartInterval, hourly: boole
   const [, d, mo, y] = m
   const mon = MONTHS[Number(mo) - 1]
   if (interval === 'month') return long ? `${mon} ${y}` : mon
-  if (interval === 'week') return long ? `Week of ${Number(d)} ${mon} ${y}` : `${Number(d)} ${mon}`
+  if (interval === 'week') return long ? `Minggu ${Number(d)} ${mon} ${y}` : `${Number(d)} ${mon}`
   return long ? `${Number(d)} ${mon} ${y}` : `${Number(d)} ${mon}`
 }
 
@@ -103,7 +130,7 @@ function ChangeBadge({ pct }: { pct: number | null }) {
     <span
       className="dc-badge"
       style={{ color: up ? 'var(--success)' : 'var(--destructive)', background: up ? 'var(--success-bg)' : 'var(--destructive-bg)' }}
-      title="Compared with the previous period"
+      title="Dibandingkan dengan periode sebelumnya"
     >
       <Icon size={12} />
       {Math.abs(pct).toLocaleString('id-ID', { maximumFractionDigits: 1 })}%
@@ -151,7 +178,7 @@ function TimeSeriesChart({
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       {width > 0 && (
-        <svg width={width} height={H} role="img" aria-label="Trend chart" className="dc-ts">
+        <svg width={width} height={H} role="img" aria-label="Grafik tren" className="dc-ts">
           {ticks.map((t) => (
             <g key={t}>
               <line x1={pad.l} x2={width - pad.r} y1={y(t)} y2={y(t)} stroke={GRID} />
@@ -233,7 +260,7 @@ function TimeSeriesChart({
           {series.map((s, si) => (
             <div key={s.key} className="dc-tip-row">
               <span className="dc-swatch" style={{ background: colors[si] }} />
-              <span>{s.label}</span>
+              <span>{apiLabel(s.label)}</span>
               <strong>{fmtValue(s.data[hover] ?? 0, MONEY_SERIES.has(s.key))}</strong>
             </div>
           ))}
@@ -244,7 +271,7 @@ function TimeSeriesChart({
           {series.map((s, si) => (
             <span key={s.key}>
               <span className="dc-swatch" style={{ background: colors[si] }} />
-              {s.label} · {fmtNum(s.total)}
+              {apiLabel(s.label)} · {fmtNum(s.total)}
             </span>
           ))}
         </div>
@@ -259,7 +286,7 @@ function foldItems(b: ChartBreakdown, max = 7) {
   if (b.items.length <= max + 1) return b.items
   const head = b.items.slice(0, max)
   const rest = b.items.slice(max)
-  return [...head, { id: null, label: `Other (${rest.length})`, value: rest.reduce((a, i) => a + i.value, 0), count: rest.reduce((a, i) => a + i.count, 0) }]
+  return [...head, { id: null, label: `Lainnya (${rest.length})`, value: rest.reduce((a, i) => a + i.value, 0), count: rest.reduce((a, i) => a + i.count, 0) }]
 }
 
 // ── Breakdown: horizontal bars ───────────────────────────────────────────────
@@ -273,7 +300,7 @@ function niceTicks(max: number, count = 5) {
   return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step)
 }
 
-const SERIES_LABEL: Record<Unit, string> = { money: 'Amount', qty: 'Qty sold', count: 'Count' }
+const SERIES_LABEL: Record<Unit, string> = { money: 'Nilai', qty: 'Qty terjual', count: 'Jumlah' }
 
 // `share` = parts of a whole (channels, payment methods): keep every item by
 // folding the tail into "Other", and show each bar's % of the total.
@@ -306,7 +333,7 @@ function HBars({ data, unit, countLabel, share }: { data: ChartBreakdown; unit: 
             >
               <span className="dc-hbar-label">{it.label}</span>
               <div className="dc-hbar-track">
-                <div className="dc-hbar-fill" style={{ '--i': i, width: `${w}%`, background: it.label.startsWith('Other (') ? OTHER_COLOR : SINGLE } as React.CSSProperties} />
+                <div className="dc-hbar-fill" style={{ '--i': i, width: `${w}%`, background: it.label.startsWith('Lainnya (') ? OTHER_COLOR : SINGLE } as React.CSSProperties} />
                 {hover === i && (
                   <span className="dc-hbar-value" data-inside={w > 62 || undefined} style={w > 62 ? { right: `${100 - w}%` } : { left: `${w}%` }}>
                     {money ? fmtCompact(it.value) : fmtNum(it.value)}
@@ -354,7 +381,7 @@ function StockHealth({ data }: { data: ChartBreakdown }) {
             it.value > 0 ? (
               <div
                 key={it.label}
-                title={`${it.label}: ${fmtNum(it.value)}`}
+                title={`${apiLabel(it.label)}: ${fmtNum(it.value)}`}
                 style={{ flex: it.value, background: HEALTH[it.label]?.color ?? OTHER_COLOR }}
               />
             ) : null,
@@ -367,7 +394,7 @@ function StockHealth({ data }: { data: ChartBreakdown }) {
           return (
             <div key={it.label} className="dc-health">
               <Icon size={14} style={{ color: meta.color, flexShrink: 0 }} />
-              <span>{it.label}</span>
+              <span>{apiLabel(it.label)}</span>
               <strong>{fmtNum(it.value)}</strong>
               <span className="dc-legend-pct">{total > 0 ? `${Math.round((it.value / total) * 100)}%` : '–'}</span>
             </div>
@@ -429,10 +456,10 @@ function TrendCard({
   ) : null
   const toggle =
     !together && chart.series.length > 1 ? (
-      <div className="v2-seg" role="tablist" aria-label={`${meta.title} series`}>
+      <div className="v2-seg" role="tablist" aria-label={`Seri ${meta.title}`}>
         {chart.series.map((s) => (
           <button key={s.key} type="button" role="tab" aria-selected={s.key === current?.key} onClick={() => setActive(s.key)}>
-            {s.label}
+            {apiLabel(s.label)}
           </button>
         ))}
       </div>
@@ -455,17 +482,17 @@ function BreakdownCard({ chartKey, data }: { chartKey: DashboardChartKey; data: 
   const money = meta.unit === 'money'
   const headline =
     chartKey === 'stock_health' ? (
-      <div className="dc-sub">{fmtNum(data.total)} stock items</div>
+      <div className="dc-sub">{fmtNum(data.total)} item stok</div>
     ) : (
       <div className="dc-sub">
         {money ? `Total ${formatCurrency(data.total)}` : `Total ${fmtNum(data.total)} ${meta.unit === 'qty' ? 'pcs' : ''}`}
       </div>
     )
   let body: React.ReactNode
-  if (data.items.length === 0) body = <div className="dc-empty">No data in this period</div>
+  if (data.items.length === 0) body = <div className="dc-empty">Tidak ada data di periode ini</div>
   else if (chartKey === 'stock_health') body = <StockHealth data={data} />
   else if (chartKey === 'sales_by_channel' || chartKey === 'payment_methods') body = <HBars data={data} unit={meta.unit} share />
-  else body = <HBars data={data} unit={meta.unit} countLabel={meta.unit === 'qty' ? 'orders' : undefined} />
+  else body = <HBars data={data} unit={meta.unit} countLabel={meta.unit === 'qty' ? 'pesanan' : undefined} />
   return (
     <ChartCard title={meta.title} headline={headline}>
       {body}
@@ -486,8 +513,8 @@ type ChartsParams = {
 export const chartsRangeError = (dateFrom: string, dateTo: string): string | null => {
   if (!dateFrom || !dateTo) return null
   const days = Math.round((Date.parse(dateTo) - Date.parse(dateFrom)) / 86_400_000) + 1
-  if (days < 1) return 'Start date must be on or before the end date.'
-  if (days > 366) return 'The period can cover at most 366 days.'
+  if (days < 1) return 'Tanggal mulai harus sebelum atau sama dengan tanggal akhir.'
+  if (days > 366) return 'Periode maksimal 366 hari.'
   return null
 }
 
@@ -534,16 +561,16 @@ export default function DashboardCharts(props: ChartsParams) {
     content = (
       <div className="v2-card dc-state">
         {status === 403
-          ? msg || "You don't have permission to view these charts."
+          ? msg || 'Anda tidak punya izin untuk melihat grafik ini.'
           : status === 404
-            ? 'That branch was not found in your company.'
+            ? 'Cabang tidak ditemukan di perusahaan Anda.'
             : status === 422
-              ? msg || 'The selected period is not valid.'
-              : 'Failed to load charts.'}
+              ? msg || 'Periode yang dipilih tidak valid.'
+              : 'Gagal memuat grafik.'}
       </div>
     )
   } else if (!charts || charts.available_charts.length === 0) {
-    content = <div className="v2-card dc-state">No charts are available for this branch.</div>
+    content = <div className="v2-card dc-state">Tidak ada grafik untuk cabang ini.</div>
   } else {
     const interval_ = charts.period?.interval ?? interval
     // Even rows: each wide trend card is paired with one breakdown card (2 + 1
