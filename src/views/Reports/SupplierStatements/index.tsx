@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
-import { Search } from 'lucide-react'
+import React, { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { reportsService } from '@/services/reports.service'
+import SearchableSelect from '@/components/SearchableSelect'
 import FinancePeriodSelect from '../FinancePeriodSelect'
 import StatementReport from '../StatementReport'
 
@@ -12,6 +13,21 @@ export default function SupplierStatementsView() {
 
   const value = { supplier: supplier.trim(), asOfDate }
 
+  // The API matches the supplier name exactly (case-insensitive), so offer the
+  // parties that actually appear on the unfiltered statement — this also covers
+  // inter-branch POs, whose "supplier" is the supplying branch.
+  const { data: partyNames = [], isLoading: partiesLoading } = useQuery({
+    queryKey: ['supplier-statement-parties', asOfDate],
+    queryFn: () =>
+      reportsService
+        .getSupplierStatement(asOfDate ? { as_of_date: asOfDate } : {})
+        .then((r) => Array.from(new Set((r.data.data.lines ?? []).map((l) => l.supplier_name).filter(Boolean))).sort()),
+  })
+  const partyOptions = useMemo(
+    () => [{ value: '', label: 'Semua supplier' }, ...partyNames.map((n) => ({ value: n, label: n }))],
+    [partyNames],
+  )
+
   return (
     <StatementReport
       title="Supplier Statements"
@@ -20,7 +36,7 @@ export default function SupplierStatementsView() {
       partyLabel="Supplier"
       autoLoad
       queryKey="supplier-statements-preview"
-      emptyHint="Kosongkan nama supplier untuk menampilkan semua supplier."
+      emptyHint="Pilih Semua supplier untuk menampilkan semua supplier."
       value={value}
       fetchData={(v) =>
         reportsService
@@ -57,16 +73,14 @@ export default function SupplierStatementsView() {
       }
       filters={
         <>
-          <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 300 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--foreground-subtle)', pointerEvents: 'none' }} />
-            <input
-              className="v2-input"
-              type="text"
+          <div style={{ flex: '1 1 220px', maxWidth: 300 }}>
+            <SearchableSelect
               value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              placeholder="Cari nama supplier (semua)"
-              aria-label="Nama supplier"
-              style={{ width: '100%', paddingLeft: 30 }}
+              onChange={(v) => setSupplier(String(v ?? ''))}
+              options={partyOptions}
+              placeholder="Semua supplier"
+              searchPlaceholder="Cari nama supplier..."
+              loading={partiesLoading}
             />
           </div>
           <FinancePeriodSelect className="v2-select" asOf={asOfDate} onChange={(p) => setAsOfDate(p.end_date)} />

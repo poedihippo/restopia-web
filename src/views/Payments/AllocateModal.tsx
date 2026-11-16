@@ -1,13 +1,17 @@
 'use client'
 
-import React, { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { paymentsService } from '@/services/payments.service'
 import { X, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/utils/price'
 import LocalizedNumberInput from '@/components/LocalizedNumberInput'
 import { parseNumberId } from '@/utils/numberFormat'
+import SearchableSelect from '@/components/SearchableSelect'
+import { salesOrdersService } from '@/services/sales-orders.service'
+import { purchaseOrdersService } from '@/services/purchase-orders.service'
+import { invoicesService } from '@/services/invoices.service'
 
 interface AllocateModalProps {
   payment: any
@@ -19,6 +23,34 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
   const [orderType, setOrderType] = useState<'so' | 'po' | 'invoice'>('so')
   const [orderId, setOrderId] = useState('')
   const [amount, setAmount] = useState(() => parseNumberId(payment.amount))
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 400); return () => clearTimeout(t) }, [search])
+  useEffect(() => { setOrderId(''); setSearch('') }, [orderType])
+
+  // Pick the document by its number (filter[search] matches `code`) instead of
+  // typing a raw database id.
+  const { data: docsData, isFetching: docsLoading } = useQuery({
+    queryKey: ['allocate-documents', orderType, debouncedSearch],
+    queryFn: () => {
+      const include = orderType === 'po' ? 'supplier,supplier_branch' : orderType === 'invoice' ? 'billed_branch' : undefined
+      const params = { per_page: 20, sort: '-id', include, 'filter[search]': debouncedSearch || undefined } as any
+      const svc: any = orderType === 'so' ? salesOrdersService : orderType === 'po' ? purchaseOrdersService : invoicesService
+      return svc.list(params).then((r: any) => r.data)
+    },
+  })
+  const docOptions = useMemo(() => {
+    const rows: any[] = (docsData as any)?.data ?? []
+    return rows.map((d) => {
+      const party = d.customer_name ?? d.customer?.name ?? d.supplier?.name ?? d.supplier_branch?.name ?? d.billed_branch?.name
+      const outstanding = Number(d.total_price ?? 0) - Number(d.total_payment ?? 0)
+      return {
+        value: String(d.id),
+        label: d.code || `#${d.id}`,
+        sublabel: [party, `Outstanding ${formatCurrency(outstanding)}`].filter(Boolean).join(' · '),
+      }
+    })
+  }, [docsData])
 
   const allocateMutation = useMutation({
     mutationFn: () => {
@@ -26,9 +58,9 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
         allocations: [
           {
             amount: Number(amount) || 0,
-            sales_order_id: orderType === 'so' ? parseInt(orderId) : undefined,
-            purchase_order_id: orderType === 'po' ? parseInt(orderId) : undefined,
-            invoice_id: orderType === 'invoice' ? parseInt(orderId) : undefined,
+            sales_order_id: orderType === 'so' ? Number(orderId) : undefined,
+            purchase_order_id: orderType === 'po' ? Number(orderId) : undefined,
+            invoice_id: orderType === 'invoice' ? Number(orderId) : undefined,
           }
         ]
       }
@@ -79,13 +111,15 @@ export default function AllocateModal({ payment, onClose }: AllocateModalProps) 
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Order ID</label>
-            <input
-              type="number"
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--foreground)' }}>Document</label>
+            <SearchableSelect
               value={orderId}
-              onChange={(e) => setOrderId(e.target.value)}
-              placeholder="e.g. 1"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', fontSize: 14, boxSizing: 'border-box' }}
+              onChange={(v) => setOrderId(String(v ?? ''))}
+              options={docOptions}
+              placeholder="Select document..."
+              searchPlaceholder="Search by number..."
+              loading={docsLoading}
+              onSearchChange={setSearch}
             />
           </div>
 

@@ -247,7 +247,7 @@ export default function SupplierDebtsView({ mode = 'report' }: { mode?: Supplier
   const exportExcel = () => {
     const buyerName = buyerOptions.find((o) => o.value === buyerId)?.label
     const branchName = branchOptions.find((o) => o.value === branchId)?.label
-    const today = new Date().toISOString().slice(0, 10)
+    const today = new Date().toLocaleDateString('en-CA') // local YYYY-MM-DD (not UTC)
     downloadExcel(`kartu-hutang-supplier-${today}.xlsx`, [
       {
         name: 'Rekap Supplier',

@@ -118,6 +118,9 @@ export function salesChannelProtectedBlock(sc: Rec): string | null {
 // a journal posted by a document (reference_type set, not 'opening_balance')
 // can only be changed from that document — edit/delete/reverse return 422.
 function documentJournalBlock(j: Rec): string | null {
+  // manual_journal_rules.go (assertNotClosingJournal): the year-end closing
+  // journal has no reference but can't be changed or reversed by hand.
+  if (j?.type === 'closing') return 'Year-end closing journal — cannot be changed by hand'
   const type = j?.reference_type
   if (!type || type === 'opening_balance') return null
   return `Posted by ${referenceLabel(type)} — change it from that document`
@@ -151,6 +154,15 @@ export function journalReverseBlock(j: Rec): string | null {
 
 // ── Periods / fiscal years ───────────────────────────────────
 // periods/application/usecase/update_usecase.go:68-93
+// periods/application/usecase/update_usecase.go (guardUpdate → assertFiscalYearOpen):
+// a period of a closed fiscal year can't be reopened.
+export function periodReopenBlock(p: Rec): string | null {
+  if (!p) return null
+  if (!p.is_closed) return null
+  if (p.fiscal_year?.is_closed) return 'Fiscal year closed — reopen it first'
+  return null
+}
+
 export function periodEditBlock(p: Rec): string | null {
   if (!p) return null
   if (p.is_closed) return 'Period closed — reopen it first'

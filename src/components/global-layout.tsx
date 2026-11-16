@@ -13,6 +13,7 @@ import { isUiV2Route } from '@/lib/uiPreview';
 import DatePopover from '@/components/DatePopover';
 import { recordRecentPage } from '@/lib/recentPages';
 import ProductTour from '@/components/tour/ProductTour';
+import { installTableTopScrollbars } from '@/lib/tableTopScrollbar';
 
 type Props = {
   children: React.ReactNode;
@@ -126,6 +127,14 @@ export default function GlobalLayout({ children }: Props) {
 
   // While the page area shows its loading spinner, the sidebar glow stays hidden.
   const pageLoading = isCheckingAuth || isNavigating;
+  // Wide tables get a second horizontal scrollbar under the header row.
+  useEffect(() => {
+    if (!uiV2) return;
+    const main = document.querySelector<HTMLElement>('main.app-main');
+    if (!main) return;
+    return installTableTopScrollbars(main);
+  }, [uiV2]);
+
   useEffect(() => {
     const root = document.documentElement;
     if (pageLoading) root.dataset.pageLoading = '';

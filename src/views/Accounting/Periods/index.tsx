@@ -12,7 +12,7 @@ import { reportsService } from '@/services/reports.service'
 import { downloadFileFromResponse } from '@/utils/file'
 import { toastMutationApiError } from '@/utils/apiError'
 import { useAuth } from '@/hooks/useAuth'
-import { periodEditBlock, blockedStyle } from '@/lib/actionGuards'
+import { periodEditBlock, periodReopenBlock, blockedStyle } from '@/lib/actionGuards'
 import { CustomPagination } from '@/components/ui/CustomPagination'
 import { FilterBar, FilterSelect, countActive } from '@/components/ListFilters'
 import SearchableSelect from '@/components/SearchableSelect'
@@ -287,7 +287,10 @@ export default function PeriodsView() {
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
                       {canUpdate && (
                         item.is_closed
-                          ? <button title="Reopen period" onClick={() => setLockTarget({ period: item, action: 'reopen' })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><LockOpen size={14} /></button>
+                          ? (() => {
+                              const reopenReason = periodReopenBlock(item)
+                              return <button title={reopenReason ?? 'Reopen period'} disabled={!!reopenReason} onClick={() => { if (!reopenReason) setLockTarget({ period: item, action: 'reopen' }) }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex', ...(reopenReason ? blockedStyle : {}) }}><LockOpen size={14} /></button>
+                            })()
                           : <button title="Close period" onClick={() => setLockTarget({ period: item, action: 'close' })} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 'var(--radius-sm)', color: 'var(--foreground-muted)', display: 'flex' }}><Lock size={14} /></button>
                       )}
                       {(() => {
